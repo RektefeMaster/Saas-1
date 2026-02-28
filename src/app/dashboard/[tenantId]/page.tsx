@@ -645,12 +645,34 @@ export default function EsnafDashboard({
                         hour: "2-digit",
                         minute: "2-digit",
                       });
+                      const name = (apt.extra_data as { customer_name?: string })?.customer_name;
                       return (
                         <div
                           key={apt.id}
-                          className="rounded-lg bg-emerald-100 px-3 py-2 text-sm text-emerald-800"
+                          className="flex items-center gap-2 rounded-lg bg-emerald-100 px-3 py-2 text-sm text-emerald-800"
                         >
-                          <span className="font-medium">{time}</span> – {apt.customer_phone}
+                          <div>
+                            <span className="font-medium">{time}</span> – {name || apt.customer_phone}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={async () => {
+                              if (!confirm("Bu randevuyu iptal etmek istiyor musunuz?")) return;
+                              const res = await fetch(`${baseUrl}/api/tenant/${tenantId}/cancel`, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ appointment_id: apt.id, cancelled_by: "tenant" }),
+                              });
+                              if (res.ok) {
+                                setAppointments((prev) => prev.filter((a) => a.id !== apt.id));
+                                if (selectedDate) fetchAvailability(selectedDate);
+                              }
+                            }}
+                            className="ml-1 rounded px-1.5 py-0.5 text-xs text-red-600 hover:bg-red-100"
+                            title="İptal et"
+                          >
+                            ✕
+                          </button>
                         </div>
                       );
                     })}

@@ -42,9 +42,9 @@ const openai =
 // ── Constants ───────────────────────────────────────────────────────────────────
 
 const HUMAN_ESCALATION_TAG = "[[INSAN]]";
-const MAX_MESSAGES_BEFORE_ESCALATION = 10;
-const MAX_CHAT_HISTORY_TURNS = 2;
-const MAX_TOOL_ROUNDS = 3;
+const MAX_MESSAGES_BEFORE_ESCALATION = 20;
+const MAX_CHAT_HISTORY_TURNS = 10;
+const MAX_TOOL_ROUNDS = 5;
 
 const VALID_STEPS = [
   "tenant_bulundu",
@@ -118,11 +118,21 @@ function buildSystemPrompt(
 
   let prompt = `Sen ${tenantName} işletmesinin WhatsApp asistanısın. ${personality}. Müşteriye '${hitap}' diye hitap et.
 
+Bu müşteri direkt bu işletmeye yazıyor, başka işletme seçmesine gerek yok. Müşteri her mesaj yazdığında ${tenantName} ile konuşuyor.
+
 Ne yapman gerektiğini kendin anla: müşteri randevu istiyorsa al, iptal istiyorsa iptal et, saat soruyorsa takvime bak söyle.
+
+BAĞLAM VE HAFIZA:
+- Konuşma geçmişindeki TÜM bilgileri hatırla ve kullan. Müşteri adını söylediyse tekrar sorma.
+- Müşterinin daha önce söylediği tarih, saat, isim gibi bilgileri konuşma boyunca aklında tut.
+- Müşteri "o halde pazartesi" derse, bu "en yakın pazartesi" demektir. Bağlam'daki tarih listesinden doğru YYYY-MM-DD'yi bul.
+- Bir işlem tamamlandıktan sonra (randevu alındı, iptal edildi vs.) konuşma devam eder. Müşteri yeni randevu isteyebilir, soru sorabilir.
 
 Kurallar:
 - Kısa ve doğal cevap ver. Aynı kalıp cümleleri tekrarlama, her seferinde biraz farklı söyle.
-- Müşteri saat söyleyince direkt randevu oluştur, ekstra onay sorma.
+- Randevu oluşturmadan önce müşterinin adını mutlaka öğren. Ad bilmiyorsan sor: "Randevuyu kimin adına alayım?" veya "Adınızı alabilir miyim?". Adı öğrendikten sonra randevuyu oluştur.
+- Müşterinin adını öğrendikten sonra saat de belliyse direkt randevu oluştur, ekstra onay sorma.
+- Müşt
 - Saat: "6" → 18:00, "sabah 10" → 10:00, "öğleden sonra 3" → 15:00, "akşam üstü" → 17:00-18:00 arası.
 - Tarih: bağlamda Bugün/Yarın verilmiş, onu kullan. "öbür gün" = yarından sonraki gün. "bu hafta sonu" = Cumartesi. "yakın zamanda" → bu hafta kontrol et.
 - Çalışma saatleri dışında randevu önerme.
@@ -164,23 +174,40 @@ Müşteri: "ben ve eşim için iki randevu alalım, 15 ve 15:30" → iki kez cre
 
 // ── System context (dates, availability, history) ───────────────────────────────
 
+const TR_DAY_NAMES_FULL = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+
+function localDateStr(d: Date): string {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function buildSystemContext(
   state: ConversationState | null,
   historySummary?: string
 ): string {
   const today = new Date();
-  const todayStr = today.toISOString().slice(0, 10);
-  const tomorrow = new Date(today);
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
-  // Bu haftanın Pazartesi (getDay: 0=Paz, 1=Pzt...)
-  const weekStart = new Date(today);
-  weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7));
-  const weekStartStr = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, "0")}-${String(weekStart.getDate()).padStart(2, "0")}`;
+  const todayStr = localDateStr(today);
+  const todayDow = today.getDay();
 
-  let ctx = `Bugün: ${todayStr}. Yarın: ${tomorrowStr}. Bu hafta (check_week_availability için start_date): ${weekStartStr}.`;
+  const nextDays: string[] = [];
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(today);
+    d.setDate(today.getDate() + i);
+    const ds = localDateStr(d);
+    const dayName = TR_DAY_NAMES_FULL[d.getDay()];
+    nextDays.push(`${dayName}=${ds}`);
+  }
+
+  let ctx = `Bugün: ${todayStr} (${TR_DAY_NAMES_FULL[todayDow]}).`;
+  ctx += ` Önümüzdeki günler: ${nextDays.join(", ")}.`;
+  ctx += ` ÖNEMLİ: Müşteri "pazartesi" derse EN YAKIN pazartesiyi kullan (yukarıdaki listeden bak). "Bu hafta" veya "gelecek hafta" derse start_date olarak bugünün tarihini ver.`;
 
   const ext = (state?.extracted || {}) as Record<string, unknown>;
+
+  const customerName = ext.customer_name as string | undefined;
+  if (customerName) {
+    ctx += ` Müşterinin adı: ${customerName}. Tekrar sorma, bu bilgiyi kullan.`;
+  }
+
   const lastDate = ext.last_availability_date as string | undefined;
   const lastSlots = ext.last_available_slots as string[] | undefined;
   if (
@@ -525,15 +552,16 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "create_appointment",
-      description: "Randevu oluştur.",
+      description: "Randevu oluştur. Müşterinin adını mutlaka sor ve customer_name olarak gönder.",
       parameters: {
         type: "object",
         properties: {
           date: { type: "string", description: "YYYY-MM-DD" },
           time: { type: "string", description: "HH:MM" },
-          extra_data: { type: "object", description: "Opsiyonel" },
+          customer_name: { type: "string", description: "Müşterinin adı soyadı" },
+          extra_data: { type: "object", description: "Opsiyonel ek veri" },
         },
-        required: ["date", "time"],
+        required: ["date", "time", "customer_name"],
       },
     },
   },
@@ -752,19 +780,23 @@ async function executeToolCall(
   if (name === "create_appointment") {
     const dateStr = args.date as string;
     const timeStr = args.time as string;
+    const customerName = (args.customer_name as string) ||
+      (state?.extracted as { customer_name?: string })?.customer_name || "";
+    const extraData = {
+      ...(args.extra_data as Record<string, unknown> || {}),
+      ...(customerName ? { customer_name: customerName } : {}),
+    };
     const result = await createAppointment(
       tenantId,
       customerPhone,
       dateStr,
       timeStr,
-      args.extra_data as Record<string, unknown>
+      extraData
     );
     if (result.ok) {
-      // Esnafa bildirim gönder
       notifyMerchant(tenantId, customerPhone, dateStr, timeStr).catch((e) =>
         console.error("[ai] merchant notify error:", e)
       );
-      // İptal durumunda bekleme listesini bilgilendir
       checkAndNotifyWaitlist(tenantId, dateStr, configOverride).catch((e) =>
         console.error("[ai] waitlist notify error:", e)
       );
@@ -774,8 +806,15 @@ async function executeToolCall(
           date: dateStr,
           date_readable: formatDateTr(dateStr),
           time: timeStr,
+          customer_name: customerName,
         },
         sessionDeleted: true,
+        sessionUpdate: {
+          extracted: {
+            ...(state?.extracted || {}),
+            customer_name: customerName,
+          },
+        },
       };
     }
     return { result: { ok: false, error: result.error } };
@@ -1266,8 +1305,21 @@ export async function processMessage(
 
     // ── Session management ──
     if (sessionDeleted) {
-      await deleteSession(tenantId, customerPhone);
-      return { reply: finalReply, stateReset: true };
+      await setSession(tenantId, customerPhone, {
+        tenant_id: tenantId,
+        customer_phone: customerPhone,
+        flow_type: flowType,
+        extracted: {},
+        step: "devam",
+        message_count: 0,
+        consecutive_misunderstandings: 0,
+        chat_history: [
+          { role: "user" as const, content: incomingMessage },
+          { role: "assistant" as const, content: finalReply },
+        ],
+        updated_at: new Date().toISOString(),
+      });
+      return { reply: finalReply };
     }
 
     const updatedHistory = trimChatHistory([

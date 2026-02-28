@@ -2,10 +2,25 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseTenantCodeFromMessage } from "@/lib/tenant-code";
 import { getTenantByCode, processMessage } from "@/lib/ai";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
-import { getTenantIdByPhone, setPhoneTenantMapping, setSession } from "@/lib/redis";
+import { getTenantIdByPhone, setPhoneTenantMapping, setSession, getSession } from "@/lib/redis";
 import { verifyWebhookSignatureBody, getWebhookSecret } from "@/middleware/webhookVerify.middleware";
 import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
+import { supabase } from "@/lib/supabase";
 import type { ConversationState } from "@/lib/database.types";
+
+const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || "";
+
+async function resolveDefaultTenant(): Promise<string | null> {
+  if (DEFAULT_TENANT_ID) return DEFAULT_TENANT_ID;
+  const { data } = await supabase
+    .from("tenants")
+    .select("id")
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .limit(2);
+  if (data && data.length === 1) return data[0].id;
+  return null;
+}
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "saasrandevu_verify";
 
@@ -75,49 +90,46 @@ export async function POST(request: NextRequest) {
 
           try {
             let tenantId: string | null = await getTenantIdByPhone(customerPhone);
+            let isNewTenant = false;
 
             const code = parseTenantCodeFromMessage(text);
             if (code) {
               const tenant = await getTenantByCode(code);
               if (tenant) {
                 tenantId = tenant.id;
-                await setPhoneTenantMapping(customerPhone, tenant.id);
-                const newState: ConversationState = {
-                  tenant_id: tenant.id,
-                  customer_phone: customerPhone,
-                  flow_type: "appointment",
-                  extracted: {},
-                  step: "tenant_bulundu",
-                  updated_at: new Date().toISOString(),
-                };
-                await setSession(tenant.id, customerPhone, newState);
+                isNewTenant = true;
               }
             }
 
-            if (!tenantId && !code) {
+            if (!tenantId) {
+              const defaultId = await resolveDefaultTenant();
+              if (defaultId) {
+                tenantId = defaultId;
+                isNewTenant = true;
+              }
+            }
+
+            if (!tenantId) {
               const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://saasrandevu.com";
               const listUrl = `${appUrl}/isletmeler`;
               console.log("[webhook] no tenant, sending list to", customerPhone);
-              const sent = await sendWhatsAppMessage({
+              await sendWhatsAppMessage({
                 to: customerPhone,
                 text: `Merhaba! Hangi işletme için randevu almak istiyorsunuz?\n\nİşletme listesine buradan ulaşabilirsiniz: ${listUrl}\n\nVeya mesajınızda "Kod: XXXXXX" formatında işletme kodunu yazın (örn: Kod: AHMET01).`,
               });
-              console.log("[webhook] send result (no tenant):", sent);
               continue;
             }
 
-            if (!tenantId) continue;
-
             await setPhoneTenantMapping(customerPhone, tenantId);
 
-            const existingSession = await import("@/lib/redis").then((m) => m.getSession(tenantId!, customerPhone));
-            if (!existingSession) {
+            const existingSession = await getSession(tenantId, customerPhone);
+            if (!existingSession || isNewTenant) {
               const newState: ConversationState = {
                 tenant_id: tenantId,
                 customer_phone: customerPhone,
                 flow_type: "appointment",
                 extracted: {},
-                step: "tenant_bulundu",
+                step: isNewTenant ? "tenant_bulundu" : "devam",
                 updated_at: new Date().toISOString(),
               };
               await setSession(tenantId, customerPhone, newState);
