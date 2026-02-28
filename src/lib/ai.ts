@@ -7,6 +7,7 @@ import {
   getTenantFromCache,
   setTenantCache,
 } from "./redis";
+import { sendWhatsAppMessage } from "./whatsapp";
 import { checkBlockedDate } from "@/services/blockedDates.service";
 import { getCustomerHistory, formatHistoryForPrompt } from "@/services/customerHistory.service";
 import {
@@ -14,6 +15,12 @@ import {
   cancelAppointment,
 } from "@/services/cancellation.service";
 import { submitReview, hasReview } from "@/services/review.service";
+import { addToWaitlist, notifyWaitlist } from "@/services/waitlist.service";
+import {
+  createRecurringAppointment,
+  dayOfWeekToTurkish,
+} from "@/services/recurring.service";
+import { isCustomerBlocked } from "@/services/blacklist.service";
 import type {
   Tenant,
   BusinessType,
@@ -116,17 +123,28 @@ Ne yapman gerektiğini kendin anla: müşteri randevu istiyorsa al, iptal istiyo
 Kurallar:
 - Kısa ve doğal cevap ver. Aynı kalıp cümleleri tekrarlama, her seferinde biraz farklı söyle.
 - Müşteri saat söyleyince direkt randevu oluştur, ekstra onay sorma.
-- Müşteri randevu aldıktan sonra (randevu aldığı saat)'e randevu alındı diye bilgilendir.
-- Saat: "6" → 18:00, "sabah 10" → 10:00, "öğleden sonra 3" → 15:00.
-- Tarih: bağlamda Bugün/Yarın verilmiş, onu kullan. "öbür gün" = yarından sonraki gün.
+- Saat: "6" → 18:00, "sabah 10" → 10:00, "öğleden sonra 3" → 15:00, "akşam üstü" → 17:00-18:00 arası.
+- Tarih: bağlamda Bugün/Yarın verilmiş, onu kullan. "öbür gün" = yarından sonraki gün. "bu hafta sonu" = Cumartesi. "yakın zamanda" → bu hafta kontrol et.
 - Çalışma saatleri dışında randevu önerme.
+- Çoklu randevu: "Ben ve eşim için iki randevu" derse arka arkaya iki saat (ör. 15:00 ve 15:30) create_appointment çağır.
+- Fiyat sorulursa get_services çağır, bilgiyi paylaş. Fiyat yoksa "Fiyat bilgisi için işletmeyi arayabilirsin" de.
+- Adres/konum sorulursa get_tenant_info çağır, adresi ve varsa Google Maps linkini paylaş.
+- Müşteri "geç kalacağım" derse notify_late çağır, esnafı bilgilendir.
+- Müşteri "iptal" derse (hatırlatma mesajına cevap dahil) iptal akışını başlat.
 - Yapamayacağın bir şey çıkarsa sadece [[INSAN]] yaz.
 
 Örnek diyaloglar:
 Müşteri: "yarın 6 boş mu?" → check_availability çağır. 18:00 doluysa ama 17:00 boşsa: "Yarın 6 dolu ama 5 var, alayım mı?"
 Müşteri: "tamam 15e al" → create_appointment çağır. Başarılıysa: "Aldım! Yarın 15'te görüşürüz."
-Müşteri: "randevumu iptal et" → get_last_appointment çağır. Bulursa: "Yarın 15'teki randevunu iptal edeyim mi?"
-Müşteri: "evet" (iptal bağlamında) → cancel_appointment çağır. "İptal ettim, tekrar almak istersen yaz."`;
+Müşteri: "randevumu iptal et" → get_last_appointment çağır, sonra cancel_appointment.
+Müşteri: "bu hafta ne zaman boşsunuz?" → check_week_availability çağır, tüm haftayı göster.
+Müşteri: "randevumu değiştirmek istiyorum" → get_last_appointment bul, reschedule_appointment ile yeni saate al.
+Müşteri: "her salı aynı saatte geleceğim" → create_recurring çağır.
+Müşteri: "dolu ama yer açılırsa haber verin" → add_to_waitlist çağır.
+Müşteri: "ne kadar tutar?" → get_services çağır, fiyatları söyle.
+Müşteri: "neredesiniz?" → get_tenant_info çağır, adresi ver.
+Müşteri: "10 dk geç kalacağım" → notify_late çağır, "Tamam esnafa ilettim" de.
+Müşteri: "ben ve eşim için iki randevu alalım, 15 ve 15:30" → iki kez create_appointment çağır.`;
 
   if (extraPrompt) {
     prompt += `\n\n${extraPrompt}`;
@@ -521,7 +539,146 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "check_week_availability",
+      description: "Bu haftanın tüm günlerinin müsaitliğini kontrol et.",
+      parameters: {
+        type: "object",
+        properties: {
+          start_date: { type: "string", description: "Haftanın başlangıç YYYY-MM-DD" },
+        },
+        required: ["start_date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "reschedule_appointment",
+      description: "Mevcut randevuyu iptal edip yeni saate al.",
+      parameters: {
+        type: "object",
+        properties: {
+          appointment_id: { type: "string" },
+          new_date: { type: "string", description: "YYYY-MM-DD" },
+          new_time: { type: "string", description: "HH:MM" },
+        },
+        required: ["appointment_id", "new_date", "new_time"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "create_recurring",
+      description: "Her hafta aynı gün ve saate tekrar eden randevu oluştur.",
+      parameters: {
+        type: "object",
+        properties: {
+          day_of_week: { type: "number", description: "0=Pazar..6=Cumartesi" },
+          time: { type: "string", description: "HH:MM" },
+        },
+        required: ["day_of_week", "time"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "add_to_waitlist",
+      description: "Dolu güne bekleme listesine ekle, yer açılınca haber ver.",
+      parameters: {
+        type: "object",
+        properties: {
+          date: { type: "string", description: "YYYY-MM-DD" },
+          preferred_time: { type: "string", description: "HH:MM opsiyonel" },
+        },
+        required: ["date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_services",
+      description: "İşletmenin hizmetlerini ve fiyatlarını listele.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_tenant_info",
+      description: "İşletmenin adres, telefon, çalışma saatleri bilgilerini getir.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "notify_late",
+      description: "Müşterinin geç kalacağını esnafa bildir.",
+      parameters: {
+        type: "object",
+        properties: {
+          minutes: { type: "number", description: "Kaç dakika geç" },
+          message: { type: "string", description: "Ek mesaj" },
+        },
+        required: ["minutes"],
+      },
+    },
+  },
 ];
+
+// ── Notification helpers ─────────────────────────────────────────────────────────
+
+async function notifyMerchant(
+  tenantId: string,
+  customerPhone: string,
+  date: string,
+  time: string
+): Promise<void> {
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("name, contact_phone, config_override")
+    .eq("id", tenantId)
+    .single();
+  if (!tenant?.contact_phone) return;
+  const pref =
+    (tenant.config_override as Record<string, string>)?.reminder_preference ?? "both";
+  if (pref === "off" || pref === "customer_only") return;
+  await sendWhatsAppMessage({
+    to: tenant.contact_phone,
+    text: `Yeni randevu! ${customerPhone} müşterisi ${formatDateTr(date)} saat ${time}'e randevu aldı.`,
+  });
+}
+
+async function checkAndNotifyWaitlist(
+  tenantId: string,
+  dateStr: string,
+  configOverride?: Record<string, unknown>
+): Promise<void> {
+  const avail = await checkAvailability(tenantId, dateStr, configOverride);
+  if (avail.available.length === 0) return;
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("name")
+    .eq("id", tenantId)
+    .single();
+  await notifyWaitlist(tenantId, dateStr, avail.available, tenant?.name || "İşletme");
+}
+
+async function getAppointmentDate(appointmentId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("appointments")
+    .select("slot_start")
+    .eq("id", appointmentId)
+    .single();
+  if (!data) return null;
+  return new Date(data.slot_start).toISOString().slice(0, 10);
+}
 
 // ── Tool executor ───────────────────────────────────────────────────────────────
 
@@ -576,6 +733,14 @@ async function executeToolCall(
       args.extra_data as Record<string, unknown>
     );
     if (result.ok) {
+      // Esnafa bildirim gönder
+      notifyMerchant(tenantId, customerPhone, dateStr, timeStr).catch((e) =>
+        console.error("[ai] merchant notify error:", e)
+      );
+      // İptal durumunda bekleme listesini bilgilendir
+      checkAndNotifyWaitlist(tenantId, dateStr, configOverride).catch((e) =>
+        console.error("[ai] waitlist notify error:", e)
+      );
       return {
         result: {
           ok: true,
@@ -635,9 +800,158 @@ async function executeToolCall(
       reason: args.reason as string,
     });
     if (cancelResult.ok) {
+      // İptal sonrası bekleme listesini bilgilendir
+      const aptDate = await getAppointmentDate(aptId);
+      if (aptDate) {
+        checkAndNotifyWaitlist(tenantId, aptDate, configOverride).catch((e) =>
+          console.error("[ai] waitlist notify after cancel:", e)
+        );
+      }
       return { result: { ok: true }, sessionDeleted: true };
     }
     return { result: { ok: false, error: cancelResult.error } };
+  }
+
+  if (name === "check_week_availability") {
+    const startDate = args.start_date as string;
+    const weekResults: Record<string, string[]> = {};
+    const start = new Date(startDate);
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(start);
+      d.setDate(d.getDate() + i);
+      const ds = d.toISOString().slice(0, 10);
+      const avail = await checkAvailability(tenantId, ds, configOverride);
+      if (avail.available.length > 0) {
+        weekResults[`${ds} (${formatDateTr(ds)})`] = avail.available;
+      }
+    }
+    return {
+      result: Object.keys(weekResults).length > 0
+        ? { days: weekResults }
+        : { days: {}, message: "Bu hafta müsait gün yok" },
+    };
+  }
+
+  if (name === "reschedule_appointment") {
+    const aptId =
+      (args.appointment_id as string) ||
+      (state?.extracted as { pending_cancel_appointment_id?: string })
+        ?.pending_cancel_appointment_id;
+    if (!aptId) {
+      return { result: { ok: false, error: "Randevu bulunamadı" } };
+    }
+    const cancelRes = await cancelAppointment({
+      tenantId,
+      appointmentId: aptId,
+      cancelledBy: "customer",
+      reason: "Yeniden planlama",
+    });
+    if (!cancelRes.ok) {
+      return { result: { ok: false, error: cancelRes.error } };
+    }
+    const newDate = args.new_date as string;
+    const newTime = args.new_time as string;
+    const createRes = await createAppointment(tenantId, customerPhone, newDate, newTime);
+    if (createRes.ok) {
+      notifyMerchant(tenantId, customerPhone, newDate, newTime).catch(() => {});
+      return {
+        result: {
+          ok: true,
+          old_cancelled: true,
+          new_date: newDate,
+          new_date_readable: formatDateTr(newDate),
+          new_time: newTime,
+        },
+        sessionDeleted: true,
+      };
+    }
+    return { result: { ok: false, error: createRes.error || "Yeni randevu oluşturulamadı" } };
+  }
+
+  if (name === "create_recurring") {
+    const dow = args.day_of_week as number;
+    const time = args.time as string;
+    const res = await createRecurringAppointment(tenantId, customerPhone, dow, time);
+    if (res.ok) {
+      return {
+        result: {
+          ok: true,
+          day: dayOfWeekToTurkish(dow),
+          time,
+        },
+      };
+    }
+    return { result: { ok: false, error: res.error } };
+  }
+
+  if (name === "add_to_waitlist") {
+    const date = args.date as string;
+    const preferredTime = args.preferred_time as string | undefined;
+    const res = await addToWaitlist(tenantId, customerPhone, date, preferredTime);
+    if (res.ok) {
+      return {
+        result: {
+          ok: true,
+          date,
+          date_readable: formatDateTr(date),
+        },
+      };
+    }
+    return { result: { ok: false, error: res.error } };
+  }
+
+  if (name === "get_services") {
+    const { data: services } = await supabase
+      .from("services")
+      .select("name, slug, price, description")
+      .eq("tenant_id", tenantId);
+    if (!services || services.length === 0) {
+      return { result: { services: [], message: "Henüz hizmet tanımlanmamış" } };
+    }
+    return {
+      result: {
+        services: services.map((s) => ({
+          name: s.name,
+          price: s.price ? `${s.price} TL` : "Fiyat bilgisi yok",
+          description: s.description || "",
+        })),
+      },
+    };
+  }
+
+  if (name === "get_tenant_info") {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("name, contact_phone, working_hours_text, config_override")
+      .eq("id", tenantId)
+      .single();
+    if (!tenant) return { result: { error: "İşletme bulunamadı" } };
+    const cfg = (tenant.config_override || {}) as Record<string, unknown>;
+    return {
+      result: {
+        name: tenant.name,
+        phone: tenant.contact_phone || "Belirtilmemiş",
+        working_hours: tenant.working_hours_text || "Belirtilmemiş",
+        address: (cfg.address as string) || "Belirtilmemiş",
+        maps_url: (cfg.maps_url as string) || null,
+      },
+    };
+  }
+
+  if (name === "notify_late") {
+    const minutes = args.minutes as number;
+    const msg = args.message as string | undefined;
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("contact_phone, name")
+      .eq("id", tenantId)
+      .single();
+    if (!tenant?.contact_phone) {
+      return { result: { ok: false, error: "İşletme iletişim numarası yok" } };
+    }
+    const lateMsg = `${customerPhone} müşteriniz ${minutes} dakika geç kalacağını bildirdi.${msg ? ` Mesaj: ${msg}` : ""}`;
+    await sendWhatsAppMessage({ to: tenant.contact_phone, text: lateMsg });
+    return { result: { ok: true, notified: true } };
   }
 
   return { result: { error: "Bilinmeyen fonksiyon" } };
@@ -704,6 +1018,16 @@ export async function processMessage(
 
     if (isHumanEscalationRequest(incomingMessage)) {
       return { reply: buildHumanEscalationMessage(tenant, tone) };
+    }
+
+    // Kara liste kontrolu
+    const blocked = await isCustomerBlocked(tenantId, customerPhone);
+    if (blocked) {
+      return {
+        reply: tone === "siz"
+          ? "Üzgünüz, şu an randevu hizmeti veremiyoruz. Lütfen işletmeyi doğrudan arayın."
+          : "Üzgünüm, şu an randevu hizmeti veremiyorum. Lütfen işletmeyi doğrudan ara.",
+      };
     }
 
     const reviewResult = await tryHandleReview(

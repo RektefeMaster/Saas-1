@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { incrementNoShow } from "@/services/blacklist.service";
 
 const CRON_SECRET = process.env.CRON_SECRET || "saasrandevu_cron";
 
@@ -63,9 +64,64 @@ export async function GET(request: NextRequest) {
     if (ok) sent++;
   }
 
+  // No-show: 2+ saat geçmiş confirmed randevuları no_show yap
+  let noShowMarked = 0;
+  try {
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
+    const { data: noShowApts } = await supabase
+      .from("appointments")
+      .select("id, tenant_id, customer_phone")
+      .eq("status", "confirmed")
+      .lt("slot_start", twoHoursAgo);
+    if (noShowApts && noShowApts.length > 0) {
+      await supabase
+        .from("appointments")
+        .update({ status: "no_show" })
+        .in("id", noShowApts.map((a) => a.id));
+      noShowMarked = noShowApts.length;
+      for (const apt of noShowApts) {
+        await incrementNoShow(apt.tenant_id, apt.customer_phone).catch((e) =>
+          console.error("[cron] blacklist increment error:", e)
+        );
+      }
+    }
+  } catch (e) {
+    console.error("[cron] no-show error:", e);
+  }
+
+  // Review reminder: 1 saat geçmiş, completed/confirmed, review'u olmayan randevular
+  let reviewSent = 0;
+  try {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const { data: reviewApts } = await supabase
+      .from("appointments")
+      .select("id, tenant_id, customer_phone")
+      .in("status", ["completed", "confirmed"])
+      .lt("slot_start", oneHourAgo)
+      .gte("slot_start", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
+    if (reviewApts) {
+      const { data: existingReviews } = await supabase
+        .from("reviews")
+        .select("appointment_id")
+        .in("appointment_id", reviewApts.map((a) => a.id));
+      const reviewedIds = new Set((existingReviews || []).map((r) => r.appointment_id));
+      for (const apt of reviewApts) {
+        if (reviewedIds.has(apt.id)) continue;
+        const ok = await sendWhatsAppMessage({
+          to: apt.customer_phone,
+          text: "Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐",
+        });
+        if (ok) reviewSent++;
+      }
+    }
+  } catch (e) {
+    console.error("[cron] review-reminder error:", e);
+  }
+
   return NextResponse.json({
     ok: true,
-    total: appointments?.length || 0,
-    sent,
+    reminders: { total: appointments?.length || 0, sent },
+    noShowMarked,
+    reviewSent,
   });
 }

@@ -51,19 +51,22 @@ export default function NewTenantPage() {
   };
 
   return (
-    <>
+    <div className="p-8">
       <Link
-            href="/admin"
-            className="mb-6 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
-          >
-            ← Admin&apos;e dön
-          </Link>
-          <h1 className="text-2xl font-bold text-slate-900">Yeni Kiracı</h1>
-          <p className="mt-1 text-slate-600">
-            İşletme bilgilerini girin
-          </p>
+        href="/admin/tenants"
+        className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Kiracılar listesine dön
+      </Link>
+      <h1 className="text-3xl font-bold tracking-tight text-slate-900">Yeni Kiracı</h1>
+      <p className="mt-1.5 text-slate-600">
+        İşletme bilgilerini girin
+      </p>
 
-          <form
+      <form
             onSubmit={handleSubmit}
             className="mt-8 max-w-lg rounded-2xl border border-slate-200 bg-white p-8 shadow-sm"
           >
@@ -137,13 +140,13 @@ export default function NewTenantPage() {
                 {loading ? "Oluşturuluyor..." : "Oluştur"}
               </button>
               <Link
-                href="/admin"
+                href="/admin/tenants"
                 className="rounded-xl border border-slate-300 px-6 py-3 font-medium text-slate-700 transition hover:bg-slate-50"
               >
                 İptal
               </Link>
             </div>
           </form>
-    </>
+    </div>
   );
 }

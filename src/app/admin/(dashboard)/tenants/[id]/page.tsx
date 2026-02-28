@@ -56,7 +56,7 @@ export default function TenantDetailPage() {
       const res = await fetch(`/api/admin/tenants/${id}?soft=true`, {
         method: "DELETE",
       });
-      if (res.ok) router.push("/admin");
+      if (res.ok) router.push("/admin/tenants");
     } finally {
       setDeleting(false);
     }
@@ -64,22 +64,24 @@ export default function TenantDetailPage() {
 
   if (loading || !tenant) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="h-8 w-8 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+      <div className="flex min-h-[50vh] items-center justify-center p-8">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <>
+    <div className="p-8">
       <Link
-            href="/admin"
-            className="mb-6 inline-flex items-center gap-1 text-sm text-slate-600 hover:text-slate-900"
-          >
-            ← Admin&apos;e dön
-          </Link>
-
-          <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
+        href="/admin/tenants"
+        className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
+        </svg>
+        Kiracılar listesine dön
+      </Link>
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
             <h1 className="text-2xl font-bold text-slate-900">{tenant.name}</h1>
             <p className="mt-1 text-slate-600">
               Kod: <span className="font-mono font-medium">{tenant.tenant_code}</span> •
@@ -190,7 +192,7 @@ export default function TenantDetailPage() {
                 </div>
               </div>
             )}
-          </div>
-    </>
+      </div>
+    </div>
   );
 }
