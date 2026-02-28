@@ -11,10 +11,13 @@ interface Appointment {
   extra_data: Record<string, unknown>;
 }
 
+type ReminderPref = "off" | "customer_only" | "merchant_only" | "both";
+
 interface Tenant {
   id: string;
   name: string;
   tenant_code: string;
+  config_override?: { reminder_preference?: ReminderPref };
 }
 
 interface BlockedDate {
@@ -48,6 +51,8 @@ export default function EsnafDashboard({
   const [blockStart, setBlockStart] = useState("");
   const [blockEnd, setBlockEnd] = useState("");
   const [blockReason, setBlockReason] = useState("");
+  const [reminderPref, setReminderPref] = useState<ReminderPref>("customer_only");
+  const [reminderSaving, setReminderSaving] = useState(false);
 
   useEffect(() => {
     params.then(setResolvedParams);
@@ -68,6 +73,26 @@ export default function EsnafDashboard({
     };
     fetchTenant();
   }, [tenantId, baseUrl]);
+
+  useEffect(() => {
+    const pref = (tenant?.config_override as { reminder_preference?: ReminderPref })?.reminder_preference;
+    if (pref) setReminderPref(pref);
+  }, [tenant?.config_override]);
+
+  const handleSaveReminderPref = async () => {
+    if (!tenantId) return;
+    setReminderSaving(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/tenant/${tenantId}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reminder_preference: reminderPref }),
+      });
+      if (res.ok) setTenant((t) => (t ? { ...t, config_override: { ...t.config_override, reminder_preference: reminderPref } } : t));
+    } finally {
+      setReminderSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!tenantId) return;
@@ -211,6 +236,33 @@ export default function EsnafDashboard({
             </button>
           </div>
         </header>
+
+        <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <h3 className="mb-2 font-medium text-zinc-900">Hatırlatma (yarınki randevular)</h3>
+          <p className="mb-3 text-sm text-zinc-600">
+            Her sabah 08:00&apos;da yarınki randevular için kimlere mesaj gitsin?
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <select
+              value={reminderPref}
+              onChange={(e) => setReminderPref(e.target.value as ReminderPref)}
+              className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
+            >
+              <option value="off">Kapalı (kimseye gitmesin)</option>
+              <option value="customer_only">Sadece müşteriye</option>
+              <option value="merchant_only">Sadece bana (dashboard’da görürüm)</option>
+              <option value="both">İkisine de (müşteriye + bana)</option>
+            </select>
+            <button
+              type="button"
+              onClick={handleSaveReminderPref}
+              disabled={reminderSaving}
+              className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+            >
+              {reminderSaving ? "Kaydediliyor…" : "Kaydet"}
+            </button>
+          </div>
+        </div>
 
         {showAdd && (
           <form

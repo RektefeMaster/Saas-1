@@ -32,17 +32,29 @@ export async function GET(request: NextRequest) {
   const tenantIds = [...new Set((appointments || []).map((a) => a.tenant_id))];
   const { data: tenants } = await supabase
     .from("tenants")
-    .select("id, name")
+    .select("id, name, config_override")
     .in("id", tenantIds);
-  const tenantMap = new Map((tenants || []).map((t) => [t.id, t.name]));
+
+  const tenantMap = new Map(
+    (tenants || []).map((t) => [
+      t.id,
+      {
+        name: t.name,
+        reminder_preference: (t.config_override as Record<string, string>)?.reminder_preference ?? "customer_only",
+      },
+    ])
+  );
 
   for (const apt of appointments || []) {
+    const pref = tenantMap.get(apt.tenant_id)?.reminder_preference ?? "customer_only";
+    if (pref === "off" || pref === "merchant_only") continue;
+
     const slotDate = new Date(apt.slot_start);
     const timeStr = slotDate.toLocaleTimeString("tr-TR", {
       hour: "2-digit",
       minute: "2-digit",
     });
-    const tenantName = tenantMap.get(apt.tenant_id) || "İşletme";
+    const tenantName = tenantMap.get(apt.tenant_id)?.name || "İşletme";
     const message = `Merhaba, yarın ${timeStr}'da ${tenantName} için randevunuz var. Lütfen unutmayın!`;
     const ok = await sendWhatsAppMessage({
       to: apt.customer_phone,

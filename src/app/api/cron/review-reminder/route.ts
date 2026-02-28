@@ -1,7 +1,7 @@
 /**
  * Değerlendirme hatırlatma cron
  * Randevu saati geçtikten ~1 saat sonra müşteriye değerlendirme mesajı gönderir
- * Vercel Cron veya harici scheduler ile her 15 dakikada tetiklenir
+ * vercel.json: her gün 10:00 (UTC)
  */
 
 import { NextRequest, NextResponse } from "next/server";
@@ -24,8 +24,7 @@ export async function GET(request: NextRequest) {
     .from("appointments")
     .select("id, tenant_id, customer_phone, slot_start")
     .lt("slot_start", oneHourAgo.toISOString())
-    .in("status", ["confirmed", "pending"])
-    .not("status", "eq", "cancelled");
+    .in("status", ["confirmed", "pending"]);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

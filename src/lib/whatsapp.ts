@@ -1,4 +1,4 @@
-const WHATSAPP_API = "https://graph.facebook.com/v18.0";
+const WHATSAPP_API = "https://graph.facebook.com/v22.0";
 
 export interface SendMessageParams {
   to: string;
