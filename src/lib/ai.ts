@@ -19,8 +19,10 @@ import type {
   FlowType,
 } from "./database.types";
 
-const openai = process.env.OPENAI_API_KEY
-  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+const rawKey = process.env.OPENAI_API_KEY ?? "";
+const openaiKey = rawKey.replace(/\s/g, "").trim();
+const openai = openaiKey.length >= 20 && openaiKey.startsWith("sk-")
+  ? new OpenAI({ apiKey: openaiKey })
   : null;
 
 const SYSTEM_PROMPT = `Sen bir işletmenin WhatsApp randevu asistanısın. İnsan gibi, kısa ve samimi konuş.
@@ -345,16 +347,40 @@ export async function processMessage(
       model: "gpt-4o-mini",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: condensed },
+        { role: "user", content: condensed || "(boş mesaj)" },
       ],
       tools,
       tool_choice: "auto",
     });
-  } catch (err) {
-    console.error("[ai] OpenAI API error:", err);
-    return {
-      reply: "Şu an yoğunuz, lütfen kısa süre sonra tekrar deneyin.",
-    };
+  } catch (err: unknown) {
+    const e = err as { status?: number; error?: { message?: string; code?: string }; message?: string };
+    const status = e?.status;
+    const apiMsg = e?.error?.message ?? e?.message ?? String(err);
+    console.error("[ai] OpenAI error", "status:", status, "message:", apiMsg, "full:", JSON.stringify(e?.error ?? e?.message ?? err));
+    if (status === 429) {
+      await new Promise((r) => setTimeout(r, 1500));
+      try {
+        response = await openai.chat.completions.create({
+          model: "gpt-4o-mini",
+          messages: [
+            { role: "system", content: systemPrompt },
+            { role: "user", content: condensed || "(boş mesaj)" },
+          ],
+          tools,
+          tool_choice: "auto",
+        });
+      } catch (retryErr: unknown) {
+        const retryStatus = (retryErr as { status?: number })?.status;
+        console.error("[ai] OpenAI retry failed", retryStatus, retryErr);
+        return {
+          reply: "Şu an çok yoğunuz, 1–2 dakika sonra tekrar deneyin.",
+        };
+      }
+    } else {
+      return {
+        reply: "Bir anlık sorun yaşandı. Lütfen tekrar deneyin.",
+      };
+    }
   }
 
   const message = response.choices[0]?.message;
