@@ -29,7 +29,19 @@ textarea {
   background-color: #ffffff;
 }
 
+.dark input,
+.dark select,
+.dark textarea {
+  color: #f1f5f9;
+  background-color: #1e293b;
+}
+
 input::placeholder,
 textarea::placeholder {
   color: #94a3b8;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #64748b;
 }

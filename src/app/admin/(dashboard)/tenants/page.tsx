@@ -54,10 +54,10 @@ export default function TenantsListPage() {
   const statusBadge = (status: string) => {
     const styles =
       status === "active"
-        ? "bg-emerald-100 text-emerald-700"
+        ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400"
         : status === "suspended"
-          ? "bg-amber-100 text-amber-700"
-          : "bg-slate-100 text-slate-600";
+          ? "bg-amber-100 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400"
+          : "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400";
     const label = status === "active" ? "Aktif" : status === "suspended" ? "Askıda" : "Pasif";
     return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${styles}`}>{label}</span>;
   };
@@ -66,8 +66,8 @@ export default function TenantsListPage() {
     <div className="p-8">
       <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-900">Kiracılar</h1>
-          <p className="mt-1.5 text-slate-600">
+          <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Kiracılar</h1>
+          <p className="mt-1.5 text-slate-600 dark:text-slate-400">
             Tüm işletmeleri görüntüleyin ve yönetin
           </p>
         </div>
@@ -83,8 +83,8 @@ export default function TenantsListPage() {
       </div>
 
       {error && (
-        <div className="mb-6 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-6 py-4">
-          <p className="font-medium text-red-800">{error}</p>
+        <div className="mb-6 flex items-center justify-between rounded-xl border border-red-200 bg-red-50 px-6 py-4 dark:border-red-900 dark:bg-red-950/50">
+          <p className="font-medium text-red-800 dark:text-red-400">{error}</p>
           <button onClick={fetchTenants} className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
             Tekrar dene
           </button>
@@ -94,7 +94,7 @@ export default function TenantsListPage() {
       <div className="mb-6 flex flex-col gap-4 sm:flex-row">
         <div className="relative flex-1">
           <svg
-            className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400"
+            className="absolute left-3 top-1/2 h-5 w-5 -translate-y-1/2 text-slate-400 dark:text-slate-500"
             fill="none"
             viewBox="0 0 24 24"
             stroke="currentColor"
@@ -106,13 +106,13 @@ export default function TenantsListPage() {
             placeholder="İşletme adı veya kod ile ara..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+            className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-4 text-slate-900 placeholder-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:placeholder-slate-500"
           />
         </div>
         <select
           value={statusFilter}
           onChange={(e) => setStatusFilter(e.target.value)}
-          className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+          className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-slate-700 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
         >
           <option value="">Tüm durumlar</option>
           <option value="active">Aktif</option>
@@ -121,28 +121,28 @@ export default function TenantsListPage() {
         </select>
       </div>
 
-      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
         {loading ? (
-          <div className="space-y-0 divide-y divide-slate-200">
+          <div className="space-y-0 divide-y divide-slate-200 dark:divide-slate-800">
             {[1, 2, 3, 4, 5, 6, 7].map((i) => (
               <div key={i} className="flex items-center justify-between px-6 py-5">
-                <div className="h-5 w-32 animate-pulse rounded bg-slate-200" />
-                <div className="h-5 w-20 animate-pulse rounded bg-slate-200" />
-                <div className="h-8 w-24 animate-pulse rounded-lg bg-slate-200" />
+                <div className="h-5 w-32 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="h-5 w-20 animate-pulse rounded bg-slate-200 dark:bg-slate-700" />
+                <div className="h-8 w-24 animate-pulse rounded-lg bg-slate-200 dark:bg-slate-700" />
               </div>
             ))}
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-20 text-center">
-            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100">
-              <svg className="h-8 w-8 text-slate-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+              <svg className="h-8 w-8 text-slate-400 dark:text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
               </svg>
             </div>
-            <p className="mt-4 text-base font-medium text-slate-800">
+            <p className="mt-4 text-base font-medium text-slate-800 dark:text-slate-200">
               {search || statusFilter ? "Arama sonucu bulunamadı" : "Henüz kiracı yok"}
             </p>
-            <p className="mt-1 text-sm text-slate-500">
+            <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
               {search || statusFilter ? "Filtreleri değiştirmeyi deneyin" : "İlk işletmenizi ekleyin"}
             </p>
             {!search && !statusFilter && (
@@ -158,32 +158,32 @@ export default function TenantsListPage() {
           <div className="overflow-x-auto">
             <table className="w-full">
               <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/80">
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-800/50">
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     İşletme
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Kod
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Tip
                   </th>
-                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Durum
                   </th>
-                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-500">
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     İşlemler
                   </th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-200">
+              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
                 {filtered.map((t) => (
-                  <tr key={t.id} className="transition hover:bg-slate-50/50">
+                  <tr key={t.id} className="transition hover:bg-slate-50/50 dark:hover:bg-slate-800/50">
                     <td className="px-6 py-4">
-                      <span className="font-semibold text-slate-900">{t.name}</span>
+                      <span className="font-semibold text-slate-900 dark:text-slate-100">{t.name}</span>
                     </td>
-                    <td className="px-6 py-4 font-mono text-sm text-slate-600">{t.tenant_code}</td>
-                    <td className="px-6 py-4 text-sm text-slate-600">{t.business_types?.name ?? "—"}</td>
+                    <td className="px-6 py-4 font-mono text-sm text-slate-600 dark:text-slate-400">{t.tenant_code}</td>
+                    <td className="px-6 py-4 text-sm text-slate-600 dark:text-slate-400">{t.business_types?.name ?? "—"}</td>
                     <td className="px-6 py-4">{statusBadge(t.status)}</td>
                     <td className="px-6 py-4 text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -191,7 +191,7 @@ export default function TenantsListPage() {
                           href={`${baseUrl}/dashboard/${t.id}`}
                           target="_blank"
                           rel="noreferrer"
-                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50"
+                          className="rounded-lg border border-slate-200 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:text-slate-400 dark:hover:bg-slate-800"
                         >
                           Takvim
                         </a>

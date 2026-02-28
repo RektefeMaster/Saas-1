@@ -74,16 +74,16 @@ export default function TenantDetailPage() {
     <div className="p-8">
       <Link
         href="/admin/tenants"
-        className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+        className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
       >
         <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
         </svg>
         Kiracılar listesine dön
       </Link>
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
-            <h1 className="text-2xl font-bold text-slate-900">{tenant.name}</h1>
-            <p className="mt-1 text-slate-600">
+      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{tenant.name}</h1>
+            <p className="mt-1 text-slate-600 dark:text-slate-400">
               Kod: <span className="font-mono font-medium">{tenant.tenant_code}</span> •
               {tenant.business_types?.name || "Tip belirtilmemiş"}
             </p>
@@ -101,7 +101,7 @@ export default function TenantDetailPage() {
                 href={`${baseUrl}/t/${tenant.id}`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 <span>💬</span> WhatsApp Link
               </a>
@@ -109,81 +109,81 @@ export default function TenantDetailPage() {
                 href={`${baseUrl}/api/tenant/${tenant.id}/qr`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-50"
+                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
               >
                 <span>📱</span> QR Kod
               </a>
               <button
                 onClick={handleDelete}
                 disabled={deleting}
-                className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-5 py-3 font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-5 py-3 font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:hover:bg-red-950/50"
               >
                 Sil
               </button>
             </div>
 
             {assets && (
-              <div className="mt-8 border-t border-slate-200 pt-8">
-                <h2 className="mb-4 text-lg font-semibold text-slate-900">Paylaşım Paketi</h2>
+              <div className="mt-8 border-t border-slate-200 pt-8 dark:border-slate-800">
+                <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Paylaşım Paketi</h2>
                 <div className="space-y-4">
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600">WhatsApp linki</label>
+                    <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">WhatsApp linki</label>
                     <div className="flex gap-2">
                       <input
                         readOnly
                         value={assets.whatsapp_link}
-                        className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900"
+                        className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       />
                       <button
                         type="button"
                         onClick={() => copyToClipboard(assets.whatsapp_link, "link")}
-                        className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
+                        className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
                       >
                         {copied === "link" ? "Kopyalandı" : "Kopyala"}
                       </button>
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600">QR kod (PNG)</label>
+                    <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">QR kod (PNG)</label>
                     <a
                       href={`data:image/png;base64,${assets.qr_base64_png}`}
                       download={`${tenant.tenant_code}-qr.png`}
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                     >
                       PNG İndir
                     </a>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600">Instagram biyografi metni</label>
+                    <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Instagram biyografi metni</label>
                     <div className="flex gap-2">
                       <textarea
                         readOnly
                         value={assets.instagram_bio}
                         rows={4}
-                        className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900"
+                        className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       />
                       <button
                         type="button"
                         onClick={() => copyToClipboard(assets.instagram_bio, "ig")}
-                        className="h-fit rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
+                        className="h-fit rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
                       >
                         {copied === "ig" ? "Kopyalandı" : "Kopyala"}
                       </button>
                     </div>
                   </div>
                   <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600">Google Maps açıklama metni</label>
+                    <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Google Maps açıklama metni</label>
                     <div className="flex gap-2">
                       <textarea
                         readOnly
                         value={assets.google_maps_description}
                         rows={3}
-                        className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900"
+                        className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       />
                       <button
                         type="button"
                         onClick={() => copyToClipboard(assets.google_maps_description, "gm")}
-                        className="h-fit rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300"
+                        className="h-fit rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
                       >
                         {copied === "gm" ? "Kopyalandı" : "Kopyala"}
                       </button>
