@@ -45,6 +45,10 @@ export interface Tenant {
   deleted_at: string | null;
   created_at: string;
   updated_at: string;
+  /** Esnafın gerçek iletişim telefonu; insan yönlendirme mesajında kullanılır */
+  contact_phone?: string | null;
+  /** Çalışma saatleri metni, örn: Hafta içi 09:00-18:00 */
+  working_hours_text?: string | null;
 }
 
 export interface Appointment {
@@ -84,4 +88,8 @@ export interface ConversationState {
   tenant_id: string;
   customer_phone: string;
   updated_at: string;
+  /** Toplam mesaj sayısı; 10'u geçip randevu tamamlanmamışsa insan yönlendirme */
+  message_count?: number;
+  /** Ardışık "anlayamadım" sayısı; 2 olunca insan yönlendirme */
+  consecutive_misunderstandings?: number;
 }

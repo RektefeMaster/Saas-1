@@ -23,29 +23,55 @@ const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
-const SYSTEM_PROMPT = `Sen bir işletmenin WhatsApp randevu asistanısın.
+const SYSTEM_PROMPT = `Sen bir işletmenin WhatsApp randevu asistanısın. İnsan gibi, kısa ve samimi konuş.
 
 Akış (buna uy):
-1) Müşteri merhaba/randevu derse: Hoşgeldin mesajı + "Hangi gün ve saatte randevu alacaktınız?" veya "Saat kaçta randevu alacaktınız?" diye sor.
-2) Müşteri tarih/saat söylediğinde (örn. "yarın 14:00", "saat 6"): check_availability ile kontrol et.
-3) Müsaitse: "Evet, uygun. Kaydedeyim mi? Onaylıyor musunuz?" de. Doluysa: "Maalesef o saat dolu. Şu saatler müsait: ..." de, alternatif öner.
-4) Müşteri "evet/tamam/olur/onaylıyorum/kaydet" derse: create_appointment çağır, "Randevunuz kaydedildi" de.
-5) İptal isterse: get_last_appointment → randevuyu göster → "İptal edilsin mi?" → "Evet" derse cancel_appointment.
+1) Müşteri tarih/saat söylediğinde (örn. "yarın 6'da", "yarın müsait mi", "29 şubat 14:00"): Bağlamda verilen Bugün/Yarın tarihlerini (YYYY-MM-DD) kullan. check_availability ile o günü kontrol et. "yarın" = yarının tarihi, "bugün" = bugünün tarihi.
+2) Müsaitse: "Evet, uygun. Kaydedeyim mi?" de. Doluysa: "Maalesef o saat dolu. Şu saatler müsait: ..." de.
+3) Müşteri "evet/tamam/olur/onaylıyorum" derse: create_appointment çağır, "Randevunuz kaydedildi" de.
+4) İptal isterse: get_last_appointment → "İptal edilsin mi?" → "Evet" derse cancel_appointment.
 
-Kurallar: Türkçe, samimi, kısa cevap. Tarih/saat belirsizse sor. Onay almadan create_appointment çağırma.`;
+Kurallar: Her zaman bağlamdaki Bugün/Yarın (YYYY-MM-DD) ile tarih çıkar. "saat 6" = 18:00. Onay almadan create_appointment çağırma. Türkçe, kısa cevap.
+Randevu/iptal dışı talepler için: [[INSAN]]`;
+
+/** İnsan yönlendirme mesajı (mimari doküman formatı) */
+export function buildHumanEscalationMessage(tenant: {
+  contact_phone?: string | null;
+  working_hours_text?: string | null;
+}): string {
+  const phone = tenant.contact_phone?.trim() || "İletişim numarası işletme ayarlarında tanımlanmadı.";
+  const hours = tenant.working_hours_text?.trim() || "Çalışma saatleri işletme ayarlarında tanımlanmadı.";
+  return `Üzgünüm, bu konuda size yardımcı olamıyorum.
+Lütfen işletmemizle doğrudan iletişime geçin: ${phone}
+Çalışma saatleri: ${hours}`;
+}
+
+/** Müşteri "insan", "yetkili", "sizi aramak istiyorum" vb. yazdı mı? */
+function isHumanEscalationRequest(text: string): boolean {
+  const t = text.trim().toLowerCase();
+  const keywords = ["insan", "yetkili", "sizi aramak istiyorum", "gerçek kişi", "operatör", "müşteri hizmetleri", "biriyle görüşmek"];
+  return keywords.some((k) => t.includes(k));
+}
 
 function buildCondensedContext(
   state: ConversationState | null,
   incoming: string,
   historySummary?: string
 ): string {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0, 10);
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+  const dateContext = `Bugün: ${todayStr} (YYYY-MM-DD). Yarın: ${tomorrowStr}. Müşteri "yarın", "29 şubat" gibi yazarsa bu tarihleri kullan.`;
+
   let base: string;
   if (!state) {
-    base = `Yeni konuşma. Beklenen: Tarih ve saat sor.\nGelen mesaj: "${incoming}"`;
+    base = `${dateContext}\nYeni konuşma. Beklenen: Tarih ve saat sor.\nGelen mesaj: "${incoming}"`;
   } else {
     const step = state.step || "başlangıç";
     const extracted = JSON.stringify(state.extracted || {});
-    base = `Mevcut Durum: ${step}\nToplanan bilgiler: ${extracted}\nGelen mesaj: "${incoming}"`;
+    base = `${dateContext}\nMevcut Durum: ${step}\nToplanan bilgiler: ${extracted}\nGelen mesaj: "${incoming}"`;
   }
   if (historySummary) {
     base = `${historySummary}\n\n${base}`;
@@ -189,22 +215,37 @@ async function tryHandleReview(
   };
 }
 
+const HUMAN_ESCALATION_TAG = "[[INSAN]]";
+const MISUNDERSTAND_REPLY = "Anlayamadım, tekrar yazar mısınız?";
+const MAX_MESSAGES_BEFORE_ESCALATION = 10;
+
+const PROCESS_ERROR_REPLY = "Bir anlık sorun yaşandı. Lütfen tekrar deneyin.";
+
 export async function processMessage(
   tenantId: string,
   customerPhone: string,
   incomingMessage: string
 ): Promise<{ reply: string; stateReset?: boolean }> {
-  const tenant = await getTenantWithBusinessType(tenantId);
-  if (!tenant) {
-    return { reply: "Üzgünüm, işletme bulunamadı. Lütfen doğru kodu kullanın." };
-  }
+  try {
+    const tenant = await getTenantWithBusinessType(tenantId);
+    if (!tenant) {
+      return { reply: "Üzgünüm, işletme bulunamadı. Lütfen doğru kodu kullanın." };
+    }
 
-  const reviewResult = await tryHandleReview(tenantId, customerPhone, incomingMessage);
+    if (isHumanEscalationRequest(incomingMessage)) {
+      return { reply: buildHumanEscalationMessage(tenant) };
+    }
+
+    const reviewResult = await tryHandleReview(tenantId, customerPhone, incomingMessage);
   if (reviewResult.handled && reviewResult.reply) {
     return { reply: reviewResult.reply };
   }
 
   const state = await getSession(tenantId, customerPhone);
+  const messageCount = (state?.message_count ?? 0) + 1;
+  if (messageCount > MAX_MESSAGES_BEFORE_ESCALATION) {
+    return { reply: buildHumanEscalationMessage(tenant) };
+  }
 
   // İlk mesaj: işletme adıyla hoşgeldin + saat sor
   const btFirst = Array.isArray(tenant.business_types) ? tenant.business_types[0] : tenant.business_types;
@@ -218,6 +259,8 @@ export async function processMessage(
       step: "tarih_saat_bekleniyor",
       extracted: state?.extracted || {},
       flow_type: flowType || "appointment",
+      message_count: messageCount,
+      consecutive_misunderstandings: 0,
       updated_at: new Date().toISOString(),
     });
     return { reply: welcome };
@@ -296,23 +339,49 @@ export async function processMessage(
     },
   ];
 
-  const response = await openai.chat.completions.create({
-    model: "gpt-4o-mini",
-    messages: [
-      { role: "system", content: systemPrompt },
-      { role: "user", content: condensed },
-    ],
-    tools,
-    tool_choice: "auto",
-  });
+  let response: OpenAI.Chat.Completions.ChatCompletion;
+  try {
+    response = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: condensed },
+      ],
+      tools,
+      tool_choice: "auto",
+    });
+  } catch (err) {
+    console.error("[ai] OpenAI API error:", err);
+    return {
+      reply: "Şu an yoğunuz, lütfen kısa süre sonra tekrar deneyin.",
+    };
+  }
 
   const message = response.choices[0]?.message;
   if (!message) {
-    return { reply: "Anlayamadım, tekrar yazar mısınız?" };
+    const prevMisunderstand = state?.consecutive_misunderstandings ?? 0;
+    if (prevMisunderstand >= 1) {
+      return { reply: buildHumanEscalationMessage(tenant) };
+    }
+    await setSession(tenantId, customerPhone, {
+      ...(state || {}),
+      tenant_id: tenantId,
+      customer_phone: customerPhone,
+      flow_type: (bt?.config?.flow_type as FlowType) || "appointment",
+      extracted: state?.extracted || {},
+      step: "devam",
+      message_count: messageCount,
+      consecutive_misunderstandings: 1,
+      updated_at: new Date().toISOString(),
+    });
+    return { reply: MISUNDERSTAND_REPLY };
   }
 
   const toolCalls = message.tool_calls;
-  let finalReply = message.content || "";
+  let finalReply = (message.content || "").trim();
+  if (finalReply.includes(HUMAN_ESCALATION_TAG)) {
+    return { reply: buildHumanEscalationMessage(tenant) };
+  }
 
   if (toolCalls && toolCalls.length > 0) {
     for (const tc of toolCalls) {
@@ -346,6 +415,8 @@ export async function processMessage(
             step: "iptal_onay_bekleniyor",
             extracted: newExtracted,
             flow_type: (bt?.config?.flow_type as FlowType) || "appointment",
+            message_count: messageCount,
+            consecutive_misunderstandings: 0,
             updated_at: new Date().toISOString(),
           });
         } else {
@@ -400,10 +471,16 @@ export async function processMessage(
       flow_type: (bt?.config?.flow_type as FlowType) || "appointment",
       extracted: state?.extracted || {},
       step: "devam",
+      message_count: messageCount,
+      consecutive_misunderstandings: 0,
       updated_at: new Date().toISOString(),
     };
     await setSession(tenantId, customerPhone, newState);
   }
 
   return { reply: finalReply };
+  } catch (err) {
+    console.error("[ai] processMessage:", err);
+    return { reply: PROCESS_ERROR_REPLY };
+  }
 }

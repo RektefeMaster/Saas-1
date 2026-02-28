@@ -3,6 +3,8 @@ import { parseTenantCodeFromMessage } from "@/lib/tenant-code";
 import { getTenantByCode, processMessage } from "@/lib/ai";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getTenantIdByPhone, setPhoneTenantMapping, setSession } from "@/lib/redis";
+import { verifyWebhookSignature, getWebhookSecret } from "@/middleware/webhookVerify.middleware";
+import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
 import type { ConversationState } from "@/lib/database.types";
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "saasrandevu_verify";
@@ -23,8 +25,24 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
+  const signature = request.headers.get("x-hub-signature-256") ?? "";
+  const secret = getWebhookSecret();
+
+  const rawBody = await request.text();
+  if (secret && !verifyWebhookSignature(Buffer.from(rawBody, "utf8"), signature, secret)) {
+    console.warn("[webhook] Invalid signature, rejecting request");
+    return new NextResponse("Unauthorized", { status: 401 });
+  }
+
+  let body: { object?: string; entry?: Array<{ changes?: Array<{ field?: string; value?: { messages?: Array<{ type?: string; from?: string; text?: { body?: string } }> } }> }> };
   try {
-    const body = await request.json();
+    body = JSON.parse(rawBody);
+  } catch {
+    console.warn("[webhook] Invalid JSON body");
+    return new NextResponse("Bad Request", { status: 400 });
+  }
+
+  try {
     console.log("[webhook] POST received, object:", body?.object);
 
     if (body.object !== "whatsapp_business_account") {
@@ -48,6 +66,12 @@ export async function POST(request: NextRequest) {
           const from = msg.from;
           const text = msg.text?.body || "";
           const customerPhone = `+${from}`;
+
+          const rateLimitResult = await enforceRateLimit(customerPhone);
+          if (!rateLimitResult.allowed) {
+            await sendWhatsAppMessage({ to: customerPhone, text: rateLimitResult.message });
+            continue;
+          }
 
           try {
             let tenantId: string | null = await getTenantIdByPhone(customerPhone);
@@ -95,7 +119,7 @@ export async function POST(request: NextRequest) {
             try {
               await sendWhatsAppMessage({
                 to: customerPhone,
-                text: "Üzgünüm, bir hata oluştu. Lütfen biraz sonra tekrar deneyin.",
+                text: "Üzgünüm, bir anlık sorun yaşandı. Lütfen tekrar deneyin.",
               });
             } catch (sendErr) {
               console.error("[webhook] Fallback send failed:", sendErr);

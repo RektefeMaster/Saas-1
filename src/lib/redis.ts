@@ -34,7 +34,10 @@ let fallbackLogged = false;
 
 const SESSION_PREFIX = "saasrandevu:session:";
 const PHONE_TENANT_PREFIX = "saasrandevu:phone2tenant:";
+const RATE_LIMIT_PREFIX = "saasrandevu:ratelimit:";
 const TTL_SECONDS = 60 * 60 * 24; // 24 saat
+const RATE_LIMIT_TTL_SECONDS = 60; // 1 dakika
+const RATE_LIMIT_MAX = 15; // dakikada max mesaj
 
 function logRedisFallback(action: string, err: unknown) {
   if (fallbackLogged) return;
@@ -146,4 +149,28 @@ export async function clearPhoneTenantMapping(customerPhone: string): Promise<vo
     }
   }
   phoneTenantStore.delete(key);
+}
+
+// --- Rate limiting (webhook: 15 mesaj/dakika per phone) ---
+const rateLimitMemory = new Map<string, { count: number; expiry: number }>();
+
+export async function checkAndIncrementRateLimit(phone: string): Promise<{ allowed: boolean; count: number }> {
+  const key = RATE_LIMIT_PREFIX + phone.replace(/\D/g, "");
+  if (redis) {
+    try {
+      const count = await redis.incr(key);
+      if (count === 1) await redis.expire(key, RATE_LIMIT_TTL_SECONDS);
+      return { allowed: count <= RATE_LIMIT_MAX, count };
+    } catch (err) {
+      logRedisFallback("checkAndIncrementRateLimit", err);
+    }
+  }
+  const now = Date.now();
+  const mem = rateLimitMemory.get(key);
+  if (!mem || mem.expiry < now) {
+    rateLimitMemory.set(key, { count: 1, expiry: now + RATE_LIMIT_TTL_SECONDS * 1000 });
+    return { allowed: true, count: 1 };
+  }
+  mem.count += 1;
+  return { allowed: mem.count <= RATE_LIMIT_MAX, count: mem.count };
 }
