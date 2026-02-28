@@ -41,7 +41,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <aside className="fixed left-0 top-0 z-40 h-screen w-64 border-r border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex h-16 items-center border-b border-slate-200 px-6 dark:border-slate-800">
+        <div className="flex h-16 items-center justify-between border-b border-slate-200 px-6 dark:border-slate-800">
           <Link href="/" className="flex items-center gap-2.5">
             <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-sm">
               <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -50,6 +50,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             </div>
             <span className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">SaaSRandevu</span>
           </Link>
+          <ThemeToggle />
         </div>
         <nav className="flex h-[calc(100vh-4rem)] flex-col overflow-y-auto p-3">
           <div className="mb-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -73,10 +74,6 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
             );
           })}
           <div className="mt-auto border-t border-slate-200 pt-3 dark:border-slate-800">
-            <div className="mb-2 flex items-center justify-between px-3 py-2">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">Tema</span>
-              <ThemeToggle />
-            </div>
             <AdminLogout />
           </div>
         </nav>

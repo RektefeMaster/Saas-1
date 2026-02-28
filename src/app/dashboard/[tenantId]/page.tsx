@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 
 interface Appointment {
   id: string;
@@ -9,6 +9,29 @@ interface Appointment {
   status: string;
   service_slug: string | null;
   extra_data: Record<string, unknown>;
+}
+
+interface AvailabilitySlot {
+  time: string;
+  customer_phone?: string;
+  id?: string;
+}
+
+interface AvailabilityData {
+  date: string;
+  blocked: boolean;
+  available: string[];
+  booked: AvailabilitySlot[];
+  workingHours: { start: string; end: string } | null;
+  noSchedule?: boolean;
+}
+
+interface WorkingHoursSlot {
+  id?: string;
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  day_name?: string;
 }
 
 type ReminderPref = "off" | "customer_only" | "merchant_only" | "both";
@@ -33,6 +56,23 @@ interface ReviewData {
   reviews: Array<{ id: string; rating: number; comment: string | null; created_at: string }>;
 }
 
+const DAY_NAMES = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
+
+function getWeekDates(anchor: Date): string[] {
+  const dates: string[] = [];
+  const start = new Date(anchor);
+  start.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7));
+  for (let i = 0; i < 14; i++) {
+    const d = new Date(start);
+    d.setDate(start.getDate() + i);
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    dates.push(`${y}-${m}-${day}`);
+  }
+  return dates;
+}
+
 export default function EsnafDashboard({
   params,
 }: {
@@ -46,13 +86,22 @@ export default function EsnafDashboard({
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [addPhone, setAddPhone] = useState("");
-  const [addSlot, setAddSlot] = useState("");
+  const [addDate, setAddDate] = useState("");
+  const [addTime, setAddTime] = useState("");
+  const [addDatetimeLocal, setAddDatetimeLocal] = useState("");
   const [showBlocked, setShowBlocked] = useState(false);
   const [blockStart, setBlockStart] = useState("");
   const [blockEnd, setBlockEnd] = useState("");
   const [blockReason, setBlockReason] = useState("");
   const [reminderPref, setReminderPref] = useState<ReminderPref>("customer_only");
   const [reminderSaving, setReminderSaving] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<AvailabilityData | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+  const [weekAnchor, setWeekAnchor] = useState(new Date());
+  const [workingHours, setWorkingHours] = useState<WorkingHoursSlot[]>([]);
+  const [showWorkingHours, setShowWorkingHours] = useState(false);
+  const [workingHoursSaving, setWorkingHoursSaving] = useState(false);
 
   useEffect(() => {
     params.then(setResolvedParams);
@@ -132,6 +181,33 @@ export default function EsnafDashboard({
       .then((d) => setReviews(d));
   }, [tenantId, baseUrl]);
 
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`${baseUrl}/api/tenant/${tenantId}/availability/slots`)
+      .then((r) => r.json())
+      .then((d) => setWorkingHours(Array.isArray(d) ? d : []));
+  }, [tenantId, baseUrl]);
+
+  const fetchAvailability = useCallback(
+    async (dateStr: string) => {
+      if (!tenantId) return;
+      setAvailabilityLoading(true);
+      try {
+        const res = await fetch(`${baseUrl}/api/tenant/${tenantId}/availability?date=${dateStr}`);
+        const data = await res.json();
+        setAvailability(data);
+      } finally {
+        setAvailabilityLoading(false);
+      }
+    },
+    [tenantId, baseUrl]
+  );
+
+  useEffect(() => {
+    if (selectedDate) fetchAvailability(selectedDate);
+    else setAvailability(null);
+  }, [selectedDate, fetchAvailability]);
+
   const handleAddBlocked = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!tenantId || !blockStart || !blockEnd) return;
@@ -162,10 +238,25 @@ export default function EsnafDashboard({
     if (res.ok) setBlockedDates((prev) => prev.filter((b) => b.id !== blockId));
   };
 
+  const handleSlotClick = (dateStr: string, timeStr: string) => {
+    setAddDate(dateStr);
+    setAddTime(timeStr);
+    setAddPhone("");
+    setShowAdd(true);
+  };
+
   const handleAddAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!tenantId || !addPhone || !addSlot) return;
-    const slotStart = addSlot.includes("T") ? addSlot : `${addSlot}:00`;
+    if (!tenantId || !addPhone) return;
+    let slotStart: string;
+    let dateStr: string;
+    if (addDate && addTime) {
+      slotStart = `${addDate}T${addTime}:00`;
+      dateStr = addDate;
+    } else if (addDatetimeLocal) {
+      slotStart = addDatetimeLocal.includes("T") ? addDatetimeLocal + ":00" : `${addDatetimeLocal}:00`;
+      dateStr = addDatetimeLocal.slice(0, 10);
+    } else return;
     const res = await fetch(`${baseUrl}/api/tenant/${tenantId}/appointments`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -176,10 +267,36 @@ export default function EsnafDashboard({
     });
     if (res.ok) {
       setAddPhone("");
-      setAddSlot("");
+      setAddDate("");
+      setAddTime("");
+      setAddDatetimeLocal("");
       setShowAdd(false);
       const data = await res.json();
       setAppointments((prev) => [...prev, data]);
+      if (dateStr === selectedDate) fetchAvailability(dateStr);
+    }
+  };
+
+  const handleSaveWorkingHours = async () => {
+    if (!tenantId) return;
+    setWorkingHoursSaving(true);
+    try {
+      const payload = workingHours
+        .filter((s) => s.start_time && s.end_time)
+        .map((s) => ({ day_of_week: s.day_of_week, start_time: s.start_time, end_time: s.end_time }));
+      const res = await fetch(`${baseUrl}/api/tenant/${tenantId}/availability/slots`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slots: payload }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWorkingHours(data);
+        setShowWorkingHours(false);
+        if (selectedDate) fetchAvailability(selectedDate);
+      }
+    } finally {
+      setWorkingHoursSaving(false);
     }
   };
 
@@ -229,7 +346,12 @@ export default function EsnafDashboard({
               QR Kod (PNG)
             </a>
             <button
-              onClick={() => setShowAdd(!showAdd)}
+              onClick={() => {
+                setAddDate("");
+                setAddTime("");
+                setAddPhone("");
+                setShowAdd(true);
+              }}
               className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
             >
               + Randevu Ekle
@@ -264,39 +386,244 @@ export default function EsnafDashboard({
           </div>
         </div>
 
+        {/* Çalışma saatleri */}
+        <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="font-medium text-zinc-900">Çalışma saatleri</h3>
+            <button
+              type="button"
+              onClick={() => {
+                if (!showWorkingHours && workingHours.length === 0) {
+                  setWorkingHours(
+                    [1, 2, 3, 4, 5].map((dow) => ({
+                      day_of_week: dow,
+                      start_time: "09:00",
+                      end_time: "18:00",
+                      day_name: DAY_NAMES[dow],
+                    }))
+                  );
+                }
+                setShowWorkingHours(!showWorkingHours);
+              }}
+              className="text-sm font-medium text-emerald-600 hover:text-emerald-700"
+            >
+              {showWorkingHours ? "Kapat" : workingHours.length ? "Düzenle" : "Ayarla"}
+            </button>
+          </div>
+          {showWorkingHours ? (
+            <div className="space-y-2">
+              {[1, 2, 3, 4, 5, 6, 0].map((dow) => {
+                const slot = workingHours.find((s) => s.day_of_week === dow) ?? {
+                  day_of_week: dow,
+                  start_time: "",
+                  end_time: "",
+                  day_name: DAY_NAMES[dow],
+                };
+                return (
+                  <div key={dow} className="flex items-center gap-2">
+                    <span className="w-20 text-sm text-zinc-600">{DAY_NAMES[dow]}</span>
+                    <input
+                      type="time"
+                      value={slot.start_time}
+                      onChange={(e) => {
+                        const arr = [...workingHours];
+                        const idx = arr.findIndex((s) => s.day_of_week === dow);
+                        if (idx >= 0) arr[idx] = { ...arr[idx], start_time: e.target.value };
+                        else arr.push({ day_of_week: dow, start_time: e.target.value, end_time: slot.end_time || "18:00" });
+                        setWorkingHours(arr);
+                      }}
+                      className="rounded border border-zinc-300 px-2 py-1 text-sm"
+                    />
+                    <span className="text-zinc-400">–</span>
+                    <input
+                      type="time"
+                      value={slot.end_time}
+                      onChange={(e) => {
+                        const arr = [...workingHours];
+                        const idx = arr.findIndex((s) => s.day_of_week === dow);
+                        if (idx >= 0) arr[idx] = { ...arr[idx], end_time: e.target.value };
+                        else arr.push({ day_of_week: dow, start_time: slot.start_time || "09:00", end_time: e.target.value });
+                        setWorkingHours(arr);
+                      }}
+                      className="rounded border border-zinc-300 px-2 py-1 text-sm"
+                    />
+                  </div>
+                );
+              })}
+              <button
+                type="button"
+                onClick={handleSaveWorkingHours}
+                disabled={workingHoursSaving}
+                className="mt-2 rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {workingHoursSaving ? "Kaydediliyor…" : "Kaydet"}
+              </button>
+            </div>
+          ) : workingHours.length > 0 ? (
+            <p className="text-sm text-zinc-600">
+              {workingHours.map((s) => `${s.day_name} ${s.start_time}–${s.end_time}`).join(" · ")}
+            </p>
+          ) : (
+            <p className="text-sm text-zinc-500">Çalışma saatleri tanımlanmadı. Randevu almak için ayarlayın.</p>
+          )}
+        </div>
+
+        {/* Haftalık takvim */}
+        <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="font-medium text-zinc-900">Tarih seç</h3>
+            <div className="flex gap-1">
+              <button
+                type="button"
+                onClick={() => setWeekAnchor((d) => new Date(d.getTime() - 7 * 24 * 60 * 60 * 1000))}
+                className="rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                ←
+              </button>
+              <button
+                type="button"
+                onClick={() => setWeekAnchor(new Date())}
+                className="rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                Bugün
+              </button>
+              <button
+                type="button"
+                onClick={() => setWeekAnchor((d) => new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000))}
+                className="rounded border border-zinc-300 px-2 py-1 text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                →
+              </button>
+            </div>
+          </div>
+          <div className="grid grid-cols-7 gap-1">
+            {getWeekDates(weekAnchor).map((dateStr) => {
+              const d = new Date(dateStr + "T12:00:00");
+              const isSelected = selectedDate === dateStr;
+              const hasAppts = grouped[dateStr]?.length;
+              const isBlocked = blockedDates.some(
+                (b) => dateStr >= b.start_date && dateStr <= b.end_date
+              );
+              const isPast = dateStr < new Date().toISOString().slice(0, 10);
+              return (
+                <button
+                  key={dateStr}
+                  type="button"
+                  onClick={() => setSelectedDate(dateStr)}
+                  disabled={isPast}
+                  className={`flex flex-col items-center rounded-lg px-1 py-2 text-sm transition ${
+                    isSelected
+                      ? "bg-emerald-600 text-white"
+                      : isPast
+                      ? "cursor-not-allowed bg-zinc-100 text-zinc-400"
+                      : isBlocked
+                      ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
+                      : "bg-zinc-100 text-zinc-800 hover:bg-emerald-100 hover:text-emerald-800"
+                  }`}
+                >
+                  <span className="text-xs">{DAY_NAMES[d.getDay()]}</span>
+                  <span className="font-medium">{d.getDate()}</span>
+                  {hasAppts && (
+                    <span className="mt-0.5 h-1 w-1 rounded-full bg-emerald-500" title={`${hasAppts} randevu`} />
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Seçilen güne ait dolu/boş saatler */}
+        {selectedDate && (
+          <div className="mb-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm">
+            <h3 className="mb-3 font-medium text-zinc-900">
+              {new Date(selectedDate + "T12:00:00").toLocaleDateString("tr-TR", {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              })}
+            </h3>
+            {availabilityLoading ? (
+              <div className="py-8 text-center text-zinc-500">Yükleniyor...</div>
+            ) : availability?.blocked ? (
+              <p className="rounded-lg bg-amber-50 py-4 text-center text-sm text-amber-800">Bu gün kapalı (tatil/izin)</p>
+            ) : availability?.noSchedule ? (
+              <p className="rounded-lg bg-zinc-100 py-4 text-center text-sm text-zinc-600">Çalışma saati tanımlı değil</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {availability?.available?.map((time) => (
+                  <button
+                    key={time}
+                    type="button"
+                    onClick={() => handleSlotClick(selectedDate, time)}
+                    className="rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100"
+                  >
+                    {time} <span className="text-emerald-600">boş</span>
+                  </button>
+                ))}
+                {availability?.booked?.map((b) => (
+                  <div
+                    key={b.time + (b.id ?? "")}
+                    className="rounded-lg bg-zinc-200 px-3 py-2 text-sm text-zinc-700"
+                  >
+                    {b.time} <span className="font-medium text-zinc-900">dolu</span> – {b.customer_phone}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* Randevu ekle formu */}
         {showAdd && (
           <form
             onSubmit={handleAddAppointment}
             className="mb-6 rounded-xl border border-zinc-200 bg-white p-4 shadow-sm"
           >
-            <h3 className="mb-3 font-medium text-zinc-900">Kapıdan giren müşteri</h3>
+            <h3 className="mb-3 font-medium text-zinc-900">
+              {addDate && addTime
+                ? `Randevu ekle — ${new Date(addDate + "T12:00:00").toLocaleDateString("tr-TR")} saat ${addTime}`
+                : "Randevu ekle"}
+            </h3>
             <div className="flex flex-wrap gap-3">
+              {!addDate || !addTime ? (
+                <input
+                  type="datetime-local"
+                  value={addDatetimeLocal}
+                  onChange={(e) => setAddDatetimeLocal(e.target.value)}
+                  className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
+                  required={!addDate || !addTime}
+                />
+              ) : null}
               <input
                 type="tel"
-                placeholder="Telefon"
+                placeholder="Müşteri telefonu"
                 value={addPhone}
                 onChange={(e) => setAddPhone(e.target.value)}
                 className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400"
                 required
               />
-              <input
-                type="datetime-local"
-                value={addSlot}
-                onChange={(e) => setAddSlot(e.target.value)}
-                className="rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-900"
-                required
-              />
-              <button
-                type="submit"
-                className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700"
-              >
+              <button type="submit" className="rounded-lg bg-emerald-600 px-4 py-2 text-sm font-medium text-white hover:bg-emerald-700">
                 Ekle
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAdd(false);
+                  setAddDate("");
+                  setAddTime("");
+                  setAddDatetimeLocal("");
+                }}
+                className="rounded-lg border border-zinc-300 px-4 py-2 text-sm text-zinc-700 hover:bg-zinc-50"
+              >
+                İptal
               </button>
             </div>
           </form>
         )}
 
+        {/* Randevu listesi (özet) */}
         <div className="rounded-xl border border-zinc-200 bg-white shadow-sm">
+          <h3 className="border-b border-zinc-100 p-4 font-medium text-zinc-900">Yaklaşan randevular</h3>
           {loading ? (
             <div className="p-8 text-center text-zinc-500">Yükleniyor...</div>
           ) : sortedDates.length === 0 ? (

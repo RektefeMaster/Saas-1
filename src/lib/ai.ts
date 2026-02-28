@@ -163,8 +163,12 @@ function buildSystemContext(
   const tomorrow = new Date(today);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const tomorrowStr = tomorrow.toISOString().slice(0, 10);
+  // Bu haftanın Pazartesi (getDay: 0=Paz, 1=Pzt...)
+  const weekStart = new Date(today);
+  weekStart.setDate(today.getDate() - ((today.getDay() + 6) % 7));
+  const weekStartStr = `${weekStart.getFullYear()}-${String(weekStart.getMonth() + 1).padStart(2, "0")}-${String(weekStart.getDate()).padStart(2, "0")}`;
 
-  let ctx = `Bugün: ${todayStr}. Yarın: ${tomorrowStr}.`;
+  let ctx = `Bugün: ${todayStr}. Yarın: ${tomorrowStr}. Bu hafta (check_week_availability için start_date): ${weekStartStr}.`;
 
   const ext = (state?.extracted || {}) as Record<string, unknown>;
   const lastDate = ext.last_availability_date as string | undefined;
@@ -815,10 +819,14 @@ async function executeToolCall(
   if (name === "check_week_availability") {
     const startDate = args.start_date as string;
     const weekResults: Record<string, string[]> = {};
-    const start = new Date(startDate);
+    // YYYY-MM-DD parse + UTC ile gün ekleyerek timezone hatası önlenir (toISOString yerel TZ'de yanlış tarih verebiliyordu)
+    const parts = startDate.split("-").map(Number);
+    if (parts.length !== 3) {
+      return { result: { days: {}, message: "Geçersiz tarih formatı" } };
+    }
+    const [y, m, day] = parts;
     for (let i = 0; i < 7; i++) {
-      const d = new Date(start);
-      d.setDate(d.getDate() + i);
+      const d = new Date(Date.UTC(y, m - 1, day + i));
       const ds = d.toISOString().slice(0, 10);
       const avail = await checkAvailability(tenantId, ds, configOverride);
       if (avail.available.length > 0) {
