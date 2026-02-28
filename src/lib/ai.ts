@@ -133,11 +133,21 @@ Kurallar:
 - Müşteri "iptal" derse (hatırlatma mesajına cevap dahil) iptal akışını başlat.
 - Yapamayacağın bir şey çıkarsa sadece [[INSAN]] yaz.
 
+Müsaitlik durumları (check_availability sonucu):
+- status="has_available_slots" → Boş saatler var, müşteriye sun.
+- status="fully_booked" → O gün tüm saatler dolu. Başka gün sor veya check_week_availability çağır.
+- status="closed_day" → O gün işletme kapalı (tatil günü). Müşteriye "O gün kapalıyız" de, başka gün öner.
+- status="blocked_holiday" → Tatil/izin günü. "O gün kapalıyız" de.
+ÖNEMLİ: "available" listesi boş ama "status" farklı olabilir. Sadece "available" boş diye "dolu" deme, status'a bak!
+
+Müşteri "başka gün var mı?" derse → check_week_availability çağır, 2 haftalık müsaitliği göster.
+
 Örnek diyaloglar:
 Müşteri: "yarın 6 boş mu?" → check_availability çağır. 18:00 doluysa ama 17:00 boşsa: "Yarın 6 dolu ama 5 var, alayım mı?"
 Müşteri: "tamam 15e al" → create_appointment çağır. Başarılıysa: "Aldım! Yarın 15'te görüşürüz."
 Müşteri: "randevumu iptal et" → get_last_appointment çağır, sonra cancel_appointment.
 Müşteri: "bu hafta ne zaman boşsunuz?" → check_week_availability çağır, tüm haftayı göster.
+Müşteri: "başka gün olur mu?" → check_week_availability çağır, müsait günleri sun.
 Müşteri: "randevumu değiştirmek istiyorum" → get_last_appointment bul, reschedule_appointment ile yeni saate al.
 Müşteri: "her salı aynı saatte geleceğim" → create_recurring çağır.
 Müşteri: "dolu ama yer açılırsa haber verin" → add_to_waitlist çağır.
@@ -284,6 +294,9 @@ export async function getTenantWithBusinessType(
 
 // ── Availability ────────────────────────────────────────────────────────────────
 
+const DEFAULT_WORKING_HOURS = { start: "09:00", end: "18:00" };
+const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5, 6]; // Pzt-Cmt
+
 export async function checkAvailability(
   tenantId: string,
   dateStr: string,
@@ -293,9 +306,15 @@ export async function checkAvailability(
   booked: string[];
   blocked?: boolean;
   noSchedule?: boolean;
+  closed?: boolean;
 }> {
-  const date = new Date(dateStr);
+  const parts = dateStr.split("-").map(Number);
+  const date = parts.length === 3
+    ? new Date(parts[0], parts[1] - 1, parts[2])
+    : new Date(dateStr);
   if (isNaN(date.getTime())) return { available: [], booked: [] };
+
+  const dayOfWeek = date.getDay();
 
   const blocked = await checkBlockedDate(tenantId, dateStr);
   if (blocked) {
@@ -307,24 +326,22 @@ export async function checkAvailability(
     .select("day_of_week, start_time, end_time")
     .eq("tenant_id", tenantId);
 
-  let startTime: string | undefined;
-  let endTime: string | undefined;
+  let startTime: string;
+  let endTime: string;
 
   if (!slots || slots.length === 0) {
     const defaultHours = (configOverride?.default_working_hours ?? null) as {
       start?: string;
       end?: string;
     } | null;
-    if (defaultHours?.start && defaultHours?.end) {
-      startTime = defaultHours.start;
-      endTime = defaultHours.end;
-    } else {
-      return { available: [], booked: [], noSchedule: true };
+    startTime = defaultHours?.start || DEFAULT_WORKING_HOURS.start;
+    endTime = defaultHours?.end || DEFAULT_WORKING_HOURS.end;
+    if (!DEFAULT_WORKING_DAYS.includes(dayOfWeek)) {
+      return { available: [], booked: [], closed: true };
     }
   } else {
-    const dayOfWeek = date.getDay();
     const daySlot = slots.find((s) => s.day_of_week === dayOfWeek);
-    if (!daySlot) return { available: [], booked: [] };
+    if (!daySlot) return { available: [], booked: [], closed: true };
     startTime = daySlot.start_time;
     endTime = daySlot.end_time;
   }
@@ -342,8 +359,8 @@ export async function checkAvailability(
     return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
   });
 
-  const [startH, startM] = startTime!.split(":").map(Number);
-  const [endH, endM] = endTime!.split(":").map(Number);
+  const [startH, startM] = startTime.split(":").map(Number);
+  const [endH, endM] = endTime.split(":").map(Number);
   const available: string[] = [];
   for (let h = startH; h < endH || (h === endH && startM < endM); h++) {
     for (let m = 0; m < 60; m += 30) {
@@ -707,13 +724,19 @@ async function executeToolCall(
       dateStr,
       configOverride
     );
+    let status: string;
+    if (availability.blocked) status = "blocked_holiday";
+    else if (availability.closed) status = "closed_day";
+    else if (availability.available.length === 0) status = "fully_booked";
+    else status = "has_available_slots";
+
     return {
       result: {
         date: dateStr,
         date_readable: formatDateTr(dateStr),
+        status,
         available: availability.available,
-        blocked: !!availability.blocked,
-        noSchedule: !!availability.noSchedule,
+        booked_count: availability.booked.length,
       },
       sessionUpdate: {
         step: "saat_secimi_bekleniyor",
@@ -819,24 +842,33 @@ async function executeToolCall(
   if (name === "check_week_availability") {
     const startDate = args.start_date as string;
     const weekResults: Record<string, string[]> = {};
-    // YYYY-MM-DD parse + UTC ile gün ekleyerek timezone hatası önlenir (toISOString yerel TZ'de yanlış tarih verebiliyordu)
+    const closedDays: string[] = [];
     const parts = startDate.split("-").map(Number);
     if (parts.length !== 3) {
       return { result: { days: {}, message: "Geçersiz tarih formatı" } };
     }
     const [y, m, day] = parts;
-    for (let i = 0; i < 7; i++) {
-      const d = new Date(Date.UTC(y, m - 1, day + i));
-      const ds = d.toISOString().slice(0, 10);
+    const todayStr = new Date().toISOString().slice(0, 10);
+    for (let i = 0; i < 14; i++) {
+      const d = new Date(y, m - 1, day + i);
+      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      if (ds < todayStr) continue;
       const avail = await checkAvailability(tenantId, ds, configOverride);
+      if (avail.blocked) continue;
+      if (avail.closed) { closedDays.push(ds); continue; }
       if (avail.available.length > 0) {
         weekResults[`${ds} (${formatDateTr(ds)})`] = avail.available;
       }
     }
+    if (Object.keys(weekResults).length > 0) {
+      return { result: { days: weekResults } };
+    }
     return {
-      result: Object.keys(weekResults).length > 0
-        ? { days: weekResults }
-        : { days: {}, message: "Bu hafta müsait gün yok" },
+      result: {
+        days: {},
+        message: "Önümüzdeki 2 hafta içinde müsait gün bulunamadı.",
+        closed_day_count: closedDays.length,
+      },
     };
   }
 
@@ -1082,6 +1114,21 @@ export async function processMessage(
         updated_at: new Date().toISOString(),
       });
       return { reply: welcome };
+    }
+
+    // ── Session yoksa yeniden oluştur (returning customer) ──
+    if (!state) {
+      await setSession(tenantId, customerPhone, {
+        tenant_id: tenantId,
+        customer_phone: customerPhone,
+        step: "tarih_saat_bekleniyor",
+        extracted: {},
+        flow_type: flowType,
+        message_count: 1,
+        consecutive_misunderstandings: 0,
+        chat_history: [],
+        updated_at: new Date().toISOString(),
+      });
     }
 
     // ── Build context ──

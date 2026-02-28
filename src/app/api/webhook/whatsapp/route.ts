@@ -76,27 +76,25 @@ export async function POST(request: NextRequest) {
           try {
             let tenantId: string | null = await getTenantIdByPhone(customerPhone);
 
-            if (!tenantId) {
-              const code = parseTenantCodeFromMessage(text);
-              if (code) {
-                const tenant = await getTenantByCode(code);
-                if (tenant) {
-                  tenantId = tenant.id;
-                  await setPhoneTenantMapping(customerPhone, tenant.id);
-                  const newState: ConversationState = {
-                    tenant_id: tenant.id,
-                    customer_phone: customerPhone,
-                    flow_type: "appointment",
-                    extracted: {},
-                    step: "tenant_bulundu",
-                    updated_at: new Date().toISOString(),
-                  };
-                  await setSession(tenant.id, customerPhone, newState);
-                }
+            const code = parseTenantCodeFromMessage(text);
+            if (code) {
+              const tenant = await getTenantByCode(code);
+              if (tenant) {
+                tenantId = tenant.id;
+                await setPhoneTenantMapping(customerPhone, tenant.id);
+                const newState: ConversationState = {
+                  tenant_id: tenant.id,
+                  customer_phone: customerPhone,
+                  flow_type: "appointment",
+                  extracted: {},
+                  step: "tenant_bulundu",
+                  updated_at: new Date().toISOString(),
+                };
+                await setSession(tenant.id, customerPhone, newState);
               }
             }
 
-            if (!tenantId) {
+            if (!tenantId && !code) {
               const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://saasrandevu.com";
               const listUrl = `${appUrl}/isletmeler`;
               console.log("[webhook] no tenant, sending list to", customerPhone);
@@ -106,6 +104,23 @@ export async function POST(request: NextRequest) {
               });
               console.log("[webhook] send result (no tenant):", sent);
               continue;
+            }
+
+            if (!tenantId) continue;
+
+            await setPhoneTenantMapping(customerPhone, tenantId);
+
+            const existingSession = await import("@/lib/redis").then((m) => m.getSession(tenantId!, customerPhone));
+            if (!existingSession) {
+              const newState: ConversationState = {
+                tenant_id: tenantId,
+                customer_phone: customerPhone,
+                flow_type: "appointment",
+                extracted: {},
+                step: "tenant_bulundu",
+                updated_at: new Date().toISOString(),
+              };
+              await setSession(tenantId, customerPhone, newState);
             }
 
             console.log("[webhook] processMessage for tenant", tenantId, "from", customerPhone);
