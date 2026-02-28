@@ -1,9 +1,6 @@
-/**
- * [YENİ] Meta WhatsApp webhook imza doğrulama middleware.
- * Her webhook isteğinde x-hub-signature-256 header kontrol edilir.
- * Express kullanıyorsanız: router.post("/webhook", express.raw({ type: "*/*" }), verifyWebhookSignature, handler)
- * Next.js: Route Handler içinde raw body alıp verifyWebhookSignatureBody ile aynı kontrolü yapın.
- */
+// [YENİ] Meta WhatsApp webhook imza doğrulama middleware.
+// Her webhook isteğinde x-hub-signature-256 header kontrol edilir.
+// Next.js: Route Handler icinde raw body alip verifyWebhookSignatureBody ile ayni kontrolu yapin.
 import crypto from "crypto";
 
 /** Express-benzeri tip (proje Express kullanmıyorsa sadece verifyWebhookSignatureBody kullanılabilir) */
