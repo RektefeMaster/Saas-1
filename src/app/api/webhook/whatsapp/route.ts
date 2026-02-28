@@ -25,6 +25,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
+    console.log("[webhook] POST received, object:", body?.object);
 
     if (body.object !== "whatsapp_business_account") {
       return NextResponse.json({ ok: true });
@@ -37,54 +38,76 @@ export async function POST(request: NextRequest) {
         if (change.field !== "messages") continue;
         const value = change.value;
         const messages = value?.messages || [];
+        console.log("[webhook] messages count:", messages.length);
 
         for (const msg of messages) {
-          if (msg.type !== "text") continue;
+          if (msg.type !== "text") {
+            console.log("[webhook] skip non-text type:", msg.type);
+            continue;
+          }
           const from = msg.from;
           const text = msg.text?.body || "";
           const customerPhone = `+${from}`;
 
-          let tenantId: string | null = await getTenantIdByPhone(customerPhone);
+          try {
+            let tenantId: string | null = await getTenantIdByPhone(customerPhone);
 
-          if (!tenantId) {
-            const code = parseTenantCodeFromMessage(text);
-            if (code) {
-              const tenant = await getTenantByCode(code);
-              if (tenant) {
-                tenantId = tenant.id;
-                await setPhoneTenantMapping(customerPhone, tenant.id);
-                const newState: ConversationState = {
-                  tenant_id: tenant.id,
-                  customer_phone: customerPhone,
-                  flow_type: "appointment",
-                  extracted: {},
-                  step: "tenant_bulundu",
-                  updated_at: new Date().toISOString(),
-                };
-                await setSession(tenant.id, customerPhone, newState);
+            if (!tenantId) {
+              const code = parseTenantCodeFromMessage(text);
+              if (code) {
+                const tenant = await getTenantByCode(code);
+                if (tenant) {
+                  tenantId = tenant.id;
+                  await setPhoneTenantMapping(customerPhone, tenant.id);
+                  const newState: ConversationState = {
+                    tenant_id: tenant.id,
+                    customer_phone: customerPhone,
+                    flow_type: "appointment",
+                    extracted: {},
+                    step: "tenant_bulundu",
+                    updated_at: new Date().toISOString(),
+                  };
+                  await setSession(tenant.id, customerPhone, newState);
+                }
               }
             }
-          }
 
-          if (!tenantId) {
-            const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://saasrandevu.com";
-            const listUrl = `${appUrl}/isletmeler`;
-            await sendWhatsAppMessage({
-              to: customerPhone,
-              text: `Merhaba! Hangi işletme için randevu almak istiyorsunuz?\n\nİşletme listesine buradan ulaşabilirsiniz: ${listUrl}\n\nVeya mesajınızda "Kod: XXXXXX" formatında işletme kodunu yazın (örn: Kod: AHMET01).`,
-            });
-            return NextResponse.json({ ok: true });
-          }
+            if (!tenantId) {
+              const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://saasrandevu.com";
+              const listUrl = `${appUrl}/isletmeler`;
+              console.log("[webhook] no tenant, sending list to", customerPhone);
+              const sent = await sendWhatsAppMessage({
+                to: customerPhone,
+                text: `Merhaba! Hangi işletme için randevu almak istiyorsunuz?\n\nİşletme listesine buradan ulaşabilirsiniz: ${listUrl}\n\nVeya mesajınızda "Kod: XXXXXX" formatında işletme kodunu yazın (örn: Kod: AHMET01).`,
+              });
+              console.log("[webhook] send result (no tenant):", sent);
+              continue;
+            }
 
-          const { reply } = await processMessage(tenantId, customerPhone, text);
-          await sendWhatsAppMessage({ to: customerPhone, text: reply });
+            console.log("[webhook] processMessage for tenant", tenantId, "from", customerPhone);
+            const { reply } = await processMessage(tenantId, customerPhone, text);
+            console.log("[webhook] sending reply to", customerPhone);
+            const sent = await sendWhatsAppMessage({ to: customerPhone, text: reply });
+            console.log("[webhook] send result:", sent);
+            if (!sent) console.error("[webhook] WhatsApp send failed for", customerPhone);
+          } catch (err) {
+            console.error("[webhook] Error processing message:", err);
+            try {
+              await sendWhatsAppMessage({
+                to: customerPhone,
+                text: "Üzgünüm, bir hata oluştu. Lütfen biraz sonra tekrar deneyin.",
+              });
+            } catch (sendErr) {
+              console.error("[webhook] Fallback send failed:", sendErr);
+            }
+          }
         }
       }
     }
 
     return NextResponse.json({ ok: true });
   } catch (err) {
-    console.error("Webhook error:", err);
-    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+    console.error("[webhook] Outer error:", err);
+    return NextResponse.json({ ok: true });
   }
 }

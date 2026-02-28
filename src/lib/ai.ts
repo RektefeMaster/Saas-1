@@ -23,13 +23,16 @@ const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
 
-const SYSTEM_PROMPT = `Sen SaaSRandevu WhatsApp asistanısın. Randevu alıyorsun.
-Kurallar:
-- Türkçe, samimi, kısa cevap ver.
-- Tarih ve saat sor. Müsait değilse alternatif saat öner.
-- Onay alınca randevuyu kaydet (create_appointment fonksiyonunu çağır).
-- Müşteri iptal isterse: get_last_appointment çağır, randevuyu göster, "İptal edilsin mi?" diye sor. "Evet/tamam" derse cancel_appointment çağır. Sonra "Başka bir saate almak ister misiniz?" diye sor.
-- Hiçbir yerde hizmet süresi (dakika, saat) belirtme.`;
+const SYSTEM_PROMPT = `Sen bir işletmenin WhatsApp randevu asistanısın.
+
+Akış (buna uy):
+1) Müşteri merhaba/randevu derse: Hoşgeldin mesajı + "Hangi gün ve saatte randevu alacaktınız?" veya "Saat kaçta randevu alacaktınız?" diye sor.
+2) Müşteri tarih/saat söylediğinde (örn. "yarın 14:00", "saat 6"): check_availability ile kontrol et.
+3) Müsaitse: "Evet, uygun. Kaydedeyim mi? Onaylıyor musunuz?" de. Doluysa: "Maalesef o saat dolu. Şu saatler müsait: ..." de, alternatif öner.
+4) Müşteri "evet/tamam/olur/onaylıyorum/kaydet" derse: create_appointment çağır, "Randevunuz kaydedildi" de.
+5) İptal isterse: get_last_appointment → randevuyu göster → "İptal edilsin mi?" → "Evet" derse cancel_appointment.
+
+Kurallar: Türkçe, samimi, kısa cevap. Tarih/saat belirsizse sor. Onay almadan create_appointment çağırma.`;
 
 function buildCondensedContext(
   state: ConversationState | null,
@@ -202,11 +205,30 @@ export async function processMessage(
   }
 
   const state = await getSession(tenantId, customerPhone);
+
+  // İlk mesaj: işletme adıyla hoşgeldin + saat sor
+  const btFirst = Array.isArray(tenant.business_types) ? tenant.business_types[0] : tenant.business_types;
+  const flowType = (btFirst as BusinessType | undefined)?.config?.flow_type as FlowType | undefined;
+  if (state?.step === "tenant_bulundu") {
+    const welcome = `${tenant.name}'e hoşgeldiniz. Bize ulaştığınız için teşekkürler. Hangi gün ve saatte randevu alacaktınız?`;
+    await setSession(tenantId, customerPhone, {
+      ...(state || {}),
+      tenant_id: tenantId,
+      customer_phone: customerPhone,
+      step: "tarih_saat_bekleniyor",
+      extracted: state?.extracted || {},
+      flow_type: flowType || "appointment",
+      updated_at: new Date().toISOString(),
+    });
+    return { reply: welcome };
+  }
+
   const history = await getCustomerHistory(tenantId, customerPhone);
   const historySummary = formatHistoryForPrompt(history);
   const condensed = buildCondensedContext(state, incomingMessage, historySummary);
 
-  const bt = tenant.business_types as BusinessType;
+  const btRaw = tenant.business_types;
+  const bt = (Array.isArray(btRaw) ? btRaw[0] : btRaw) as BusinessType | undefined;
   const promptTemplate =
     (bt?.config as { ai_prompt_template?: string })?.ai_prompt_template ||
     `Sen {tenant_name} işletmesinin WhatsApp asistanısın. Tarih ve saat sor. Türkçe cevap ver.`;
@@ -316,9 +338,9 @@ export async function processMessage(
           const dateStr = d.toLocaleDateString("tr-TR");
           const timeStr = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
           finalReply = `${dateStr} ${timeStr} randevunuz var. İptal edilsin mi?`;
-          const newExtracted = { ...state?.extracted, pending_cancel_appointment_id: last.id };
+          const newExtracted = { ...(state?.extracted || {}), pending_cancel_appointment_id: last.id };
           await setSession(tenantId, customerPhone, {
-            ...state!,
+            ...(state || {}),
             tenant_id: tenantId,
             customer_phone: customerPhone,
             step: "iptal_onay_bekleniyor",

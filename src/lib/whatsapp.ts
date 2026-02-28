@@ -12,7 +12,7 @@ export async function sendWhatsAppMessage({
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
   if (!phoneId || !token) {
-    console.error("WhatsApp credentials missing");
+    console.error("[whatsapp] credentials missing - phoneId:", !!phoneId, "token:", !!token);
     return false;
   }
 
@@ -38,7 +38,7 @@ export async function sendWhatsAppMessage({
 
   if (!res.ok) {
     const err = await res.text();
-    console.error("WhatsApp send error:", res.status, err);
+    console.error("[whatsapp] send error", res.status, "to", normalizedTo, err);
     return false;
   }
   return true;
