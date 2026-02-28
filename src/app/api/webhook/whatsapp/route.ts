@@ -3,7 +3,7 @@ import { parseTenantCodeFromMessage } from "@/lib/tenant-code";
 import { getTenantByCode, processMessage } from "@/lib/ai";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getTenantIdByPhone, setPhoneTenantMapping, setSession } from "@/lib/redis";
-import { verifyWebhookSignature, getWebhookSecret } from "@/middleware/webhookVerify.middleware";
+import { verifyWebhookSignatureBody, getWebhookSecret } from "@/middleware/webhookVerify.middleware";
 import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
 import type { ConversationState } from "@/lib/database.types";
 
@@ -29,7 +29,7 @@ export async function POST(request: NextRequest) {
   const secret = getWebhookSecret();
 
   const rawBody = await request.text();
-  if (secret && !verifyWebhookSignature(Buffer.from(rawBody, "utf8"), signature, secret)) {
+  if (secret && !verifyWebhookSignatureBody(Buffer.from(rawBody, "utf8"), signature, secret)) {
     console.warn("[webhook] Invalid signature, rejecting request");
     return new NextResponse("Unauthorized", { status: 401 });
   }

@@ -80,6 +80,20 @@ export interface AvailabilitySlot {
   created_at: string;
 }
 
+export interface ChatMessage {
+  role: "assistant" | "user";
+  content: string;
+}
+
+export interface TenantMessagesConfig {
+  welcome?: string | string[];
+  tone?: "sen" | "siz";
+  personality?: string;
+  confirmation?: string;
+  reminder?: string;
+  [key: string]: unknown;
+}
+
 export interface ConversationState {
   intent?: "randevu_al" | "sipariş_ver" | "rezervasyon" | "bilgi_sor";
   flow_type: FlowType;
@@ -88,8 +102,7 @@ export interface ConversationState {
   tenant_id: string;
   customer_phone: string;
   updated_at: string;
-  /** Toplam mesaj sayısı; 10'u geçip randevu tamamlanmamışsa insan yönlendirme */
   message_count?: number;
-  /** Ardışık "anlayamadım" sayısı; 2 olunca insan yönlendirme */
   consecutive_misunderstandings?: number;
+  chat_history?: ChatMessage[];
 }

@@ -35,9 +35,15 @@ let fallbackLogged = false;
 const SESSION_PREFIX = "saasrandevu:session:";
 const PHONE_TENANT_PREFIX = "saasrandevu:phone2tenant:";
 const RATE_LIMIT_PREFIX = "saasrandevu:ratelimit:";
+/** [YENİ] Tenant cache key prefix; TTL 300 saniye (5 dk). */
+const TENANT_CACHE_PREFIX = "saasrandevu:tenant:id:";
+const TENANT_CACHE_TTL_SECONDS = 300;
 const TTL_SECONDS = 60 * 60 * 24; // 24 saat
 const RATE_LIMIT_TTL_SECONDS = 60; // 1 dakika
 const RATE_LIMIT_MAX = 15; // dakikada max mesaj
+
+/** [YENİ] Tenant cache in-memory fallback (Redis yoksa). */
+const tenantCacheMemory = new Map<string, { value: string; expiry: number }>();
 
 function logRedisFallback(action: string, err: unknown) {
   if (fallbackLogged) return;
@@ -149,6 +155,47 @@ export async function clearPhoneTenantMapping(customerPhone: string): Promise<vo
     }
   }
   phoneTenantStore.delete(key);
+}
+
+/**
+ * [YENİ] Tenant cache — get. TTL 5 dk. Cache miss → null (DB'den çekilip setTenantCache ile yazılır).
+ */
+export async function getTenantFromCache(tenantId: string): Promise<unknown | null> {
+  const key = TENANT_CACHE_PREFIX + tenantId;
+  if (redis) {
+    try {
+      const raw = await redis.get<string>(key);
+      return raw ? (JSON.parse(raw) as unknown) : null;
+    } catch (err) {
+      logRedisFallback("getTenantFromCache", err);
+    }
+  }
+  const mem = tenantCacheMemory.get(key);
+  if (mem && mem.expiry > Date.now()) {
+    try {
+      return JSON.parse(mem.value) as unknown;
+    } catch {
+      tenantCacheMemory.delete(key);
+    }
+  }
+  return null;
+}
+
+/**
+ * [YENİ] Tenant cache — set. TTL 300 saniye.
+ */
+export async function setTenantCache(tenantId: string, value: unknown): Promise<void> {
+  const key = TENANT_CACHE_PREFIX + tenantId;
+  const serialized = JSON.stringify(value);
+  if (redis) {
+    try {
+      await redis.set(key, serialized, { ex: TENANT_CACHE_TTL_SECONDS });
+      return;
+    } catch (err) {
+      logRedisFallback("setTenantCache", err);
+    }
+  }
+  tenantCacheMemory.set(key, { value: serialized, expiry: Date.now() + TENANT_CACHE_TTL_SECONDS * 1000 });
 }
 
 // --- Rate limiting (webhook: 15 mesaj/dakika per phone) ---
