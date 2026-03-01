@@ -59,6 +59,14 @@ npm run dev
 - `/t/[tenantId]` - WhatsApp'a yönlendiren kısa link
 - `/api/webhook/whatsapp` - WhatsApp webhook (GET: doğrulama, POST: mesajlar)
 - `/api/cron/reminders` - 24 saat önce randevu hatırlatma (cron)
+- `/api/debug/env-check` - Çalışma ortamı değişken kontrolü
+- `/api/debug/whatsapp-health` - WhatsApp token/phone-id canlı sağlık kontrolü
+
+## Üretim Notları (WhatsApp)
+
+1. `WHATSAPP_ACCESS_TOKEN` geçerli ve süresi dolmamış olmalı.
+2. Meta Webhook Callback URL doğrudan çalışan production URL olmalı: `https://<domain>/api/webhook/whatsapp`
+3. Vercel Deployment Protection açıksa Meta webhook istekleri 401 alır; webhook endpointi dış dünyaya açık olmalıdır.
 
 ## Cron
 

@@ -30,22 +30,6 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  const customerName =
-    (extra_data as { customer_name?: string } | undefined)?.customer_name?.trim() || null;
-  await supabase
-    .from("crm_customers")
-    .upsert(
-      {
-        tenant_id: id,
-        customer_phone,
-        customer_name: customerName,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "tenant_id,customer_phone" }
-    )
-    .then(() => undefined)
-    .catch(() => undefined);
-
   return NextResponse.json(data);
 }
 
@@ -54,10 +38,18 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id } = await params;
-  const body = await request.json();
-  const { customer_phone, slot_start, service_slug, extra_data } = body;
+  const body = (await request.json().catch(() => ({}))) as {
+    customer_phone?: string;
+    slot_start?: string;
+    service_slug?: string | null;
+    extra_data?: Record<string, unknown>;
+  };
+  const customerPhone = body.customer_phone?.trim();
+  const slotStart = body.slot_start;
+  const serviceSlug = body.service_slug;
+  const extraData = body.extra_data && typeof body.extra_data === "object" ? body.extra_data : {};
 
-  if (!customer_phone || !slot_start) {
+  if (!customerPhone || !slotStart) {
     return NextResponse.json(
       { error: "customer_phone ve slot_start gerekli" },
       { status: 400 }
@@ -68,11 +60,11 @@ export async function POST(
     .from("appointments")
     .insert({
       tenant_id: id,
-      customer_phone,
-      slot_start,
+      customer_phone: customerPhone,
+      slot_start: slotStart,
       status: "confirmed",
-      service_slug: service_slug || null,
-      extra_data: extra_data || {},
+      service_slug: serviceSlug || null,
+      extra_data: extraData,
     })
     .select()
     .single();
@@ -80,5 +72,24 @@ export async function POST(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const customerName =
+    (extraData as { customer_name?: string }).customer_name?.trim() || null;
+  try {
+    await supabase
+      .from("crm_customers")
+      .upsert(
+        {
+          tenant_id: id,
+          customer_phone: customerPhone,
+          customer_name: customerName,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "tenant_id,customer_phone" }
+      );
+  } catch {
+    // CRM upsert başarısız olsa da randevu kaydı başarılı kalmalı.
+  }
+
   return NextResponse.json(data);
 }

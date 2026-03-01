@@ -37,20 +37,22 @@ export async function PATCH(
       .eq("customer_phone", data.customer_phone)
       .maybeSingle();
 
-    await supabase
-      .from("crm_customers")
-      .upsert(
-        {
-          tenant_id: tenantId,
-          customer_phone: data.customer_phone,
-          total_visits: (existing?.total_visits || 0) + 1,
-          last_visit_at: data.slot_start,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "tenant_id,customer_phone" }
-      )
-      .then(() => undefined)
-      .catch(() => undefined);
+    try {
+      await supabase
+        .from("crm_customers")
+        .upsert(
+          {
+            tenant_id: tenantId,
+            customer_phone: data.customer_phone,
+            total_visits: (existing?.total_visits || 0) + 1,
+            last_visit_at: data.slot_start,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "tenant_id,customer_phone" }
+        );
+    } catch {
+      // CRM güncellemesi başarısız olsa da status geçişi başarılı kalmalı.
+    }
   }
 
   return NextResponse.json(data);

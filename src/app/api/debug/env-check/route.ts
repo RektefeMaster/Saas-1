@@ -13,6 +13,7 @@ export async function GET() {
     WHATSAPP_PHONE_ID: !!process.env.WHATSAPP_PHONE_NUMBER_ID,
     WHATSAPP_TOKEN: !!process.env.WHATSAPP_ACCESS_TOKEN,
     WHATSAPP_VERIFY: !!process.env.WHATSAPP_VERIFY_TOKEN,
+    WHATSAPP_WEBHOOK_SECRET: !!process.env.WHATSAPP_WEBHOOK_SECRET,
   };
   const allOk = Object.values(checks).every(Boolean);
   return NextResponse.json({ ok: allOk, checks });

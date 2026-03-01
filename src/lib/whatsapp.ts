@@ -37,8 +37,25 @@ export async function sendWhatsAppMessage({
   });
 
   if (!res.ok) {
-    const err = await res.text();
-    console.error("[whatsapp] send error", res.status, "to", normalizedTo, err);
+    const raw = await res.text();
+    let parsedError: { code?: number; error_subcode?: number; message?: string } | undefined;
+    try {
+      const parsed = JSON.parse(raw) as {
+        error?: { code?: number; error_subcode?: number; message?: string };
+      };
+      parsedError = parsed.error;
+    } catch {
+      parsedError = undefined;
+    }
+    const maybeExpired =
+      res.status === 401 &&
+      parsedError?.code === 190 &&
+      (parsedError.error_subcode === 463 ||
+        /session has expired/i.test(parsedError.message || ""));
+    if (maybeExpired) {
+      console.error("[whatsapp] access token expired - refresh WHATSAPP_ACCESS_TOKEN");
+    }
+    console.error("[whatsapp] send error", res.status, "to", normalizedTo, raw);
     return false;
   }
   return true;

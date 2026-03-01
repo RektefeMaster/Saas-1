@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminToken, getAdminCookieName, getAdminCookieOpts } from "@/lib/admin-auth";
+import { createAdminToken, getAdminCookieName, getAdminCookieOpts, isAdminPasswordValid } from "@/lib/admin-auth";
 import { deleteOtpChallenge, getOtpChallenge, updateOtpChallengeAttempts } from "@/lib/redis";
 import { verifySmsCode } from "@/lib/twilio";
 import {
@@ -15,15 +15,20 @@ export async function POST(request: NextRequest) {
     const body = (await request.json().catch(() => ({}))) as {
       challenge_id?: string;
       code?: string;
+      password?: string;
     };
     const challengeId = body.challenge_id?.trim();
     const code = body.code?.trim();
 
-    if (!challengeId || !code) {
-      return NextResponse.json({ error: "challenge_id ve code gerekli" }, { status: 400 });
-    }
-
     if (!isSms2faEnabledFlag()) {
+      const password = body.password;
+      if (!password || typeof password !== "string") {
+        return NextResponse.json({ error: "password gerekli" }, { status: 400 });
+      }
+      if (!isAdminPasswordValid(password)) {
+        await new Promise((r) => setTimeout(r, 2000));
+        return NextResponse.json({ error: "Geçersiz şifre" }, { status: 401 });
+      }
       const token = await createAdminToken();
       const res = NextResponse.json({ success: true });
       res.cookies.set(getAdminCookieName(), token, getAdminCookieOpts());
@@ -35,6 +40,10 @@ export async function POST(request: NextRequest) {
         maxAge: OTP_VERIFIED_TTL_SECONDS,
       });
       return res;
+    }
+
+    if (!challengeId || !code) {
+      return NextResponse.json({ error: "challenge_id ve code gerekli" }, { status: 400 });
     }
 
     const challenge = await getOtpChallenge(challengeId);
