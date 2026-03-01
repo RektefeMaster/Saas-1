@@ -30,13 +30,22 @@ export async function POST(request: NextRequest) {
     );
   }
   const body = await request.json();
-  const { name, slug, flow_type, config } = body;
+  const { name, slug, flow_type, config, bot_config } = body;
   if (!name || !slug || !flow_type) {
     return NextResponse.json({ error: "name, slug, flow_type gerekli" }, { status: 400 });
   }
+  const insertPayload: Record<string, unknown> = {
+    name,
+    slug,
+    flow_type,
+    config: config || {},
+  };
+  if (bot_config != null && typeof bot_config === "object") {
+    insertPayload.bot_config = bot_config;
+  }
   const { data, error } = await supabase
     .from("business_types")
-    .insert({ name, slug, flow_type, config: config || {} })
+    .insert(insertPayload)
     .select()
     .single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

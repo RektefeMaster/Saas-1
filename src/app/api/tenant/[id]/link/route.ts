@@ -12,7 +12,7 @@ export async function GET(
 
   const { data: tenant, error } = await supabase
     .from("tenants")
-    .select("id, name, tenant_code")
+    .select("id, name, tenant_code, config_override")
     .eq("id", id)
     .is("deleted_at", null)
     .single();
@@ -21,7 +21,12 @@ export async function GET(
     return NextResponse.json({ error: "Tenant bulunamadı" }, { status: 404 });
   }
 
-  const tenantData = { id: tenant.id, name: tenant.name, tenant_code: tenant.tenant_code };
+  const tenantData = {
+    id: tenant.id,
+    name: tenant.name,
+    tenant_code: tenant.tenant_code,
+    config_override: tenant.config_override,
+  };
   const whatsappUrl = generateWhatsAppLink(tenantData);
 
   return NextResponse.json({

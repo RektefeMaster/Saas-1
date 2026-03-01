@@ -14,7 +14,7 @@ export async function GET(
     .from("appointments")
     .select("*")
     .eq("tenant_id", id)
-    .not("status", "in", "('cancelled')")
+    .neq("status", "cancelled")
     .order("slot_start", { ascending: true });
 
   if (from) {

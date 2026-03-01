@@ -31,6 +31,8 @@ export interface BusinessType {
   slug: string;
   flow_type: FlowType;
   config: BusinessTypeConfig;
+  /** Config-driven bot (persona, mesajlar, alanlar). Null/undefined ise eski config kullanılır. */
+  bot_config?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 }

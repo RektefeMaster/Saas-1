@@ -15,18 +15,19 @@ function getApiPhone(): string {
 
 /**
  * Tenant için WhatsApp link üretir.
- * Format: https://wa.me/{API_PHONE}?text=Merhaba%20{tenant_name}%20için%20randevu%20almak%20istiyorum.%20Kod%3A%20{tenant_code}
+ * İşletmeye özel `config_override.messages.whatsapp_greeting` varsa onu kullanır,
+ * yoksa varsayılan doğal karşılama mesajı üretir. Kod, mesajın sonuna #CODE olarak eklenir.
  *
- * @param tenant - Esnaf bilgileri (id, name, tenant_code)
+ * @param tenant - Esnaf bilgileri (id, name, tenant_code, config_override?)
  * @returns WhatsApp wa.me linki
- *
- * @example
- * const link = generateWhatsAppLink({ id: "1", name: "Kuaför Ahmet", tenant_code: "AHMET01" });
- * // "https://wa.me/905551234567?text=Merhaba%20Kuaf%C3%B6r%20Ahmet%20i%C3%A7in%20..."
  */
 export function generateWhatsAppLink(tenant: Tenant): string {
   const apiPhone = getApiPhone();
-  const message = `Merhaba ${tenant.name} için randevu almak istiyorum. Kod: ${tenant.tenant_code}`;
+  const customGreeting = tenant.config_override?.messages?.whatsapp_greeting;
+  const greeting = customGreeting
+    ? customGreeting.replace(/\{tenant_name\}/g, tenant.name)
+    : `Merhaba, ${tenant.name} için randevu almak istiyorum`;
+  const message = `${greeting} #${tenant.tenant_code}`;
   const encodedText = encodeURIComponent(message);
   return `https://wa.me/${apiPhone}?text=${encodedText}`;
 }
@@ -88,15 +89,11 @@ export async function generateSharePackage(tenant: Tenant): Promise<SharePackage
  * Örnek kullanım:
  *
  * const tenant = { id: "uuid", name: "Kuaför Ahmet", tenant_code: "AHMET01" };
- *
  * const link = generateWhatsAppLink(tenant);
- * const qrBuffer = await generateQRCode(tenant);
- * const pkg = await generateSharePackage(tenant);
+ * // -> "https://wa.me/905551234567?text=Merhaba%2C%20Kuaf%C3%B6r%20Ahmet%20i%C3%A7in%20randevu%20almak%20istiyorum%20%23AHMET01"
  *
- * // API response:
- * return NextResponse.json({
- *   ...pkg,
- *   tenant_name: tenant.name,
- *   tenant_code: tenant.tenant_code,
- * });
+ * // Özel greeting ile:
+ * const t2 = { ...tenant, config_override: { messages: { whatsapp_greeting: "Selam, saç kesimi istiyorum" } } };
+ * const link2 = generateWhatsAppLink(t2);
+ * // -> "...?text=Selam%2C%20sa%C3%A7%20kesimi%20istiyorum%20%23AHMET01"
  */

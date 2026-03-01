@@ -8,6 +8,7 @@ interface BusinessType {
   name: string;
   slug: string;
   flow_type: string;
+  bot_config?: Record<string, unknown> | null;
 }
 
 const FLOW_LABELS: Record<string, string> = {
@@ -147,6 +148,12 @@ export default function BusinessTypesListPage() {
                   <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
                     Akış Tipi
                   </th>
+                  <th className="px-6 py-4 text-left text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    Bot config
+                  </th>
+                  <th className="px-6 py-4 text-right text-xs font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                    İşlem
+                  </th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
@@ -160,6 +167,25 @@ export default function BusinessTypesListPage() {
                       <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-sm font-medium text-slate-700 dark:bg-slate-800 dark:text-slate-300">
                         {FLOW_LABELS[bt.flow_type] ?? bt.flow_type}
                       </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      {bt.bot_config && typeof bt.bot_config === "object" && Object.keys(bt.bot_config).length > 0 ? (
+                        <span className="rounded-lg bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300">
+                          Var
+                        </span>
+                      ) : (
+                        <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-500 dark:bg-slate-800 dark:text-slate-400">
+                          Yok
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <Link
+                        href={`/admin/business-types/${bt.id}/edit`}
+                        className="rounded-lg px-3 py-1.5 text-sm font-medium text-emerald-600 hover:bg-emerald-50 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+                      >
+                        Düzenle
+                      </Link>
                     </td>
                   </tr>
                 ))}

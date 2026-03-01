@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { incrementNoShow } from "@/services/blacklist.service";
 
 const CRON_SECRET = process.env.CRON_SECRET || "saasrandevu_cron";
 
@@ -16,7 +17,7 @@ export async function GET(request: NextRequest) {
 
   const { data: appointments, error } = await supabase
     .from("appointments")
-    .select("id")
+    .select("id, tenant_id, customer_phone")
     .eq("status", "confirmed")
     .lt("slot_start", twoHoursAgo);
 
@@ -36,6 +37,12 @@ export async function GET(request: NextRequest) {
 
   if (updateErr) {
     return NextResponse.json({ error: updateErr.message }, { status: 500 });
+  }
+
+  for (const apt of appointments) {
+    await incrementNoShow(apt.tenant_id, apt.customer_phone).catch((e) =>
+      console.error("[cron/no-show] blacklist increment error:", e)
+    );
   }
 
   return NextResponse.json({ ok: true, marked: ids.length });

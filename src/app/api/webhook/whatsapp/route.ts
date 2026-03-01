@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { parseTenantCodeFromMessage } from "@/lib/tenant-code";
 import { getTenantByCode, processMessage } from "@/lib/ai";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
-import { getTenantIdByPhone, setPhoneTenantMapping, setSession, getSession } from "@/lib/redis";
+import { getTenantIdByPhone, setPhoneTenantMapping, setSession, getSession, deleteSession } from "@/lib/redis";
 import { verifyWebhookSignatureBody, getWebhookSecret } from "@/middleware/webhookVerify.middleware";
 import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
 import { supabase } from "@/lib/supabase";
@@ -44,6 +44,11 @@ export async function POST(request: NextRequest) {
   const secret = getWebhookSecret();
 
   const rawBody = await request.text();
+  const isProduction = process.env.NODE_ENV === "production";
+  if (isProduction && !secret) {
+    console.error("[webhook] WHATSAPP_WEBHOOK_SECRET required in production");
+    return new NextResponse("Server configuration error", { status: 500 });
+  }
   if (secret && !verifyWebhookSignatureBody(Buffer.from(rawBody, "utf8"), signature, secret)) {
     console.warn("[webhook] Invalid signature, rejecting request");
     return new NextResponse("Unauthorized", { status: 401 });
@@ -79,8 +84,13 @@ export async function POST(request: NextRequest) {
             continue;
           }
           const from = msg.from;
-          const text = msg.text?.body || "";
+          const text = (msg.text?.body || "").trim();
           const customerPhone = `+${from}`;
+
+          if (!text) {
+            console.log("[webhook] skip empty message from", customerPhone);
+            continue;
+          }
 
           const rateLimitResult = await enforceRateLimit(customerPhone);
           if (!rateLimitResult.allowed) {
@@ -89,15 +99,18 @@ export async function POST(request: NextRequest) {
           }
 
           try {
-            let tenantId: string | null = await getTenantIdByPhone(customerPhone);
+            const previousTenantId: string | null = await getTenantIdByPhone(customerPhone);
+            let tenantId: string | null = previousTenantId;
             let isNewTenant = false;
+            let tenantName: string | null = null;
 
             const code = parseTenantCodeFromMessage(text);
             if (code) {
               const tenant = await getTenantByCode(code);
               if (tenant) {
                 tenantId = tenant.id;
-                isNewTenant = true;
+                tenantName = tenant.name;
+                isNewTenant = previousTenantId !== tenant.id;
               }
             }
 
@@ -115,9 +128,25 @@ export async function POST(request: NextRequest) {
               console.log("[webhook] no tenant, sending list to", customerPhone);
               await sendWhatsAppMessage({
                 to: customerPhone,
-                text: `Merhaba! Hangi işletme için randevu almak istiyorsunuz?\n\nİşletme listesine buradan ulaşabilirsiniz: ${listUrl}\n\nVeya mesajınızda "Kod: XXXXXX" formatında işletme kodunu yazın (örn: Kod: AHMET01).`,
+                text: `Merhaba! Hangi işletme için randevu almak istiyorsunuz?\n\nİşletme listesine buradan ulaşabilirsiniz: ${listUrl}\n\nVeya işletmenin WhatsApp linkine tıklayarak bize ulaşabilirsiniz.`,
               });
               continue;
+            }
+
+            // Tenant adını DB'den çek (getTenantByCode'dan gelmediyse)
+            if (!tenantName) {
+              const { data: t } = await supabase
+                .from("tenants")
+                .select("name")
+                .eq("id", tenantId)
+                .single();
+              tenantName = t?.name || "İşletme";
+            }
+
+            // İşletme değişikliğinde eski session'ı temizle
+            if (isNewTenant && previousTenantId && previousTenantId !== tenantId) {
+              await deleteSession(previousTenantId, customerPhone);
+              console.log("[webhook] tenant switch: cleared old session for", previousTenantId);
             }
 
             await setPhoneTenantMapping(customerPhone, tenantId);
@@ -137,8 +166,10 @@ export async function POST(request: NextRequest) {
 
             console.log("[webhook] processMessage for tenant", tenantId, "from", customerPhone);
             const { reply } = await processMessage(tenantId, customerPhone, text);
+            const safeReply = (reply && String(reply).trim()) || "Anlamadım, tekrar yazar mısınız?";
+            const prefixedReply = `*${tenantName}*\n${safeReply}`;
             console.log("[webhook] sending reply to", customerPhone);
-            const sent = await sendWhatsAppMessage({ to: customerPhone, text: reply });
+            const sent = await sendWhatsAppMessage({ to: customerPhone, text: prefixedReply });
             console.log("[webhook] send result:", sent);
             if (!sent) console.error("[webhook] WhatsApp send failed for", customerPhone);
           } catch (err) {

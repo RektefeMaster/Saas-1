@@ -7,6 +7,14 @@ export interface Tenant {
   id: string;
   name: string;
   tenant_code: string;
+  config_override?: {
+    messages?: {
+      welcome?: string | string[];
+      whatsapp_greeting?: string;
+      [key: string]: unknown;
+    };
+    [key: string]: unknown;
+  };
 }
 
 /** Esnaf paylaşım paketi – link, QR, sosyal medya metinleri */

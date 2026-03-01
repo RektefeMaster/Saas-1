@@ -21,6 +21,21 @@ import {
   dayOfWeekToTurkish,
 } from "@/services/recurring.service";
 import { isCustomerBlocked } from "@/services/blacklist.service";
+import {
+  mergeConfig,
+  buildMessage as buildConfigMessage,
+  checkRequiredFields,
+  fillTemplate,
+} from "@/services/configMerge.service";
+import {
+  buildSystemPrompt as buildConfigSystemPrompt,
+  type PromptBuilderContext,
+} from "@/services/promptBuilder.service";
+import type {
+  BotConfig,
+  MergedConfig,
+  TenantConfigOverride,
+} from "@/types/botConfig.types";
 import type {
   Tenant,
   BusinessType,
@@ -86,7 +101,13 @@ function getWelcomeMessage(
   msgs: TenantMessagesConfig,
   tenantName: string
 ): string {
-  const w = msgs.welcome ?? DEFAULT_MESSAGES.welcome!;
+  const raw = msgs.welcome ?? DEFAULT_MESSAGES.welcome!;
+  let w: string | string[] = DEFAULT_MESSAGES.welcome!;
+  if (Array.isArray(raw) && raw.length > 0) {
+    w = raw;
+  } else if (typeof raw === "string" && raw.trim()) {
+    w = raw;
+  }
   const text = Array.isArray(w)
     ? w[Math.floor(Math.random() * w.length)]
     : w;
@@ -178,6 +199,19 @@ const TR_DAY_NAMES_FULL = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşem
 
 function localDateStr(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function isValidBotConfig(c: unknown): c is BotConfig {
+  if (!c || typeof c !== "object") return false;
+  const o = c as Record<string, unknown>;
+  return (
+    typeof o.bot_persona === "string" &&
+    typeof o.opening_message === "string" &&
+    typeof o.messages === "object" &&
+    o.messages !== null &&
+    typeof o.tone === "object" &&
+    o.tone !== null
+  );
 }
 
 function buildSystemContext(
@@ -379,7 +413,7 @@ export async function checkAvailability(
     .eq("tenant_id", tenantId)
     .gte("slot_start", `${dateStr}T00:00:00`)
     .lt("slot_start", `${dateStr}T23:59:59`)
-    .not("status", "in", "('cancelled')");
+    .neq("status", "cancelled");
 
   const booked = (appointments || []).map((a) => {
     const d = new Date(a.slot_start);
@@ -388,9 +422,13 @@ export async function checkAvailability(
 
   const [startH, startM] = startTime.split(":").map(Number);
   const [endH, endM] = endTime.split(":").map(Number);
+  const slotMinutes = Math.min(
+    120,
+    Math.max(1, Number(configOverride?.slot_duration_minutes) || 30)
+  );
   const available: string[] = [];
   for (let h = startH; h < endH || (h === endH && startM < endM); h++) {
-    for (let m = 0; m < 60; m += 30) {
+    for (let m = 0; m < 60; m += slotMinutes) {
       if (h < startH || (h === startH && m < startM)) continue;
       if (h > endH || (h === endH && m >= endM)) break;
       const time = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
@@ -444,7 +482,7 @@ export async function createAppointment(
       .select("id")
       .eq("tenant_id", tenantId)
       .eq("slot_start", slotStart)
-      .not("status", "eq", "cancelled")
+      .neq("status", "cancelled")
       .maybeSingle();
     if (existing) {
       return { ok: false, error: "SLOT_TAKEN" };
@@ -743,7 +781,8 @@ async function executeToolCall(
   tenantId: string,
   customerPhone: string,
   state: ConversationState | null,
-  configOverride?: Record<string, unknown>
+  configOverride?: Record<string, unknown>,
+  mergedConfig?: MergedConfig | null
 ): Promise<ToolExecResult> {
   if (name === "check_availability") {
     const dateStr = args.date as string;
@@ -780,6 +819,28 @@ async function executeToolCall(
   if (name === "create_appointment") {
     const dateStr = args.date as string;
     const timeStr = args.time as string;
+    const advanceDays = mergedConfig?.advance_booking_days ?? (configOverride?.advance_booking_days as number) ?? 30;
+    const today = new Date();
+    const todayStr = localDateStr(today);
+    const maxDate = new Date(today);
+    maxDate.setDate(today.getDate() + advanceDays);
+    const maxDateStr = localDateStr(maxDate);
+    if (dateStr < todayStr) {
+      return {
+        result: {
+          ok: false,
+          error: "Geçmiş bir tarih için randevu alınamaz.",
+        },
+      };
+    }
+    if (dateStr > maxDateStr) {
+      return {
+        result: {
+          ok: false,
+          error: `En fazla ${advanceDays} gün sonrasına randevu alabilirsiniz.`,
+        },
+      };
+    }
     const customerName = (args.customer_name as string) ||
       (state?.extracted as { customer_name?: string })?.customer_name || "";
     const extraData = {
@@ -859,6 +920,34 @@ async function executeToolCall(
     if (!aptId) {
       return { result: { ok: false, error: "Randevu bulunamadı" } };
     }
+    const cancellationHrs = mergedConfig?.cancellation_hours ?? (configOverride?.cancellation_hours as number) ?? 2;
+    const hasCancellationRule = mergedConfig != null || (configOverride?.cancellation_hours != null);
+    const { data: apt } = await supabase
+      .from("appointments")
+      .select("slot_start")
+      .eq("id", aptId)
+      .single();
+    if (hasCancellationRule && !apt?.slot_start) {
+      return {
+        result: {
+          ok: false,
+          error: "Randevu bilgisi alınamadı, iptal işlemi yapılamıyor.",
+        },
+      };
+    }
+    if (apt?.slot_start) {
+      const slotTime = new Date(apt.slot_start).getTime();
+      const now = Date.now();
+      const hoursLeft = (slotTime - now) / (60 * 60 * 1000);
+      if (hoursLeft < cancellationHrs) {
+        return {
+          result: {
+            ok: false,
+            error: `İptal için randevu saatine en az ${cancellationHrs} saat kala iptal edebilirsiniz.`,
+          },
+        };
+      }
+    }
     const cancelResult = await cancelAppointment({
       tenantId,
       appointmentId: aptId,
@@ -930,6 +1019,26 @@ async function executeToolCall(
     }
     const newDate = args.new_date as string;
     const newTime = args.new_time as string;
+    const todayReschedule = localDateStr(new Date());
+    if (newDate < todayReschedule) {
+      return {
+        result: {
+          ok: false,
+          error: "Geçmiş bir tarih için randevu alınamaz.",
+        },
+      };
+    }
+    const advanceDaysReschedule = mergedConfig?.advance_booking_days ?? (configOverride?.advance_booking_days as number) ?? 30;
+    const maxDateReschedule = new Date();
+    maxDateReschedule.setDate(maxDateReschedule.getDate() + advanceDaysReschedule);
+    if (newDate > localDateStr(maxDateReschedule)) {
+      return {
+        result: {
+          ok: false,
+          error: `En fazla ${advanceDaysReschedule} gün sonrasına randevu alabilirsiniz.`,
+        },
+      };
+    }
     const createRes = await createAppointment(tenantId, customerPhone, newDate, newTime);
     if (createRes.ok) {
       notifyMerchant(tenantId, customerPhone, newDate, newTime).catch(() => {});
@@ -1092,10 +1201,28 @@ export async function processMessage(
       };
     }
 
+    const bt = (
+      Array.isArray(tenant.business_types)
+        ? tenant.business_types[0]
+        : tenant.business_types
+    ) as BusinessType | undefined;
+    const baseBotConfig = bt?.bot_config;
+    const mergedConfig: MergedConfig | null =
+      baseBotConfig && isValidBotConfig(baseBotConfig)
+        ? mergeConfig(baseBotConfig as BotConfig, tenant.config_override as TenantConfigOverride)
+        : null;
+
     const msgs = getMergedMessages(tenant);
     const tone = msgs.tone ?? "sen";
 
     if (isHumanEscalationRequest(incomingMessage)) {
+      if (mergedConfig) {
+        const msg = buildConfigMessage(mergedConfig, "human_escalation", {
+          contact_phone: tenant.contact_phone?.trim() ?? "",
+          working_hours: tenant.working_hours_text?.trim() ?? "",
+        });
+        if (msg) return { reply: msg };
+      }
       return { reply: buildHumanEscalationMessage(tenant, tone) };
     }
 
@@ -1130,16 +1257,28 @@ export async function processMessage(
       return { reply: buildHumanEscalationMessage(tenant, tone) };
     }
 
-    const bt = (
-      Array.isArray(tenant.business_types)
-        ? tenant.business_types[0]
-        : tenant.business_types
-    ) as BusinessType | undefined;
     const flowType = (bt?.config?.flow_type as FlowType) || "appointment";
 
     // ── First message: welcome ──
     if (state?.step === "tenant_bulundu") {
-      const welcome = getWelcomeMessage(msgs, tenant.name);
+      let welcome: string;
+      if (mergedConfig) {
+        const history = await getCustomerHistory(tenantId, customerPhone);
+        const hasHistory = Array.isArray(history) && history.length > 0;
+        let raw = hasHistory
+          ? mergedConfig.returning_customer_message
+          : mergedConfig.opening_message;
+        if (typeof raw !== "string" || !raw.trim()) {
+          raw =
+            "Merhaba! {tenant_name} olarak nasıl yardımcı olabilirim?";
+        }
+        welcome = fillTemplate(raw, {
+          tenant_name: tenant.name,
+          customer_name: "",
+        });
+      } else {
+        welcome = getWelcomeMessage(msgs, tenant.name);
+      }
       await setSession(tenantId, customerPhone, {
         ...(state || {}),
         tenant_id: tenantId,
@@ -1175,12 +1314,32 @@ export async function processMessage(
     const historySummary = formatHistoryForPrompt(history);
     const systemContext = buildSystemContext(state, historySummary);
 
-    const extraPrompt =
-      (bt?.config as { ai_prompt_template?: string })?.ai_prompt_template || "";
-    const systemPrompt =
-      buildSystemPrompt(tenant.name, msgs, extraPrompt) +
-      "\n\n" +
-      systemContext;
+    let systemPrompt: string;
+    if (mergedConfig) {
+      const today = new Date();
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      const ext = (state?.extracted || {}) as Record<string, unknown>;
+      const promptContext: PromptBuilderContext = {
+        today: localDateStr(today),
+        tomorrow: localDateStr(tomorrow),
+        todayLabel: `${localDateStr(today)} (${today.toLocaleDateString("tr-TR", { weekday: "long" })})`,
+        tomorrowLabel: `${localDateStr(tomorrow)} (${tomorrow.toLocaleDateString("tr-TR", { weekday: "long" })})`,
+        availableSlots: ext.last_available_slots as string[] | undefined,
+        lastAvailabilityDate: ext.last_availability_date as string | undefined,
+        pendingCancelId: ext.pending_cancel_appointment_id as string | undefined,
+        customerHistory: historySummary,
+        misunderstandingCount: state?.consecutive_misunderstandings ?? 0,
+      };
+      systemPrompt = buildConfigSystemPrompt(mergedConfig, tenant.name, promptContext);
+    } else {
+      const extraPrompt =
+        (bt?.config as { ai_prompt_template?: string })?.ai_prompt_template || "";
+      systemPrompt =
+        buildSystemPrompt(tenant.name, msgs, extraPrompt) +
+        "\n\n" +
+        systemContext;
+    }
 
     if (!openai) {
       return {
@@ -1211,6 +1370,10 @@ export async function processMessage(
           round === 0 ? TOOLS : TOOLS
         );
       } catch {
+        if (mergedConfig) {
+          const errMsg = buildConfigMessage(mergedConfig, "system_error", {});
+          if (errMsg) return { reply: errMsg };
+        }
         return { reply: getProcessErrorReply(tone) };
       }
 
@@ -1248,6 +1411,40 @@ export async function processMessage(
         function: { name: string; arguments: string };
       }>;
 
+      // Config-driven: create_appointment öncesi zorunlu alan kontrolü
+      let requiredFieldsReply = "";
+      if (mergedConfig) {
+        for (const tc of tcList) {
+          if (tc.function.name === "create_appointment") {
+            const fnArgs = JSON.parse(tc.function.arguments || "{}");
+            const combined = {
+              ...(state?.extracted || {}),
+              ...fnArgs,
+            } as Record<string, unknown>;
+            const { complete, nextQuestion } = checkRequiredFields(
+              mergedConfig,
+              combined
+            );
+            if (!complete && nextQuestion) {
+              requiredFieldsReply = nextQuestion;
+              break;
+            }
+            const cn = combined.customer_name;
+            if (cn === undefined || cn === null || String(cn).trim() === "") {
+              requiredFieldsReply =
+                tone === "siz"
+                  ? "Randevuyu kimin adına alalım?"
+                  : "Randevuyu kimin adına alayım?";
+              break;
+            }
+          }
+        }
+      }
+      if (requiredFieldsReply) {
+        finalReply = requiredFieldsReply;
+        break;
+      }
+
       openaiMessages.push({
         role: "assistant" as const,
         content: aiMessage.content ?? null,
@@ -1261,6 +1458,9 @@ export async function processMessage(
         })),
       });
 
+      type TemplateVars = Record<string, string>;
+      const confirmationResults: TemplateVars[] = [];
+      let templateReply: { key: "cancellation_by_customer" | "rescheduled"; vars: TemplateVars } | null = null;
       for (const tc of tcList) {
         const fnArgs = JSON.parse(tc.function.arguments || "{}");
         const toolExec = await executeToolCall(
@@ -1269,7 +1469,8 @@ export async function processMessage(
           tenantId,
           customerPhone,
           state,
-          tenant.config_override
+          tenant.config_override,
+          mergedConfig ?? undefined
         );
 
         openaiMessages.push({
@@ -1277,6 +1478,39 @@ export async function processMessage(
           tool_call_id: tc.id,
           content: JSON.stringify(toolExec.result),
         });
+
+        if (mergedConfig && tc.function.name === "create_appointment") {
+          const res = toolExec.result as { ok?: boolean; date?: string; date_readable?: string; time?: string; customer_name?: string };
+          if (res.ok) {
+            const serviceVal = (fnArgs.service as string) ?? (fnArgs.extra_data as Record<string, unknown>)?.service as string ?? "";
+            confirmationResults.push({
+              date: res.date ?? "",
+              date_readable: res.date_readable ?? formatDateTr(res.date ?? ""),
+              time: res.time ?? "",
+              customer_name: res.customer_name ?? "",
+              service: typeof serviceVal === "string" ? serviceVal : "",
+            });
+          }
+        }
+        if (mergedConfig && tc.function.name === "cancel_appointment") {
+          const res = toolExec.result as { ok?: boolean };
+          if (res.ok) {
+            templateReply = { key: "cancellation_by_customer", vars: {} };
+          }
+        }
+        if (mergedConfig && tc.function.name === "reschedule_appointment") {
+          const res = toolExec.result as { ok?: boolean; new_date?: string; new_date_readable?: string; new_time?: string };
+          if (res.ok && res.new_date != null) {
+            templateReply = {
+              key: "rescheduled",
+              vars: {
+                date: res.new_date ?? "",
+                date_readable: res.new_date_readable ?? formatDateTr(res.new_date ?? ""),
+                time: res.new_time ?? "",
+              },
+            };
+          }
+        }
 
         if (toolExec.sessionDeleted) sessionDeleted = true;
         if (toolExec.sessionUpdate) {
@@ -1291,15 +1525,44 @@ export async function processMessage(
           }
         }
       }
+
+      if (mergedConfig && (confirmationResults.length > 0 || templateReply)) {
+        const parts: string[] = [];
+        if (confirmationResults.length > 0) {
+          const combined = confirmationResults
+            .map((v) => buildConfigMessage(mergedConfig, "confirmation", v))
+            .filter(Boolean);
+          if (combined.length) parts.push(combined.join("\n\n"));
+        }
+        if (templateReply) {
+          const msg = buildConfigMessage(mergedConfig, templateReply.key, templateReply.vars);
+          if (msg) parts.push(msg);
+        }
+        if (parts.length) {
+          finalReply = parts.join("\n\n") || finalReply;
+          break;
+        }
+      }
       // Loop continues → next iteration sends tool results to OpenAI
     }
 
     if (!finalReply) {
-      finalReply = getProcessErrorReply(tone);
+      if (mergedConfig) {
+        const errMsg = buildConfigMessage(mergedConfig, "system_error", {});
+        if (errMsg) finalReply = errMsg;
+      }
+      if (!finalReply) finalReply = getProcessErrorReply(tone);
     }
 
     // ── Check for human escalation tag ──
     if (finalReply.includes(HUMAN_ESCALATION_TAG)) {
+      if (mergedConfig) {
+        const msg = buildConfigMessage(mergedConfig, "human_escalation", {
+          contact_phone: tenant.contact_phone?.trim() ?? "",
+          working_hours: tenant.working_hours_text?.trim() ?? "",
+        });
+        if (msg) return { reply: msg };
+      }
       return { reply: buildHumanEscalationMessage(tenant, tone) };
     }
 

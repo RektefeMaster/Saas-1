@@ -17,6 +17,7 @@ export default function NewBusinessTypePage() {
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
   const [flowType, setFlowType] = useState<string>("appointment");
+  const [botConfigJson, setBotConfigJson] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -24,6 +25,16 @@ export default function NewBusinessTypePage() {
     e.preventDefault();
     setLoading(true);
     setError(null);
+    let bot_config: Record<string, unknown> | undefined;
+    if (botConfigJson.trim()) {
+      try {
+        bot_config = JSON.parse(botConfigJson) as Record<string, unknown>;
+      } catch {
+        setError("Bot config geçerli bir JSON olmalı.");
+        setLoading(false);
+        return;
+      }
+    }
     try {
       const res = await fetch("/api/admin/business-types", {
         method: "POST",
@@ -33,6 +44,7 @@ export default function NewBusinessTypePage() {
           slug: slug || name.toLowerCase().replace(/\s+/g, "_"),
           flow_type: flowType,
           config: {},
+          ...(bot_config ? { bot_config } : {}),
         }),
       });
       const data = await res.json();
@@ -115,6 +127,21 @@ export default function NewBusinessTypePage() {
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Bot config (opsiyonel, JSON)
+                </label>
+                <textarea
+                  value={botConfigJson}
+                  onChange={(e) => setBotConfigJson(e.target.value)}
+                  placeholder='{"bot_persona": "...", "opening_message": "...", ...}'
+                  rows={6}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-mono text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
+                />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  Config-driven bot için JSON. Boş bırakılırsa eski config kullanılır.
+                </p>
               </div>
             </div>
             <div className="mt-8 flex gap-3">

@@ -61,12 +61,12 @@ export async function GET(
     startTime = daySlot.start_time;
     endTime = daySlot.end_time;
   } else {
-    const { data: tenant } = await supabase
+    const { data: tenantFallback } = await supabase
       .from("tenants")
       .select("config_override")
       .eq("id", tenantId)
       .single();
-    const defaultHours = (tenant?.config_override as { default_working_hours?: { start?: string; end?: string } })
+    const defaultHours = (tenantFallback?.config_override as { default_working_hours?: { start?: string; end?: string } })
       ?.default_working_hours;
     if (defaultHours?.start && defaultHours?.end) {
       startTime = defaultHours.start;
@@ -83,13 +83,26 @@ export async function GET(
     }
   }
 
+  const { data: tenant } = await supabase
+    .from("tenants")
+    .select("config_override")
+    .eq("id", tenantId)
+    .single();
+  const slotMinutes = Math.min(
+    120,
+    Math.max(
+      1,
+      Number((tenant?.config_override as { slot_duration_minutes?: number })?.slot_duration_minutes) || 30
+    )
+  );
+
   const { data: appointments } = await supabase
     .from("appointments")
     .select("id, slot_start, customer_phone")
     .eq("tenant_id", tenantId)
     .gte("slot_start", `${dateStr}T00:00:00`)
     .lt("slot_start", `${dateStr}T23:59:59`)
-    .not("status", "in", "('cancelled')");
+    .neq("status", "cancelled");
 
   const booked = (appointments || []).map((a) => {
     const d = new Date(a.slot_start);
@@ -103,7 +116,7 @@ export async function GET(
   const [endH, endM] = endTime!.split(":").map(Number);
   const available: string[] = [];
   for (let h = startH; h < endH || (h === endH && startM < endM); h++) {
-    for (let m = 0; m < 60; m += 30) {
+    for (let m = 0; m < 60; m += slotMinutes) {
       if (h < startH || (h === startH && m < startM)) continue;
       if (h > endH || (h === endH && m >= endM)) break;
       const time = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;

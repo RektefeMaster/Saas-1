@@ -14,7 +14,7 @@ export async function GET() {
     }
     const { data: tenants, error } = await supabase
       .from("tenants")
-      .select("id, name, tenant_code")
+      .select("id, name, tenant_code, config_override")
       .eq("status", "active")
       .is("deleted_at", null)
       .order("name");
@@ -32,6 +32,7 @@ export async function GET() {
         id: t.id,
         name: t.name,
         tenant_code: t.tenant_code,
+        config_override: t.config_override as { messages?: { whatsapp_greeting?: string } },
       }),
     }));
 
