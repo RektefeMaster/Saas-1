@@ -72,17 +72,18 @@ export default function DashboardLoginPage() {
   };
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-white to-green-50 px-4 py-8">
-      <div className="w-full max-w-md animate-fade-in rounded-2xl bg-white p-8 shadow-xl">
-        <div className="text-center">
-          <h1 className="text-2xl font-bold text-green-600">AHİ AI</h1>
-          <h2 className="mt-1 text-lg font-semibold text-slate-800">
-            İşletme Paneli
-          </h2>
-          <p className="mt-1 text-sm text-slate-500">
-            İşletmenizi yönetmek için giriş yapın
-          </p>
-        </div>
+    <div className="flex min-h-screen flex-col bg-gradient-to-br from-white to-green-50">
+      <div className="flex flex-1 items-center justify-center px-4 py-8">
+        <div className="w-full max-w-md animate-fade-in rounded-2xl bg-white p-8 shadow-xl ring-1 ring-slate-200/50">
+          <div className="text-center">
+            <h1 className="text-2xl font-bold text-green-600">AHİ AI</h1>
+            <h2 className="mt-2 text-lg font-semibold text-slate-800">
+              İşletme Paneli
+            </h2>
+            <p className="mt-1 text-sm text-slate-500">
+              Randevu ve ayarlarınızı yönetmek için giriş yapın
+            </p>
+          </div>
 
         <form onSubmit={handleSubmit} className="mt-6 space-y-4">
           <div>
@@ -167,6 +168,7 @@ export default function DashboardLoginPage() {
         <p className="mt-6 text-center text-sm text-slate-500">
           Hesabınız yok mu? İşletmenizi kaydetmek için bizimle iletişime geçin.
         </p>
+        </div>
       </div>
     </div>
   );

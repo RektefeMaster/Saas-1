@@ -1,7 +1,9 @@
+import { createHash, timingSafeEqual } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
 
 const COOKIE_NAME = "admin_session";
 const SESSION_DURATION = 60 * 60 * 8; // 8 saat
+const MIN_PASSWORD_LENGTH = 8;
 
 function getSecret(): Uint8Array {
   const secret = process.env.ADMIN_SESSION_SECRET;
@@ -28,10 +30,23 @@ export async function verifyAdminToken(token: string): Promise<boolean> {
   }
 }
 
+function sha256(input: string): Buffer {
+  return createHash("sha256").update(input, "utf8").digest();
+}
+
+/** Timing-safe şifre karşılaştırması; brute-force ve timing attack riskini azaltır. */
 export function isAdminPasswordValid(password: string): boolean {
   const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) return false;
-  return password === expected && password.length >= 8;
+  if (!expected || typeof expected !== "string" || expected.length < MIN_PASSWORD_LENGTH) {
+    return false;
+  }
+  if (password.length < MIN_PASSWORD_LENGTH) {
+    return false;
+  }
+  const a = sha256(password);
+  const b = sha256(expected);
+  if (a.length !== b.length) return false;
+  return timingSafeEqual(a, b);
 }
 
 export function getAdminCookieName(): string {
