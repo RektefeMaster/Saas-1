@@ -5,6 +5,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
 
 const REMINDER_OPTIONS = ["off", "customer_only", "merchant_only", "both"] as const;
 
@@ -53,12 +54,30 @@ export async function PATCH(
       );
     }
 
-    const { data: tenant, error: fetchErr } = await supabase
-      .from("tenants")
-      .select("config_override, ui_preferences")
-      .eq("id", id)
-      .is("deleted_at", null)
-      .single();
+    let fetchColumns = ["config_override", "ui_preferences"];
+    const missingColumns = new Set<string>();
+    let tenant: Record<string, unknown> | null = null;
+    let fetchErr: { message: string } | null = null;
+    for (let i = 0; i < 4; i++) {
+      const result = await supabase
+        .from("tenants")
+        .select(fetchColumns.join(", "))
+        .eq("id", id)
+        .is("deleted_at", null)
+        .single();
+      if (!result.error) {
+        tenant = (result.data ?? null) as unknown as Record<string, unknown>;
+        fetchErr = null;
+        break;
+      }
+      fetchErr = { message: result.error.message };
+      const missing = extractMissingSchemaColumn(result.error);
+      if (!missing || missing.table !== "tenants" || !fetchColumns.includes(missing.column)) {
+        break;
+      }
+      fetchColumns = fetchColumns.filter((c) => c !== missing.column);
+      missingColumns.add(missing.column);
+    }
 
     if (fetchErr || !tenant) {
       return NextResponse.json({ error: "Tenant bulunamadı" }, { status: 404 });
@@ -112,7 +131,12 @@ export async function PATCH(
       config_override: newConfig,
       updated_at: new Date().toISOString(),
     };
-    if (ui_preferences !== undefined && typeof ui_preferences === "object" && ui_preferences) {
+    if (
+      !missingColumns.has("ui_preferences") &&
+      ui_preferences !== undefined &&
+      typeof ui_preferences === "object" &&
+      ui_preferences
+    ) {
       updatePayload.ui_preferences = {
         ...((tenant.ui_preferences as Record<string, unknown>) || {}),
         ...(ui_preferences as Record<string, unknown>),
@@ -121,14 +145,42 @@ export async function PATCH(
     if (contact_phone !== undefined) updatePayload.contact_phone = contact_phone;
     if (working_hours_text !== undefined) updatePayload.working_hours_text = working_hours_text;
 
-    const { data, error } = await supabase
-      .from("tenants")
-      .update(updatePayload)
-      .eq("id", id)
-      .select("id, config_override, ui_preferences, contact_phone, working_hours_text")
-      .single();
+    const patchPayload = { ...updatePayload };
+    let selectColumns = ["id", "config_override", "ui_preferences", "contact_phone", "working_hours_text"];
+    let data: Record<string, unknown> | null = null;
+    let error: { message: string } | null = null;
+    for (let i = 0; i < 8; i++) {
+      const result = await supabase
+        .from("tenants")
+        .update(patchPayload)
+        .eq("id", id)
+        .select(selectColumns.join(", "))
+        .single();
+      if (!result.error) {
+        data = (result.data ?? null) as unknown as Record<string, unknown>;
+        error = null;
+        break;
+      }
+      error = { message: result.error.message };
+      const missing = extractMissingSchemaColumn(result.error);
+      if (!missing || missing.table !== "tenants") break;
+      let changed = false;
+      if (missing.column in patchPayload) {
+        delete patchPayload[missing.column];
+        changed = true;
+      }
+      if (selectColumns.includes(missing.column)) {
+        selectColumns = selectColumns.filter((c) => c !== missing.column);
+        changed = true;
+      }
+      if (!changed) break;
+      missingColumns.add(missing.column);
+    }
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (data && missingColumns.has("ui_preferences") && data.ui_preferences === undefined) {
+      data.ui_preferences = {};
+    }
     return NextResponse.json(data);
   } catch (err) {
     console.error("[tenant settings PATCH]", err);

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
 
 function slugify(value: string): string {
   return value
@@ -16,14 +17,41 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: tenantId } = await params;
-  const { data, error } = await supabase
-    .from("services")
-    .select(
-      "id, tenant_id, name, slug, description, price, duration_minutes, is_active, price_visible, display_order, created_at"
-    )
-    .eq("tenant_id", tenantId)
-    .order("display_order", { ascending: true })
-    .order("created_at", { ascending: true });
+  const requestedColumns = [
+    "id",
+    "tenant_id",
+    "name",
+    "slug",
+    "description",
+    "price",
+    "duration_minutes",
+    "is_active",
+    "price_visible",
+    "display_order",
+    "created_at",
+  ];
+  let selectColumns = [...requestedColumns];
+  let data: Record<string, unknown>[] | null = null;
+  let error: { message: string } | null = null;
+  for (let i = 0; i < requestedColumns.length; i++) {
+    const result = await supabase
+      .from("services")
+      .select(selectColumns.join(", "))
+      .eq("tenant_id", tenantId)
+      .order("display_order", { ascending: true })
+      .order("created_at", { ascending: true });
+    if (!result.error) {
+      data = ((result.data as unknown) as Record<string, unknown>[]) ?? [];
+      error = null;
+      break;
+    }
+    error = { message: result.error.message };
+    const missing = extractMissingSchemaColumn(result.error);
+    if (!missing || missing.table !== "services" || !selectColumns.includes(missing.column)) {
+      break;
+    }
+    selectColumns = selectColumns.filter((c) => c !== missing.column);
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -57,7 +85,7 @@ export async function POST(
     return NextResponse.json({ error: "Geçerli bir slug üretilemedi" }, { status: 400 });
   }
 
-  const payload = {
+  const payload: Record<string, unknown> = {
     tenant_id: tenantId,
     name,
     slug,
@@ -75,13 +103,46 @@ export async function POST(
         : 0,
   };
 
-  const { data, error } = await supabase
-    .from("services")
-    .insert(payload)
-    .select(
-      "id, tenant_id, name, slug, description, price, duration_minutes, is_active, price_visible, display_order, created_at"
-    )
-    .single();
+  let selectColumns = [
+    "id",
+    "tenant_id",
+    "name",
+    "slug",
+    "description",
+    "price",
+    "duration_minutes",
+    "is_active",
+    "price_visible",
+    "display_order",
+    "created_at",
+  ];
+  let data: Record<string, unknown> | null = null;
+  let error: { message: string } | null = null;
+  for (let i = 0; i < 12; i++) {
+    const result = await supabase
+      .from("services")
+      .insert(payload)
+      .select(selectColumns.join(", "))
+      .single();
+    if (!result.error) {
+      data = (result.data ?? null) as unknown as Record<string, unknown>;
+      error = null;
+      break;
+    }
+    error = { message: result.error.message };
+    const missing = extractMissingSchemaColumn(result.error);
+    if (!missing || missing.table !== "services") break;
+    let changed = false;
+    if (missing.column in payload) {
+      delete payload[missing.column];
+      changed = true;
+    }
+    if (selectColumns.includes(missing.column)) {
+      selectColumns = selectColumns.filter((c) => c !== missing.column);
+      changed = true;
+    }
+    if (!changed) break;
+  }
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });

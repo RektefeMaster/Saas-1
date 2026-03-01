@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
 
 export async function GET(
   request: NextRequest,
@@ -39,13 +40,40 @@ export async function PATCH(
   if (security_config !== undefined) updates.security_config = security_config;
   if (ui_preferences !== undefined) updates.ui_preferences = ui_preferences;
 
-  const { data, error } = await supabase
-    .from("tenants")
-    .update(updates)
-    .eq("id", id)
-    .select()
-    .single();
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  const patchPayload = { ...updates };
+  let data: Record<string, unknown> | null = null;
+  let error: { message: string } | null = null;
+  for (let i = 0; i < 6; i++) {
+    const result = await supabase
+      .from("tenants")
+      .update(patchPayload)
+      .eq("id", id)
+      .select()
+      .single();
+    if (!result.error) {
+      data = (result.data ?? null) as unknown as Record<string, unknown>;
+      error = null;
+      break;
+    }
+    error = { message: result.error.message };
+    const missing = extractMissingSchemaColumn(result.error);
+    if (!missing || missing.table !== "tenants" || !(missing.column in patchPayload)) break;
+    delete patchPayload[missing.column];
+  }
+  if (error) {
+    const missing = extractMissingSchemaColumn(error);
+    if (missing?.table === "tenants") {
+      return NextResponse.json(
+        {
+          error:
+            `Güncelleme yapılamadı: veritabanı şeması güncel değil (eksik kolon: ${missing.column}). ` +
+            "Supabase migration 010/011 çalıştırılmalı.",
+        },
+        { status: 500 }
+      );
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json(data);
 }
 

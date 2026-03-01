@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
 
 export async function PATCH(
   request: NextRequest,
@@ -25,15 +26,49 @@ export async function PATCH(
     return NextResponse.json({ error: "Güncellenecek alan yok" }, { status: 400 });
   }
 
-  const { data, error } = await supabase
-    .from("services")
-    .update(updates)
-    .eq("id", serviceId)
-    .eq("tenant_id", tenantId)
-    .select(
-      "id, tenant_id, name, slug, description, price, duration_minutes, is_active, price_visible, display_order, created_at"
-    )
-    .single();
+  const patchPayload = { ...updates };
+  let selectColumns = [
+    "id",
+    "tenant_id",
+    "name",
+    "slug",
+    "description",
+    "price",
+    "duration_minutes",
+    "is_active",
+    "price_visible",
+    "display_order",
+    "created_at",
+  ];
+  let data: Record<string, unknown> | null = null;
+  let error: { message: string } | null = null;
+  for (let i = 0; i < 12; i++) {
+    const result = await supabase
+      .from("services")
+      .update(patchPayload)
+      .eq("id", serviceId)
+      .eq("tenant_id", tenantId)
+      .select(selectColumns.join(", "))
+      .single();
+    if (!result.error) {
+      data = (result.data ?? null) as unknown as Record<string, unknown>;
+      error = null;
+      break;
+    }
+    error = { message: result.error.message };
+    const missing = extractMissingSchemaColumn(result.error);
+    if (!missing || missing.table !== "services") break;
+    let changed = false;
+    if (missing.column in patchPayload) {
+      delete patchPayload[missing.column];
+      changed = true;
+    }
+    if (selectColumns.includes(missing.column)) {
+      selectColumns = selectColumns.filter((c) => c !== missing.column);
+      changed = true;
+    }
+    if (!changed) break;
+  }
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);

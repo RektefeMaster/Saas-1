@@ -26,6 +26,7 @@ cp .env.example .env
 2. `supabase/migrations/001_initial_schema.sql` dosyasını SQL Editor'da çalıştırın
 3. İsteğe bağlı: `002_enable_realtime.sql` ile Realtime'ı etkinleştirin (Dashboard > Database > Replication)
 4. `.env` dosyasına `NEXT_PUBLIC_SUPABASE_URL` ve `SUPABASE_SERVICE_ROLE_KEY` ekleyin
+5. Eski kurulumlarda Dashboard V2 alanları eksikse `010_dashboard_v2_crm_otp.sql` ve `011_schema_backfill_dashboard_v2.sql` migrationlarını da çalıştırın
 
 ### 4. WhatsApp (Meta Cloud API)
 

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
+import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
 import type { AdminTenantWizardPayload } from "@/types/dashboard-v2.types";
 
 function slugify(value: string): string {
@@ -186,24 +187,43 @@ export async function POST(request: NextRequest) {
         ? body.config_override.working_hours_text.trim()
         : null;
 
-    // 4) Tenant oluştur
-    const { data: tenant, error: tenantErr } = await supabase
-      .from("tenants")
-      .insert({
-        business_type_id,
-        name: name.trim(),
-        tenant_code: code,
-        config_override: mergedConfig,
-        status: body.status || "active",
-        user_id: userId,
-        owner_phone_e164: body.owner_phone_e164?.trim() || null,
-        security_config: body.security_config || {},
-        ui_preferences: body.ui_preferences || {},
-        contact_phone: overrideContactPhone,
-        working_hours_text: overrideWorkingHours,
-      } as Record<string, unknown>)
-      .select()
-      .single();
+    // 4) Tenant oluştur (eski şema ile uyumluluk: eksik kolonları otomatik düş)
+    const tenantInsertPayload: Record<string, unknown> = {
+      business_type_id,
+      name: name.trim(),
+      tenant_code: code,
+      config_override: mergedConfig,
+      status: body.status || "active",
+      user_id: userId,
+      owner_phone_e164: body.owner_phone_e164?.trim() || null,
+      security_config: body.security_config || {},
+      ui_preferences: body.ui_preferences || {},
+      contact_phone: overrideContactPhone,
+      working_hours_text: overrideWorkingHours,
+    };
+    const missingTenantColumns = new Set<string>();
+    let tenant: Record<string, unknown> | null = null;
+    let tenantErr: { code?: string | null; message: string } | null = null;
+    for (let i = 0; i < 6; i++) {
+      const { data, error } = await supabase
+        .from("tenants")
+        .insert(tenantInsertPayload)
+        .select()
+        .single();
+      if (!error) {
+        tenant = (data ?? null) as unknown as Record<string, unknown>;
+        tenantErr = null;
+        break;
+      }
+
+      tenantErr = { code: error.code, message: error.message };
+      const missing = extractMissingSchemaColumn(error);
+      if (!missing || missing.table !== "tenants" || !(missing.column in tenantInsertPayload)) {
+        break;
+      }
+      delete tenantInsertPayload[missing.column];
+      missingTenantColumns.add(missing.column);
+    }
 
     if (tenantErr) {
       if (tenantErr.code === "23505") {
@@ -212,10 +232,24 @@ export async function POST(request: NextRequest) {
           { status: 400 }
         );
       }
+      const missing = extractMissingSchemaColumn(tenantErr);
+      if (missing?.table === "tenants") {
+        return NextResponse.json(
+          {
+            error:
+              `İşletme kaydedilemedi: veritabanı şeması güncel değil (eksik kolon: ${missing.column}). ` +
+              "Supabase migration 010/011 çalıştırılmalı.",
+          },
+          { status: 500 }
+        );
+      }
       return NextResponse.json(
         { error: `İşletme kaydedilemedi: ${tenantErr.message}` },
         { status: 500 }
       );
+    }
+    if (!tenant) {
+      return NextResponse.json({ error: "İşletme kaydedilemedi" }, { status: 500 });
     }
 
     // 5) Optional: çalışma saatleri
@@ -272,7 +306,7 @@ export async function POST(request: NextRequest) {
 
     // 7) Optional: hizmetler
     if (body.services && body.services.length > 0) {
-      const servicesPayload = body.services
+      let servicesPayload = body.services
         .filter((service) => service.name?.trim())
         .map((service, index) => ({
           tenant_id: tenant.id,
@@ -292,8 +326,34 @@ export async function POST(request: NextRequest) {
               : index,
         }));
       if (servicesPayload.length > 0) {
-        const { error: serviceError } = await supabase.from("services").insert(servicesPayload);
+        let serviceError: { message: string } | null = null;
+        for (let i = 0; i < 6; i++) {
+          const { error } = await supabase.from("services").insert(servicesPayload);
+          if (!error) {
+            serviceError = null;
+            break;
+          }
+          serviceError = { message: error.message };
+          const missing = extractMissingSchemaColumn(error);
+          if (!missing || missing.table !== "services") break;
+          servicesPayload = servicesPayload.map((row) => {
+            const next = { ...row };
+            delete (next as Record<string, unknown>)[missing.column];
+            return next;
+          });
+        }
         if (serviceError) {
+          const missing = extractMissingSchemaColumn(serviceError);
+          if (missing?.table === "services") {
+            return NextResponse.json(
+              {
+                error:
+                  `Hizmetler kaydedilemedi: veritabanı şeması güncel değil (eksik kolon: ${missing.column}). ` +
+                  "Supabase migration 010/011 çalıştırılmalı.",
+              },
+              { status: 500 }
+            );
+          }
           return NextResponse.json(
             { error: `Hizmetler kaydedilemedi: ${serviceError.message}` },
             { status: 500 }
@@ -305,6 +365,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       ...tenant,
       message: "İşletme ve kullanıcı başarıyla oluşturuldu",
+      compatibility_warnings:
+        missingTenantColumns.size > 0
+          ? [
+              `Eski şema nedeniyle bazı alanlar kayıt dışı bırakıldı: ${Array.from(
+                missingTenantColumns
+              ).join(", ")}`,
+            ]
+          : [],
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Bilinmeyen hata";
