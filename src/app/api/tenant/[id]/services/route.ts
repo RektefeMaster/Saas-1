@@ -118,6 +118,12 @@ export async function POST(
   ];
   let data: Record<string, unknown> | null = null;
   let error: { message: string } | null = null;
+  const fallbackMutationColumns = new Set([
+    "duration_minutes",
+    "is_active",
+    "price_visible",
+    "display_order",
+  ]);
   for (let i = 0; i < 12; i++) {
     const result = await supabase
       .from("services")
@@ -133,7 +139,7 @@ export async function POST(
     const missing = extractMissingSchemaColumn(result.error);
     if (!missing || missing.table !== "services") break;
     let changed = false;
-    if (missing.column in payload) {
+    if (fallbackMutationColumns.has(missing.column) && missing.column in payload) {
       delete payload[missing.column];
       changed = true;
     }

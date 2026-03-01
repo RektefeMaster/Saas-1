@@ -202,6 +202,13 @@ export async function POST(request: NextRequest) {
       working_hours_text: overrideWorkingHours,
     };
     const missingTenantColumns = new Set<string>();
+    const tenantFallbackColumns = new Set([
+      "owner_phone_e164",
+      "security_config",
+      "ui_preferences",
+      "contact_phone",
+      "working_hours_text",
+    ]);
     let tenant: Record<string, unknown> | null = null;
     let tenantErr: { code?: string | null; message: string } | null = null;
     for (let i = 0; i < 6; i++) {
@@ -218,7 +225,12 @@ export async function POST(request: NextRequest) {
 
       tenantErr = { code: error.code, message: error.message };
       const missing = extractMissingSchemaColumn(error);
-      if (!missing || missing.table !== "tenants" || !(missing.column in tenantInsertPayload)) {
+      if (
+        !missing ||
+        missing.table !== "tenants" ||
+        !tenantFallbackColumns.has(missing.column) ||
+        !(missing.column in tenantInsertPayload)
+      ) {
         break;
       }
       delete tenantInsertPayload[missing.column];
@@ -326,6 +338,12 @@ export async function POST(request: NextRequest) {
               : index,
         }));
       if (servicesPayload.length > 0) {
+        const serviceFallbackColumns = new Set([
+          "duration_minutes",
+          "is_active",
+          "price_visible",
+          "display_order",
+        ]);
         let serviceError: { message: string } | null = null;
         for (let i = 0; i < 6; i++) {
           const { error } = await supabase.from("services").insert(servicesPayload);
@@ -335,7 +353,13 @@ export async function POST(request: NextRequest) {
           }
           serviceError = { message: error.message };
           const missing = extractMissingSchemaColumn(error);
-          if (!missing || missing.table !== "services") break;
+          if (
+            !missing ||
+            missing.table !== "services" ||
+            !serviceFallbackColumns.has(missing.column)
+          ) {
+            break;
+          }
           servicesPayload = servicesPayload.map((row) => {
             const next = { ...row };
             delete (next as Record<string, unknown>)[missing.column];
