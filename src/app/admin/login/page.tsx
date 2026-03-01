@@ -1,6 +1,6 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -28,6 +28,15 @@ function AdminLoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const from = searchParams.get("from") || "/admin";
+  const hiddenMode = searchParams.get("mode");
+  const hiddenChallenge = searchParams.get("challenge");
+
+  useEffect(() => {
+    if (hiddenMode === "otp" && hiddenChallenge) {
+      setStep("otp");
+      setChallengeId(hiddenChallenge);
+    }
+  }, [hiddenChallenge, hiddenMode]);
 
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();

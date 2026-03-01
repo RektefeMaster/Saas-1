@@ -95,7 +95,8 @@ export async function proxy(request: NextRequest) {
   const isAdminAuthApi =
     pathname === "/api/admin/auth/login" ||
     pathname === "/api/admin/auth/logout" ||
-    pathname === "/api/admin/auth/verify";
+    pathname === "/api/admin/auth/verify" ||
+    pathname === "/api/admin/auth/hidden";
   const isAdminRoute = pathname.startsWith("/admin");
   const isAdminApi = pathname.startsWith("/api/admin");
 
