@@ -1394,7 +1394,7 @@ export async function processMessage(
     // ── Multi-round tool calling loop ──
     let finalReply = "";
     let sessionDeleted = false;
-    let mergedSessionUpdate: Partial<ConversationState> = {};
+    const mergedSessionUpdate: Partial<ConversationState> = {};
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       let response: OpenAI.Chat.Completions.ChatCompletion;

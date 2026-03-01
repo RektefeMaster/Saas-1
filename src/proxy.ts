@@ -21,7 +21,7 @@ async function isAdminAuthenticated(request: NextRequest): Promise<boolean> {
   }
 }
 
-export async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sms2faEnabled = isSms2faEnabledFlag();
 
