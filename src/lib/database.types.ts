@@ -51,6 +51,8 @@ export interface Tenant {
   contact_phone?: string | null;
   /** Çalışma saatleri metni, örn: Hafta içi 09:00-18:00 */
   working_hours_text?: string | null;
+  /** Supabase Auth kullanıcı ID; esnaf girişi için */
+  user_id?: string | null;
 }
 
 export interface Appointment {
