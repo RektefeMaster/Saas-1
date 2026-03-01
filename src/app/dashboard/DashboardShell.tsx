@@ -17,6 +17,7 @@ import {
   Settings,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase-client";
+import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
 import type { User } from "@supabase/supabase-js";
 
 const baseUrl =
@@ -35,7 +36,8 @@ function UserMenu({ user }: { user: User | null }) {
     router.refresh();
   };
 
-  const initial = user?.email?.slice(0, 1).toUpperCase() ?? "?";
+  const accountLabel = loginEmailToUsernameDisplay(user?.email);
+  const initial = accountLabel.slice(0, 1).toUpperCase() || "?";
 
   return (
     <div className="relative">
@@ -50,7 +52,7 @@ function UserMenu({ user }: { user: User | null }) {
           {initial}
         </span>
         <span className="hidden max-w-[120px] truncate text-sm font-medium text-slate-700 dark:text-slate-200 sm:inline">
-          {user?.email ?? "Hesap"}
+          {accountLabel}
         </span>
         <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
       </button>
@@ -64,7 +66,7 @@ function UserMenu({ user }: { user: User | null }) {
           <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
             <div className="border-b border-slate-100 px-4 py-2 dark:border-slate-800">
               <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                {user?.email}
+                {accountLabel}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">
                 İşletme paneli

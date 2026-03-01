@@ -57,6 +57,8 @@ export interface Tenant {
   user_id?: string | null;
   /** Dashboard owner OTP doğrulama telefonu (E.164) */
   owner_phone_e164?: string | null;
+  /** Dashboard giriş kullanıcı adı */
+  owner_username?: string | null;
 }
 
 export interface Appointment {

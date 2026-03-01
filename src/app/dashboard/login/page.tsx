@@ -4,23 +4,24 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { Mail, Lock, Eye, EyeOff, AlertCircle, Calendar, MessageCircle } from "lucide-react";
+import { Mail, Lock, Eye, EyeOff, AlertCircle, Calendar, MessageCircle, User } from "lucide-react";
 import { createClient } from "@/lib/supabase-client";
+import { isValidUsername, usernameToLoginEmail } from "@/lib/username-auth";
 import { Button, Input, Card, CardContent } from "@/components/ui";
 
 function getErrorMessage(error: { message?: string } | null): string {
   if (!error?.message) return "Bir hata oluştu, tekrar deneyin.";
   const msg = error.message.toLowerCase();
   if (msg.includes("invalid login credentials") || msg.includes("invalid_credentials"))
-    return "E-posta veya şifre hatalı.";
+    return "Kullanıcı adı veya şifre hatalı.";
   if (msg.includes("email not confirmed"))
-    return "E-posta adresinizi doğrulayın.";
+    return "Hesap doğrulaması tamamlanmamış.";
   return "Bir hata oluştu, tekrar deneyin.";
 }
 
 export default function DashboardLoginPage() {
   const router = useRouter();
-  const [email, setEmail] = useState("");
+  const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -28,14 +29,13 @@ export default function DashboardLoginPage() {
 
   const validate = (): boolean => {
     setError(null);
-    const emailTrim = email.trim();
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailTrim) {
-      setError("E-posta adresinizi girin.");
+    const usernameTrim = username.trim().toLowerCase();
+    if (!usernameTrim) {
+      setError("Kullanıcı adınızı girin.");
       return false;
     }
-    if (!emailRegex.test(emailTrim)) {
-      setError("Geçerli bir e-posta adresi girin.");
+    if (!usernameTrim.includes("@") && !isValidUsername(usernameTrim)) {
+      setError("Geçerli bir kullanıcı adı girin.");
       return false;
     }
     if (password.length < 6) {
@@ -54,8 +54,12 @@ export default function DashboardLoginPage() {
 
     try {
       const supabase = createClient();
+      const identifier = username.trim().toLowerCase();
+      const emailForAuth = identifier.includes("@")
+        ? identifier
+        : usernameToLoginEmail(identifier);
       const { error: signInError } = await supabase.auth.signInWithPassword({
-        email: email.trim(),
+        email: emailForAuth,
         password,
       });
 
@@ -152,7 +156,7 @@ export default function DashboardLoginPage() {
               İşletme paneline giriş
             </h1>
             <p className="mt-2 text-slate-600">
-              E-posta ve şifrenizle giriş yapın, gerekiyorsa SMS doğrulamasını tamamlayın
+              Kullanıcı adı ve şifrenizle giriş yapın, gerekiyorsa SMS doğrulamasını tamamlayın
             </p>
           </div>
 
@@ -160,14 +164,14 @@ export default function DashboardLoginPage() {
             <CardContent className="p-6 sm:p-8">
               <form onSubmit={handleSubmit} className="space-y-5">
                 <Input
-                  label="E-posta"
-                  type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="ornek@email.com"
-                  autoComplete="email"
+                  label="Kullanıcı Adı"
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  placeholder="berber.ankara"
+                  autoComplete="username"
                   disabled={loading}
-                  leftIcon={<Mail className="h-4 w-4" />}
+                  leftIcon={<User className="h-4 w-4" />}
                 />
 
                 <div>

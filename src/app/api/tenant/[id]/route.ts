@@ -16,6 +16,7 @@ export async function GET(
     "config_override",
     "ui_preferences",
     "security_config",
+    "owner_username",
     "owner_phone_e164",
     "contact_phone",
     "working_hours_text",

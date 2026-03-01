@@ -27,6 +27,7 @@ export async function PATCH(
     tenant_code,
     status,
     config_override,
+    owner_username,
     owner_phone_e164,
     security_config,
     ui_preferences,
@@ -36,6 +37,7 @@ export async function PATCH(
   if (tenant_code !== undefined) updates.tenant_code = String(tenant_code).toUpperCase();
   if (status !== undefined) updates.status = status;
   if (config_override !== undefined) updates.config_override = config_override;
+  if (owner_username !== undefined) updates.owner_username = owner_username;
   if (owner_phone_e164 !== undefined) updates.owner_phone_e164 = owner_phone_e164;
   if (security_config !== undefined) updates.security_config = security_config;
   if (ui_preferences !== undefined) updates.ui_preferences = ui_preferences;

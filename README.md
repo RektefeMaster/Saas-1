@@ -19,6 +19,7 @@ cp .env.example .env
 ```
 
 **Admin paneli:** `ADMIN_PASSWORD` (min 8 karakter) ve `ADMIN_SESSION_SECRET` (min 32 karakter, örn. `openssl rand -base64 32`) ayarlayın. Şifreyi mutlaka değiştirin.
+**İşletme paneli:** giriş modeli `kullanıcı adı + şifre`dir.
 
 ### 3. Supabase
 
@@ -27,6 +28,7 @@ cp .env.example .env
 3. İsteğe bağlı: `002_enable_realtime.sql` ile Realtime'ı etkinleştirin (Dashboard > Database > Replication)
 4. `.env` dosyasına `NEXT_PUBLIC_SUPABASE_URL` ve `SUPABASE_SERVICE_ROLE_KEY` ekleyin
 5. Eski kurulumlarda Dashboard V2 alanları eksikse `010_dashboard_v2_crm_otp.sql` ve `011_schema_backfill_dashboard_v2.sql` migrationlarını da çalıştırın
+6. Kullanıcı adıyla giriş için `012_owner_username_login.sql` migrationını çalıştırın
 
 ### 4. WhatsApp (Meta Cloud API)
 

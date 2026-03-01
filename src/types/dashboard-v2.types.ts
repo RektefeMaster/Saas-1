@@ -72,8 +72,9 @@ export interface AdminTenantWizardPayload {
   tenant_code: string;
   business_type_id: string;
   status?: "active" | "inactive" | "suspended";
-  email: string;
+  owner_username: string;
   password: string;
+  email?: string;
   owner_phone_e164?: string;
   security_config?: {
     sms_2fa_enabled?: boolean;

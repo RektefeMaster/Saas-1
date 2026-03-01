@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
+import {
+  isValidUsername,
+  normalizeUsername,
+  usernameToLoginEmail,
+} from "@/lib/username-auth";
 import type { AdminTenantWizardPayload } from "@/types/dashboard-v2.types";
 
 function slugify(value: string): string {
@@ -57,12 +62,15 @@ export async function POST(request: NextRequest) {
     business_type_id?: string;
     name?: string;
     tenant_code?: string;
+    owner_username?: string;
     email?: string;
     password?: string;
     status?: "active" | "inactive" | "suspended";
     config_override?: Record<string, unknown>;
   };
-  const { business_type_id, name, tenant_code, email, password } = body;
+  const { business_type_id, name, tenant_code, password } = body;
+  const ownerUsername = normalizeUsername(body.owner_username || "");
+  const legacyEmail = body.email?.trim().toLowerCase() || "";
   
   // Zorunlu alanları kontrol et
   if (!business_type_id || !name || !tenant_code) {
@@ -72,10 +80,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  // E-posta ve şifre kontrolü
-  if (!email || !password) {
+  // Kullanıcı adı ve şifre kontrolü
+  if ((!ownerUsername && !legacyEmail) || !password) {
     return NextResponse.json(
-      { error: "E-posta ve şifre gereklidir" },
+      { error: "Kullanıcı adı ve şifre gereklidir" },
+      { status: 400 }
+    );
+  }
+
+  if (!legacyEmail && !isValidUsername(ownerUsername)) {
+    return NextResponse.json(
+      {
+        error:
+          "Kullanıcı adı 3-32 karakter olmalı ve sadece küçük harf, rakam, nokta, alt çizgi veya tire içermeli.",
+      },
       { status: 400 }
     );
   }
@@ -88,12 +106,41 @@ export async function POST(request: NextRequest) {
   }
 
   const code = String(tenant_code).toUpperCase().trim();
+  const loginEmail = legacyEmail || usernameToLoginEmail(ownerUsername);
   let userId: string | null = null;
 
   try {
-    // 1) Auth kullanıcısı oluştur
+    // 1) Kullanıcı adı çakışıyor mu (kolon mevcutsa) kontrol et
+    if (ownerUsername) {
+      const { data: existingUsername, error: existingUsernameErr } = await supabase
+        .from("tenants")
+        .select("id")
+        .eq("owner_username", ownerUsername)
+        .is("deleted_at", null)
+        .maybeSingle();
+      const missingUsernameColumn = extractMissingSchemaColumn(existingUsernameErr);
+      if (
+        existingUsernameErr &&
+        (!missingUsernameColumn ||
+          missingUsernameColumn.table !== "tenants" ||
+          missingUsernameColumn.column !== "owner_username")
+      ) {
+        return NextResponse.json(
+          { error: `Kullanıcı adı kontrol edilemedi: ${existingUsernameErr.message}` },
+          { status: 500 }
+        );
+      }
+      if (existingUsername) {
+        return NextResponse.json(
+          { error: `Bu kullanıcı adı (${ownerUsername}) zaten kullanılıyor.` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // 2) Auth kullanıcısı oluştur
     const { data: userData, error: authError } = await supabase.auth.admin.createUser({
-      email: email.trim(),
+      email: loginEmail,
       password: password,
       email_confirm: true,
     });
@@ -102,10 +149,10 @@ export async function POST(request: NextRequest) {
       // Eğer kullanıcı zaten varsa, mevcut kullanıcıyı bul
       if (authError.message?.includes("already been registered") || authError.message?.includes("already exists") || authError.message?.includes("User already registered")) {
         const { data: list } = await supabase.auth.admin.listUsers();
-        const existing = list?.users?.find((u) => u.email === email.trim());
+        const existing = list?.users?.find((u) => (u.email || "").toLowerCase() === loginEmail);
         if (!existing) {
           return NextResponse.json(
-            { error: "Bu e-posta zaten kayıtlı ancak kullanıcı bulunamadı. Lütfen farklı bir e-posta deneyin." },
+            { error: "Bu kullanıcı adı zaten kayıtlı ancak kullanıcı bulunamadı. Lütfen farklı bir kullanıcı adı deneyin." },
             { status: 400 }
           );
         }
@@ -126,7 +173,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 2) Bu kullanıcının zaten bir tenant'ı var mı kontrol et
+    // 3) Bu kullanıcının zaten bir tenant'ı var mı kontrol et
     const { data: existingTenant } = await supabase
       .from("tenants")
       .select("id, name")
@@ -141,7 +188,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 3) Tenant kodu benzersiz mi kontrol et
+    // 4) Tenant kodu benzersiz mi kontrol et
     const { data: existingCode } = await supabase
       .from("tenants")
       .select("id")
@@ -156,7 +203,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // 4) Tenant oluştur
+    // 5) Tenant oluştur
     const baseConfig = (body.config_override || {}) as Record<string, unknown>;
     const mergedConfig: Record<string, unknown> = { ...baseConfig };
     if (body.scheduling?.slot_duration_minutes !== undefined) {
@@ -187,7 +234,7 @@ export async function POST(request: NextRequest) {
         ? body.config_override.working_hours_text.trim()
         : null;
 
-    // 4) Tenant oluştur (eski şema ile uyumluluk: eksik kolonları otomatik düş)
+    // 6) Tenant oluştur (eski şema ile uyumluluk: eksik kolonları otomatik düş)
     const tenantInsertPayload: Record<string, unknown> = {
       business_type_id,
       name: name.trim(),
@@ -195,6 +242,7 @@ export async function POST(request: NextRequest) {
       config_override: mergedConfig,
       status: body.status || "active",
       user_id: userId,
+      owner_username: ownerUsername || null,
       owner_phone_e164: body.owner_phone_e164?.trim() || null,
       security_config: body.security_config || {},
       ui_preferences: body.ui_preferences || {},
@@ -203,6 +251,7 @@ export async function POST(request: NextRequest) {
     };
     const missingTenantColumns = new Set<string>();
     const tenantFallbackColumns = new Set([
+      "owner_username",
       "owner_phone_e164",
       "security_config",
       "ui_preferences",
@@ -264,7 +313,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "İşletme kaydedilemedi" }, { status: 500 });
     }
 
-    // 5) Optional: çalışma saatleri
+    // 7) Optional: çalışma saatleri
     if (body.scheduling?.weekly_slots && body.scheduling.weekly_slots.length > 0) {
       const slotsPayload = body.scheduling.weekly_slots
         .filter(
@@ -293,7 +342,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 6) Optional: kapalı günler
+    // 8) Optional: kapalı günler
     if (body.scheduling?.blocked_dates && body.scheduling.blocked_dates.length > 0) {
       const blockedPayload = body.scheduling.blocked_dates
         .filter((row) => row.start_date && row.end_date)
@@ -316,7 +365,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 7) Optional: hizmetler
+    // 9) Optional: hizmetler
     if (body.services && body.services.length > 0) {
       let servicesPayload = body.services
         .filter((service) => service.name?.trim())

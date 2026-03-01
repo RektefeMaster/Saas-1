@@ -59,13 +59,6 @@ export default function Home() {
               İşletme Paneli
               <ArrowRight className="h-4 w-4" />
             </Link>
-            <Link
-              href="/admin"
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white/85 px-6 py-3.5 text-base font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 sm:w-auto"
-            >
-              <Shield className="h-4 w-4" />
-              Yönetim Paneli
-            </Link>
           </div>
 
           <ul className="mt-14 grid gap-6 sm:grid-cols-3">

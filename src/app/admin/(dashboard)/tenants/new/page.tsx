@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { isValidUsername } from "@/lib/username-auth";
 
 interface BusinessType {
   id: string;
@@ -58,7 +59,7 @@ export default function NewTenantWizardPage() {
   const [businessTypeId, setBusinessTypeId] = useState("");
   const [status, setStatus] = useState<"active" | "inactive" | "suspended">("active");
 
-  const [email, setEmail] = useState("");
+  const [ownerUsername, setOwnerUsername] = useState("");
   const [password, setPassword] = useState("");
   const [ownerPhone, setOwnerPhone] = useState("");
   const [sms2faEnabled, setSms2faEnabled] = useState(true);
@@ -126,8 +127,12 @@ export default function NewTenantWizardPage() {
       }
     }
     if (step === 1) {
-      if (!email.trim() || !password.trim() || password.length < 6) {
-        setError("Geçerli e-posta ve en az 6 karakter şifre girin.");
+      if (!ownerUsername.trim() || !password.trim() || password.length < 6) {
+        setError("Geçerli kullanıcı adı ve en az 6 karakter şifre girin.");
+        return false;
+      }
+      if (!isValidUsername(ownerUsername.trim().toLowerCase())) {
+        setError("Kullanıcı adı 3-32 karakter olmalı ve yalnızca küçük harf/rakam içermelidir.");
         return false;
       }
     }
@@ -161,7 +166,7 @@ export default function NewTenantWizardPage() {
       tenant_code: tenantCode.trim().toUpperCase(),
       business_type_id: businessTypeId,
       status,
-      email: email.trim(),
+      owner_username: ownerUsername.trim().toLowerCase(),
       password,
       owner_phone_e164: ownerPhone.trim() || null,
       security_config: {
@@ -303,10 +308,10 @@ export default function NewTenantWizardPage() {
         {step === 1 && (
           <div className="grid gap-4 md:grid-cols-2">
             <input
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder="Sahip e-postası"
+              type="text"
+              value={ownerUsername}
+              onChange={(e) => setOwnerUsername(e.target.value.toLowerCase())}
+              placeholder="Sahip kullanıcı adı"
               className="rounded-xl border border-slate-300 px-4 py-3 text-sm"
               required
             />
