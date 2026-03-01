@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { incrementNoShow } from "@/services/blacklist.service";
 
-const CRON_SECRET = process.env.CRON_SECRET || "saasrandevu_cron";
+const CRON_SECRET = process.env.CRON_SECRET || "ahi_ai_cron";
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get("authorization");

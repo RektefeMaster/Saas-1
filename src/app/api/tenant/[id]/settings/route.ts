@@ -24,6 +24,8 @@ export async function PATCH(
       slot_duration_minutes,
       advance_booking_days,
       cancellation_hours,
+      ui_preferences,
+      pricing_preferences,
     } = body;
 
     const hasConfig =
@@ -32,7 +34,9 @@ export async function PATCH(
       opening_message !== undefined ||
       slot_duration_minutes !== undefined ||
       advance_booking_days !== undefined ||
-      cancellation_hours !== undefined;
+      cancellation_hours !== undefined ||
+      ui_preferences !== undefined ||
+      pricing_preferences !== undefined;
     const hasTenantFields = contact_phone !== undefined || working_hours_text !== undefined;
 
     if (!hasConfig && !hasTenantFields) {
@@ -51,7 +55,7 @@ export async function PATCH(
 
     const { data: tenant, error: fetchErr } = await supabase
       .from("tenants")
-      .select("config_override")
+      .select("config_override, ui_preferences")
       .eq("id", id)
       .is("deleted_at", null)
       .single();
@@ -87,11 +91,33 @@ export async function PATCH(
     if (cancellation_hours !== undefined) {
       newConfig.cancellation_hours = cancellation_hours;
     }
+    if (ui_preferences !== undefined && typeof ui_preferences === "object" && ui_preferences) {
+      newConfig.ui_preferences = {
+        ...((newConfig.ui_preferences as Record<string, unknown>) || {}),
+        ...(ui_preferences as Record<string, unknown>),
+      };
+    }
+    if (
+      pricing_preferences !== undefined &&
+      typeof pricing_preferences === "object" &&
+      pricing_preferences
+    ) {
+      newConfig.pricing_preferences = {
+        ...((newConfig.pricing_preferences as Record<string, unknown>) || {}),
+        ...(pricing_preferences as Record<string, unknown>),
+      };
+    }
 
     const updatePayload: Record<string, unknown> = {
       config_override: newConfig,
       updated_at: new Date().toISOString(),
     };
+    if (ui_preferences !== undefined && typeof ui_preferences === "object" && ui_preferences) {
+      updatePayload.ui_preferences = {
+        ...((tenant.ui_preferences as Record<string, unknown>) || {}),
+        ...(ui_preferences as Record<string, unknown>),
+      };
+    }
     if (contact_phone !== undefined) updatePayload.contact_phone = contact_phone;
     if (working_hours_text !== undefined) updatePayload.working_hours_text = working_hours_text;
 
@@ -99,7 +125,7 @@ export async function PATCH(
       .from("tenants")
       .update(updatePayload)
       .eq("id", id)
-      .select("id, config_override, contact_phone, working_hours_text")
+      .select("id, config_override, ui_preferences, contact_phone, working_hours_text")
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });

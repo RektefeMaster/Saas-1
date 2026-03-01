@@ -158,7 +158,7 @@ Kurallar:
 - Tarih: bağlamda Bugün/Yarın verilmiş, onu kullan. "öbür gün" = yarından sonraki gün. "bu hafta sonu" = Cumartesi. "yakın zamanda" → bu hafta kontrol et.
 - Çalışma saatleri dışında randevu önerme.
 - Çoklu randevu: "Ben ve eşim için iki randevu" derse arka arkaya iki saat (ör. 15:00 ve 15:30) create_appointment çağır.
-- Fiyat sorulursa get_services çağır, bilgiyi paylaş. Fiyat yoksa "Fiyat bilgisi için işletmeyi arayabilirsin" de.
+- Fiyat sorulursa get_services çağır, bilgiyi paylaş. Fiyat görünmüyorsa sıcak bir dille "Fiyat için bizi arayabilirsin" diyerek telefonu paylaş.
 - Adres/konum sorulursa get_tenant_info çağır, adresi ve varsa Google Maps linkini paylaş.
 - Müşteri "geç kalacağım" derse notify_late çağır, esnafı bilgilendir.
 - Müşteri "iptal" derse (hatırlatma mesajına cevap dahil) iptal akışını başlat.
@@ -1089,20 +1089,54 @@ async function executeToolCall(
   }
 
   if (name === "get_services") {
-    const { data: services } = await supabase
-      .from("services")
-      .select("name, slug, price, description")
-      .eq("tenant_id", tenantId);
+    const [serviceRes, tenantRes] = await Promise.all([
+      supabase
+        .from("services")
+        .select("name, slug, price, description, price_visible, is_active")
+        .eq("tenant_id", tenantId)
+        .eq("is_active", true),
+      supabase.from("tenants").select("contact_phone").eq("id", tenantId).single(),
+    ]);
+
+    let services = serviceRes.data as
+      | Array<{
+          name: string;
+          slug: string;
+          price: number | null;
+          description: string | null;
+          price_visible?: boolean | null;
+        }>
+      | null;
+    if (serviceRes.error) {
+      const legacyRes = await supabase
+        .from("services")
+        .select("name, slug, price, description")
+        .eq("tenant_id", tenantId);
+      services = (legacyRes.data as typeof services) || null;
+    }
+    const tenantInfo = tenantRes.data;
+    const fallbackPhone = tenantInfo?.contact_phone || "işletme telefonu";
+
     if (!services || services.length === 0) {
-      return { result: { services: [], message: "Henüz hizmet tanımlanmamış" } };
+      return {
+        result: {
+          services: [],
+          message: `Şu an listede hizmet görünmüyor. Detay için ${fallbackPhone} numarasından bizi arayabilirsin.`,
+        },
+      };
     }
     return {
       result: {
         services: services.map((s) => ({
           name: s.name,
-          price: s.price ? `${s.price} TL` : "Fiyat bilgisi yok",
+          price:
+            s.price_visible === false || s.price == null
+              ? `Fiyat için arayın: ${fallbackPhone}`
+              : `${s.price} TL`,
+          price_visible: s.price_visible !== false,
           description: s.description || "",
         })),
+        fallback_phone: fallbackPhone,
       },
     };
   }

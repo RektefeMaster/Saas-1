@@ -2,6 +2,7 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
+import { DASHBOARD_OTP_COOKIE, isSms2faEnabledFlag } from "@/lib/otp-auth";
 
 const ADMIN_COOKIE = "admin_session";
 
@@ -22,9 +23,12 @@ async function isAdminAuthenticated(request: NextRequest): Promise<boolean> {
 
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
+  const sms2faEnabled = isSms2faEnabledFlag();
 
   // Dashboard koruması (Supabase Auth)
   if (pathname.startsWith("/dashboard")) {
+    const isDashboardLogin = pathname === "/dashboard/login";
+    const isDashboardVerify = pathname === "/dashboard/login/verify";
     let supabaseResponse = NextResponse.next({ request });
 
     const supabase = createServerClient(
@@ -52,9 +56,19 @@ export async function middleware(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (pathname === "/dashboard/login") {
-      if (user) {
+    if (isDashboardLogin || isDashboardVerify) {
+      if (!user) return supabaseResponse;
+      if (!sms2faEnabled) {
+        if (isDashboardLogin) return NextResponse.redirect(new URL("/dashboard", request.url));
         return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+      const otpCookie = request.cookies.get(DASHBOARD_OTP_COOKIE)?.value;
+      const otpVerified = otpCookie === user.id;
+      if (otpVerified && (isDashboardLogin || isDashboardVerify)) {
+        return NextResponse.redirect(new URL("/dashboard", request.url));
+      }
+      if (!otpVerified && isDashboardLogin) {
+        return NextResponse.redirect(new URL("/dashboard/login/verify", request.url));
       }
       return supabaseResponse;
     }
@@ -65,13 +79,23 @@ export async function middleware(request: NextRequest) {
       );
     }
 
+    if (sms2faEnabled) {
+      const otpCookie = request.cookies.get(DASHBOARD_OTP_COOKIE)?.value;
+      const otpVerified = otpCookie === user.id;
+      if (!otpVerified) {
+        return NextResponse.redirect(new URL("/dashboard/login/verify", request.url));
+      }
+    }
+
     return supabaseResponse;
   }
 
   // Admin koruması (mevcut cookie auth)
   const isLoginPage = pathname === "/admin/login";
   const isAdminAuthApi =
-    pathname === "/api/admin/auth/login" || pathname === "/api/admin/auth/logout";
+    pathname === "/api/admin/auth/login" ||
+    pathname === "/api/admin/auth/logout" ||
+    pathname === "/api/admin/auth/verify";
   const isAdminRoute = pathname.startsWith("/admin");
   const isAdminApi = pathname.startsWith("/api/admin");
 

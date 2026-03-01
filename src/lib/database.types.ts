@@ -43,6 +43,8 @@ export interface Tenant {
   name: string;
   tenant_code: string;
   config_override: Record<string, unknown>;
+  ui_preferences?: Record<string, unknown>;
+  security_config?: Record<string, unknown>;
   status: "active" | "inactive" | "suspended";
   deleted_at: string | null;
   created_at: string;
@@ -53,6 +55,8 @@ export interface Tenant {
   working_hours_text?: string | null;
   /** Supabase Auth kullanıcı ID; esnaf girişi için */
   user_id?: string | null;
+  /** Dashboard owner OTP doğrulama telefonu (E.164) */
+  owner_phone_e164?: string | null;
 }
 
 export interface Appointment {
@@ -72,6 +76,12 @@ export interface Service {
   tenant_id: string;
   name: string;
   slug: string;
+  description?: string | null;
+  price?: number | null;
+  duration_minutes?: number;
+  is_active?: boolean;
+  price_visible?: boolean;
+  display_order?: number;
   created_at: string;
 }
 

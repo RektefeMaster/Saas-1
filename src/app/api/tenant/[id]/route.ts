@@ -9,7 +9,7 @@ export async function GET(
 
   const { data, error } = await supabase
     .from("tenants")
-    .select("id, name, tenant_code, status, config_override, contact_phone, working_hours_text")
+    .select("id, name, tenant_code, status, config_override, ui_preferences, security_config, owner_phone_e164, contact_phone, working_hours_text")
     .eq("id", id)
     .is("deleted_at", null)
     .single();

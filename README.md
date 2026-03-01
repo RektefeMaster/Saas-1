@@ -1,4 +1,4 @@
-# SaaSRandevu
+# Ahi AI
 
 WhatsApp üzerinden çalışan, yapay zeka destekli çok kiracılı randevu SaaS sistemi.
 
@@ -49,7 +49,13 @@ npm run dev
 ## Yapı
 
 - `/admin` - Süper Admin paneli (işletme tipleri, kiracılar)
-- `/dashboard/[tenantId]` - Esnaf takvim paneli
+- `/admin/tenants/new` - Adım adım işletme oluşturma sihirbazı
+- `/admin/security` - SMS 2FA/Twilio konfigürasyon görünümü
+- `/dashboard/[tenantId]` - İşletme paneli (özet + takvim)
+- `/dashboard/[tenantId]/pricing` - Fiyat listesi modülü
+- `/dashboard/[tenantId]/workflow` - Durum bazlı iş akışı
+- `/dashboard/[tenantId]/crm` - CRM defteri ve hatırlatmalar
+- `/dashboard/[tenantId]/settings` - Kişiselleştirme/iletişim ayarları
 - `/t/[tenantId]` - WhatsApp'a yönlendiren kısa link
 - `/api/webhook/whatsapp` - WhatsApp webhook (GET: doğrulama, POST: mesajlar)
 - `/api/cron/reminders` - 24 saat önce randevu hatırlatma (cron)

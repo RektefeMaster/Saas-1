@@ -1,21 +1,21 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Manrope, Space_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/lib/theme-context";
 import "./globals.css";
 
-const geistSans = Geist({
-  variable: "--font-geist-sans",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
 });
 
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
 });
 
 export const metadata: Metadata = {
-  title: "SaaSRandevu | WhatsApp Randevu Asistanı",
-  description: "WhatsApp ile randevu alan yapay zeka destekli çok kiracılı SaaS",
+  title: "Ahi AI | WhatsApp Randevu Asistanı",
+  description: "WhatsApp ile randevu, fiyat listesi ve CRM yöneten yapay zeka destekli platform",
 };
 
 export default function RootLayout({
@@ -31,7 +31,7 @@ export default function RootLayout({
             __html: `
               (function() {
                 try {
-                  var theme = localStorage.getItem('saasrandevu-admin-theme');
+                  var theme = localStorage.getItem('ahi-ai-admin-theme');
                   if (theme === 'dark') document.documentElement.classList.add('dark');
                   else if (theme === 'light') document.documentElement.classList.remove('dark');
                 } catch (e) {}
@@ -41,7 +41,7 @@ export default function RootLayout({
         />
       </head>
       <body
-        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+        className={`${manrope.variable} ${spaceGrotesk.variable} antialiased`}
       >
         <ThemeProvider>{children}</ThemeProvider>
       </body>

@@ -9,6 +9,7 @@ const navItems = [
   { href: "/admin", label: "Dashboard", icon: DashboardIcon },
   { href: "/admin/tenants", label: "Kiracılar", icon: UsersIcon },
   { href: "/admin/business-types", label: "İşletme Tipleri", icon: BuildingIcon },
+  { href: "/admin/security", label: "Güvenlik", icon: SecurityIcon },
 ];
 
 function DashboardIcon({ active }: { active?: boolean }) {
@@ -35,6 +36,14 @@ function BuildingIcon({ active }: { active?: boolean }) {
   );
 }
 
+function SecurityIcon({ active }: { active?: boolean }) {
+  return (
+    <svg className={`h-5 w-5 shrink-0 ${active ? "text-emerald-400 dark:text-emerald-500" : "text-slate-400 dark:text-slate-500"}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 2l7 4v6c0 5-3.5 9-7 10-3.5-1-7-5-7-10V6l7-4zM9.5 12.5l1.8 1.8 3.2-3.2" />
+    </svg>
+  );
+}
+
 export default function AdminDashboardLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
@@ -48,7 +57,7 @@ export default function AdminDashboardLayout({ children }: { children: React.Rea
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
               </svg>
             </div>
-            <span className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">SaaSRandevu</span>
+            <span className="text-lg font-semibold tracking-tight text-slate-900 dark:text-slate-100">Ahi AI</span>
           </Link>
           <ThemeToggle />
         </div>

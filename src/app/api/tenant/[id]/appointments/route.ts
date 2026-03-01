@@ -29,6 +29,23 @@ export async function GET(
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
+
+  const customerName =
+    (extra_data as { customer_name?: string } | undefined)?.customer_name?.trim() || null;
+  await supabase
+    .from("crm_customers")
+    .upsert(
+      {
+        tenant_id: id,
+        customer_phone,
+        customer_name: customerName,
+        updated_at: new Date().toISOString(),
+      },
+      { onConflict: "tenant_id,customer_phone" }
+    )
+    .then(() => undefined)
+    .catch(() => undefined);
+
   return NextResponse.json(data);
 }
 

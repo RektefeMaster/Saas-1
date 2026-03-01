@@ -3,7 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { incrementNoShow } from "@/services/blacklist.service";
 
-const CRON_SECRET = process.env.CRON_SECRET || "saasrandevu_cron";
+const CRON_SECRET = process.env.CRON_SECRET || "ahi_ai_cron";
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get("authorization");
@@ -118,10 +118,43 @@ export async function GET(request: NextRequest) {
     console.error("[cron] review-reminder error:", e);
   }
 
+  // CRM reminder dispatch (whatsapp / both)
+  let crmReminderSent = 0;
+  try {
+    const { data: crmReminders } = await supabase
+      .from("crm_reminders")
+      .select("id, customer_phone, title, note, channel")
+      .eq("status", "pending")
+      .lte("remind_at", new Date().toISOString())
+      .in("channel", ["whatsapp", "both"])
+      .limit(200);
+
+    for (const reminder of crmReminders || []) {
+      const text = `Hatırlatma: ${reminder.title}${reminder.note ? `\n${reminder.note}` : ""}`;
+      const ok = await sendWhatsAppMessage({
+        to: reminder.customer_phone,
+        text,
+      });
+      if (!ok) continue;
+      crmReminderSent++;
+      await supabase
+        .from("crm_reminders")
+        .update({
+          status: "sent",
+          sent_at: new Date().toISOString(),
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", reminder.id);
+    }
+  } catch (e) {
+    console.error("[cron] crm-reminder error:", e);
+  }
+
   return NextResponse.json({
     ok: true,
     reminders: { total: appointments?.length || 0, sent },
     noShowMarked,
     reviewSent,
+    crmReminderSent,
   });
 }

@@ -80,11 +80,13 @@ export default function AdminPage() {
   }, []);
 
   return (
-    <div className="p-8">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-slate-900">Dashboard</h1>
-        <p className="mt-1.5 text-slate-600">
-          SaaSRandevu yönetim paneli — işletme tipleri ve kiracıları merkezi olarak yönetin
+    <div className="p-6 sm:p-8 lg:p-10">
+      <header className="mb-10">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+          Dashboard
+        </h1>
+        <p className="mt-2 text-slate-600 dark:text-slate-400">
+          Ahi AI yönetim paneli — işletme tipleri ve kiracıları merkezi olarak yönetin
         </p>
       </header>
 

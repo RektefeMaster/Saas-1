@@ -32,11 +32,12 @@ const memoryStore = new Map<string, { value: ConversationState; expiry: number }
 const phoneTenantStore = new Map<string, { value: string; expiry: number }>();
 let fallbackLogged = false;
 
-const SESSION_PREFIX = "saasrandevu:session:";
-const PHONE_TENANT_PREFIX = "saasrandevu:phone2tenant:";
-const RATE_LIMIT_PREFIX = "saasrandevu:ratelimit:";
+const SESSION_PREFIX = "ahi-ai:session:";
+const PHONE_TENANT_PREFIX = "ahi-ai:phone2tenant:";
+const RATE_LIMIT_PREFIX = "ahi-ai:ratelimit:";
+const OTP_CHALLENGE_PREFIX = "ahi-ai:otp:challenge:";
 /** [YENİ] Tenant cache key prefix; TTL 300 saniye (5 dk). */
-const TENANT_CACHE_PREFIX = "saasrandevu:tenant:id:";
+const TENANT_CACHE_PREFIX = "ahi-ai:tenant:id:";
 const TENANT_CACHE_TTL_SECONDS = 300;
 const TTL_SECONDS = 60 * 60 * 24; // 24 saat
 const RATE_LIMIT_TTL_SECONDS = 60; // 1 dakika
@@ -44,6 +45,7 @@ const RATE_LIMIT_MAX = 15; // dakikada max mesaj
 
 /** [YENİ] Tenant cache in-memory fallback (Redis yoksa). */
 const tenantCacheMemory = new Map<string, { value: string; expiry: number }>();
+const otpChallengeMemory = new Map<string, { value: string; expiry: number }>();
 
 function logRedisFallback(action: string, err: unknown) {
   if (fallbackLogged) return;
@@ -196,6 +198,80 @@ export async function setTenantCache(tenantId: string, value: unknown): Promise<
     }
   }
   tenantCacheMemory.set(key, { value: serialized, expiry: Date.now() + TENANT_CACHE_TTL_SECONDS * 1000 });
+}
+
+export interface OtpChallenge {
+  id: string;
+  scope: "admin" | "dashboard";
+  phone: string;
+  user_id?: string;
+  attempts: number;
+  created_at: string;
+}
+
+export async function setOtpChallenge(
+  challenge: OtpChallenge,
+  ttlSeconds = 300
+): Promise<void> {
+  const key = OTP_CHALLENGE_PREFIX + challenge.id;
+  const serialized = JSON.stringify(challenge);
+  if (redis) {
+    try {
+      await redis.set(key, serialized, { ex: ttlSeconds });
+      return;
+    } catch (err) {
+      logRedisFallback("setOtpChallenge", err);
+    }
+  }
+  otpChallengeMemory.set(key, {
+    value: serialized,
+    expiry: Date.now() + ttlSeconds * 1000,
+  });
+}
+
+export async function getOtpChallenge(challengeId: string): Promise<OtpChallenge | null> {
+  const key = OTP_CHALLENGE_PREFIX + challengeId;
+  if (redis) {
+    try {
+      const raw = await redis.get<string>(key);
+      return raw ? (JSON.parse(raw) as OtpChallenge) : null;
+    } catch (err) {
+      logRedisFallback("getOtpChallenge", err);
+    }
+  }
+  const mem = otpChallengeMemory.get(key);
+  if (mem && mem.expiry > Date.now()) {
+    try {
+      return JSON.parse(mem.value) as OtpChallenge;
+    } catch {
+      otpChallengeMemory.delete(key);
+    }
+  }
+  otpChallengeMemory.delete(key);
+  return null;
+}
+
+export async function updateOtpChallengeAttempts(
+  challengeId: string,
+  attempts: number,
+  ttlSeconds = 300
+): Promise<void> {
+  const existing = await getOtpChallenge(challengeId);
+  if (!existing) return;
+  await setOtpChallenge({ ...existing, attempts }, ttlSeconds);
+}
+
+export async function deleteOtpChallenge(challengeId: string): Promise<void> {
+  const key = OTP_CHALLENGE_PREFIX + challengeId;
+  if (redis) {
+    try {
+      await redis.del(key);
+      return;
+    } catch (err) {
+      logRedisFallback("deleteOtpChallenge", err);
+    }
+  }
+  otpChallengeMemory.delete(key);
 }
 
 // --- Rate limiting (webhook: 15 mesaj/dakika per phone) ---

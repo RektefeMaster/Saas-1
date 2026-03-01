@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { generateWhatsAppLink } from "@/utils/generateTenantAssets";
 
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://saasrandevu.com";
+const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://ahi-ai.com";
 
 export async function GET(
   request: NextRequest,

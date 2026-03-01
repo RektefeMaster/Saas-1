@@ -1,4 +1,4 @@
-# SaaSRandevu — Mimari Doküman
+# Ahi AI — Mimari Doküman
 
 WhatsApp üzerinden çalışan, yapay zeka destekli çok kiracılı randevu SaaS sistemi. Bu doküman teknik kararları, güvenlik kurallarını ve hata yönetimini tanımlar.
 

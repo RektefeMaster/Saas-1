@@ -1,9 +1,17 @@
 import { NextResponse } from "next/server";
 import { getAdminCookieName } from "@/lib/admin-auth";
+import { ADMIN_OTP_COOKIE } from "@/lib/otp-auth";
 
 export async function POST() {
   const res = NextResponse.json({ success: true });
   res.cookies.set(getAdminCookieName(), "", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    path: "/",
+    maxAge: 0,
+  });
+  res.cookies.set(ADMIN_OTP_COOKIE, "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",
