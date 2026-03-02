@@ -89,8 +89,8 @@ export async function POST(request: NextRequest) {
           const ok = await sendInfoSms(to, messageText);
           if (ok) successCount++;
         } else if (channel === "whatsapp") {
-          const res = await sendWhatsAppMessage({ to, text: messageText });
-          if (res.ok) successCount++;
+          const ok = await sendWhatsAppMessage({ to, text: messageText });
+          if (ok) successCount++;
         } else {
           const res = await sendCustomerNotification(to, messageText);
           if (res.whatsapp || res.sms) successCount++;
