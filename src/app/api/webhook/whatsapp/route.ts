@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processMessage } from "@/lib/ai";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { downloadWhatsAppMedia, sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getTenantIdByPhone, setPhoneTenantMapping, setSession, getSession, deleteSession } from "@/lib/redis";
 import { verifyWebhookSignatureBody, getWebhookSecret } from "@/middleware/webhookVerify.middleware";
 import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
@@ -8,6 +8,7 @@ import { supabase } from "@/lib/supabase";
 import type { ConversationState } from "@/lib/database.types";
 import { getAppBaseUrl } from "@/lib/app-url";
 import { logTenantSwitch, resolveTenantRouting } from "@/lib/tenant-routing";
+import { transcribeVoiceMessage } from "@/lib/stt";
 
 // Vercel: OpenAI + Supabase + Redis zinciri 10s default timeout'u aşıyor.
 // Hobby plan max 60s, Pro plan max 300s.
@@ -56,7 +57,22 @@ export async function POST(request: NextRequest) {
     return new NextResponse("Unauthorized", { status: 401 });
   }
 
-  let body: { object?: string; entry?: Array<{ changes?: Array<{ field?: string; value?: { messages?: Array<{ type?: string; from?: string; text?: { body?: string } }> } }> }> };
+  let body: {
+    object?: string;
+    entry?: Array<{
+      changes?: Array<{
+        field?: string;
+        value?: {
+          messages?: Array<{
+            type?: string;
+            from?: string;
+            text?: { body?: string };
+            audio?: { id?: string };
+          }>;
+        };
+      }>;
+    }>;
+  };
   try {
     body = JSON.parse(rawBody);
   } catch {
@@ -81,12 +97,53 @@ export async function POST(request: NextRequest) {
         console.log("[webhook] messages count:", messages.length);
 
         for (const msg of messages) {
-          if (msg.type !== "text") {
-            console.log("[webhook] skip non-text type:", msg.type);
+          const from = msg.from;
+          if (!from) {
             continue;
           }
-          const from = msg.from;
-          const rawText = (msg.text?.body || "").trim();
+
+          let rawText = "";
+          if (msg.type === "text") {
+            rawText = (msg.text?.body || "").trim();
+          } else if (msg.type === "audio") {
+            const mediaId = msg.audio?.id;
+            if (!mediaId) {
+              await sendWhatsAppMessage({
+                to: `+${from}`,
+                text: "Sesli mesajı çözemedim. Lütfen tekrar deneyin veya metin yazın.",
+              });
+              continue;
+            }
+            const media = await downloadWhatsAppMedia(mediaId);
+            if (!media) {
+              await sendWhatsAppMessage({
+                to: `+${from}`,
+                text: "Ses dosyası alınamadı. Lütfen tekrar deneyin veya metin yazın.",
+              });
+              continue;
+            }
+            const transcript = await transcribeVoiceMessage(
+              media.buffer,
+              media.mimeType
+            );
+            if (!transcript) {
+              await sendWhatsAppMessage({
+                to: `+${from}`,
+                text: "Sesli mesajı anlayamadım. Kısa bir metinle yazabilir misiniz?",
+              });
+              continue;
+            }
+            rawText = transcript.trim();
+            console.log("[webhook] audio transcript:", rawText.slice(0, 250));
+          } else {
+            console.log("[webhook] unsupported message type:", msg.type);
+            await sendWhatsAppMessage({
+              to: `+${from}`,
+              text: "Şu an metin ve sesli mesajları destekliyorum. Lütfen metin veya sesli mesaj gönderin.",
+            });
+            continue;
+          }
+
           const customerPhone = `+${from}`;
 
           if (!rawText) {

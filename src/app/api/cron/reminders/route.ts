@@ -1,9 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendCustomerNotification } from "@/lib/notify";
+import { sendWhatsAppTemplateMessage } from "@/lib/whatsapp";
 import { incrementNoShow } from "@/services/blacklist.service";
 
 const CRON_SECRET = process.env.CRON_SECRET || "ahi_ai_cron";
+const REMINDER_TEMPLATE_NAME = process.env.WHATSAPP_REMINDER_TEMPLATE_NAME?.trim() || "";
+const TEMPLATE_LANG = process.env.WHATSAPP_TEMPLATE_LANG?.trim() || "tr";
+
+async function sendReminderWithBestChannel(
+  to: string,
+  tenantName: string,
+  dateText: string,
+  timeText: string
+): Promise<boolean> {
+  if (REMINDER_TEMPLATE_NAME) {
+    const ok = await sendWhatsAppTemplateMessage({
+      to,
+      templateName: REMINDER_TEMPLATE_NAME,
+      languageCode: TEMPLATE_LANG,
+      bodyParams: [tenantName, dateText, timeText],
+    });
+    if (ok) return true;
+  }
+
+  const fallbackText = `Merhaba, ${dateText} günü ${timeText}'da ${tenantName} için randevunuz var. Lütfen unutmayın!`;
+  const delivery = await sendCustomerNotification(to, fallbackText);
+  return delivery.whatsapp || delivery.sms;
+}
 
 export async function GET(request: NextRequest) {
   const auth = request.headers.get("authorization");
@@ -55,10 +79,15 @@ export async function GET(request: NextRequest) {
       hour: "2-digit",
       minute: "2-digit",
     });
+    const dateStr = slotDate.toLocaleDateString("tr-TR");
     const tenantName = tenantMap.get(apt.tenant_id)?.name || "İşletme";
-    const message = `Merhaba, yarın ${timeStr}'da ${tenantName} için randevunuz var. Lütfen unutmayın!`;
-    const delivery = await sendCustomerNotification(apt.customer_phone, message);
-    if (delivery.whatsapp || delivery.sms) sent++;
+    const ok = await sendReminderWithBestChannel(
+      apt.customer_phone,
+      tenantName,
+      dateStr,
+      timeStr
+    );
+    if (ok) sent++;
   }
 
   // No-show: 2+ saat geçmiş confirmed randevuları no_show yap

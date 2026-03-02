@@ -24,6 +24,8 @@ cp .env.example .env
 **Domain ayarı:** `NEXT_PUBLIC_APP_URL=https://www.aiahi.net` olacak şekilde üretim domaininizi `.env` içine yazın.
 **SMS 2FA:** `ENABLE_SMS_2FA=true` yapmadan önce `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`, `ADMIN_2FA_PHONE_E164` değerlerini geçerli şekilde doldurun.
 **Bilgi SMS'leri:** Twilio numarası ile müşteri bilgilendirme için `TWILIO_SMS_FROM_E164`, `ENABLE_INFO_SMS` ve `INFO_SMS_MODE` (`fallback` veya `always`) ayarlarını kullanın.
+**Sesli mesaj (STT):** WhatsApp sesli mesajlarını metne çevirmek için `OPENAI_STT_MODEL` (`whisper-1`) kullanılmaktadır.
+**Template reminder:** 24 saat sonrası WhatsApp hatırlatma template'i için `WHATSAPP_REMINDER_TEMPLATE_NAME` ve `WHATSAPP_TEMPLATE_LANG` ayarlanabilir.
 
 ### 3. Supabase
 
