@@ -4,6 +4,7 @@ import {
   getRuntimeWhatsAppConfig,
   setRuntimeWhatsAppConfig,
 } from "@/lib/redis";
+import { sendWhatsAppMessageDetailed } from "@/lib/whatsapp";
 
 function getDiagToken(): string {
   return (
@@ -65,9 +66,21 @@ export async function POST(request: NextRequest) {
     action?: string;
     token?: string;
     phone_id?: string;
+    to?: string;
+    text?: string;
   };
 
   const action = (payload.action || "set").trim().toLowerCase();
+  if (action === "send_test") {
+    const to = (payload.to || "").trim();
+    if (!to) {
+      return NextResponse.json({ error: "to gerekli" }, { status: 400 });
+    }
+    const text = (payload.text || "Ahi AI server-side test mesajı").trim();
+    const result = await sendWhatsAppMessageDetailed({ to, text });
+    return NextResponse.json({ ok: true, action: "send_test", result });
+  }
+
   if (action === "clear") {
     await clearRuntimeWhatsAppConfig();
     return NextResponse.json({ ok: true, action: "clear" });
@@ -96,4 +109,3 @@ export async function POST(request: NextRequest) {
     token_tail: maskTail(token, 6),
   });
 }
-
