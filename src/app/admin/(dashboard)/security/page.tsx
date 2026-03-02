@@ -1,9 +1,12 @@
 import { getTwilioVerifyStatus } from "@/lib/twilio";
+import { isInfoSmsEnabled } from "@/lib/sms";
 
 export default function AdminSecurityPage() {
   const twilio = getTwilioVerifyStatus();
   const enabled = twilio.enabledByFlag;
   const operational = twilio.enabledByFlag && twilio.configReady;
+  const infoSmsEnabled = isInfoSmsEnabled();
+  const infoSmsFrom = process.env.TWILIO_SMS_FROM_E164 || process.env.TWILIO_PHONE_NUMBER || "";
 
   return (
     <div className="p-6 sm:p-8 lg:p-10">
@@ -16,7 +19,7 @@ export default function AdminSecurityPage() {
         </p>
       </header>
 
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className="grid gap-4 md:grid-cols-3">
         <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">SMS 2FA</p>
           <p
@@ -48,6 +51,18 @@ export default function AdminSecurityPage() {
               Geçersiz: {twilio.invalid.join(", ")}
             </p>
           )}
+        </article>
+        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Bilgi SMS</p>
+          <p className={`mt-2 text-lg font-semibold ${infoSmsEnabled ? "text-emerald-600" : "text-slate-600"}`}>
+            {infoSmsEnabled ? "Etkin" : "Devre Dışı"}
+          </p>
+          <p className="mt-1 text-sm text-slate-500">
+            `ENABLE_INFO_SMS` ve `TWILIO_SMS_FROM_E164` ile yönetilir.
+          </p>
+          <p className="mt-1 text-xs text-slate-500">
+            Gönderen: {infoSmsFrom || "Tanımlı değil"}
+          </p>
         </article>
       </div>
     </div>

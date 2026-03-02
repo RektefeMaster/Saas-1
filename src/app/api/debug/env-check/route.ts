@@ -18,6 +18,9 @@ export async function GET() {
     WHATSAPP_WEBHOOK_SECRET: !!process.env.WHATSAPP_WEBHOOK_SECRET,
     SMS_2FA_FLAG: twilio.enabledByFlag,
     TWILIO_VERIFY_READY: twilio.configReady,
+    INFO_SMS_ENABLED: !!process.env.ENABLE_INFO_SMS,
+    TWILIO_SMS_FROM_SET:
+      !!process.env.TWILIO_SMS_FROM_E164 || !!process.env.TWILIO_PHONE_NUMBER,
   };
   const allOk = Object.values(checks).every(Boolean);
   return NextResponse.json({

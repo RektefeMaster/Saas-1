@@ -23,6 +23,7 @@ cp .env.example .env
 **Gizli admin girişi:** işletme login ekranında `ADMIN_HIDDEN_LOGIN_IDENTIFIER` + `ADMIN_PASSWORD` ile admin oturumu açılabilir (publicte admin butonu yoktur).
 **Domain ayarı:** `NEXT_PUBLIC_APP_URL=https://www.aiahi.net` olacak şekilde üretim domaininizi `.env` içine yazın.
 **SMS 2FA:** `ENABLE_SMS_2FA=true` yapmadan önce `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`, `ADMIN_2FA_PHONE_E164` değerlerini geçerli şekilde doldurun.
+**Bilgi SMS'leri:** Twilio numarası ile müşteri bilgilendirme için `TWILIO_SMS_FROM_E164`, `ENABLE_INFO_SMS` ve `INFO_SMS_MODE` (`fallback` veya `always`) ayarlarını kullanın.
 
 ### 3. Supabase
 
@@ -65,6 +66,9 @@ npm run dev
 - `/dashboard/[tenantId]/settings` - Kişiselleştirme/iletişim ayarları
 - `/t/[tenantId]` - WhatsApp'a yönlendiren kısa link
 - `/api/webhook/whatsapp` - WhatsApp webhook (GET: doğrulama, POST: mesajlar)
+- `/api/webhook/twilio/sms` - Twilio SMS webhook (bilgi amaçlı)
+- `/api/webhook/twilio/voice` - Twilio Voice webhook
+- `/api/tenant/[id]/appointments/hold` - Slotu geçici kilitleme (3 dk sepet)
 - `/api/cron/reminders` - 24 saat önce randevu hatırlatma (cron)
 - `/api/debug/env-check` - Çalışma ortamı değişken kontrolü
 - `/api/debug/whatsapp-health` - WhatsApp token/phone-id canlı sağlık kontrolü

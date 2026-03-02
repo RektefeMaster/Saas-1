@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendCustomerNotification } from "@/lib/notify";
 import { incrementNoShow } from "@/services/blacklist.service";
 
 const CRON_SECRET = process.env.CRON_SECRET || "ahi_ai_cron";
@@ -57,11 +57,8 @@ export async function GET(request: NextRequest) {
     });
     const tenantName = tenantMap.get(apt.tenant_id)?.name || "İşletme";
     const message = `Merhaba, yarın ${timeStr}'da ${tenantName} için randevunuz var. Lütfen unutmayın!`;
-    const ok = await sendWhatsAppMessage({
-      to: apt.customer_phone,
-      text: message,
-    });
-    if (ok) sent++;
+    const delivery = await sendCustomerNotification(apt.customer_phone, message);
+    if (delivery.whatsapp || delivery.sms) sent++;
   }
 
   // No-show: 2+ saat geçmiş confirmed randevuları no_show yap
@@ -107,11 +104,11 @@ export async function GET(request: NextRequest) {
       const reviewedIds = new Set((existingReviews || []).map((r) => r.appointment_id));
       for (const apt of reviewApts) {
         if (reviewedIds.has(apt.id)) continue;
-        const ok = await sendWhatsAppMessage({
-          to: apt.customer_phone,
-          text: "Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐",
-        });
-        if (ok) reviewSent++;
+        const delivery = await sendCustomerNotification(
+          apt.customer_phone,
+          "Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐"
+        );
+        if (delivery.whatsapp || delivery.sms) reviewSent++;
       }
     }
   } catch (e) {
@@ -131,11 +128,8 @@ export async function GET(request: NextRequest) {
 
     for (const reminder of crmReminders || []) {
       const text = `Hatırlatma: ${reminder.title}${reminder.note ? `\n${reminder.note}` : ""}`;
-      const ok = await sendWhatsAppMessage({
-        to: reminder.customer_phone,
-        text,
-      });
-      if (!ok) continue;
+      const delivery = await sendCustomerNotification(reminder.customer_phone, text);
+      if (!delivery.whatsapp && !delivery.sms) continue;
       crmReminderSent++;
       await supabase
         .from("crm_reminders")

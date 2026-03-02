@@ -8,7 +8,6 @@ import {
   setTenantCache,
 } from "./redis";
 import { sendWhatsAppMessage } from "./whatsapp";
-import { checkBlockedDate } from "@/services/blockedDates.service";
 import { getCustomerHistory, formatHistoryForPrompt } from "@/services/customerHistory.service";
 import {
   getCustomerLastActiveAppointment,
@@ -31,6 +30,7 @@ import {
   buildSystemPrompt as buildConfigSystemPrompt,
   type PromptBuilderContext,
 } from "@/services/promptBuilder.service";
+import { getDailyAvailability, reserveAppointment } from "@/services/booking.service";
 import type {
   BotConfig,
   MergedConfig,
@@ -355,13 +355,11 @@ export async function getTenantWithBusinessType(
 
 // ── Availability ────────────────────────────────────────────────────────────────
 
-const DEFAULT_WORKING_HOURS = { start: "09:00", end: "18:00" };
-const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5, 6]; // Pzt-Cmt
-
 export async function checkAvailability(
   tenantId: string,
   dateStr: string,
-  configOverride?: Record<string, unknown>
+  configOverride?: Record<string, unknown>,
+  serviceSlug?: string
 ): Promise<{
   available: string[];
   booked: string[];
@@ -369,73 +367,17 @@ export async function checkAvailability(
   noSchedule?: boolean;
   closed?: boolean;
 }> {
-  const parts = dateStr.split("-").map(Number);
-  const date = parts.length === 3
-    ? new Date(parts[0], parts[1] - 1, parts[2])
-    : new Date(dateStr);
-  if (isNaN(date.getTime())) return { available: [], booked: [] };
-
-  const dayOfWeek = date.getDay();
-
-  const blocked = await checkBlockedDate(tenantId, dateStr);
-  if (blocked) {
-    return { available: [], booked: [], blocked: true };
-  }
-
-  const { data: slots } = await supabase
-    .from("availability_slots")
-    .select("day_of_week, start_time, end_time")
-    .eq("tenant_id", tenantId);
-
-  let startTime: string;
-  let endTime: string;
-
-  if (!slots || slots.length === 0) {
-    const defaultHours = (configOverride?.default_working_hours ?? null) as {
-      start?: string;
-      end?: string;
-    } | null;
-    startTime = defaultHours?.start || DEFAULT_WORKING_HOURS.start;
-    endTime = defaultHours?.end || DEFAULT_WORKING_HOURS.end;
-    if (!DEFAULT_WORKING_DAYS.includes(dayOfWeek)) {
-      return { available: [], booked: [], closed: true };
-    }
-  } else {
-    const daySlot = slots.find((s) => s.day_of_week === dayOfWeek);
-    if (!daySlot) return { available: [], booked: [], closed: true };
-    startTime = daySlot.start_time;
-    endTime = daySlot.end_time;
-  }
-
-  const { data: appointments } = await supabase
-    .from("appointments")
-    .select("slot_start")
-    .eq("tenant_id", tenantId)
-    .gte("slot_start", `${dateStr}T00:00:00`)
-    .lt("slot_start", `${dateStr}T23:59:59`)
-    .neq("status", "cancelled");
-
-  const booked = (appointments || []).map((a) => {
-    const d = new Date(a.slot_start);
-    return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  const daily = await getDailyAvailability(tenantId, dateStr, {
+    configOverride,
+    serviceSlug,
   });
-
-  const [startH, startM] = startTime.split(":").map(Number);
-  const [endH, endM] = endTime.split(":").map(Number);
-  const slotMinutes = Math.min(
-    120,
-    Math.max(1, Number(configOverride?.slot_duration_minutes) || 30)
-  );
-  const available: string[] = [];
-  for (let h = startH; h < endH || (h === endH && startM < endM); h++) {
-    for (let m = 0; m < 60; m += slotMinutes) {
-      if (h < startH || (h === startH && m < startM)) continue;
-      if (h > endH || (h === endH && m >= endM)) break;
-      const time = `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
-      if (!booked.includes(time)) available.push(time);
-    }
-  }
-  return { available, booked };
+  return {
+    available: daily.available,
+    booked: daily.booked,
+    blocked: daily.blocked,
+    closed: daily.closed,
+    noSchedule: daily.noSchedule,
+  };
 }
 
 // ── Create appointment ──────────────────────────────────────────────────────────
@@ -445,65 +387,26 @@ export async function createAppointment(
   customerPhone: string,
   dateStr: string,
   timeStr: string,
-  extraData?: Record<string, unknown>
-): Promise<{ ok: boolean; id?: string; error?: string }> {
+  extraData?: Record<string, unknown>,
+  serviceSlug?: string | null
+): Promise<{ ok: boolean; id?: string; error?: string; suggested_time?: string }> {
   try {
-    let time = timeStr.trim();
-    if (/^\d{1,2}$/.test(time)) time = `${time.padStart(2, "0")}:00`;
-    else if (/^\d{1,2}:\d{1,2}$/.test(time))
-      time = time.replace(
-        /(\d{1,2}):(\d{1,2})/,
-        (_, h, m) => `${h.padStart(2, "0")}:${m.padStart(2, "0")}`
-      );
-    const slotStart = `${dateStr}T${time}:00`;
-
-    const { data: daySlot } = await supabase
-      .from("availability_slots")
-      .select("start_time, end_time")
-      .eq("tenant_id", tenantId)
-      .eq("day_of_week", new Date(dateStr).getDay())
-      .limit(1)
-      .maybeSingle();
-
-    if (daySlot) {
-      const [sH, sM] = daySlot.start_time.split(":").map(Number);
-      const [eH, eM] = daySlot.end_time.split(":").map(Number);
-      const [tH, tM] = time.split(":").map(Number);
-      const slotMin = sH * 60 + sM;
-      const endMin = eH * 60 + eM;
-      const timeMin = tH * 60 + tM;
-      if (timeMin < slotMin || timeMin >= endMin) {
-        return { ok: false, error: "OUTSIDE_HOURS" };
-      }
+    const result = await reserveAppointment({
+      tenantId,
+      customerPhone,
+      date: dateStr,
+      time: timeStr,
+      serviceSlug,
+      extraData,
+    });
+    if (!result.ok) {
+      return {
+        ok: false,
+        error: result.error,
+        suggested_time: result.suggested_time,
+      };
     }
-
-    const { data: existing } = await supabase
-      .from("appointments")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("slot_start", slotStart)
-      .neq("status", "cancelled")
-      .maybeSingle();
-    if (existing) {
-      return { ok: false, error: "SLOT_TAKEN" };
-    }
-
-    const { data, error } = await supabase
-      .from("appointments")
-      .insert({
-        tenant_id: tenantId,
-        customer_phone: customerPhone,
-        slot_start: slotStart,
-        status: "confirmed",
-        extra_data: extraData || {},
-      })
-      .select("id")
-      .single();
-    if (error) {
-      if (error.code === "23505") return { ok: false, error: "SLOT_TAKEN" };
-      return { ok: false, error: error.message };
-    }
-    return { ok: true, id: data?.id };
+    return { ok: true, id: result.id };
   } catch (err) {
     console.error("[ai] createAppointment:", err);
     return { ok: false, error: "Bir hata oluştu." };
@@ -581,6 +484,10 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
         type: "object",
         properties: {
           date: { type: "string", description: "YYYY-MM-DD" },
+          service_slug: {
+            type: "string",
+            description: "Opsiyonel hizmet slug; süreye göre müsaitlik hesaplanır.",
+          },
         },
         required: ["date"],
       },
@@ -597,6 +504,7 @@ const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           date: { type: "string", description: "YYYY-MM-DD" },
           time: { type: "string", description: "HH:MM" },
           customer_name: { type: "string", description: "Müşterinin adı soyadı" },
+          service_slug: { type: "string", description: "Opsiyonel hizmet slug" },
           extra_data: { type: "object", description: "Opsiyonel ek veri" },
         },
         required: ["date", "time", "customer_name"],
@@ -786,10 +694,12 @@ async function executeToolCall(
 ): Promise<ToolExecResult> {
   if (name === "check_availability") {
     const dateStr = args.date as string;
+    const serviceSlug = (args.service_slug as string | undefined) || undefined;
     const availability = await checkAvailability(
       tenantId,
       dateStr,
-      configOverride
+      configOverride,
+      serviceSlug
     );
     let status: string;
     if (availability.blocked) status = "blocked_holiday";
@@ -843,6 +753,11 @@ async function executeToolCall(
     }
     const customerName = (args.customer_name as string) ||
       (state?.extracted as { customer_name?: string })?.customer_name || "";
+    const serviceSlug =
+      (args.service_slug as string | undefined) ||
+      ((args.extra_data as Record<string, unknown> | undefined)?.service_slug as
+        | string
+        | undefined);
     const extraData = {
       ...(args.extra_data as Record<string, unknown> || {}),
       ...(customerName ? { customer_name: customerName } : {}),
@@ -852,7 +767,8 @@ async function executeToolCall(
       customerPhone,
       dateStr,
       timeStr,
-      extraData
+      extraData,
+      serviceSlug || null
     );
     if (result.ok) {
       notifyMerchant(tenantId, customerPhone, dateStr, timeStr).catch((e) =>
@@ -878,7 +794,13 @@ async function executeToolCall(
         },
       };
     }
-    return { result: { ok: false, error: result.error } };
+    return {
+      result: {
+        ok: false,
+        error: result.error,
+        suggested_time: result.suggested_time,
+      },
+    };
   }
 
   if (name === "get_last_appointment") {
@@ -1053,7 +975,13 @@ async function executeToolCall(
         sessionDeleted: true,
       };
     }
-    return { result: { ok: false, error: createRes.error || "Yeni randevu oluşturulamadı" } };
+    return {
+      result: {
+        ok: false,
+        error: createRes.error || "Yeni randevu oluşturulamadı",
+        suggested_time: createRes.suggested_time,
+      },
+    };
   }
 
   if (name === "create_recurring") {

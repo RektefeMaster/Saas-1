@@ -36,6 +36,8 @@ const SESSION_PREFIX = "ahi-ai:session:";
 const PHONE_TENANT_PREFIX = "ahi-ai:phone2tenant:";
 const RATE_LIMIT_PREFIX = "ahi-ai:ratelimit:";
 const OTP_CHALLENGE_PREFIX = "ahi-ai:otp:challenge:";
+const BOOKING_LOCK_PREFIX = "ahi-ai:booking:lock:";
+const BOOKING_HOLD_PREFIX = "ahi-ai:booking:hold:";
 /** [YENİ] Tenant cache key prefix; TTL 300 saniye (5 dk). */
 const TENANT_CACHE_PREFIX = "ahi-ai:tenant:id:";
 const TENANT_CACHE_TTL_SECONDS = 300;
@@ -43,10 +45,20 @@ const TTL_SECONDS = 60 * 60 * 24; // 24 saat
 const PHONE_TENANT_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 gün
 const RATE_LIMIT_TTL_SECONDS = 60; // 1 dakika
 const RATE_LIMIT_MAX = 15; // dakikada max mesaj
+const BOOKING_LOCK_TTL_SECONDS = 10; // Aynı slot onayı için kısa kilit
+const BOOKING_HOLD_TTL_SECONDS = 180; // 3 dk sepet tutma
 
 /** [YENİ] Tenant cache in-memory fallback (Redis yoksa). */
 const tenantCacheMemory = new Map<string, { value: string; expiry: number }>();
 const otpChallengeMemory = new Map<string, { value: string; expiry: number }>();
+const bookingLockMemory = new Map<string, { value: string; expiry: number }>();
+const bookingHoldMemory = new Map<
+  string,
+  {
+    value: BookingHoldRecord;
+    expiry: number;
+  }
+>();
 
 function logRedisFallback(action: string, err: unknown) {
   if (fallbackLogged) return;
@@ -300,4 +312,166 @@ export async function checkAndIncrementRateLimit(phone: string): Promise<{ allow
   }
   mem.count += 1;
   return { allowed: mem.count <= RATE_LIMIT_MAX, count: mem.count };
+}
+
+export interface BookingHoldRecord {
+  tenant_id: string;
+  date: string; // YYYY-MM-DD
+  time: string; // HH:MM
+  customer_phone: string;
+  duration_minutes: number;
+  expires_at: string;
+}
+
+function bookingLockKey(tenantId: string, date: string, time: string): string {
+  return `${BOOKING_LOCK_PREFIX}${tenantId}:${date}:${time}`;
+}
+
+function bookingHoldKey(tenantId: string, date: string, time: string): string {
+  return `${BOOKING_HOLD_PREFIX}${tenantId}:${date}:${time}`;
+}
+
+function normalizeHoldPhone(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
+export async function acquireBookingSlotLock(
+  tenantId: string,
+  date: string,
+  time: string,
+  ttlSeconds = BOOKING_LOCK_TTL_SECONDS
+): Promise<boolean> {
+  const key = bookingLockKey(tenantId, date, time);
+  if (redis) {
+    try {
+      const result = await redis.set(key, "1", { nx: true, ex: ttlSeconds });
+      return result === "OK";
+    } catch (err) {
+      logRedisFallback("acquireBookingSlotLock", err);
+    }
+  }
+  const now = Date.now();
+  const mem = bookingLockMemory.get(key);
+  if (mem && mem.expiry > now) return false;
+  bookingLockMemory.set(key, { value: "1", expiry: now + ttlSeconds * 1000 });
+  return true;
+}
+
+export async function releaseBookingSlotLock(
+  tenantId: string,
+  date: string,
+  time: string
+): Promise<void> {
+  const key = bookingLockKey(tenantId, date, time);
+  if (redis) {
+    try {
+      await redis.del(key);
+      return;
+    } catch (err) {
+      logRedisFallback("releaseBookingSlotLock", err);
+    }
+  }
+  bookingLockMemory.delete(key);
+}
+
+export async function setBookingSlotHold(
+  hold: Omit<BookingHoldRecord, "expires_at">,
+  ttlSeconds = BOOKING_HOLD_TTL_SECONDS
+): Promise<BookingHoldRecord> {
+  const key = bookingHoldKey(hold.tenant_id, hold.date, hold.time);
+  const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
+  const payload: BookingHoldRecord = {
+    ...hold,
+    customer_phone: normalizeHoldPhone(hold.customer_phone),
+    expires_at: expiresAt,
+  };
+
+  if (redis) {
+    try {
+      await redis.set(key, JSON.stringify(payload), { ex: ttlSeconds });
+      return payload;
+    } catch (err) {
+      logRedisFallback("setBookingSlotHold", err);
+    }
+  }
+  bookingHoldMemory.set(key, {
+    value: payload,
+    expiry: Date.now() + ttlSeconds * 1000,
+  });
+  return payload;
+}
+
+export async function getBookingSlotHold(
+  tenantId: string,
+  date: string,
+  time: string
+): Promise<BookingHoldRecord | null> {
+  const key = bookingHoldKey(tenantId, date, time);
+  if (redis) {
+    try {
+      const raw = await redis.get<string>(key);
+      if (!raw) return null;
+      return JSON.parse(raw) as BookingHoldRecord;
+    } catch (err) {
+      logRedisFallback("getBookingSlotHold", err);
+    }
+  }
+  const mem = bookingHoldMemory.get(key);
+  if (mem && mem.expiry > Date.now()) return mem.value;
+  bookingHoldMemory.delete(key);
+  return null;
+}
+
+export async function clearBookingSlotHold(
+  tenantId: string,
+  date: string,
+  time: string
+): Promise<void> {
+  const key = bookingHoldKey(tenantId, date, time);
+  if (redis) {
+    try {
+      await redis.del(key);
+      return;
+    } catch (err) {
+      logRedisFallback("clearBookingSlotHold", err);
+    }
+  }
+  bookingHoldMemory.delete(key);
+}
+
+export async function getBookingHoldsForDate(
+  tenantId: string,
+  date: string
+): Promise<BookingHoldRecord[]> {
+  const prefix = bookingHoldKey(tenantId, date, "");
+  if (redis) {
+    try {
+      const keys = await redis.keys(`${prefix}*`);
+      if (!keys || keys.length === 0) return [];
+      const holds: BookingHoldRecord[] = [];
+      for (const key of keys) {
+        const raw = await redis.get<string>(key);
+        if (!raw) continue;
+        try {
+          holds.push(JSON.parse(raw) as BookingHoldRecord);
+        } catch {
+          // ignore broken payload
+        }
+      }
+      return holds;
+    } catch (err) {
+      logRedisFallback("getBookingHoldsForDate", err);
+    }
+  }
+  const now = Date.now();
+  const holds: BookingHoldRecord[] = [];
+  for (const [key, entry] of bookingHoldMemory.entries()) {
+    if (!key.startsWith(prefix)) continue;
+    if (entry.expiry <= now) {
+      bookingHoldMemory.delete(key);
+      continue;
+    }
+    holds.push(entry.value);
+  }
+  return holds;
 }

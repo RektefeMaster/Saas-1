@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendCustomerNotification } from "@/lib/notify";
 
 export async function POST(
   request: NextRequest,
@@ -51,11 +51,11 @@ export async function POST(
     for (const apt of appointments) {
       const d = new Date(apt.slot_start);
       const timeStr = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
-      const ok = await sendWhatsAppMessage({
-        to: apt.customer_phone,
-        text: `Merhaba, ${tenantName} ${date} tarihindeki saat ${timeStr} randevunuzu maalesef iptal etmek zorunda kaldı.${reasonText} En kısa sürede yeni randevu almak için bize yazabilirsiniz.`,
-      });
-      if (ok) sent++;
+      const delivery = await sendCustomerNotification(
+        apt.customer_phone,
+        `Merhaba, ${tenantName} ${date} tarihindeki saat ${timeStr} randevunuzu maalesef iptal etmek zorunda kaldı.${reasonText} En kısa sürede yeni randevu almak için bize yazabilirsiniz.`
+      );
+      if (delivery.whatsapp || delivery.sms) sent++;
     }
 
     return NextResponse.json({ ok: true, cancelled: ids.length, notified: sent });

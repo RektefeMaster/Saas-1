@@ -4,7 +4,7 @@
  */
 
 import { supabase } from "@/lib/supabase";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendCustomerNotification } from "@/lib/notify";
 
 export type CancelledBy = "customer" | "tenant";
 
@@ -68,8 +68,8 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
 
     const tenantName = tenant?.name || "İşletme";
 
-    const customerMessage = `Randevunuz (${dateStr} ${timeStr}) iptal edildi. Başka bir saate almak ister misiniz?`;
-    await sendWhatsAppMessage({ to: apt.customer_phone, text: customerMessage });
+    const customerMessage = `${tenantName} randevunuz (${dateStr} ${timeStr}) iptal edildi. Başka bir saate almak ister misiniz?`;
+    await sendCustomerNotification(apt.customer_phone, customerMessage);
 
     return { ok: true };
   } catch (err) {

@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { reserveAppointment } from "@/services/booking.service";
 
 export async function GET(
   request: NextRequest,
@@ -47,7 +48,8 @@ export async function POST(
   const customerPhone = body.customer_phone?.trim();
   const slotStart = body.slot_start;
   const serviceSlug = body.service_slug;
-  const extraData = body.extra_data && typeof body.extra_data === "object" ? body.extra_data : {};
+  const extraData =
+    body.extra_data && typeof body.extra_data === "object" ? body.extra_data : {};
 
   if (!customerPhone || !slotStart) {
     return NextResponse.json(
@@ -56,21 +58,61 @@ export async function POST(
     );
   }
 
+  const parsed = new Date(slotStart);
+  if (isNaN(parsed.getTime())) {
+    return NextResponse.json({ error: "Geçersiz slot_start" }, { status: 400 });
+  }
+
+  const date = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(
+    2,
+    "0"
+  )}-${String(parsed.getDate()).padStart(2, "0")}`;
+  const time = `${String(parsed.getHours()).padStart(2, "0")}:${String(
+    parsed.getMinutes()
+  ).padStart(2, "0")}`;
+
+  const booking = await reserveAppointment({
+    tenantId: id,
+    customerPhone,
+    date,
+    time,
+    serviceSlug: serviceSlug || null,
+    extraData,
+  });
+
+  if (!booking.ok) {
+    const status =
+      booking.error === "INVALID_DATE_OR_TIME"
+        ? 400
+        : booking.error === "SLOT_PROCESSING"
+        ? 409
+        : booking.error === "SLOT_TAKEN"
+        ? 409
+        : booking.error === "BLOCKED_DAY" ||
+          booking.error === "CLOSED_DAY" ||
+          booking.error === "NO_SCHEDULE"
+        ? 422
+        : 500;
+    return NextResponse.json(
+      {
+        error: booking.error,
+        suggested_time: booking.suggested_time,
+      },
+      { status }
+    );
+  }
+
   const { data, error } = await supabase
     .from("appointments")
-    .insert({
-      tenant_id: id,
-      customer_phone: customerPhone,
-      slot_start: slotStart,
-      status: "confirmed",
-      service_slug: serviceSlug || null,
-      extra_data: extraData,
-    })
-    .select()
+    .select("*")
+    .eq("id", booking.id)
     .single();
 
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error || !data) {
+    return NextResponse.json(
+      { error: "Randevu oluşturuldu ancak kayıt okunamadı." },
+      { status: 500 }
+    );
   }
 
   const customerName =
