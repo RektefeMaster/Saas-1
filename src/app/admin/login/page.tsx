@@ -10,6 +10,7 @@ import {
   EyeOff,
   KeyRound,
   Loader2,
+  Mail,
   RefreshCw,
   ShieldCheck,
   Smartphone,
@@ -18,6 +19,7 @@ import { ThemeToggle } from "../theme-toggle";
 import { Button, Input } from "@/components/ui";
 
 function AdminLoginForm() {
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [challengeId, setChallengeId] = useState("");
@@ -50,12 +52,23 @@ function AdminLoginForm() {
   const submitPassword = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
+    
+    const emailTrim = email.trim().toLowerCase();
+    if (!emailTrim || !emailTrim.includes("@")) {
+      setError("Geçerli bir e-posta adresi girin");
+      return;
+    }
+    if (!password || password.length < 8) {
+      setError("Şifre en az 8 karakter olmalıdır");
+      return;
+    }
+    
     setLoading(true);
     try {
       const res = await fetch("/api/admin/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email: emailTrim, password }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -118,7 +131,7 @@ function AdminLoginForm() {
   };
 
   const resendOtp = async () => {
-    if (!password) {
+    if (!email || !password) {
       setError("Önce şifre adımına dönüp tekrar deneyin.");
       return;
     }
@@ -128,7 +141,7 @@ function AdminLoginForm() {
       const res = await fetch("/api/admin/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
       const data = (await res.json().catch(() => ({}))) as {
         error?: string;
@@ -236,7 +249,7 @@ function AdminLoginForm() {
               </h2>
               <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-400">
                 {step === "password"
-                  ? "Yönetici şifresi ile ilk adımı tamamlayın."
+                  ? "Yönetici e-posta ve şifresi ile ilk adımı tamamlayın."
                   : "Telefonunuza gelen 6 haneli SMS kodunu girin."}
               </p>
             </div>
@@ -244,12 +257,23 @@ function AdminLoginForm() {
             {step === "password" ? (
               <form onSubmit={submitPassword} className="space-y-5">
                 <Input
+                  label="E-posta Adresi"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value.toLowerCase())}
+                  placeholder="nuronuro458@gmail.com"
+                  autoFocus
+                  required
+                  disabled={loading}
+                  autoComplete="email"
+                  leftIcon={<Mail className="h-4 w-4" />}
+                />
+                <Input
                   label="Yönetici Şifresi"
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
-                  autoFocus
                   required
                   minLength={8}
                   disabled={loading}

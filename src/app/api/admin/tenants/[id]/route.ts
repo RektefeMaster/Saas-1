@@ -150,19 +150,96 @@ export async function DELETE(
     hasOtherTenantForUser = (ownershipCheck.count ?? 0) > 0;
   }
 
-  const { error: deleteTenantError } = await supabase.from("tenants").delete().eq("id", id);
+  // Hard delete: Veritabanından tamamen sil
+  // Önce kaydın var olduğunu doğrula
+  const { data: verifyTenant } = await supabase
+    .from("tenants")
+    .select("id")
+    .eq("id", id)
+    .maybeSingle();
+
+  if (!verifyTenant) {
+    return NextResponse.json(
+      { error: "İşletme bulunamadı (zaten silinmiş olabilir)" },
+      { status: 404 }
+    );
+  }
+
+  // DELETE işlemini gerçekleştir
+  const { data: deletedData, error: deleteTenantError } = await supabase
+    .from("tenants")
+    .delete()
+    .eq("id", id)
+    .select();
+
   if (deleteTenantError) {
-    return NextResponse.json({ error: deleteTenantError.message }, { status: 500 });
+    console.error("Tenant DELETE hatası:", {
+      id,
+      error: deleteTenantError,
+      message: deleteTenantError.message,
+      details: deleteTenantError.details,
+      hint: deleteTenantError.hint,
+    });
+    return NextResponse.json(
+      { 
+        error: `İşletme silinemedi: ${deleteTenantError.message}`,
+        details: deleteTenantError.details,
+        hint: deleteTenantError.hint,
+      },
+      { status: 500 }
+    );
+  }
+
+  // Silme işleminin gerçekten gerçekleştiğini doğrula
+  if (!deletedData || deletedData.length === 0) {
+    // Eğer hiçbir satır silinmediyse, kayıt zaten yok olabilir veya başka bir sorun var
+    // Bir saniye bekle ve tekrar kontrol et (trigger/constraint gecikmesi olabilir)
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    
+    const { data: checkData, error: checkError } = await supabase
+      .from("tenants")
+      .select("id")
+      .eq("id", id)
+      .maybeSingle();
+    
+    if (checkError) {
+      console.error("Tenant silme doğrulama hatası:", checkError);
+      // Hata olsa bile, DELETE işlemi başarılı sayılabilir
+    } else if (checkData) {
+      // Kayıt hala var, silme başarısız
+      console.error("Tenant DELETE başarısız: Kayıt hala veritabanında", { 
+        id, 
+        checkData,
+        deletedData,
+      });
+      return NextResponse.json(
+        { 
+          error: "İşletme silinemedi. Kayıt hala veritabanında mevcut. RLS politikaları veya constraint'ler silmeyi engelliyor olabilir.",
+          tenant_id: id,
+        },
+        { status: 500 }
+      );
+    }
+    // Kayıt yok, silme başarılı
+  } else {
+    // Silme başarılı, silinen kayıt sayısını logla
+    console.log("Tenant başarıyla silindi:", { id, deleted_count: deletedData.length });
   }
 
   let authUserDeleted = false;
   let authDeleteWarning: string | null = null;
   if (purgeAuth && tenant.user_id && !hasOtherTenantForUser) {
-    const { error: authDeleteError } = await supabase.auth.admin.deleteUser(tenant.user_id);
-    if (authDeleteError) {
-      authDeleteWarning = authDeleteError.message;
-    } else {
-      authUserDeleted = true;
+    try {
+      const { error: authDeleteError } = await supabase.auth.admin.deleteUser(tenant.user_id);
+      if (authDeleteError) {
+        console.error("Auth user DELETE hatası:", authDeleteError);
+        authDeleteWarning = authDeleteError.message;
+      } else {
+        authUserDeleted = true;
+      }
+    } catch (authError) {
+      console.error("Auth user DELETE exception:", authError);
+      authDeleteWarning = authError instanceof Error ? authError.message : "Bilinmeyen hata";
     }
   }
 
@@ -170,5 +247,6 @@ export async function DELETE(
     deleted: true,
     auth_user_deleted: authUserDeleted,
     auth_delete_warning: authDeleteWarning,
+    deleted_count: deletedData?.length || 0,
   });
 }

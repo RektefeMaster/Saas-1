@@ -9,11 +9,22 @@ import { createClient } from "@/lib/supabase-client";
 import { isValidUsername, usernameToLoginEmail } from "@/lib/username-auth";
 import { Button, Card, CardContent } from "@/components/ui";
 
-function getErrorMessage(error: { message?: string; description?: string } | null): string {
+function getErrorMessage(error: { message?: string; description?: string; status?: number; name?: string } | null): string {
   const raw = error?.message ?? (error as { description?: string })?.description ?? "";
   if (!raw || typeof raw !== "string") return "Kullanıcı adı veya şifre hatalı.";
   const msg = raw.toLowerCase();
-  if (msg.includes("invalid api key") || msg.includes("apikey")) {
+  
+  // Supabase API key hataları için daha kapsamlı kontrol
+  if (
+    msg.includes("invalid api key") || 
+    msg.includes("apikey") ||
+    msg.includes("invalid api") ||
+    msg.includes("api key") ||
+    msg.includes("jwt") ||
+    msg.includes("unauthorized") ||
+    error?.status === 401 ||
+    (error?.status === 400 && msg.includes("key"))
+  ) {
     return "Sistem yapılandırma hatası: Supabase istemci anahtarı geçersiz. Lütfen yönetici ile iletişime geçin.";
   }
   if (
@@ -121,12 +132,19 @@ export default function DashboardLoginPage() {
 
       // İşletme girişi: sadece kullanıcı adı → sistem e-postasına çevriliyor
       const emailForAuth = usernameToLoginEmail(identifier);
-      const { error: signInError } = await supabase.auth.signInWithPassword({
+      const { error: signInError, data } = await supabase.auth.signInWithPassword({
         email: emailForAuth,
         password,
       });
 
       if (signInError) {
+        // Gerçek hatayı console'da göster (debug için)
+        console.error("Supabase signIn hatası:", {
+          message: signInError.message,
+          status: signInError.status,
+          name: signInError.name,
+          fullError: signInError,
+        });
         setError(getErrorMessage(signInError));
         setLoading(false);
         return;
