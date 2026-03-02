@@ -3,6 +3,7 @@ import { supabase } from "@/lib/supabase";
 import { sendCustomerNotification } from "@/lib/notify";
 import { sendWhatsAppTemplateMessage } from "@/lib/whatsapp";
 import { incrementNoShow } from "@/services/blacklist.service";
+import { createOpsAlert } from "@/services/opsAlert.service";
 
 const CRON_SECRET = process.env.CRON_SECRET || "ahi_ai_cron";
 const REMINDER_TEMPLATE_NAME = process.env.WHATSAPP_REMINDER_TEMPLATE_NAME?.trim() || "";
@@ -109,6 +110,15 @@ export async function GET(request: NextRequest) {
         await incrementNoShow(apt.tenant_id, apt.customer_phone).catch((e) =>
           console.error("[cron] blacklist increment error:", e)
         );
+        await createOpsAlert({
+          tenantId: apt.tenant_id,
+          type: "no_show",
+          severity: "high",
+          customerPhone: apt.customer_phone,
+          message: `${apt.customer_phone} müşterisi randevuya gelmedi (no-show).`,
+          meta: { appointment_id: apt.id, source: "cron/reminders" },
+          dedupeKey: `no_show:${apt.id}`,
+        }).catch((e) => console.error("[cron] ops alert error:", e));
       }
     }
   } catch (e) {

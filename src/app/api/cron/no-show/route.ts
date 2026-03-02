@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { incrementNoShow } from "@/services/blacklist.service";
+import { createOpsAlert } from "@/services/opsAlert.service";
 
 const CRON_SECRET = process.env.CRON_SECRET || "ahi_ai_cron";
 
@@ -43,6 +44,15 @@ export async function GET(request: NextRequest) {
     await incrementNoShow(apt.tenant_id, apt.customer_phone).catch((e) =>
       console.error("[cron/no-show] blacklist increment error:", e)
     );
+    await createOpsAlert({
+      tenantId: apt.tenant_id,
+      type: "no_show",
+      severity: "high",
+      customerPhone: apt.customer_phone,
+      message: `${apt.customer_phone} müşterisi randevuya gelmedi (no-show).`,
+      meta: { appointment_id: apt.id, source: "cron/no-show" },
+      dedupeKey: `no_show:${apt.id}`,
+    }).catch((e) => console.error("[cron/no-show] ops alert error:", e));
   }
 
   return NextResponse.json({ ok: true, marked: ids.length });

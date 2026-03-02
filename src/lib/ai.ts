@@ -31,6 +31,8 @@ import {
   type PromptBuilderContext,
 } from "@/services/promptBuilder.service";
 import { getDailyAvailability, reserveAppointment } from "@/services/booking.service";
+import { createOpsAlert } from "@/services/opsAlert.service";
+import { detectDeterministicIntent } from "@/lib/intent";
 import type {
   BotConfig,
   MergedConfig,
@@ -1101,6 +1103,17 @@ async function executeToolCall(
     }
     const lateMsg = `${customerPhone} müşteriniz ${minutes} dakika geç kalacağını bildirdi.${msg ? ` Mesaj: ${msg}` : ""}`;
     await sendWhatsAppMessage({ to: tenant.contact_phone, text: lateMsg });
+    await createOpsAlert({
+      tenantId,
+      type: "delay",
+      severity: minutes >= 20 ? "high" : "medium",
+      customerPhone,
+      message: `${customerPhone} müşterisi ${minutes} dk gecikecek.`,
+      meta: { minutes, source: "tool", note: msg || null },
+      dedupeKey: `delay:${tenantId}:${customerPhone.replace(/\D/g, "")}:${new Date()
+        .toISOString()
+        .slice(0, 13)}`,
+    }).catch((e) => console.error("[ai] ops alert create error:", e));
     return { result: { ok: true, notified: true } };
   }
 
@@ -1269,6 +1282,100 @@ export async function processMessage(
         chat_history: [],
         updated_at: new Date().toISOString(),
       });
+    }
+
+    // ── Deterministic intent handling (cancel / delay) ──
+    const deterministicIntent = detectDeterministicIntent(incomingMessage);
+    if (deterministicIntent?.type === "cancel") {
+      const last = await getCustomerLastActiveAppointment(tenantId, customerPhone);
+      if (!last) {
+        return {
+          reply:
+            tone === "siz"
+              ? "Aktif bir randevunuz görünmüyor. Yeni bir randevu almak ister misiniz?"
+              : "Aktif bir randevun görünmüyor. Yeni randevu alalım mı?",
+        };
+      }
+
+      const configOverride = (tenant.config_override || {}) as Record<string, unknown>;
+      const cancellationHrs =
+        mergedConfig?.cancellation_hours ??
+        (configOverride?.cancellation_hours as number) ??
+        2;
+      const hasCancellationRule =
+        mergedConfig != null || configOverride?.cancellation_hours != null;
+      const slotTime = new Date(last.slot_start).getTime();
+      const hoursLeft = (slotTime - Date.now()) / (60 * 60 * 1000);
+      if (hasCancellationRule && hoursLeft < cancellationHrs) {
+        return {
+          reply:
+            tone === "siz"
+              ? `İptal için randevu saatine en az ${cancellationHrs} saat kala bildirmeniz gerekiyor.`
+              : `İptal için randevu saatine en az ${cancellationHrs} saat kala bildirmen gerekiyor.`,
+        };
+      }
+
+      const cancelResult = await cancelAppointment({
+        tenantId,
+        appointmentId: last.id,
+        cancelledBy: "customer",
+        reason: "Mesajdan otomatik iptal",
+      });
+
+      if (!cancelResult.ok) {
+        return {
+          reply:
+            tone === "siz"
+              ? "İptal işlemi yapılamadı. Lütfen tekrar deneyin."
+              : "İptal işlemi yapılamadı, tekrar dener misin?",
+        };
+      }
+
+      await createOpsAlert({
+        tenantId,
+        type: "cancellation",
+        severity: "medium",
+        customerPhone,
+        message: `${customerPhone} müşterisi randevusunu iptal etti.`,
+        meta: { appointment_id: last.id, source: "deterministic_intent" },
+        dedupeKey: `cancel:${tenantId}:${last.id}`,
+      }).catch((e) => console.error("[ai] ops alert create error:", e));
+
+      return {
+        reply:
+          tone === "siz"
+            ? "Randevunuzu iptal ettim. Uygun olduğunuz yeni bir saat yazarsanız hemen yardımcı olurum."
+            : "Randevunu iptal ettim. Uygun olduğun yeni bir saat yaz, hemen yardımcı olayım.",
+      };
+    }
+
+    if (deterministicIntent?.type === "late") {
+      const minutes = deterministicIntent.minutes;
+      if (tenant.contact_phone) {
+        await sendWhatsAppMessage({
+          to: tenant.contact_phone,
+          text: `${customerPhone} müşterisi ${minutes} dakika gecikeceğini bildirdi.`,
+        }).catch((e) => console.error("[ai] delay notify error:", e));
+      }
+
+      await createOpsAlert({
+        tenantId,
+        type: "delay",
+        severity: minutes >= 20 ? "high" : "medium",
+        customerPhone,
+        message: `${customerPhone} müşterisi ${minutes} dk gecikecek.`,
+        meta: { minutes, source: "deterministic_intent" },
+        dedupeKey: `delay:${tenantId}:${customerPhone.replace(/\D/g, "")}:${new Date()
+          .toISOString()
+          .slice(0, 13)}`,
+      }).catch((e) => console.error("[ai] ops alert create error:", e));
+
+      return {
+        reply:
+          tone === "siz"
+            ? "Bilgiyi ustaya ilettim. Geldiğinizde program yoğunluğuna göre kısa bir bekleme olabilir."
+            : "Bilgiyi ustaya ilettim. Geldiğinde program yoğunluğuna göre kısa bir bekleme olabilir.",
+      };
     }
 
     // ── Build context ──

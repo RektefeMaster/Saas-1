@@ -72,6 +72,16 @@ interface ReviewData {
   reviews: Array<{ id: string; rating: number; comment: string | null; created_at: string }>;
 }
 
+interface OpsAlert {
+  id: string;
+  type: "delay" | "cancellation" | "no_show" | "system";
+  severity: "low" | "medium" | "high";
+  customer_phone: string | null;
+  message: string;
+  status: "open" | "resolved";
+  created_at: string;
+}
+
 const DAY_NAMES = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
 
 function getWeekDates(anchor: Date): string[] {
@@ -99,6 +109,9 @@ export default function EsnafDashboard({
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [blockedDates, setBlockedDates] = useState<BlockedDate[]>([]);
   const [reviews, setReviews] = useState<ReviewData | null>(null);
+  const [opsAlerts, setOpsAlerts] = useState<OpsAlert[]>([]);
+  const [opsAlertsLoading, setOpsAlertsLoading] = useState(false);
+  const [resolvingAlertId, setResolvingAlertId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [showAdd, setShowAdd] = useState(false);
   const [addPhone, setAddPhone] = useState("");
@@ -305,6 +318,48 @@ export default function EsnafDashboard({
       .then((d) => setWorkingHours(Array.isArray(d) ? d : []));
   }, [tenantId, baseUrl]);
 
+  const fetchOpsAlerts = useCallback(async () => {
+    if (!tenantId) return;
+    setOpsAlertsLoading(true);
+    try {
+      const res = await fetch(
+        `${baseUrl}/api/tenant/${tenantId}/ops-alerts?status=open&limit=8`
+      );
+      if (!res.ok) return;
+      const data = (await res.json().catch(() => [])) as OpsAlert[];
+      setOpsAlerts(Array.isArray(data) ? data : []);
+    } finally {
+      setOpsAlertsLoading(false);
+    }
+  }, [tenantId, baseUrl]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    fetchOpsAlerts();
+    const interval = setInterval(fetchOpsAlerts, 15000);
+    return () => clearInterval(interval);
+  }, [tenantId, fetchOpsAlerts]);
+
+  const handleResolveAlert = async (alertId: string) => {
+    if (!tenantId) return;
+    setResolvingAlertId(alertId);
+    try {
+      const res = await fetch(
+        `${baseUrl}/api/tenant/${tenantId}/ops-alerts/${alertId}`,
+        {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status: "resolved" }),
+        }
+      );
+      if (res.ok) {
+        setOpsAlerts((prev) => prev.filter((a) => a.id !== alertId));
+      }
+    } finally {
+      setResolvingAlertId(null);
+    }
+  };
+
   const fetchAvailability = useCallback(
     async (dateStr: string) => {
       if (!tenantId) return;
@@ -439,6 +494,11 @@ export default function EsnafDashboard({
   const todayStr = new Date().toISOString().slice(0, 10);
   const todayCount = grouped[todayStr]?.length ?? 0;
   const weekCount = sortedDates.reduce((acc, d) => acc + (grouped[d]?.length ?? 0), 0);
+  const severityClass = (severity: OpsAlert["severity"]) => {
+    if (severity === "high") return "border-red-300 bg-red-50 text-red-900";
+    if (severity === "medium") return "border-amber-300 bg-amber-50 text-amber-900";
+    return "border-slate-300 bg-slate-100 text-slate-800";
+  };
 
   return (
     <div className="min-h-screen bg-slate-50">
@@ -512,6 +572,46 @@ export default function EsnafDashboard({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
+        <section className="mb-6 rounded-2xl border border-red-200 bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between">
+            <h2 className="text-sm font-semibold uppercase tracking-wide text-red-700">
+              Operasyon Uyarıları
+            </h2>
+            {opsAlertsLoading && (
+              <span className="text-xs text-slate-500">Yenileniyor…</span>
+            )}
+          </div>
+          {opsAlerts.length === 0 ? (
+            <p className="text-sm text-slate-500">Açık operasyon uyarısı yok.</p>
+          ) : (
+            <div className="space-y-2">
+              {opsAlerts.map((alert) => (
+                <div
+                  key={alert.id}
+                  className={`rounded-xl border px-3 py-2 ${severityClass(alert.severity)}`}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium">{alert.message}</p>
+                      <p className="mt-1 text-xs opacity-80">
+                        {new Date(alert.created_at).toLocaleString("tr-TR")}
+                        {alert.customer_phone ? ` • ${alert.customer_phone}` : ""}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleResolveAlert(alert.id)}
+                      disabled={resolvingAlertId === alert.id}
+                      className="rounded-lg bg-white/80 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-white disabled:opacity-50"
+                    >
+                      {resolvingAlertId === alert.id ? "Kapanıyor…" : "Kapat"}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </section>
 
         <div className="mb-6">
           <button

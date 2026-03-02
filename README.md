@@ -36,6 +36,7 @@ cp .env.example .env
 5. Eski kurulumlarda Dashboard V2 alanları eksikse `010_dashboard_v2_crm_otp.sql` ve `011_schema_backfill_dashboard_v2.sql` migrationlarını da çalıştırın
 6. Kullanıcı adıyla giriş için `012_owner_username_login.sql` migrationını çalıştırın
 7. Faz 1 routing audit log için `013_tenant_switch_logs.sql` migrationını çalıştırın
+8. Faz 3 operasyon uyarıları için `014_ops_alerts.sql` migrationını çalıştırın
 
 ### 4. WhatsApp (Meta Cloud API)
 
@@ -71,6 +72,7 @@ npm run dev
 - `/api/webhook/twilio/sms` - Twilio SMS webhook (bilgi amaçlı)
 - `/api/webhook/twilio/voice` - Twilio Voice webhook
 - `/api/tenant/[id]/appointments/hold` - Slotu geçici kilitleme (3 dk sepet)
+- `/api/tenant/[id]/ops-alerts` - Operasyon uyarıları (delay / cancellation / no-show)
 - `/api/cron/reminders` - 24 saat önce randevu hatırlatma (cron)
 - `/api/debug/env-check` - Çalışma ortamı değişken kontrolü
 - `/api/debug/whatsapp-health` - WhatsApp token/phone-id canlı sağlık kontrolü
