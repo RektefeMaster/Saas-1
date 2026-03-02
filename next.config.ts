@@ -2,12 +2,14 @@ import type { NextConfig } from "next";
 import path from "path";
 
 const nextConfig: NextConfig = {
-  turbopack: {
-    root: path.resolve(process.cwd()),
-  },
-  // Deploy build hatasinda asil sebep TS/ESLint ise gecici olarak true yap; sonra duzeltip false'a al
+  // Deploy build hatasinda asil sebep TS ise gecici olarak true yap; sonra duzeltip false'a al
   typescript: { ignoreBuildErrors: true },
-  eslint: { ignoreDuringBuilds: true },
+  // Birden fazla lockfile veya yanlış workspace root uyarısını ve Vercel deploy hatalarını önlemek için trace root sabit
+  outputFileTracingRoot: path.join(__dirname),
+  // Serverless bundle'da docs klasörünün trace edilmesini engelle (runtime'da gerek yok)
+  outputFileTracingExcludes: {
+    "/*": ["./docs/**"],
+  },
   async headers() {
     return [
       {
