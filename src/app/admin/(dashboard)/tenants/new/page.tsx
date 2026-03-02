@@ -240,26 +240,50 @@ export default function NewTenantWizardPage() {
   };
 
   return (
-    <div className="p-6 sm:p-8 lg:p-10">
+    <div className="space-y-6">
       <Link
         href="/admin/tenants"
-        className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900"
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
       >
-        ← Kiracılar listesine dön
+        ← İşletmeler listesine dön
       </Link>
-      <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-        Yeni İşletme Sihirbazı
-      </h1>
-      <p className="mt-1.5 text-slate-600 dark:text-slate-400">{progress}</p>
 
-      <form onSubmit={submit} className="mt-8 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
+      <section className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-cyan-50/60 to-emerald-50/70 p-6 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-cyan-950/20 dark:to-emerald-950/20 sm:p-7">
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+          Yeni İşletme Sihirbazı
+        </h1>
+        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 sm:text-base">{progress}</p>
+        <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+          {STEP_TITLES.map((title, index) => {
+            const isActive = index === step;
+            const isDone = index < step;
+            return (
+              <div
+                key={title}
+                className={`rounded-xl border px-3 py-2 text-xs ${
+                  isActive
+                    ? "border-cyan-300 bg-cyan-50 text-cyan-900 dark:border-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-200"
+                    : isDone
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
+                      : "border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                }`}
+              >
+                <p className="font-semibold">{isDone ? "Tamam" : `Adım ${index + 1}`}</p>
+                <p className="mt-0.5 truncate">{title}</p>
+              </div>
+            );
+          })}
+        </div>
+      </section>
+
+      <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300">
             {error}
           </div>
         )}
         {success && (
-          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300">
             {success}
           </div>
         )}
@@ -615,7 +639,7 @@ export default function NewTenantWizardPage() {
             type="button"
             onClick={prevStep}
             disabled={step === 0 || loading}
-            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50"
+            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
           >
             Geri
           </button>
@@ -623,7 +647,7 @@ export default function NewTenantWizardPage() {
             <button
               type="button"
               onClick={nextStep}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white"
+              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
               İleri
             </button>
@@ -631,7 +655,7 @@ export default function NewTenantWizardPage() {
             <button
               type="submit"
               disabled={loading}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50"
+              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
               {loading ? "Oluşturuluyor..." : "İşletmeyi Oluştur"}
             </button>

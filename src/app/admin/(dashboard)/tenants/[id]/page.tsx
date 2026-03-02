@@ -3,6 +3,14 @@
 import { useEffect, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
+import {
+  ArrowLeft,
+  Copy,
+  ExternalLink,
+  QrCode,
+  Trash2,
+  UserRoundCog,
+} from "lucide-react";
 
 interface Tenant {
   id: string;
@@ -32,8 +40,8 @@ export default function TenantDetailPage() {
 
   useEffect(() => {
     Promise.all([
-      fetch(`/api/admin/tenants/${id}`).then((r) => r.json()),
-      fetch(`${baseUrl}/api/tenant/${id}/assets`).then((r) => r.json()),
+      fetch(`/api/admin/tenants/${id}`).then((response) => response.json()),
+      fetch(`/api/tenant/${id}/assets`).then((response) => response.json()),
     ])
       .then(([tenantData, assetsData]) => {
         if (!tenantData.error) setTenant(tenantData);
@@ -41,7 +49,7 @@ export default function TenantDetailPage() {
       })
       .catch(() => {})
       .finally(() => setLoading(false));
-  }, [id, baseUrl]);
+  }, [id]);
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -50,7 +58,7 @@ export default function TenantDetailPage() {
   };
 
   const handleDelete = async () => {
-    if (!confirm("Bu kiracıyı silmek istediğinize emin misiniz?")) return;
+    if (!confirm("Bu işletmeyi silmek istediğinize emin misiniz?")) return;
     setDeleting(true);
     try {
       const res = await fetch(`/api/admin/tenants/${id}?soft=true`, {
@@ -64,135 +72,184 @@ export default function TenantDetailPage() {
 
   if (loading || !tenant) {
     return (
-      <div className="flex min-h-[50vh] items-center justify-center p-8">
-        <div className="h-10 w-10 animate-spin rounded-full border-2 border-emerald-600 border-t-transparent" />
+      <div className="flex min-h-[45vh] items-center justify-center rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+        <div className="h-10 w-10 animate-spin rounded-full border-2 border-emerald-500 border-t-transparent" />
       </div>
     );
   }
 
   return (
-    <div className="p-8">
+    <div className="space-y-6">
       <Link
         href="/admin/tenants"
-        className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
       >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
-        </svg>
-        Kiracılar listesine dön
+        <ArrowLeft className="h-4 w-4" />
+        İşletmeler listesine dön
       </Link>
-      <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100">{tenant.name}</h1>
-            <p className="mt-1 text-slate-600 dark:text-slate-400">
-              Kod: <span className="font-mono font-medium">{tenant.tenant_code}</span> •
-              {tenant.business_types?.name || "Tip belirtilmemiş"}
-            </p>
 
-            <div className="mt-8 flex flex-wrap gap-4">
-              <a
-                href={`${baseUrl}/dashboard/${tenant.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-3 font-medium text-white transition hover:bg-emerald-700"
-              >
-                <span>📅</span> Takvim
-              </a>
-              <a
-                href={`${baseUrl}/t/${tenant.id}`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                <span>💬</span> WhatsApp Link
-              </a>
-              <a
-                href={`${baseUrl}/api/tenant/${tenant.id}/qr`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-5 py-3 font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
-              >
-                <span>📱</span> QR Kod
-              </a>
-              <button
-                onClick={handleDelete}
-                disabled={deleting}
-                className="inline-flex items-center gap-2 rounded-xl border border-red-200 px-5 py-3 font-medium text-red-600 transition hover:bg-red-50 disabled:opacity-50 dark:border-red-900 dark:hover:bg-red-950/50"
-              >
-                Sil
-              </button>
+      <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-7">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
+              <UserRoundCog className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-300" />
+              İşletme Detayı
+            </p>
+            <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+              {tenant.name}
+            </h1>
+            <p className="mt-2 text-sm text-slate-600 dark:text-slate-400">
+              Kod: <span className="font-mono font-semibold">{tenant.tenant_code}</span>
+              {tenant.business_types?.name ? ` · ${tenant.business_types.name}` : ""}
+            </p>
+          </div>
+
+          <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            <a
+              href={`${baseUrl}/dashboard/${tenant.id}`}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+            >
+              Takvime Git
+              <ExternalLink className="h-4 w-4" />
+            </a>
+            <button
+              type="button"
+              onClick={handleDelete}
+              disabled={deleting}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-red-300 bg-red-50 px-4 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300 dark:hover:bg-red-950/50"
+            >
+              <Trash2 className="h-4 w-4" />
+              {deleting ? "Siliniyor..." : "İşletmeyi Sil"}
+            </button>
+          </div>
+        </div>
+      </section>
+
+      <section className="grid gap-4 md:grid-cols-3">
+        <a
+          href={`${baseUrl}/t/${tenant.id}`}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Public Link
+          </p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">İşletme giriş URL’i</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">`/t/{tenant.id}`</p>
+        </a>
+        <a
+          href={`${baseUrl}/api/tenant/${tenant.id}/qr`}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            QR Servisi
+          </p>
+          <p className="mt-2 inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <QrCode className="h-4 w-4" />
+            PNG / SVG Üret
+          </p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Anlık QR üretim endpoint’i</p>
+        </a>
+        <a
+          href={`${baseUrl}/dashboard/${tenant.id}`}
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
+        >
+          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+            Operasyon Paneli
+          </p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">İşletme dashboard</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Randevu, CRM ve akış yönetimi</p>
+        </a>
+      </section>
+
+      {assets && (
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Paylaşım Paketi</h2>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+            İşletmenin WhatsApp ve sosyal medya paylaşım metinlerini buradan kopyalayabilirsiniz.
+          </p>
+
+          <div className="mt-5 space-y-4">
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">WhatsApp linki</label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  readOnly
+                  value={assets.whatsapp_link}
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(assets.whatsapp_link, "link")}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <Copy className="h-4 w-4" />
+                  {copied === "link" ? "Kopyalandı" : "Kopyala"}
+                </button>
+              </div>
             </div>
 
-            {assets && (
-              <div className="mt-8 border-t border-slate-200 pt-8 dark:border-slate-800">
-                <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Paylaşım Paketi</h2>
-                <div className="space-y-4">
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">WhatsApp linki</label>
-                    <div className="flex gap-2">
-                      <input
-                        readOnly
-                        value={assets.whatsapp_link}
-                        className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(assets.whatsapp_link, "link")}
-                        className="rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-                      >
-                        {copied === "link" ? "Kopyalandı" : "Kopyala"}
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">QR kod (PNG)</label>
-                    <a
-                      href={`data:image/png;base64,${assets.qr_base64_png}`}
-                      download={`${tenant.tenant_code}-qr.png`}
-                      className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                    >
-                      PNG İndir
-                    </a>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Instagram biyografi metni</label>
-                    <div className="flex gap-2">
-                      <textarea
-                        readOnly
-                        value={assets.instagram_bio}
-                        rows={4}
-                        className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(assets.instagram_bio, "ig")}
-                        className="h-fit rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-                      >
-                        {copied === "ig" ? "Kopyalandı" : "Kopyala"}
-                      </button>
-                    </div>
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-400">Google Maps açıklama metni</label>
-                    <div className="flex gap-2">
-                      <textarea
-                        readOnly
-                        value={assets.google_maps_description}
-                        rows={3}
-                        className="flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      />
-                      <button
-                        type="button"
-                        onClick={() => copyToClipboard(assets.google_maps_description, "gm")}
-                        className="h-fit rounded-lg bg-slate-200 px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:hover:bg-slate-600"
-                      >
-                        {copied === "gm" ? "Kopyalandı" : "Kopyala"}
-                      </button>
-                    </div>
-                  </div>
-                </div>
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">QR kod (PNG)</label>
+              <a
+                href={`data:image/png;base64,${assets.qr_base64_png}`}
+                download={`${tenant.tenant_code}-qr.png`}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <QrCode className="h-4 w-4" />
+                PNG İndir
+              </a>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Instagram biyografi metni</label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <textarea
+                  readOnly
+                  value={assets.instagram_bio}
+                  rows={4}
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(assets.instagram_bio, "ig")}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <Copy className="h-4 w-4" />
+                  {copied === "ig" ? "Kopyalandı" : "Kopyala"}
+                </button>
               </div>
-            )}
-      </div>
+            </div>
+
+            <div>
+              <label className="mb-1 block text-sm font-medium text-slate-600 dark:text-slate-300">Google Maps açıklama metni</label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <textarea
+                  readOnly
+                  value={assets.google_maps_description}
+                  rows={3}
+                  className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-sm text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => copyToClipboard(assets.google_maps_description, "gm")}
+                  className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                >
+                  <Copy className="h-4 w-4" />
+                  {copied === "gm" ? "Kopyalandı" : "Kopyala"}
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
     </div>
   );
 }
