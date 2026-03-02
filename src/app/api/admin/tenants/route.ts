@@ -30,9 +30,10 @@ export async function GET(request: NextRequest) {
 
     let query = supabase
       .from("tenants")
-      .select("*, business_types(id, name, slug)")
+      .select("*, business_types(id, name, slug)", { count: "exact" })
       .is("deleted_at", null)
-      .order("name");
+      .order("name")
+      .limit(1000); // Performans için limit
 
     if (status) query = query.eq("status", status);
     if (type) query = query.eq("business_type_id", type);

@@ -10,6 +10,24 @@ const nextConfig: NextConfig = {
   outputFileTracingExcludes: {
     "/*": ["./docs/**"],
   },
+  // Performans optimizasyonları
+  compress: true,
+  poweredByHeader: false,
+  reactStrictMode: true,
+  swcMinify: true,
+  // Image optimizasyonu
+  images: {
+    formats: ["image/avif", "image/webp"],
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
+    minimumCacheTTL: 60,
+    dangerouslyAllowSVG: true,
+    contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
+  },
+  // Experimental optimizasyonlar
+  experimental: {
+    optimizePackageImports: ["lucide-react", "@supabase/supabase-js"],
+  },
   async headers() {
     return [
       {
@@ -17,6 +35,7 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
         ],
       },
       {
@@ -24,6 +43,37 @@ const nextConfig: NextConfig = {
         headers: [
           { key: "X-Frame-Options", value: "DENY" },
           { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Cache-Control", value: "private, no-cache, no-store, must-revalidate" },
+        ],
+      },
+      {
+        source: "/api/public/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, s-maxage=60, stale-while-revalidate=300" },
+        ],
+      },
+      {
+        source: "/api/tenant/:path*/qr",
+        headers: [
+          { key: "Cache-Control", value: "public, s-maxage=3600, stale-while-revalidate=86400" },
+        ],
+      },
+      {
+        source: "/_next/image",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        source: "/appicon.png",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
+        ],
+      },
+      {
+        source: "/arkaplan.png",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
         ],
       },
     ];

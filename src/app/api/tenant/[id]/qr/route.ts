@@ -3,6 +3,9 @@ import QRCode from "qrcode";
 import { supabase } from "@/lib/supabase";
 import { generateWhatsAppLink, generateQRCode } from "@/utils/generateTenantAssets";
 
+// QR kodlar değişmediği için uzun cache süresi
+export const revalidate = 3600;
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -31,13 +34,21 @@ export async function GET(
   if (format === "svg") {
     const link = generateWhatsAppLink(tenantData);
     const svg = await QRCode.toString(link, { type: "svg" });
-    return new NextResponse(svg, {
-      headers: { "Content-Type": "image/svg+xml" },
+    const response = new NextResponse(svg, {
+      headers: { 
+        "Content-Type": "image/svg+xml",
+        "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+      },
     });
+    return response;
   }
 
   const png = await generateQRCode(tenantData);
-  return new NextResponse(new Uint8Array(png), {
-    headers: { "Content-Type": "image/png" },
+  const response = new NextResponse(new Uint8Array(png), {
+    headers: { 
+      "Content-Type": "image/png",
+      "Cache-Control": "public, s-maxage=3600, stale-while-revalidate=86400",
+    },
   });
+  return response;
 }

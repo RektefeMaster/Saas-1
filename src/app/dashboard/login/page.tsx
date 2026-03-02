@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
@@ -195,12 +195,25 @@ export default function DashboardLoginPage() {
         fill
         className="pointer-events-none object-cover opacity-[0.08] blur-[1px]"
         priority
+        quality={75}
+        sizes="100vw"
+        placeholder="blur"
+        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWEREiMxUf/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQADAD8AkjR4t6s0bfI5xdrLqNLX4HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
       />
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-blue-500/10" />
       {/* Sol panel - marka ve tanıtım */}
       <div className="relative hidden flex-1 flex-col justify-between bg-gradient-to-br from-slate-900 via-blue-900 to-cyan-900 p-10 text-white md:flex lg:p-14">
         <Link href="/" className="inline-flex items-center gap-3 text-xl font-bold tracking-tight text-white/95">
-          <Image src="/appicon.png" alt="Ahi AI logo" width={36} height={36} className="rounded-lg bg-white/90 p-1 shadow-lg" />
+          <Image 
+            src="/appicon.png" 
+            alt="Ahi AI logo" 
+            width={36} 
+            height={36} 
+            className="rounded-lg bg-white/90 p-1 shadow-lg" 
+            priority
+            quality={90}
+            sizes="36px"
+          />
           Ahi AI
         </Link>
         <div className="max-w-md">
@@ -211,11 +224,14 @@ export default function DashboardLoginPage() {
             Takvim, fiyat listesi, müşteri defteri ve iş akışını profesyonel şekilde yönetin.
           </p>
           <ul className="mt-8 space-y-4">
-            {[
-              { icon: Calendar, text: "Takvim ve müsaitlik yönetimi" },
-              { icon: MessageCircle, text: "WhatsApp linki ve QR kod" },
-              { icon: Mail, text: "Randevu hatırlatmaları ve bildirimler" },
-            ].map(({ icon: Icon, text }) => (
+            {useMemo(
+              () => [
+                { icon: Calendar, text: "Takvim ve müsaitlik yönetimi" },
+                { icon: MessageCircle, text: "WhatsApp linki ve QR kod" },
+                { icon: Mail, text: "Randevu hatırlatmaları ve bildirimler" },
+              ],
+              []
+            ).map(({ icon: Icon, text }) => (
               <li key={text} className="flex items-center gap-3">
                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15">
                   <Icon className="h-5 w-5" />
@@ -235,7 +251,16 @@ export default function DashboardLoginPage() {
         <div className="mx-auto w-full max-w-[400px] animate-fade-in">
           <div className="mb-8 md:hidden">
             <Link href="/" className="inline-flex items-center gap-2 text-xl font-bold tracking-tight text-cyan-700">
-              <Image src="/appicon.png" alt="Ahi AI logo" width={28} height={28} className="rounded-md bg-white p-0.5 shadow-sm" />
+              <Image 
+                src="/appicon.png" 
+                alt="Ahi AI logo" 
+                width={28} 
+                height={28} 
+                className="rounded-md bg-white p-0.5 shadow-sm" 
+                priority
+                quality={90}
+                sizes="28px"
+              />
               Ahi AI
             </Link>
           </div>

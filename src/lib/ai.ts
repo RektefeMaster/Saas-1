@@ -344,9 +344,9 @@ function buildSystemPrompt(
   const ton = `Kısa ve doğal cevap ver. Aynı kalıp cümleleri tekrarlama. Resmi veya robotik olma; esnaf gibi samimi ol. Emoji kullanımı en fazla 1 olsun. Randevu/iptal onayında uzun metin yazma, kısa onay ver (örn. "Tamam abi, yazdım seni"). Önceki mesajını asla inkâr etme, "öyle bir şey demedim" deme.`;
 
   const kurallar = `BAĞLAM VE HAFIZA: Konuşma geçmişindeki bilgileri kullan. Müşteri adını söylediyse tekrar sorma. "Pazartesi" = en yakın pazartesi (bağlamdaki tarih listesinden YYYY-MM-DD bul). İşlem sonrası konuşma devam eder.
-KURALLAR: Randevu öncesi müşteri adını mutlaka öğren; sonra saat belliyse direkt create_appointment. Müşteri adını bir kez öğrendikten sonra kaydet, tekrar yazınca ismiyle seslen. Saat: "6"→18:00, "sabah 10"→10:00, "öğleden sonra 3"→15:00. Tarih: bağlamdaki Bugün/Yarın kullan; "öbür gün"=yarından sonraki, "bu hafta sonu"=Cumartesi. Çalışma saatleri dışında randevu önerme. Çoklu randevu: iki create_appointment arka arkaya. Fiyat→get_services; adres→get_tenant_info. "Geç kalacağım"→notify_late. "İptal" isteğinde önce get_last_appointment çağır, müşteriden açık onay ("evet iptal") aldıktan sonra cancel_appointment çağır. Yapamayacağın bir şey çıkarsa sadece [[INSAN]] yaz.
+KURALLAR: Randevu öncesi müşteri adını mutlaka öğren; sonra saat belliyse direkt create_appointment. Müşteri adını bir kez öğrendikten sonra kaydet, tekrar yazınca ismiyle seslen. Saat: "6"→18:00, "sabah 10"→10:00, "öğleden sonra 3"→15:00. Tarih: bağlamdaki Bugün/Yarın kullan; "öbür gün"=yarından sonraki, "bu hafta sonu"=Cumartesi. Çalışma saatleri dışında randevu önerme. ÇOKLU RANDEVU: Müşteri "ben ve arkadaşım X için", "2 kişilik", "biz ikimiz için" gibi ifadeler kullandığında TÜM İSİMLERİ AKLINDA TUT. Her kişi için ayrı create_appointment çağır (customer_name parametresini her seferinde doğru isimle doldur). İlk randevuyu aldıktan sonra diğer kişiler için de randevu almayı unutma. Örnek: "ben ve arkadaşım ismail için" dediğinde önce kendi adını öğren, sonra ismail için de randevu al. Tek randevu alıp durma, tüm isimleri işle. Fiyat→get_services; adres→get_tenant_info. "Geç kalacağım"→notify_late. "İptal" isteğinde önce get_last_appointment çağır, müşteriden açık onay ("evet iptal") aldıktan sonra cancel_appointment çağır. Yapamayacağın bir şey çıkarsa sadece [[INSAN]] yaz.
 MÜSAİTLİK: has_available_slots→saatleri sun; fully_booked→başka gün veya check_week_availability; closed_day/blocked_holiday→"O gün kapalıyız" de. "available" boş olsa bile status'a bak.
-ÖRNEKLER: "yarın 6 boş mu?"→check_availability; doluysa "6 dolu ama 5 var, alayım mı?". "tamam 15e al"→create_appointment, "Aldım, yarın 15'te görüşürüz." "randevumu iptal et"→get_last_appointment, cancel_appointment. "bu hafta ne zaman boş?"→check_week_availability. "ne kadar?"→get_services. "neredesiniz?"→get_tenant_info. "geç kalacağım"→notify_late.`;
+ÖRNEKLER: "yarın 6 boş mu?"→check_availability; doluysa "6 dolu ama 5 var, alayım mı?". "tamam 15e al"→create_appointment, "Aldım, yarın 15'te görüşürüz." "ben ve arkadaşım ismail için randevu alacağım"→önce kendi adını öğren, sonra her ikisi için de create_appointment çağır (customer_name: kendi adı, customer_name: ismail). "randevumu iptal et"→get_last_appointment, cancel_appointment. "bu hafta ne zaman boş?"→check_week_availability. "ne kadar?"→get_services. "neredesiniz?"→get_tenant_info. "geç kalacağım"→notify_late.`;
 
   let prompt = `<rol>\n${rol}\n</rol>\n\n<ton>\n${ton}\n</ton>\n\n<kurallar>\n${kurallar}\n</kurallar>`;
   if (extraPrompt) {
@@ -535,6 +535,72 @@ function formatDateTr(dateStr: string): string {
       month: "long",
     });
     return `${weekday} ${dayMonth}`;
+  } catch {
+    return dateStr;
+  }
+}
+
+/**
+ * Tarihi doğal bir formatta döndürür: "yarın 3 martta saat 17.30'a", "2 gün sonra 5 mart saat 17.30'a" gibi
+ */
+function formatDateReadableTr(dateStr: string, timeStr?: string): string {
+  try {
+    // Bugünün tarihini timezone'a göre al
+    const now = new Date();
+    const todayStr = localDateStr(now);
+    
+    // Hedef tarihi parse et (dateStr formatı: YYYY-MM-DD)
+    const targetDate = new Date(dateStr + "T12:00:00");
+    if (isNaN(targetDate.getTime())) return dateStr;
+    
+    // Timezone'a göre tarih stringlerini karşılaştır
+    const targetDateStr = localDateStr(targetDate);
+    
+    // Gün farkını hesapla
+    const todayDate = new Date(todayStr + "T12:00:00");
+    const targetDateOnly = new Date(targetDateStr + "T12:00:00");
+    const diffTime = targetDateOnly.getTime() - todayDate.getTime();
+    const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24));
+    
+    // Tarih bilgilerini timezone'a göre al
+    const day = new Intl.DateTimeFormat("tr-TR", {
+      timeZone: APP_TIMEZONE,
+      day: "numeric",
+    }).format(targetDate);
+    const month = new Intl.DateTimeFormat("tr-TR", {
+      timeZone: APP_TIMEZONE,
+      month: "long",
+    }).format(targetDate);
+    
+    if (timeStr) {
+      // Saati "17:30" formatından "17.30" formatına çevir
+      const timeFormatted = timeStr.replace(":", ".");
+      
+      if (diffDays === 0) {
+        return `bugün saat ${timeFormatted}'a`;
+      } else if (diffDays === 1) {
+        return `yarın ${day} ${month}ta saat ${timeFormatted}'a`;
+      } else if (diffDays === 2) {
+        return `öbür gün ${day} ${month}ta saat ${timeFormatted}'a`;
+      } else if (diffDays > 2 && diffDays <= 7) {
+        return `${diffDays} gün sonra ${day} ${month}ta saat ${timeFormatted}'a`;
+      } else {
+        return `${day} ${month}ta saat ${timeFormatted}'a`;
+      }
+    }
+    
+    // Saat yoksa
+    if (diffDays === 0) {
+      return "bugün";
+    } else if (diffDays === 1) {
+      return `yarın ${day} ${month}ta`;
+    } else if (diffDays === 2) {
+      return `öbür gün ${day} ${month}ta`;
+    } else if (diffDays > 2 && diffDays <= 7) {
+      return `${diffDays} gün sonra ${day} ${month}ta`;
+    } else {
+      return `${day} ${month}`;
+    }
   } catch {
     return dateStr;
   }
@@ -1027,7 +1093,7 @@ async function executeToolCall(
         result: {
           ok: true,
           date: dateStr,
-          date_readable: formatDateTr(dateStr),
+          date_readable: formatDateReadableTr(dateStr, timeStr),
           time: timeStr,
           customer_name: customerName,
         },
@@ -1275,7 +1341,7 @@ async function executeToolCall(
         ok: true,
         old_cancelled: true,
         new_date: newDate,
-        new_date_readable: formatDateTr(newDate),
+        new_date_readable: formatDateReadableTr(newDate, newTime),
         new_time: newTime,
       },
       sessionDeleted: true,
@@ -2083,7 +2149,7 @@ export async function processMessage(
             const serviceVal = (fnArgs.service as string) ?? (fnArgs.extra_data as Record<string, unknown>)?.service as string ?? "";
             confirmationResults.push({
               date: res.date ?? "",
-              date_readable: res.date_readable ?? formatDateTr(res.date ?? ""),
+              date_readable: res.date_readable ?? formatDateReadableTr(res.date ?? "", res.time),
               time: res.time ?? "",
               customer_name: res.customer_name ?? "",
               service: typeof serviceVal === "string" ? serviceVal : "",
@@ -2103,7 +2169,7 @@ export async function processMessage(
               key: "rescheduled",
               vars: {
                 date: res.new_date ?? "",
-                date_readable: res.new_date_readable ?? formatDateTr(res.new_date ?? ""),
+                date_readable: res.new_date_readable ?? formatDateReadableTr(res.new_date ?? "", res.new_time),
                 time: res.new_time ?? "",
               },
             };

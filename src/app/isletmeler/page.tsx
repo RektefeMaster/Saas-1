@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo, memo } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { MessageCircle, Building2, ArrowLeft } from "lucide-react";
@@ -12,16 +12,52 @@ interface TenantItem {
   whatsapp_link: string;
 }
 
+const TenantListItem = memo(({ tenant }: { tenant: TenantItem }) => (
+  <li className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-800/50 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex items-center gap-4">
+      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40">
+        <Building2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
+      </div>
+      <div>
+        <p className="font-semibold text-slate-900 dark:text-slate-100">
+          {tenant.name}
+        </p>
+        <p className="font-mono text-sm text-slate-500 dark:text-slate-400">
+          {tenant.tenant_code}
+        </p>
+      </div>
+    </div>
+    <a
+      href={tenant.whatsapp_link}
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
+    >
+      <MessageCircle className="h-4 w-4" />
+      WhatsApp ile Randevu Al
+    </a>
+  </li>
+));
+
+TenantListItem.displayName = "TenantListItem";
+
 export default function IsletmelerPage() {
   const [tenants, setTenants] = useState<TenantItem[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    fetch("/api/public/tenants")
+    const controller = new AbortController();
+    fetch("/api/public/tenants", { signal: controller.signal })
       .then((r) => r.json())
       .then((data) => (Array.isArray(data) ? setTenants(data) : setTenants([])))
-      .catch(() => setTenants([]))
+      .catch((err) => {
+        if (err.name !== "AbortError") {
+          setTenants([]);
+        }
+      })
       .finally(() => setLoading(false));
+    
+    return () => controller.abort();
   }, []);
 
   return (
@@ -31,7 +67,11 @@ export default function IsletmelerPage() {
         alt="Ahi AI arkaplan"
         fill
         priority
+        quality={75}
+        sizes="100vw"
         className="pointer-events-none object-cover opacity-[0.08] blur-[1.5px]"
+        placeholder="blur"
+        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWEREiMxUf/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQADAD8AkjR4t6s0bfI5xdrLqNLX4HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
       />
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/8 via-transparent to-blue-500/12" />
       <header className="relative z-10 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/75">
@@ -40,7 +80,16 @@ export default function IsletmelerPage() {
             href="/"
             className="inline-flex items-center gap-2 text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100"
           >
-            <Image src="/appicon.png" alt="Ahi AI logo" width={28} height={28} className="rounded-md bg-white p-0.5 shadow-sm" />
+            <Image 
+              src="/appicon.png" 
+              alt="Ahi AI logo" 
+              width={28} 
+              height={28} 
+              className="rounded-md bg-white p-0.5 shadow-sm" 
+              priority
+              quality={90}
+              sizes="28px"
+            />
             Ahi AI
           </Link>
           <Link
@@ -92,33 +141,7 @@ export default function IsletmelerPage() {
         ) : (
           <ul className="space-y-4">
             {tenants.map((t) => (
-              <li
-                key={t.id}
-                className="flex flex-col gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-emerald-200 hover:shadow-md dark:border-slate-800 dark:bg-slate-900 dark:hover:border-emerald-800/50 sm:flex-row sm:items-center sm:justify-between"
-              >
-                <div className="flex items-center gap-4">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/40">
-                    <Building2 className="h-6 w-6 text-emerald-600 dark:text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-slate-900 dark:text-slate-100">
-                      {t.name}
-                    </p>
-                    <p className="font-mono text-sm text-slate-500 dark:text-slate-400">
-                      {t.tenant_code}
-                    </p>
-                  </div>
-                </div>
-                <a
-                  href={t.whatsapp_link}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-cyan-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-cyan-700 focus:outline-none focus:ring-2 focus:ring-cyan-500 focus:ring-offset-2"
-                >
-                  <MessageCircle className="h-4 w-4" />
-                  WhatsApp ile Randevu Al
-                </a>
-              </li>
+              <TenantListItem key={t.id} tenant={t} />
             ))}
           </ul>
         )}

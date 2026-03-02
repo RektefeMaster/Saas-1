@@ -169,6 +169,10 @@ function AdminLoginForm() {
         fill
         className="pointer-events-none object-cover opacity-[0.08]"
         priority
+        quality={75}
+        sizes="100vw"
+        placeholder="blur"
+        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWEREiMxUf/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQADAD8AkjR4t6s0bfI5xdrLqNLX4HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
       />
       <div className="pointer-events-none absolute inset-0">
         <div className="absolute -left-20 -top-24 h-80 w-80 rounded-full bg-cyan-300/20 blur-3xl dark:bg-cyan-600/10" />
@@ -189,6 +193,9 @@ function AdminLoginForm() {
                 width={34}
                 height={34}
                 className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
+                priority
+                quality={90}
+                sizes="34px"
               />
               <div className="leading-tight">
                 <p className="text-[11px] font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">

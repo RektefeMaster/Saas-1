@@ -106,6 +106,7 @@ function buildToolUsageInstructions(): string {
 Araç kullanımı (ne zaman hangi fonksiyonu çağır):
 - Tarih belli değilse veya müşteri "müsait mi?", "boş var mı?" derse → check_availability(date) (YYYY-MM-DD).
 - Tarih + saat + müşteri adı (ve zorunlu alanlar) toplandıysa → create_appointment(date, time, customer_name, ...).
+- ÇOKLU RANDEVU: Müşteri "ben ve arkadaşım X için", "2 kişilik", "biz ikimiz için" gibi ifadeler kullandığında TÜM İSİMLERİ AKLINDA TUT. Her kişi için ayrı create_appointment çağır (customer_name parametresini her seferinde doğru isimle doldur). İlk randevuyu aldıktan sonra diğer kişiler için de randevu almayı unutma. Örnek: "ben ve arkadaşım ismail için" dediğinde önce kendi adını öğren, sonra ismail için de randevu al. Tek randevu alıp durma, tüm isimleri işle.
 - İptal isteğinde önce get_last_appointment çağır, müşteriden açık onay ("evet iptal") aldıktan sonra cancel_appointment(appointment_id) çağır.
 - "Başka gün var mı?", "bu hafta ne zaman boş?" → check_week_availability(start_date).
 - Randevu değiştirmek → get_last_appointment, sonra reschedule_appointment veya iptal + create_appointment.

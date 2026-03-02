@@ -7,6 +7,9 @@ import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 import { generateWhatsAppLink } from "@/utils/generateTenantAssets";
 
+// Cache için revalidation süresi (60 saniye)
+export const revalidate = 60;
+
 function normalizeStatus(status: string | null | undefined): string {
   return (status || "").toLocaleLowerCase("tr-TR").trim();
 }
@@ -47,7 +50,10 @@ export async function GET() {
         }),
       }));
 
-    return NextResponse.json(list);
+    const response = NextResponse.json(list);
+    // Cache headers
+    response.headers.set("Cache-Control", "public, s-maxage=60, stale-while-revalidate=300");
+    return response;
   } catch (err) {
     console.error("[public/tenants]", err);
     return NextResponse.json({ error: "Liste alınamadı" }, { status: 500 });
