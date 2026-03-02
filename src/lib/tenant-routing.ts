@@ -6,6 +6,7 @@ import {
 
 export type RoutingReason =
   | "marker"
+  | "name"
   | "session"
   | "nlp"
   | "default"
@@ -87,6 +88,75 @@ function normalizeText(value: string): string {
     .replace(/ç/g, "c")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function canonicalize(value: string): string {
+  return normalizeText(value).replace(/[^a-z0-9]/g, "");
+}
+
+function scoreTenantNameMatch(message: string, tenantName: string): number {
+  const messageNorm = normalizeText(message);
+  const messageCanonical = canonicalize(messageNorm);
+  const tenantNorm = normalizeText(tenantName);
+  const tenantCanonical = canonicalize(tenantNorm);
+
+  if (!tenantCanonical || tenantCanonical.length < 3) return 0;
+
+  let score = 0;
+
+  // Strongest signal: full business name is present in message.
+  if (messageCanonical.includes(tenantCanonical)) {
+    score += 140 + Math.min(40, tenantCanonical.length);
+  }
+
+  const tokenSet = tenantNorm
+    .split(" ")
+    .map((t) => t.trim())
+    .filter((t) => t.length >= 3);
+
+  if (tokenSet.length > 0) {
+    const matched = tokenSet.filter((t) => messageNorm.includes(t));
+    score += matched.length * 12;
+    if (matched.length === tokenSet.length) score += 35;
+    if (matched.length >= 2) score += 20;
+  }
+
+  return score;
+}
+
+async function getTenantSummaryByNameMention(message: string): Promise<TenantSummary | null> {
+  const canonicalMessage = canonicalize(message);
+  if (!canonicalMessage || canonicalMessage.length < 3) return null;
+
+  const { data, error } = await supabase
+    .from("tenants")
+    .select("id, name")
+    .eq("status", "active")
+    .is("deleted_at", null)
+    .limit(500);
+
+  if (error || !data || data.length === 0) return null;
+
+  let best: TenantSummary | null = null;
+  let bestScore = 0;
+
+  for (const tenant of data) {
+    const score = scoreTenantNameMatch(message, tenant.name);
+    if (score > bestScore) {
+      bestScore = score;
+      best = { id: tenant.id, name: tenant.name };
+      continue;
+    }
+    if (score > 0 && score === bestScore && best) {
+      // Tie-break: prefer longer business name match.
+      if (canonicalize(tenant.name).length > canonicalize(best.name).length) {
+        best = { id: tenant.id, name: tenant.name };
+      }
+    }
+  }
+
+  // Lower threshold allows natural phrases like "merhaba <işletme adı>" while avoiding noise.
+  return bestScore >= 70 ? best : null;
 }
 
 function scoreDomain(text: string, domain: IntentDomain): number {
@@ -261,6 +331,18 @@ export async function resolveTenantRouting(input: RoutingInput): Promise<Routing
         tenantCode,
       };
     }
+  }
+
+  const byName = await getTenantSummaryByNameMention(normalizedMessage);
+  if (byName) {
+    return {
+      tenantId: byName.id,
+      tenantName: byName.name,
+      reason: "name",
+      normalizedMessage,
+      intentDomain: detectIntentDomain(normalizedMessage),
+      tenantCode,
+    };
   }
 
   const intentDomain = detectIntentDomain(normalizedMessage);

@@ -14,6 +14,18 @@ function getApiPhone(): string {
   return phone.replace(/\D/g, "");
 }
 
+function normalizeForCompare(value: string): string {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/[^a-z0-9]/g, "");
+}
+
 /**
  * Tenant için WhatsApp link üretir.
  * İşletmeye özel `config_override.messages.whatsapp_greeting` varsa onu kullanır,
@@ -26,9 +38,14 @@ function getApiPhone(): string {
 export function generateWhatsAppLink(tenant: Tenant): string {
   const apiPhone = getApiPhone();
   const customGreeting = tenant.config_override?.messages?.whatsapp_greeting;
-  const greeting = customGreeting
+  const rawGreeting = customGreeting
     ? customGreeting.replace(/\{tenant_name\}/g, tenant.name)
-    : `Merhaba, ${tenant.name} için randevu almak istiyorum`;
+    : `Merhaba ${tenant.name}, randevu almak istiyorum`;
+  const hasTenantName =
+    normalizeForCompare(rawGreeting).includes(normalizeForCompare(tenant.name));
+  const greeting = hasTenantName
+    ? rawGreeting.trim()
+    : `Merhaba ${tenant.name}, ${rawGreeting.trim()}`;
   const hiddenMarker = encodeTenantMarker(tenant.tenant_code);
   const message = `${greeting}${hiddenMarker}`;
   const encodedText = encodeURIComponent(message);

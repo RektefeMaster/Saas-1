@@ -351,7 +351,8 @@ export async function POST(request: NextRequest) {
           try {
             const previousTenantId: string | null = await getTenantIdByPhone(customerPhone);
             let tenantId: string | null = null;
-            let routingReason: "marker" | "session" | "nlp" | "default" | "none" = "none";
+            let routingReason: "marker" | "name" | "session" | "nlp" | "default" | "none" =
+              "none";
             let tenantName: string | null = null;
             let tenantCode: string | null = null;
             let intentDomain: "haircare" | "carcare" | null = null;
