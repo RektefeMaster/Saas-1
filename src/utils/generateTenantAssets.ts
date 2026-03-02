@@ -6,6 +6,7 @@
 import QRCode from "qrcode";
 import type { Tenant, SharePackage } from "@/types/tenant.types";
 import { encodeTenantMarker } from "@/lib/zero-width";
+import { getAppBaseUrl } from "@/lib/app-url";
 
 /** API telefon numarası (wa.me için); env: WHATSAPP_API_PHONE veya WHATSAPP_PHONE_NUMBER */
 function getApiPhone(): string {
@@ -27,7 +28,7 @@ function normalizeForCompare(value: string): string {
 }
 
 /**
- * Tenant için WhatsApp link üretir.
+ * Tenant için doğrudan WhatsApp wa.me linki üretir.
  * İşletmeye özel `config_override.messages.whatsapp_greeting` varsa onu kullanır,
  * yoksa varsayılan doğal karşılama mesajı üretir.
  * Tenant kodu mesajın sonuna görünmez marker (zero-width) olarak eklenir.
@@ -35,7 +36,7 @@ function normalizeForCompare(value: string): string {
  * @param tenant - Esnaf bilgileri (id, name, tenant_code, config_override?)
  * @returns WhatsApp wa.me linki
  */
-export function generateWhatsAppLink(tenant: Tenant): string {
+export function generateDirectWhatsAppLink(tenant: Tenant): string {
   const apiPhone = getApiPhone();
   const customGreeting = tenant.config_override?.messages?.whatsapp_greeting;
   const rawGreeting = customGreeting
@@ -50,6 +51,18 @@ export function generateWhatsAppLink(tenant: Tenant): string {
   const message = `${greeting}${hiddenMarker}`;
   const encodedText = encodeURIComponent(message);
   return `https://wa.me/${apiPhone}?text=${encodedText}`;
+}
+
+/**
+ * Tenant için paylaşım linki üretir.
+ * Kullanıcı önce uygulama domainine gelir ve ardından işletmeye özel wa.me linkine yönlendirilir.
+ *
+ * @param tenant - Esnaf bilgileri
+ * @returns Ahi AI tenant giriş linki
+ */
+export function generateWhatsAppLink(tenant: Tenant): string {
+  const appBase = getAppBaseUrl();
+  return `${appBase}/t/${encodeURIComponent(tenant.id)}`;
 }
 
 /**
@@ -107,10 +120,10 @@ export async function generateSharePackage(tenant: Tenant): Promise<SharePackage
  *
  * const tenant = { id: "uuid", name: "Kuaför Ahmet", tenant_code: "AHMET01" };
  * const link = generateWhatsAppLink(tenant);
- * // -> "https://wa.me/905551234567?text=Merhaba%2C%20Kuaf%C3%B6r%20Ahmet%20i%C3%A7in%20randevu%20almak%20istiyorum..."
+ * // -> "https://www.aiahi.net/t/uuid"
  *
  * // Özel greeting ile:
  * const t2 = { ...tenant, config_override: { messages: { whatsapp_greeting: "Selam, saç kesimi istiyorum" } } };
- * const link2 = generateWhatsAppLink(t2);
- * // -> "...?text=Selam%2C%20sa%C3%A7%20kesimi%20istiyorum..."
+ * const waMe = generateDirectWhatsAppLink(t2);
+ * // -> "https://wa.me/905551234567?text=Selam..."
  */

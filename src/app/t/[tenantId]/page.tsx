@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { supabase } from "@/lib/supabase";
-import { generateWhatsAppLink } from "@/utils/generateTenantAssets";
+import { generateDirectWhatsAppLink } from "@/utils/generateTenantAssets";
 
 export default async function TenantRedirectPage({
   params,
@@ -24,7 +24,7 @@ export default async function TenantRedirectPage({
   }
 
   redirect(
-    generateWhatsAppLink({
+    generateDirectWhatsAppLink({
       id: tenant.id,
       name: tenant.name,
       tenant_code: tenant.tenant_code,
