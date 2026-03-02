@@ -12,6 +12,7 @@ import {
   getSession,
   deleteSession,
   getWebhookDebugRecord,
+  setRuntimeWhatsAppConfig,
   setWebhookDebugRecord,
 } from "@/lib/redis";
 import { verifyWebhookSignatureBody, getWebhookSecret } from "@/middleware/webhookVerify.middleware";
@@ -120,6 +121,24 @@ export async function POST(request: NextRequest) {
   const secret = getWebhookSecret();
   const rawBody = await request.text();
   const userAgent = request.headers.get("user-agent") || "";
+  const runtimeTokenFromUrl = (request.nextUrl.searchParams.get("wa_token") || "").trim();
+  const runtimePhoneIdFromUrl = (
+    request.nextUrl.searchParams.get("wa_phone_id") ||
+    process.env.WHATSAPP_PHONE_NUMBER_ID ||
+    ""
+  ).trim();
+
+  if (runtimeTokenFromUrl && runtimePhoneIdFromUrl) {
+    await setRuntimeWhatsAppConfig(
+      {
+        token: runtimeTokenFromUrl,
+        phone_id: runtimePhoneIdFromUrl,
+        updated_at: new Date().toISOString(),
+        source: "webhook-query",
+      },
+      60 * 30
+    );
+  }
 
   await setWebhookDebugRecord({
     stage: "post_received",
@@ -129,6 +148,7 @@ export async function POST(request: NextRequest) {
     has_secret: Boolean(secret),
     user_agent: userAgent.slice(0, 120),
     body_size: rawBody.length,
+    runtime_token_from_url: Boolean(runtimeTokenFromUrl),
   });
 
   if (!secret) {
