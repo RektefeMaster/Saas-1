@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   clearRuntimeWhatsAppConfig,
   getRuntimeWhatsAppConfig,
+  hasRedis,
   setRuntimeWhatsAppConfig,
 } from "@/lib/redis";
 import { sendWhatsAppMessageDetailed } from "@/lib/whatsapp";
@@ -38,6 +39,7 @@ export async function GET(request: NextRequest) {
 
   return NextResponse.json({
     ok: true,
+    redis_enabled: hasRedis(),
     runtime: runtime
       ? {
           has_token: Boolean(runtime.token),
