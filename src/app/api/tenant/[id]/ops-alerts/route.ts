@@ -4,6 +4,7 @@ import {
   listOpsAlerts,
   type OpsAlertStatus,
 } from "@/services/opsAlert.service";
+import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 
 export async function GET(
   request: NextRequest,
@@ -19,6 +20,12 @@ export async function GET(
     const alerts = await listOpsAlerts(tenantId, status, limitParam);
     return NextResponse.json(alerts);
   } catch (err) {
+    const missingTable = extractMissingSchemaTable(
+      err && typeof err === "object" ? (err as { message?: string }) : null
+    );
+    if (missingTable === "ops_alerts") {
+      return NextResponse.json([]);
+    }
     const msg = err instanceof Error ? err.message : "Uyarılar alınamadı";
     return NextResponse.json({ error: msg }, { status: 500 });
   }
@@ -58,6 +65,15 @@ export async function POST(
 
     return NextResponse.json({ ok: true });
   } catch (err) {
+    const missingTable = extractMissingSchemaTable(
+      err && typeof err === "object" ? (err as { message?: string }) : null
+    );
+    if (missingTable === "ops_alerts") {
+      return NextResponse.json(
+        { error: "Operasyon uyarı modülü hazır değil. İlgili migration uygulanmalı." },
+        { status: 503 }
+      );
+    }
     const msg = err instanceof Error ? err.message : "Uyarı oluşturulamadı";
     return NextResponse.json({ error: msg }, { status: 500 });
   }

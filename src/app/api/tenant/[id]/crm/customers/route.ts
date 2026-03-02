@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 
 export async function GET(
   request: NextRequest,
@@ -9,7 +10,7 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const query = (searchParams.get("q") || "").trim().toLowerCase();
 
-  const { data, error } = await supabase
+  const result = await supabase
     .from("crm_customers")
     .select(
       "id, tenant_id, customer_phone, customer_name, tags, notes_summary, last_visit_at, total_visits, created_at, updated_at"
@@ -18,7 +19,15 @@ export async function GET(
     .order("last_visit_at", { ascending: false, nullsFirst: false })
     .order("created_at", { ascending: false });
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  let data = result.data ?? [];
+  if (result.error) {
+    const missingTable = extractMissingSchemaTable(result.error);
+    if (missingTable === "crm_customers") {
+      data = [];
+    } else {
+      return NextResponse.json({ error: result.error.message }, { status: 500 });
+    }
+  }
 
   let list = (data ?? []).filter((item) => {
     if (!query) return true;

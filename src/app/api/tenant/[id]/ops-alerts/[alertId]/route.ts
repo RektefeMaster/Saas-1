@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveOpsAlert } from "@/services/opsAlert.service";
+import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 
 export async function PATCH(
   request: NextRequest,
@@ -17,6 +18,13 @@ export async function PATCH(
 
     const result = await resolveOpsAlert(tenantId, alertId);
     if (!result.ok) {
+      const missingTable = extractMissingSchemaTable({ message: result.error });
+      if (missingTable === "ops_alerts") {
+        return NextResponse.json(
+          { error: "Operasyon uyarı modülü hazır değil. İlgili migration uygulanmalı." },
+          { status: 503 }
+        );
+      }
       return NextResponse.json(
         { error: result.error },
         { status: result.error === "Uyarı bulunamadı" ? 404 : 500 }

@@ -34,12 +34,19 @@ export async function GET(
   let data: Record<string, unknown>[] | null = null;
   let error: { message: string } | null = null;
   for (let i = 0; i < requestedColumns.length; i++) {
-    const result = await supabase
+    let query = supabase
       .from("services")
       .select(selectColumns.join(", "))
-      .eq("tenant_id", tenantId)
-      .order("display_order", { ascending: true })
-      .order("created_at", { ascending: true });
+      .eq("tenant_id", tenantId);
+
+    if (selectColumns.includes("display_order")) {
+      query = query.order("display_order", { ascending: true });
+    }
+    if (selectColumns.includes("created_at")) {
+      query = query.order("created_at", { ascending: true });
+    }
+
+    const result = await query;
     if (!result.error) {
       data = ((result.data as unknown) as Record<string, unknown>[]) ?? [];
       error = null;

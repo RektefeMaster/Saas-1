@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 
 const VALID_CHANNELS = ["panel", "whatsapp", "both"] as const;
 const VALID_STATUS = ["pending", "sent", "cancelled"] as const;
@@ -25,7 +26,13 @@ export async function GET(
   }
 
   const { data, error } = await query;
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    const missingTable = extractMissingSchemaTable(error);
+    if (missingTable === "crm_reminders") {
+      return NextResponse.json([]);
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json(data ?? []);
 }
 
@@ -69,7 +76,16 @@ export async function POST(
     )
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    const missingTable = extractMissingSchemaTable(error);
+    if (missingTable === "crm_reminders") {
+      return NextResponse.json(
+        { error: "CRM modülü hazır değil. İlgili migration uygulanmalı." },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json(data, { status: 201 });
 }
 
@@ -113,6 +129,15 @@ export async function PATCH(
     )
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    const missingTable = extractMissingSchemaTable(error);
+    if (missingTable === "crm_reminders") {
+      return NextResponse.json(
+        { error: "CRM modülü hazır değil. İlgili migration uygulanmalı." },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json(data);
 }

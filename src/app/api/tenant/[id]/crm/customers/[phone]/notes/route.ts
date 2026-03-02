@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 
 function normalizePhone(input: string): string {
   return input.replace(/\s+/g, "").trim();
@@ -33,6 +34,13 @@ export async function POST(
     .single();
 
   if (error) {
+    const missingTable = extractMissingSchemaTable(error);
+    if (missingTable === "crm_notes") {
+      return NextResponse.json(
+        { error: "CRM modülü hazır değil. İlgili migration uygulanmalı." },
+        { status: 503 }
+      );
+    }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 

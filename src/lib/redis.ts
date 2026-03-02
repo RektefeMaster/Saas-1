@@ -67,6 +67,21 @@ function logRedisFallback(action: string, err: unknown) {
   console.warn(`[redis] ${action} failed, in-memory fallback active: ${msg}`);
 }
 
+function parseRedisJson<T>(raw: unknown): T | null {
+  if (raw == null) return null;
+  if (typeof raw === "string") {
+    try {
+      return JSON.parse(raw) as T;
+    } catch {
+      return null;
+    }
+  }
+  if (typeof raw === "object") {
+    return raw as T;
+  }
+  return null;
+}
+
 function sessionKey(tenantId: string, customerPhone: string): string {
   const normalized = customerPhone.replace(/\D/g, "");
   return `${SESSION_PREFIX}${tenantId}:${normalized}`;
@@ -182,8 +197,8 @@ export async function getTenantFromCache(tenantId: string): Promise<unknown | nu
   const key = TENANT_CACHE_PREFIX + tenantId;
   if (redis) {
     try {
-      const raw = await redis.get<string>(key);
-      return raw ? (JSON.parse(raw) as unknown) : null;
+      const raw = await redis.get<unknown>(key);
+      return parseRedisJson<unknown>(raw);
     } catch (err) {
       logRedisFallback("getTenantFromCache", err);
     }
@@ -249,8 +264,8 @@ export async function getOtpChallenge(challengeId: string): Promise<OtpChallenge
   const key = OTP_CHALLENGE_PREFIX + challengeId;
   if (redis) {
     try {
-      const raw = await redis.get<string>(key);
-      return raw ? (JSON.parse(raw) as OtpChallenge) : null;
+      const raw = await redis.get<unknown>(key);
+      return parseRedisJson<OtpChallenge>(raw);
     } catch (err) {
       logRedisFallback("getOtpChallenge", err);
     }
@@ -409,9 +424,8 @@ export async function getBookingSlotHold(
   const key = bookingHoldKey(tenantId, date, time);
   if (redis) {
     try {
-      const raw = await redis.get<string>(key);
-      if (!raw) return null;
-      return JSON.parse(raw) as BookingHoldRecord;
+      const raw = await redis.get<unknown>(key);
+      return parseRedisJson<BookingHoldRecord>(raw);
     } catch (err) {
       logRedisFallback("getBookingSlotHold", err);
     }
@@ -450,13 +464,10 @@ export async function getBookingHoldsForDate(
       if (!keys || keys.length === 0) return [];
       const holds: BookingHoldRecord[] = [];
       for (const key of keys) {
-        const raw = await redis.get<string>(key);
+        const raw = await redis.get<unknown>(key);
         if (!raw) continue;
-        try {
-          holds.push(JSON.parse(raw) as BookingHoldRecord);
-        } catch {
-          // ignore broken payload
-        }
+        const parsed = parseRedisJson<BookingHoldRecord>(raw);
+        if (parsed) holds.push(parsed);
       }
       return holds;
     } catch (err) {

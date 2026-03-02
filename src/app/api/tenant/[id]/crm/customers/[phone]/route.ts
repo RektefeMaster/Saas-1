@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 
 function normalizePhone(input: string): string {
   return input.replace(/\s+/g, "").trim();
@@ -11,7 +12,7 @@ export async function GET(
 ) {
   const { id: tenantId, phone } = await params;
   const customerPhone = normalizePhone(phone);
-  const { data: customer, error } = await supabase
+  const customerResult = await supabase
     .from("crm_customers")
     .select(
       "id, tenant_id, customer_phone, customer_name, tags, notes_summary, last_visit_at, total_visits, created_at, updated_at"
@@ -20,15 +21,30 @@ export async function GET(
     .eq("customer_phone", customerPhone)
     .maybeSingle();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  let customer = customerResult.data ?? null;
+  if (customerResult.error) {
+    const missingTable = extractMissingSchemaTable(customerResult.error);
+    if (missingTable !== "crm_customers") {
+      return NextResponse.json({ error: customerResult.error.message }, { status: 500 });
+    }
+    customer = null;
+  }
 
-  const { data: notes } = await supabase
+  const notesResult = await supabase
     .from("crm_notes")
     .select("id, tenant_id, customer_phone, note, created_by, created_at")
     .eq("tenant_id", tenantId)
     .eq("customer_phone", customerPhone)
     .order("created_at", { ascending: false })
     .limit(20);
+  let notes = notesResult.data ?? [];
+  if (notesResult.error) {
+    const missingTable = extractMissingSchemaTable(notesResult.error);
+    if (missingTable !== "crm_notes") {
+      return NextResponse.json({ error: notesResult.error.message }, { status: 500 });
+    }
+    notes = [];
+  }
 
   return NextResponse.json({
     customer:
@@ -80,6 +96,15 @@ export async function PATCH(
     )
     .single();
 
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (error) {
+    const missingTable = extractMissingSchemaTable(error);
+    if (missingTable === "crm_customers") {
+      return NextResponse.json(
+        { error: "CRM modülü hazır değil. İlgili migration uygulanmalı." },
+        { status: 503 }
+      );
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
   return NextResponse.json(data);
 }
