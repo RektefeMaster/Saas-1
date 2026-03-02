@@ -68,6 +68,11 @@ function extractMessageText(msg: IncomingMessage): string {
   return "";
 }
 
+function shouldSendQuickAck(text: string): boolean {
+  const normalized = text.trim().toLocaleLowerCase("tr-TR");
+  return /^(merhaba|selam|mrb|slm|hey|iyi\s*günler)(\b|[!.?,\s]|$)/i.test(normalized);
+}
+
 function maskPhone(phone: string | null | undefined): string {
   if (!phone) return "n/a";
   const digits = phone.replace(/\D/g, "");
@@ -300,6 +305,19 @@ export async function POST(request: NextRequest) {
           if (!rateLimitResult.allowed) {
             await sendWhatsAppMessage({ to: customerPhone, text: rateLimitResult.message });
             continue;
+          }
+
+          if (shouldSendQuickAck(rawText)) {
+            const ackSent = await sendWhatsAppMessage({
+              to: customerPhone,
+              text: "Mesajını aldım, hemen kontrol ediyorum.",
+            });
+            await setWebhookDebugRecord({
+              stage: ackSent ? "quick_ack_sent" : "quick_ack_failed",
+              at: new Date().toISOString(),
+              from: maskPhone(customerPhone),
+              type: msgType,
+            });
           }
 
           try {
