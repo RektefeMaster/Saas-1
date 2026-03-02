@@ -7,7 +7,10 @@ function normalizeSecretValue(value: string | undefined): string {
   const trimmed = value.trim();
   const unquoted = trimmed.replace(/^['"]|['"]$/g, "");
   const withoutBearer = unquoted.replace(/^bearer\s+/i, "");
-  return withoutBearer.replace(/\s+/g, "");
+  const compact = withoutBearer.replace(/\s+/g, "");
+  const tokenMatch = compact.match(/EAA[A-Za-z0-9]+/);
+  if (tokenMatch?.[0]) return tokenMatch[0];
+  return compact;
 }
 
 function normalizePlainValue(value: string | undefined): string {
