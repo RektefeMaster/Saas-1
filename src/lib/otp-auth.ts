@@ -29,7 +29,9 @@ function hasTwilioVerifyConfig(): boolean {
 }
 
 export function isSms2faEnabledFlag(): boolean {
-  const enabledByFlag = isTruthy(process.env.ENABLE_SMS_2FA);
-  if (!enabledByFlag) return false;
+  return isTruthy(process.env.ENABLE_SMS_2FA);
+}
+
+export function isTwilioVerifyConfigReady(): boolean {
   return hasTwilioVerifyConfig();
 }

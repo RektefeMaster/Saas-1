@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createAdminToken, getAdminCookieName, getAdminCookieOpts, isAdminPasswordValid } from "@/lib/admin-auth";
 import { deleteOtpChallenge, getOtpChallenge, updateOtpChallengeAttempts } from "@/lib/redis";
-import { verifySmsCode } from "@/lib/twilio";
+import { getTwilioVerifyStatus, verifySmsCode } from "@/lib/twilio";
 import {
   ADMIN_OTP_COOKIE,
   OTP_MAX_ATTEMPTS,
@@ -40,6 +40,19 @@ export async function POST(request: NextRequest) {
         maxAge: OTP_VERIFIED_TTL_SECONDS,
       });
       return res;
+    }
+
+    const twilioStatus = getTwilioVerifyStatus();
+    if (!twilioStatus.configReady) {
+      const missing = twilioStatus.missing.join(", ");
+      const invalid = twilioStatus.invalid.join(", ");
+      const details = [missing ? `eksik: ${missing}` : "", invalid ? `geçersiz: ${invalid}` : ""]
+        .filter(Boolean)
+        .join(" | ");
+      return NextResponse.json(
+        { error: `SMS 2FA yapılandırması hazır değil${details ? ` (${details})` : ""}.` },
+        { status: 503 }
+      );
     }
 
     if (!challengeId || !code) {

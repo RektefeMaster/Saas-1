@@ -17,7 +17,10 @@ export async function PATCH(
 
     const result = await resolveOpsAlert(tenantId, alertId);
     if (!result.ok) {
-      return NextResponse.json({ error: result.error }, { status: 500 });
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.error === "Uyarı bulunamadı" ? 404 : 500 }
+      );
     }
 
     return NextResponse.json({ ok: true });

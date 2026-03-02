@@ -84,6 +84,11 @@ export default function DashboardLoginPage() {
         setLoading(false);
         return;
       }
+      if (hiddenAdminRes.status >= 500) {
+        setError(hiddenAdminData.error || "Admin giriş altyapısında geçici bir sorun var.");
+        setLoading(false);
+        return;
+      }
 
       const supabase = createClient();
       const emailForAuth = identifier.includes("@")

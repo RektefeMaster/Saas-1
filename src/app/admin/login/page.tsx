@@ -1,84 +1,27 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import {
-  Lock,
-  Eye,
-  EyeOff,
-  AlertCircle,
-  Loader2,
-  Smartphone,
-  RefreshCw,
-} from "lucide-react";
+import { AlertCircle, Loader2, Smartphone } from "lucide-react";
 import { ThemeToggle } from "../theme-toggle";
 import { Button, Input, Card, CardContent } from "@/components/ui";
 
-function AdminLoginForm() {
-  const [password, setPassword] = useState("");
+function AdminOtpBridge() {
   const [otpCode, setOtpCode] = useState("");
-  const [challengeId, setChallengeId] = useState("");
-  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [resending, setResending] = useState(false);
-  const [step, setStep] = useState<"password" | "otp">("password");
   const router = useRouter();
   const searchParams = useSearchParams();
   const from = searchParams.get("from") || "/admin";
   const hiddenMode = searchParams.get("mode");
-  const hiddenChallenge = searchParams.get("challenge");
-
-  useEffect(() => {
-    if (hiddenMode === "otp" && hiddenChallenge) {
-      setStep("otp");
-      setChallengeId(hiddenChallenge);
-    }
-  }, [hiddenChallenge, hiddenMode]);
-
-  const submitPassword = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError("");
-    setLoading(true);
-    try {
-      const res = await fetch("/api/admin/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        requires_otp?: boolean;
-        challenge_id?: string;
-      };
-      if (!res.ok) {
-        setError(data.error || "Giriş başarısız");
-        setLoading(false);
-        return;
-      }
-      if (data.requires_otp && data.challenge_id) {
-        setChallengeId(data.challenge_id);
-        setStep("otp");
-        setLoading(false);
-        return;
-      }
-      router.push(from);
-      router.refresh();
-    } catch {
-      setError("Bağlantı hatası");
-    } finally {
-      setLoading(false);
-    }
-  };
+  const challengeId = useMemo(() => searchParams.get("challenge") || "", [searchParams]);
+  const otpFlowReady = hiddenMode === "otp" && challengeId.length > 0;
 
   const submitOtp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!challengeId) {
-      setError("OTP oturumu bulunamadı. Şifre adımına dönün.");
-      return;
-    }
+    if (!otpFlowReady) return;
     setError("");
     setLoading(true);
     try {
@@ -87,12 +30,9 @@ function AdminLoginForm() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ challenge_id: challengeId, code: otpCode }),
       });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-      };
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
         setError(data.error || "Kod doğrulanamadı");
-        setLoading(false);
         return;
       }
       router.push(from);
@@ -101,37 +41,6 @@ function AdminLoginForm() {
       setError("Bağlantı hatası");
     } finally {
       setLoading(false);
-    }
-  };
-
-  const resendOtp = async () => {
-    if (!password) {
-      setError("Önce şifre adımına dönüp tekrar deneyin.");
-      return;
-    }
-    setError("");
-    setResending(true);
-    try {
-      const res = await fetch("/api/admin/auth/login", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-      const data = (await res.json().catch(() => ({}))) as {
-        error?: string;
-        requires_otp?: boolean;
-        challenge_id?: string;
-      };
-      if (!res.ok || !data.requires_otp || !data.challenge_id) {
-        setError(data.error || "Kod tekrar gönderilemedi");
-        setResending(false);
-        return;
-      }
-      setChallengeId(data.challenge_id);
-    } catch {
-      setError("Bağlantı hatası");
-    } finally {
-      setResending(false);
     }
   };
 
@@ -156,112 +65,72 @@ function AdminLoginForm() {
               href="/"
               className="inline-flex items-center gap-2.5 rounded-xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cyan-500 focus-visible:ring-offset-2"
             >
-              <Image src="/appicon.png" alt="Ahi AI logo" width={42} height={42} className="rounded-lg bg-white p-0.5 shadow-md" />
+              <Image
+                src="/appicon.png"
+                alt="Ahi AI logo"
+                width={42}
+                height={42}
+                className="rounded-lg bg-white p-0.5 shadow-md"
+              />
               <span className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
                 Ahi AI
               </span>
             </Link>
           </div>
 
-          <div className="mb-8 text-center">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              Yönetim paneli
-            </h1>
-            <p className="mt-2 text-slate-600 dark:text-slate-400">
-              {step === "password"
-                ? "Yetkili şifresi ile devam edin"
-                : "Telefonunuza gelen SMS kodunu doğrulayın"}
-            </p>
-          </div>
-
           <Card className="border border-slate-200 shadow-lg dark:border-slate-800">
             <CardContent className="p-6 sm:p-8">
-              {step === "password" ? (
-                <form onSubmit={submitPassword} className="space-y-5">
-                  <Input
-                    label="Yönetici Şifresi"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
-                    autoFocus
-                    required
-                    minLength={8}
-                    disabled={loading}
-                    autoComplete="current-password"
-                    leftIcon={<Lock className="h-4 w-4" />}
-                    rightIcon={
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                        aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
-                      >
-                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                      </button>
-                    }
-                  />
-
-                  {error && (
-                    <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>{error}</span>
-                    </div>
-                  )}
-
-                  <Button type="submit" fullWidth size="lg" loading={loading}>
-                    {loading ? "Kontrol ediliyor..." : "Devam Et"}
-                  </Button>
-                </form>
-              ) : (
-                <form onSubmit={submitOtp} className="space-y-5">
-                  <Input
-                    label="SMS Doğrulama Kodu"
-                    type="text"
-                    value={otpCode}
-                    onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
-                    placeholder="123456"
-                    autoFocus
-                    required
-                    disabled={loading}
-                    leftIcon={<Smartphone className="h-4 w-4" />}
-                  />
-
-                  {error && (
-                    <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-                      <AlertCircle className="h-4 w-4 shrink-0" />
-                      <span>{error}</span>
-                    </div>
-                  )}
-
-                  <Button type="submit" fullWidth size="lg" loading={loading}>
-                    {loading ? "Doğrulanıyor..." : "Girişi Tamamla"}
-                  </Button>
-
-                  <div className="flex items-center justify-between text-sm">
-                    <button
-                      type="button"
-                      onClick={resendOtp}
-                      disabled={resending}
-                      className="inline-flex items-center gap-1 font-medium text-cyan-700 transition hover:text-cyan-800 disabled:opacity-50"
-                    >
-                      <RefreshCw className={`h-4 w-4 ${resending ? "animate-spin" : ""}`} />
-                      {resending ? "Gönderiliyor..." : "Kodu tekrar gönder"}
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setStep("password");
-                        setOtpCode("");
-                        setChallengeId("");
-                        setError("");
-                      }}
-                      className="font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
-                    >
-                      Şifreye dön
-                    </button>
+              {otpFlowReady ? (
+                <>
+                  <div className="mb-6 text-center">
+                    <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                      Admin Doğrulama
+                    </h1>
+                    <p className="mt-2 text-slate-600 dark:text-slate-400">
+                      Telefonunuza gelen SMS kodunu girin.
+                    </p>
                   </div>
-                </form>
+                  <form onSubmit={submitOtp} className="space-y-5">
+                    <Input
+                      label="SMS Doğrulama Kodu"
+                      type="text"
+                      value={otpCode}
+                      onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, ""))}
+                      placeholder="123456"
+                      autoFocus
+                      required
+                      disabled={loading}
+                      leftIcon={<Smartphone className="h-4 w-4" />}
+                    />
+
+                    {error && (
+                      <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
+                        <AlertCircle className="h-4 w-4 shrink-0" />
+                        <span>{error}</span>
+                      </div>
+                    )}
+
+                    <Button type="submit" fullWidth size="lg" loading={loading}>
+                      {loading ? "Doğrulanıyor..." : "Girişi Tamamla"}
+                    </Button>
+                  </form>
+                </>
+              ) : (
+                <div className="space-y-5 text-center">
+                  <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+                    Doğrudan Admin Girişi Kapalı
+                  </h1>
+                  <p className="text-slate-600 dark:text-slate-400">
+                    Güvenlik nedeniyle admin girişi sadece işletme giriş ekranındaki gizli akıştan
+                    başlatılır.
+                  </p>
+                  <Link
+                    href="/dashboard/login"
+                    className="inline-flex rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-800"
+                  >
+                    İşletme Girişine Dön
+                  </Link>
+                </div>
               )}
 
               <p className="mt-6 text-center text-xs text-slate-500 dark:text-slate-400">
@@ -293,7 +162,7 @@ export default function AdminLoginPage() {
         </div>
       }
     >
-      <AdminLoginForm />
+      <AdminOtpBridge />
     </Suspense>
   );
 }

@@ -3,8 +3,12 @@
  */
 import { NextResponse } from "next/server";
 import { getTwilioVerifyStatus } from "@/lib/twilio";
+import { requireDebugAccess } from "@/lib/debug-auth";
 
 export async function GET() {
+  const blocked = await requireDebugAccess();
+  if (blocked) return blocked;
+
   const twilio = getTwilioVerifyStatus();
   const checks = {
     SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,

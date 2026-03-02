@@ -1,8 +1,12 @@
 import { NextResponse } from "next/server";
+import { requireDebugAccess } from "@/lib/debug-auth";
 
 const WHATSAPP_API = "https://graph.facebook.com/v22.0";
 
 export async function GET() {
+  const blocked = await requireDebugAccess();
+  if (blocked) return blocked;
+
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
 
@@ -60,4 +64,3 @@ export async function GET() {
     );
   }
 }
-

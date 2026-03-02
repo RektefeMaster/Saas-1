@@ -42,14 +42,16 @@ export function detectDeterministicIntent(message: string): DeterministicIntent 
 
   const cancelPatterns = [
     "iptal",
+    "iptal et",
+    "iptal edin",
+    "iptal eder misin",
+    "randevuyu iptal",
     "gelemeyecegim",
     "gelemicem",
     "gelemem",
     "gelmeyecegim",
     "vazgectim",
-    "baska zaman",
     "yetisemeyecegim",
-    "is cikt",
   ];
   if (cancelPatterns.some((p) => text.includes(p))) {
     return { type: "cancel" };

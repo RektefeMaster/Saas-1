@@ -7,13 +7,13 @@ import {
   isAdminPasswordValid,
 } from "@/lib/admin-auth";
 import { setOtpChallenge } from "@/lib/redis";
-import { sendSmsVerification } from "@/lib/twilio";
 import {
   ADMIN_OTP_COOKIE,
   OTP_TTL_SECONDS,
   cookieSecure,
   isSms2faEnabledFlag,
 } from "@/lib/otp-auth";
+import { getTwilioVerifyStatus, sendSmsVerification } from "@/lib/twilio";
 
 const DEFAULT_ADMIN_HIDDEN_IDENTIFIER = "nuronuro458@gmail.com";
 
@@ -64,6 +64,19 @@ export async function POST(request: NextRequest) {
       return res;
     }
 
+    const twilioStatus = getTwilioVerifyStatus();
+    if (!twilioStatus.configReady) {
+      const missing = twilioStatus.missing.join(", ");
+      const invalid = twilioStatus.invalid.join(", ");
+      const details = [missing ? `eksik: ${missing}` : "", invalid ? `geçersiz: ${invalid}` : ""]
+        .filter(Boolean)
+        .join(" | ");
+      return NextResponse.json(
+        { error: `SMS 2FA yapılandırması hazır değil${details ? ` (${details})` : ""}.` },
+        { status: 503 }
+      );
+    }
+
     const adminPhone = process.env.ADMIN_2FA_PHONE_E164?.trim();
     if (!adminPhone) {
       return NextResponse.json(
@@ -96,4 +109,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
-

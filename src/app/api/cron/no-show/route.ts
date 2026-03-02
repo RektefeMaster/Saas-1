@@ -3,9 +3,13 @@ import { supabase } from "@/lib/supabase";
 import { incrementNoShow } from "@/services/blacklist.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
 
-const CRON_SECRET = process.env.CRON_SECRET || "ahi_ai_cron";
+const CRON_SECRET = process.env.CRON_SECRET?.trim() || "";
 
 export async function GET(request: NextRequest) {
+  if (!CRON_SECRET) {
+    return NextResponse.json({ error: "CRON_SECRET tanımlı değil" }, { status: 503 });
+  }
+
   const auth = request.headers.get("authorization");
   if (
     auth !== `Bearer ${CRON_SECRET}` &&

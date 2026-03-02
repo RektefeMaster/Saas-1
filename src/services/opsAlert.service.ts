@@ -69,15 +69,19 @@ export async function resolveOpsAlert(
   tenantId: string,
   alertId: string
 ): Promise<{ ok: boolean; error?: string }> {
-  const { error } = await supabase
+  const { data, error } = await supabase
     .from("ops_alerts")
     .update({
       status: "resolved",
       resolved_at: new Date().toISOString(),
     })
     .eq("tenant_id", tenantId)
-    .eq("id", alertId);
+    .eq("id", alertId)
+    .select("id");
 
   if (error) return { ok: false, error: error.message };
+  if (!data || data.length === 0) {
+    return { ok: false, error: "Uyarı bulunamadı" };
+  }
   return { ok: true };
 }

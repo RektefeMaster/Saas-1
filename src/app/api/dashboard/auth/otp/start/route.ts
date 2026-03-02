@@ -1,13 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { supabase } from "@/lib/supabase";
 import { setOtpChallenge } from "@/lib/redis";
-import { sendSmsVerification } from "@/lib/twilio";
+import { getTwilioVerifyStatus, sendSmsVerification } from "@/lib/twilio";
 import { OTP_TTL_SECONDS, isSms2faEnabledFlag } from "@/lib/otp-auth";
 import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
 
-export async function POST(_request: NextRequest) {
+export async function POST() {
   try {
     const supabaseClient = await createClient();
     const {
@@ -20,6 +20,19 @@ export async function POST(_request: NextRequest) {
 
     if (!isSms2faEnabledFlag()) {
       return NextResponse.json({ success: true, requires_otp: false });
+    }
+
+    const twilioStatus = getTwilioVerifyStatus();
+    if (!twilioStatus.configReady) {
+      const missing = twilioStatus.missing.join(", ");
+      const invalid = twilioStatus.invalid.join(", ");
+      const details = [missing ? `eksik: ${missing}` : "", invalid ? `geçersiz: ${invalid}` : ""]
+        .filter(Boolean)
+        .join(" | ");
+      return NextResponse.json(
+        { error: `SMS 2FA yapılandırması hazır değil${details ? ` (${details})` : ""}.` },
+        { status: 503 }
+      );
     }
 
     const requestedColumns = ["id", "owner_phone_e164", "contact_phone", "security_config"];

@@ -5,7 +5,7 @@ import { sendWhatsAppTemplateMessage } from "@/lib/whatsapp";
 import { incrementNoShow } from "@/services/blacklist.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
 
-const CRON_SECRET = process.env.CRON_SECRET || "ahi_ai_cron";
+const CRON_SECRET = process.env.CRON_SECRET?.trim() || "";
 const REMINDER_TEMPLATE_NAME = process.env.WHATSAPP_REMINDER_TEMPLATE_NAME?.trim() || "";
 const TEMPLATE_LANG = process.env.WHATSAPP_TEMPLATE_LANG?.trim() || "tr";
 
@@ -31,6 +31,10 @@ async function sendReminderWithBestChannel(
 }
 
 export async function GET(request: NextRequest) {
+  if (!CRON_SECRET) {
+    return NextResponse.json({ error: "CRON_SECRET tanımlı değil" }, { status: 503 });
+  }
+
   const auth = request.headers.get("authorization");
   if (auth !== `Bearer ${CRON_SECRET}` && request.nextUrl.searchParams.get("key") !== CRON_SECRET) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
@@ -101,10 +105,13 @@ export async function GET(request: NextRequest) {
       .eq("status", "confirmed")
       .lt("slot_start", twoHoursAgo);
     if (noShowApts && noShowApts.length > 0) {
-      await supabase
+      const { error: noShowUpdateError } = await supabase
         .from("appointments")
         .update({ status: "no_show" })
         .in("id", noShowApts.map((a) => a.id));
+      if (noShowUpdateError) {
+        console.error("[cron] no-show update error:", noShowUpdateError.message);
+      } else {
       noShowMarked = noShowApts.length;
       for (const apt of noShowApts) {
         await incrementNoShow(apt.tenant_id, apt.customer_phone).catch((e) =>
@@ -119,6 +126,7 @@ export async function GET(request: NextRequest) {
           meta: { appointment_id: apt.id, source: "cron/reminders" },
           dedupeKey: `no_show:${apt.id}`,
         }).catch((e) => console.error("[cron] ops alert error:", e));
+      }
       }
     }
   } catch (e) {

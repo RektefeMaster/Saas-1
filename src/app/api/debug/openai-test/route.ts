@@ -4,8 +4,12 @@
  */
 import { NextResponse } from "next/server";
 import OpenAI from "openai";
+import { requireDebugAccess } from "@/lib/debug-auth";
 
 export async function GET() {
+  const blocked = await requireDebugAccess();
+  if (blocked) return blocked;
+
   const rawKey = process.env.OPENAI_API_KEY ?? "";
   const key = rawKey.replace(/\s/g, "").trim();
   const keyOk = key.length >= 20 && key.startsWith("sk-");

@@ -28,9 +28,13 @@ async function resolveDefaultTenant(): Promise<string | null> {
   return null;
 }
 
-const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN || "saasrandevu_verify";
+const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN?.trim() || "";
 
 export async function GET(request: NextRequest) {
+  if (!VERIFY_TOKEN) {
+    return new NextResponse("WHATSAPP_VERIFY_TOKEN missing", { status: 503 });
+  }
+
   const { searchParams } = new URL(request.url);
   const mode = searchParams.get("hub.mode");
   const token = searchParams.get("hub.verify_token");
@@ -49,10 +53,13 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get("x-hub-signature-256") ?? "";
   const secret = getWebhookSecret();
 
-  const rawBody = await request.text();
   if (!secret) {
-    console.warn("[webhook] WHATSAPP_WEBHOOK_SECRET tanımlı değil, imza doğrulama atlandı");
-  } else if (!verifyWebhookSignatureBody(Buffer.from(rawBody, "utf8"), signature, secret)) {
+    console.error("[webhook] WHATSAPP_WEBHOOK_SECRET tanımlı değil, istek reddedildi");
+    return new NextResponse("Webhook secret missing", { status: 503 });
+  }
+
+  const rawBody = await request.text();
+  if (!verifyWebhookSignatureBody(Buffer.from(rawBody, "utf8"), signature, secret)) {
     console.warn("[webhook] Invalid signature, rejecting request");
     return new NextResponse("Unauthorized", { status: 401 });
   }
