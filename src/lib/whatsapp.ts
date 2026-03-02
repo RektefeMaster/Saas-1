@@ -5,6 +5,15 @@ export interface SendMessageParams {
   text: string;
 }
 
+export interface WhatsAppSendResult {
+  ok: boolean;
+  status?: number;
+  errorCode?: number;
+  errorSubcode?: number;
+  errorMessage?: string;
+  to?: string;
+}
+
 export interface SendTemplateMessageParams {
   to: string;
   templateName: string;
@@ -17,18 +26,23 @@ export interface WhatsAppMediaPayload {
   mimeType: string;
 }
 
-export async function sendWhatsAppMessage({
+export async function sendWhatsAppMessageDetailed({
   to,
   text,
-}: SendMessageParams): Promise<boolean> {
+}: SendMessageParams): Promise<WhatsAppSendResult> {
   const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
   const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const normalizedTo = to.replace(/\D/g, "");
   if (!phoneId || !token) {
     console.error("[whatsapp] credentials missing - phoneId:", !!phoneId, "token:", !!token);
-    return false;
+    return {
+      ok: false,
+      status: 0,
+      errorMessage: "credentials_missing",
+      to: normalizedTo,
+    };
   }
 
-  const normalizedTo = to.replace(/\D/g, "");
   const url = `${WHATSAPP_API}/${phoneId}/messages`;
 
   const body = {
@@ -78,9 +92,24 @@ export async function sendWhatsAppMessage({
       );
     }
     console.error("[whatsapp] send error", res.status, "to", normalizedTo, raw);
-    return false;
+    return {
+      ok: false,
+      status: res.status,
+      errorCode: parsedError?.code,
+      errorSubcode: parsedError?.error_subcode,
+      errorMessage: parsedError?.message || raw,
+      to: normalizedTo,
+    };
   }
-  return true;
+  return { ok: true, status: res.status, to: normalizedTo };
+}
+
+export async function sendWhatsAppMessage({
+  to,
+  text,
+}: SendMessageParams): Promise<boolean> {
+  const result = await sendWhatsAppMessageDetailed({ to, text });
+  return result.ok;
 }
 
 export async function sendWhatsAppTemplateMessage({

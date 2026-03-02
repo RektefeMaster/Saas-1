@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processMessage } from "@/lib/ai";
-import { downloadWhatsAppMedia, sendWhatsAppMessage } from "@/lib/whatsapp";
+import {
+  downloadWhatsAppMedia,
+  sendWhatsAppMessage,
+  sendWhatsAppMessageDetailed,
+} from "@/lib/whatsapp";
 import {
   getTenantIdByPhone,
   setPhoneTenantMapping,
@@ -308,15 +312,19 @@ export async function POST(request: NextRequest) {
           }
 
           if (shouldSendQuickAck(rawText)) {
-            const ackSent = await sendWhatsAppMessage({
+            const ackResult = await sendWhatsAppMessageDetailed({
               to: customerPhone,
               text: "Mesajını aldım, hemen kontrol ediyorum.",
             });
             await setWebhookDebugRecord({
-              stage: ackSent ? "quick_ack_sent" : "quick_ack_failed",
+              stage: ackResult.ok ? "quick_ack_sent" : "quick_ack_failed",
               at: new Date().toISOString(),
               from: maskPhone(customerPhone),
               type: msgType,
+              send_status: ackResult.status ?? null,
+              send_error_code: ackResult.errorCode ?? null,
+              send_error_subcode: ackResult.errorSubcode ?? null,
+              send_error_message: (ackResult.errorMessage || "").slice(0, 180),
             });
           }
 
@@ -418,17 +426,24 @@ export async function POST(request: NextRequest) {
             const safeReply = (reply && String(reply).trim()) || "Anlamadım, tekrar yazar mısınız?";
             const prefixedReply = `*${tenantName}*\n${safeReply}`;
             console.log("[webhook] sending reply to", customerPhone);
-            const sent = await sendWhatsAppMessage({ to: customerPhone, text: prefixedReply });
-            console.log("[webhook] send result:", sent);
-            if (!sent) console.error("[webhook] WhatsApp send failed for", customerPhone);
+            const sendResult = await sendWhatsAppMessageDetailed({
+              to: customerPhone,
+              text: prefixedReply,
+            });
+            console.log("[webhook] send result:", sendResult.ok);
+            if (!sendResult.ok) console.error("[webhook] WhatsApp send failed for", customerPhone);
             await setWebhookDebugRecord({
-              stage: sent ? "message_replied" : "message_reply_failed",
+              stage: sendResult.ok ? "message_replied" : "message_reply_failed",
               at: new Date().toISOString(),
               from: maskPhone(customerPhone),
               type: msgType,
               tenant_id: tenantId,
               routing_reason: routingReason,
               preview: normalizedText.slice(0, 80),
+              send_status: sendResult.status ?? null,
+              send_error_code: sendResult.errorCode ?? null,
+              send_error_subcode: sendResult.errorSubcode ?? null,
+              send_error_message: (sendResult.errorMessage || "").slice(0, 180),
             });
           } catch (err) {
             console.error("[webhook] Error processing message:", err);
