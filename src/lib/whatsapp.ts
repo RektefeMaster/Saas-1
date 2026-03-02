@@ -6,7 +6,8 @@ function normalizeSecretValue(value: string | undefined): string {
   if (!value) return "";
   const trimmed = value.trim();
   const unquoted = trimmed.replace(/^['"]|['"]$/g, "");
-  return unquoted.replace(/\s+/g, "");
+  const withoutBearer = unquoted.replace(/^bearer\s+/i, "");
+  return withoutBearer.replace(/\s+/g, "");
 }
 
 function normalizePlainValue(value: string | undefined): string {
