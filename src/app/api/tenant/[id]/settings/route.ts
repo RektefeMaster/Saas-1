@@ -6,6 +6,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
+import { logTenantEvent } from "@/services/eventLog.service";
 
 const REMINDER_OPTIONS = ["off", "customer_only", "merchant_only", "both"] as const;
 
@@ -181,6 +182,18 @@ export async function PATCH(
     if (data && missingColumns.has("ui_preferences") && data.ui_preferences === undefined) {
       data.ui_preferences = {};
     }
+
+    await logTenantEvent({
+      tenantId: id,
+      eventType: "tenant.settings.updated",
+      actor: "tenant",
+      entityType: "tenant",
+      entityId: id,
+      payload: {
+        keys: Object.keys(body || {}),
+      },
+    });
+
     return NextResponse.json(data);
   } catch (err) {
     console.error("[tenant settings PATCH]", err);

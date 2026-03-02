@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState, useCallback } from "react";
+import { motion, useScroll, useTransform } from "motion/react";
+import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 interface Appointment {
   id: string;
@@ -82,6 +84,35 @@ interface OpsAlert {
   created_at: string;
 }
 
+interface CommandCenterAction {
+  id: string;
+  title: string;
+  description: string;
+  severity: "low" | "medium" | "high";
+  cta_label: string;
+  cta_endpoint: string;
+  estimated_impact_try: number;
+}
+
+interface CommandCenterSnapshot {
+  tenant_id: string;
+  generated_at: string;
+  blueprint_slug: string;
+  kpis: {
+    monthly_revenue_try: number;
+    monthly_appointments: number;
+    no_show_rate_pct: number;
+    cancellation_rate_pct: number;
+    fill_rate_pct: number;
+    avg_ticket_try: number;
+    at_risk_customers: number;
+    open_ops_alerts: number;
+    avg_rating: number;
+    north_star_ai_revenue_try: number;
+  };
+  actions: CommandCenterAction[];
+}
+
 const DAY_NAMES = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
 
 function getWeekDates(anchor: Date): string[] {
@@ -147,6 +178,9 @@ export default function EsnafDashboard({
   const [botSettingsError, setBotSettingsError] = useState("");
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [commandCenter, setCommandCenter] = useState<CommandCenterSnapshot | null>(null);
+  const [commandCenterLoading, setCommandCenterLoading] = useState(false);
+  const [runningActionId, setRunningActionId] = useState<string | null>(null);
 
   const copyCode = useCallback(() => {
     if (!tenant?.tenant_code) return;
@@ -154,6 +188,14 @@ export default function EsnafDashboard({
     setCodeCopied(true);
     setTimeout(() => setCodeCopied(false), 2000);
   }, [tenant?.tenant_code]);
+
+  const { scrollY } = useScroll();
+  const headerY = useTransform(scrollY, [0, 120], [0, -12]);
+  const headerShadow = useTransform(
+    scrollY,
+    [0, 80],
+    ["0 1px 3px 0 rgb(0 0 0 / 0.05)", "0 4px 12px -2px rgb(0 0 0 / 0.08)"]
+  );
 
   useEffect(() => {
     params.then(setResolvedParams);
@@ -340,6 +382,49 @@ export default function EsnafDashboard({
     return () => clearInterval(interval);
   }, [tenantId, fetchOpsAlerts]);
 
+  const fetchCommandCenter = useCallback(async () => {
+    if (!tenantId) return;
+    setCommandCenterLoading(true);
+    try {
+      const res = await fetch(`${baseUrl}/api/tenant/${tenantId}/command-center`);
+      if (!res.ok) return;
+      const data = (await res.json().catch(() => null)) as CommandCenterSnapshot | null;
+      if (data && typeof data === "object" && data.kpis) {
+        setCommandCenter(data);
+      }
+    } finally {
+      setCommandCenterLoading(false);
+    }
+  }, [tenantId, baseUrl]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    fetchCommandCenter();
+    const interval = setInterval(fetchCommandCenter, 30000);
+    return () => clearInterval(interval);
+  }, [tenantId, fetchCommandCenter]);
+
+  const runCommandAction = async (action: CommandCenterAction) => {
+    if (!tenantId) return;
+    setRunningActionId(action.id);
+    try {
+      if (action.id === "reactivation" || action.id === "slot_fill" || action.id === "no_show_mitigation") {
+        await fetch(`${baseUrl}/api/tenant/${tenantId}/automation/reactivation`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ mode: "queue", limit: 20, days: 45 }),
+        });
+      } else if (action.id === "reputation_recovery") {
+        await fetch(`${baseUrl}/api/tenant/${tenantId}/reputation/summary`);
+      } else {
+        await fetch(action.cta_endpoint);
+      }
+      await Promise.all([fetchCommandCenter(), fetchOpsAlerts()]);
+    } finally {
+      setRunningActionId(null);
+    }
+  };
+
   const handleResolveAlert = async (alertId: string) => {
     if (!tenantId) return;
     setResolvingAlertId(alertId);
@@ -502,8 +587,11 @@ export default function EsnafDashboard({
 
   return (
     <div className="min-h-screen bg-slate-50">
-      {/* Header */}
-      <header className="sticky top-0 z-10 border-b border-slate-200 bg-white shadow-sm">
+      {/* Header — hafif parallax + gölge scroll ile artar */}
+      <motion.header
+        style={{ y: headerY, boxShadow: headerShadow }}
+        className="sticky top-0 z-10 border-b border-slate-200 bg-white"
+      >
         <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -569,10 +657,93 @@ export default function EsnafDashboard({
             </div>
           </div>
         </div>
-      </header>
+      </motion.header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
-        <section className="mb-6 rounded-2xl border border-red-200 bg-white p-4 shadow-sm">
+        <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6">
+          <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+                Command Center
+              </h2>
+              <p className="mt-1 text-xs text-slate-500">
+                Gelir ve operasyon aksiyonlarinizi buradan yonetin.
+              </p>
+            </div>
+            {commandCenterLoading && (
+              <span className="text-xs text-slate-500">Yenileniyor...</span>
+            )}
+          </div>
+
+          {!commandCenter ? (
+            <p className="text-sm text-slate-500">Command center verisi aliniyor...</p>
+          ) : (
+            <>
+              <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="rounded-xl bg-slate-100 px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase text-slate-500">Aylik Ciro</p>
+                  <p className="text-lg font-bold text-slate-900">
+                    {commandCenter.kpis.monthly_revenue_try.toLocaleString("tr-TR")} TL
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-100 px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase text-slate-500">Doluluk</p>
+                  <p className="text-lg font-bold text-slate-900">
+                    %{commandCenter.kpis.fill_rate_pct}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-100 px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase text-slate-500">No-show</p>
+                  <p className="text-lg font-bold text-slate-900">
+                    %{commandCenter.kpis.no_show_rate_pct}
+                  </p>
+                </div>
+                <div className="rounded-xl bg-slate-100 px-3 py-2">
+                  <p className="text-[11px] font-semibold uppercase text-slate-500">Riskte Musteri</p>
+                  <p className="text-lg font-bold text-slate-900">
+                    {commandCenter.kpis.at_risk_customers}
+                  </p>
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                {commandCenter.actions.length === 0 ? (
+                  <p className="text-sm text-slate-500">Bugun icin kritik aksiyon bulunmuyor.</p>
+                ) : (
+                  commandCenter.actions.map((action) => (
+                    <div
+                      key={action.id}
+                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
+                    >
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{action.title}</p>
+                        <p className="text-xs text-slate-600">{action.description}</p>
+                        {action.estimated_impact_try > 0 && (
+                          <p className="mt-1 text-xs font-medium text-emerald-700">
+                            Tahmini etki: {action.estimated_impact_try.toLocaleString("tr-TR")} TL
+                          </p>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => runCommandAction(action)}
+                        disabled={runningActionId === action.id}
+                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                      >
+                        {runningActionId === action.id ? "Calisiyor..." : action.cta_label}
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+            </>
+          )}
+          </section>
+        </ScrollReveal>
+
+        <ScrollReveal variant="fadeUp" delay={0.08} as="section" className="mb-6">
+        <section className="rounded-2xl border border-red-200 bg-white p-4 shadow-sm">
           <div className="mb-3 flex items-center justify-between">
             <h2 className="text-sm font-semibold uppercase tracking-wide text-red-700">
               Operasyon Uyarıları
@@ -612,8 +783,10 @@ export default function EsnafDashboard({
             </div>
           )}
         </section>
+        </ScrollReveal>
 
-        <div className="mb-6">
+        <ScrollReveal variant="fadeUp" delay={0.12} className="mb-6">
+        <div>
           <button
             type="button"
             onClick={() => setShowSettingsPanel((v) => !v)}
@@ -625,6 +798,7 @@ export default function EsnafDashboard({
             <span className="text-sm text-slate-500">{showSettingsPanel ? "Gizle" : "Göster"}</span>
           </button>
         </div>
+        </ScrollReveal>
 
         {showSettingsPanel && (
         <div className="mb-8 space-y-6">
@@ -904,7 +1078,8 @@ export default function EsnafDashboard({
         )}
 
         {/* Haftalık takvim */}
-        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <ScrollReveal variant="fadeUp" delay={0.05} as="section" className="mb-6">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-4 flex items-center justify-between">
             <h3 className="font-semibold text-slate-900">📅 Tarih seç</h3>
             <div className="flex gap-2">
@@ -966,9 +1141,11 @@ export default function EsnafDashboard({
             })}
           </div>
         </section>
+        </ScrollReveal>
 
         {selectedDate && (
-          <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <ScrollReveal variant="slideLeft" delay={0} as="section" className="mb-6">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="mb-4 font-semibold capitalize text-slate-900">
               {new Date(selectedDate + "T12:00:00").toLocaleDateString("tr-TR", {
                 weekday: "long",
@@ -1005,6 +1182,7 @@ export default function EsnafDashboard({
               </div>
             )}
           </section>
+          </ScrollReveal>
         )}
 
         {showAdd && (
@@ -1055,6 +1233,7 @@ export default function EsnafDashboard({
         )}
 
         {/* Yaklaşan randevular */}
+        <ScrollReveal variant="fadeUp" delay={0.1} as="section" className="mb-6">
         <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
           <h3 className="border-b border-slate-100 px-5 py-4 font-semibold text-slate-900">📋 Yaklaşan randevular</h3>
           {loading ? (
@@ -1115,8 +1294,10 @@ export default function EsnafDashboard({
             </div>
           )}
         </section>
+        </ScrollReveal>
 
-        <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+        <ScrollReveal variant="fadeUp" delay={0.06} as="section" className="mt-8">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <h3 className="mb-3 font-semibold text-slate-900">🏖️ Tatil / İzin Günleri</h3>
           {blockedDates.length > 0 && (
             <ul className="mb-4 space-y-2">
@@ -1184,9 +1365,11 @@ export default function EsnafDashboard({
             </form>
           )}
         </section>
+        </ScrollReveal>
 
         {reviews && (
-          <section className="mt-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <ScrollReveal variant="scale" delay={0} as="section" className="mt-6">
+          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="mb-3 font-semibold text-slate-900">⭐ Değerlendirmeler</h3>
             <p className="mb-3 text-sm text-slate-600">
               Ortalama: <span className="font-semibold text-amber-600">{reviews.avgRating} ⭐</span> ({reviews.totalCount} yorum)
@@ -1202,6 +1385,7 @@ export default function EsnafDashboard({
               </ul>
             )}
           </section>
+          </ScrollReveal>
         )}
       </main>
     </div>

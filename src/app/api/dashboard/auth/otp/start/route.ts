@@ -12,7 +12,14 @@ async function findTenantByUserId(userId: string): Promise<{
   tenant: Record<string, unknown> | null;
   missingColumns: Set<string>;
 }> {
-  const requestedColumns = ["id", "owner_phone_e164", "contact_phone", "security_config"];
+  const requestedColumns = [
+    "id",
+    "user_id",
+    "owner_username",
+    "owner_phone_e164",
+    "contact_phone",
+    "security_config",
+  ];
   let selectColumns = [...requestedColumns];
   const missingColumns = new Set<string>();
   for (let i = 0; i < requestedColumns.length; i++) {
@@ -36,6 +43,63 @@ async function findTenantByUserId(userId: string): Promise<{
     missingColumns.add(missing.column);
   }
   return { tenant: null, missingColumns };
+}
+
+async function findTenantByOwnerUsername(ownerUsername: string): Promise<{
+  tenant: Record<string, unknown> | null;
+  missingColumns: Set<string>;
+}> {
+  const requestedColumns = [
+    "id",
+    "user_id",
+    "owner_username",
+    "owner_phone_e164",
+    "contact_phone",
+    "security_config",
+  ];
+  let selectColumns = [...requestedColumns];
+  const missingColumns = new Set<string>();
+  for (let i = 0; i < requestedColumns.length; i++) {
+    const result = await supabase
+      .from("tenants")
+      .select(selectColumns.join(", "))
+      .eq("owner_username", ownerUsername)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!result.error) {
+      return {
+        tenant: (result.data ?? null) as Record<string, unknown> | null,
+        missingColumns,
+      };
+    }
+    const missing = extractMissingSchemaColumn(result.error);
+    if (!missing || missing.table !== "tenants" || !selectColumns.includes(missing.column)) {
+      return { tenant: null, missingColumns };
+    }
+    selectColumns = selectColumns.filter((c) => c !== missing.column);
+    missingColumns.add(missing.column);
+  }
+  return { tenant: null, missingColumns };
+}
+
+async function syncTenantAuthLink(
+  tenant: Record<string, unknown>,
+  userId: string,
+  ownerUsername: string | null
+): Promise<void> {
+  const tenantId = typeof tenant.id === "string" ? tenant.id : null;
+  if (!tenantId) return;
+
+  const updates: Record<string, unknown> = {};
+  if (tenant.user_id !== userId) {
+    updates.user_id = userId;
+  }
+  if (ownerUsername && (typeof tenant.owner_username !== "string" || !tenant.owner_username)) {
+    updates.owner_username = ownerUsername;
+  }
+
+  if (Object.keys(updates).length === 0) return;
+  await supabase.from("tenants").update(updates).eq("id", tenantId);
 }
 
 export async function POST() {
@@ -67,23 +131,23 @@ export async function POST() {
     }
 
     let { tenant, missingColumns } = await findTenantByUserId(user.id);
+    const ownerUsernameFromEmail = user.email
+      ? (() => {
+          const ownerUsernameRaw = loginEmailToUsernameDisplay(user.email);
+          if (!ownerUsernameRaw || ownerUsernameRaw === user.email) return null;
+          return normalizeUsername(ownerUsernameRaw);
+        })()
+      : null;
 
     // user_id eşleşmezse owner_username ile dene (tenant.owner_username küçük harfle saklanıyor)
-    if (!tenant && user.email) {
-      const ownerUsernameRaw = loginEmailToUsernameDisplay(user.email);
-      if (ownerUsernameRaw && ownerUsernameRaw !== user.email) {
-        const ownerUsername = normalizeUsername(ownerUsernameRaw);
-        const res = await supabase
-          .from("tenants")
-          .select("id, owner_phone_e164, contact_phone, security_config")
-          .eq("owner_username", ownerUsername)
-          .is("deleted_at", null)
-          .maybeSingle();
-        if (!res.error && res.data) {
-          tenant = res.data as Record<string, unknown>;
-          missingColumns = new Set();
-        }
-      }
+    if (!tenant && ownerUsernameFromEmail) {
+      const byOwner = await findTenantByOwnerUsername(ownerUsernameFromEmail);
+      tenant = byOwner.tenant;
+      missingColumns = byOwner.missingColumns;
+    }
+
+    if (tenant) {
+      await syncTenantAuthLink(tenant, user.id, ownerUsernameFromEmail);
     }
 
     if (!tenant) {

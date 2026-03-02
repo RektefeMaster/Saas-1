@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { logTenantEvent } from "@/services/eventLog.service";
 
 function normalizePhone(input: string): string {
   return input.replace(/\s+/g, "").trim();
@@ -55,6 +56,17 @@ export async function POST(
       },
       { onConflict: "tenant_id,customer_phone" }
     );
+
+  await logTenantEvent({
+    tenantId,
+    eventType: "crm.note.created",
+    actor: body.created_by?.trim() || "tenant",
+    entityType: "crm_note",
+    entityId: created.id,
+    payload: {
+      customer_phone: customerPhone,
+    },
+  });
 
   return NextResponse.json(created, { status: 201 });
 }

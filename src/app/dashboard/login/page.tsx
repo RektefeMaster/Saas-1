@@ -13,6 +13,9 @@ function getErrorMessage(error: { message?: string; description?: string } | nul
   const raw = error?.message ?? (error as { description?: string })?.description ?? "";
   if (!raw || typeof raw !== "string") return "Kullanıcı adı veya şifre hatalı.";
   const msg = raw.toLowerCase();
+  if (msg.includes("invalid api key") || msg.includes("apikey")) {
+    return "Sistem yapılandırma hatası: Supabase istemci anahtarı geçersiz. Lütfen yönetici ile iletişime geçin.";
+  }
   if (
     msg.includes("invalid login credentials") ||
     msg.includes("invalid_credentials") ||
@@ -75,38 +78,31 @@ export default function DashboardLoginPage() {
       const identifier = username.trim().toLowerCase();
 
       // Gizli admin girişi (publicte görünmez, sadece bilen kullanır)
-      const hiddenAdminRes = await fetch("/api/admin/auth/hidden", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, password }),
-      });
-      const hiddenAdminData = (await hiddenAdminRes.json().catch(() => ({}))) as {
-        requires_otp?: boolean;
-        challenge_id?: string;
-        error?: string;
-      };
-      if (hiddenAdminRes.ok) {
-        if (hiddenAdminData.requires_otp && hiddenAdminData.challenge_id) {
-          router.push(
-            `/admin/login?from=${encodeURIComponent(
-              "/admin"
-            )}&mode=otp&challenge=${encodeURIComponent(hiddenAdminData.challenge_id)}`
-          );
+      try {
+        const hiddenAdminRes = await fetch("/api/admin/auth/hidden", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ identifier, password }),
+        });
+        const hiddenAdminData = (await hiddenAdminRes.json().catch(() => ({}))) as {
+          requires_otp?: boolean;
+          challenge_id?: string;
+        };
+        if (hiddenAdminRes.ok) {
+          if (hiddenAdminData.requires_otp && hiddenAdminData.challenge_id) {
+            router.push(
+              `/admin/login?from=${encodeURIComponent(
+                "/admin"
+              )}&mode=otp&challenge=${encodeURIComponent(hiddenAdminData.challenge_id)}`
+            );
+            return;
+          }
+          router.push("/admin");
+          router.refresh();
           return;
         }
-        router.push("/admin");
-        router.refresh();
-        return;
-      }
-      if (hiddenAdminRes.status === 401) {
-        setError(hiddenAdminData.error || "Kullanıcı adı veya şifre hatalı.");
-        setLoading(false);
-        return;
-      }
-      if (!hiddenAdminRes.ok && hiddenAdminRes.status !== 404) {
-        setError(hiddenAdminData.error || "Bir hata oluştu, tekrar deneyin.");
-        setLoading(false);
-        return;
+      } catch {
+        // Hidden admin endpoint erişilemiyorsa tenant login akışına devam et
       }
 
       const supabase = createClient();

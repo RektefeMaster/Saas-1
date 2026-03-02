@@ -6,6 +6,7 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { cancelAppointment } from "@/services/cancellation.service";
+import { logTenantEvent } from "@/services/eventLog.service";
 
 export async function POST(
   request: NextRequest,
@@ -40,6 +41,19 @@ export async function POST(
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
+
+    await logTenantEvent({
+      tenantId: id,
+      eventType: "appointment.cancelled",
+      actor: cancelled_by,
+      entityType: "appointment",
+      entityId: appointment_id,
+      payload: {
+        reason: reason || null,
+        source: "cancel_api",
+      },
+    });
+
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[cancel POST]", err);

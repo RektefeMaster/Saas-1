@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { logTenantEvent } from "@/services/eventLog.service";
 
 const VALID_STATUSES = ["pending", "confirmed", "completed", "cancelled", "no_show"] as const;
 
@@ -54,6 +55,17 @@ export async function PATCH(
       // CRM güncellemesi başarısız olsa da status geçişi başarılı kalmalı.
     }
   }
+
+  await logTenantEvent({
+    tenantId,
+    eventType: "appointment.status.updated",
+    actor: "tenant",
+    entityType: "appointment",
+    entityId: appointmentId,
+    payload: {
+      status: body.status,
+    },
+  });
 
   return NextResponse.json(data);
 }

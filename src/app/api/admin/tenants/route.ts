@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
+import { extractMissingSchemaColumn, extractMissingSchemaTable } from "@/lib/postgrest-schema";
 import {
   isValidUsername,
   normalizeUsername,
   usernameToLoginEmail,
 } from "@/lib/username-auth";
 import type { AdminTenantWizardPayload } from "@/types/dashboard-v2.types";
+import { detectBlueprintSlug } from "@/services/blueprint.service";
 
 function slugify(value: string): string {
   return value
@@ -116,6 +117,15 @@ export async function POST(request: NextRequest) {
   const code = String(tenant_code).toUpperCase().trim();
   const loginEmail = legacyEmail || usernameToLoginEmail(ownerUsername);
   let userId: string | null = null;
+  const { data: businessTypeMeta } = await supabase
+    .from("business_types")
+    .select("slug, name")
+    .eq("id", business_type_id)
+    .maybeSingle();
+  const blueprintSlug = detectBlueprintSlug(
+    businessTypeMeta?.slug || null,
+    businessTypeMeta?.name || null
+  );
 
   try {
     // 1) Kullanıcı adı çakışıyor mu (kolon mevcutsa) kontrol et
@@ -443,6 +453,98 @@ export async function POST(request: NextRequest) {
       }
     }
 
+    // 10) Master CRM bootstrap (ignore safely when migration 016 is not applied)
+    const bootstrapWarnings: string[] = [];
+    const isHealthcare = blueprintSlug === "dental-esthetic";
+    const nowIso = new Date().toISOString();
+
+    const blueprintInit = await supabase
+      .from("tenant_blueprint_overrides")
+      .upsert(
+        {
+          tenant_id: tenant.id,
+          blueprint_slug: blueprintSlug,
+          modules: {
+            command_center: true,
+            smart_calendar: true,
+            crm360: true,
+            revenue_os: true,
+            retention_automation: true,
+            ops_intelligence: true,
+          },
+          kpi_targets: {
+            no_show_rate_pct: 8,
+            fill_rate_pct: 70,
+          },
+          automation_defaults: {
+            reactivation_days: isHealthcare ? 60 : 35,
+            review_request_delay_hours: isHealthcare ? 2 : 1,
+          },
+          resource_templates: {},
+          updated_at: nowIso,
+        },
+        { onConflict: "tenant_id" }
+      );
+    const missingBlueprint = extractMissingSchemaTable(blueprintInit.error);
+    if (
+      blueprintInit.error &&
+      missingBlueprint !== "tenant_blueprint_overrides"
+    ) {
+      bootstrapWarnings.push(`Blueprint bootstrap: ${blueprintInit.error.message}`);
+    }
+
+    const complianceInit = await supabase
+      .from("compliance_profiles")
+      .upsert(
+        {
+          tenant_id: tenant.id,
+          country_code: "TR",
+          kvkk_mode: true,
+          gdpr_ready: true,
+          healthcare_mode: isHealthcare,
+          data_retention_days: isHealthcare ? 3650 : 365,
+          config: {},
+          updated_at: nowIso,
+        },
+        { onConflict: "tenant_id" }
+      );
+    const missingCompliance = extractMissingSchemaTable(complianceInit.error);
+    if (
+      complianceInit.error &&
+      missingCompliance !== "compliance_profiles"
+    ) {
+      bootstrapWarnings.push(`Compliance bootstrap: ${complianceInit.error.message}`);
+    }
+
+    const automationInit = await supabase.from("automation_rules").upsert(
+      [
+        {
+          tenant_id: tenant.id,
+          rule_type: "reactivation",
+          status: "active",
+          config: { days: isHealthcare ? 60 : 35, channel: "both" },
+          next_run_at: null,
+          updated_at: nowIso,
+        },
+        {
+          tenant_id: tenant.id,
+          rule_type: "review_booster",
+          status: "active",
+          config: { delay_hours: isHealthcare ? 2 : 1, channel: "whatsapp" },
+          next_run_at: null,
+          updated_at: nowIso,
+        },
+      ],
+      { onConflict: "tenant_id,rule_type" }
+    );
+    const missingAutomation = extractMissingSchemaTable(automationInit.error);
+    if (
+      automationInit.error &&
+      missingAutomation !== "automation_rules"
+    ) {
+      bootstrapWarnings.push(`Automation bootstrap: ${automationInit.error.message}`);
+    }
+
     return NextResponse.json({
       ...tenant,
       message: "İşletme ve kullanıcı başarıyla oluşturuldu",
@@ -454,6 +556,7 @@ export async function POST(request: NextRequest) {
               ).join(", ")}`,
             ]
           : [],
+      bootstrap_warnings: bootstrapWarnings,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Bilinmeyen hata";

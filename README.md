@@ -76,6 +76,13 @@ npm run dev
 - `/api/webhook/twilio/voice` - Twilio Voice webhook
 - `/api/tenant/[id]/appointments/hold` - Slotu geçici kilitleme (3 dk sepet)
 - `/api/tenant/[id]/ops-alerts` - Operasyon uyarıları (delay / cancellation / no-show)
+- `/api/tenant/[id]/command-center` - Gelir/operasyon KPI snapshot + aksiyon önerileri
+- `/api/tenant/[id]/blueprint` - Sektörel blueprint ve tenant override yönetimi
+- `/api/tenant/[id]/resources` - Kaynak birimleri (koltuk, oda, doktor, lift vb.) yönetimi
+- `/api/tenant/[id]/revenue/events` - Revenue event ledger (manuel/appointment/package)
+- `/api/tenant/[id]/revenue/summary` - Revenue toplam/kanal kırılım özeti
+- `/api/tenant/[id]/automation/reactivation` - Geri kazanım adayları ve kampanya kuyruklama
+- `/api/tenant/[id]/reputation/summary` - Yorum/itibar ve kurtarma aksiyon özeti
 - `/api/cron/reminders` - 24 saat önce randevu hatırlatma (cron)
 - `/api/debug/env-check` - Çalışma ortamı değişken kontrolü
 - `/api/debug/whatsapp-health` - WhatsApp token/phone-id canlı sağlık kontrolü

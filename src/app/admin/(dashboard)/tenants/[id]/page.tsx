@@ -36,6 +36,7 @@ export default function TenantDetailPage() {
   const [assets, setAssets] = useState<SharePackage | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
@@ -61,11 +62,27 @@ export default function TenantDetailPage() {
   const handleDelete = async () => {
     if (!confirm("Bu işletmeyi silmek istediğinize emin misiniz?")) return;
     setDeleting(true);
+    setDeleteError(null);
     try {
-      const res = await fetch(`/api/admin/tenants/${id}?soft=true`, {
+      const res = await fetch(`/api/admin/tenants/${id}?soft=false&purge_auth=true`, {
         method: "DELETE",
       });
-      if (res.ok) router.push("/admin/tenants");
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        auth_delete_warning?: string | null;
+      };
+      if (!res.ok) {
+        throw new Error(payload.error || "İşletme silinemedi");
+      }
+      if (payload.auth_delete_warning) {
+        setDeleteError(
+          `İşletme silindi ancak auth kullanıcı silinemedi: ${payload.auth_delete_warning}`
+        );
+      }
+      router.push("/admin/tenants");
+      router.refresh();
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "İşletme silinemedi");
     } finally {
       setDeleting(false);
     }
@@ -133,6 +150,11 @@ export default function TenantDetailPage() {
             </button>
           </div>
         </div>
+        {deleteError && (
+          <p className="mt-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300">
+            {deleteError}
+          </p>
+        )}
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">

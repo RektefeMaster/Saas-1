@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { reserveAppointment } from "@/services/booking.service";
+import { logTenantEvent } from "@/services/eventLog.service";
 
 export async function GET(
   request: NextRequest,
@@ -132,6 +133,20 @@ export async function POST(
   } catch {
     // CRM upsert başarısız olsa da randevu kaydı başarılı kalmalı.
   }
+
+  await logTenantEvent({
+    tenantId: id,
+    eventType: "appointment.created",
+    actor: "tenant",
+    entityType: "appointment",
+    entityId: String(data.id),
+    payload: {
+      customer_phone: data.customer_phone,
+      slot_start: data.slot_start,
+      service_slug: data.service_slug,
+      source: "dashboard_api",
+    },
+  });
 
   return NextResponse.json(data);
 }

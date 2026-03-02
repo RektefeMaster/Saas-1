@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
 import { DASHBOARD_OTP_COOKIE, isSms2faEnabledFlag } from "@/lib/otp-auth";
+import { loginEmailToUsernameDisplay, normalizeUsername } from "@/lib/username-auth";
 
 const ADMIN_COOKIE = "admin_session";
 const SUPABASE_TENANTS_REST_PATH = "/rest/v1/tenants";
@@ -61,7 +62,8 @@ function createMiddlewareSupabase(request: NextRequest) {
 
 async function isTenantOwnedByUser(
   tenantId: string,
-  userId: string
+  userId: string,
+  userEmail: string | null | undefined
 ): Promise<"owned" | "forbidden" | "error"> {
   const baseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() || "";
   const serviceRole = process.env.SUPABASE_SERVICE_ROLE_KEY?.trim() || "";
@@ -69,30 +71,51 @@ async function isTenantOwnedByUser(
     return "error";
   }
 
-  const url = new URL(SUPABASE_TENANTS_REST_PATH, baseUrl);
-  url.searchParams.set("select", "id");
-  url.searchParams.set("id", `eq.${tenantId}`);
-  url.searchParams.set("user_id", `eq.${userId}`);
-  url.searchParams.set("deleted_at", "is.null");
+  const checkOwnershipByColumn = async (
+    column: "user_id" | "owner_username",
+    value: string
+  ): Promise<"owned" | "forbidden" | "error"> => {
+    const url = new URL(SUPABASE_TENANTS_REST_PATH, baseUrl);
+    url.searchParams.set("select", "id");
+    url.searchParams.set("id", `eq.${tenantId}`);
+    url.searchParams.set(column, `eq.${value}`);
+    url.searchParams.set("deleted_at", "is.null");
 
-  const res = await fetch(url.toString(), {
-    method: "GET",
-    headers: {
-      apikey: serviceRole,
-      Authorization: `Bearer ${serviceRole}`,
-      "Content-Type": "application/json",
-    },
-    cache: "no-store",
-  });
+    const res = await fetch(url.toString(), {
+      method: "GET",
+      headers: {
+        apikey: serviceRole,
+        Authorization: `Bearer ${serviceRole}`,
+        "Content-Type": "application/json",
+      },
+      cache: "no-store",
+    });
 
-  if (!res.ok) {
-    const payload = await res.text().catch(() => "");
-    console.error("[proxy] tenant ownership check failed:", res.status, payload);
-    return "error";
+    if (!res.ok) {
+      const payload = await res.text().catch(() => "");
+      console.error("[proxy] tenant ownership check failed:", column, res.status, payload);
+      return "error";
+    }
+
+    const rows = (await res.json().catch(() => [])) as Array<{ id?: string }>;
+    return Array.isArray(rows) && rows.length > 0 ? "owned" : "forbidden";
+  };
+
+  const byUserId = await checkOwnershipByColumn("user_id", userId);
+  if (byUserId === "owned" || byUserId === "error") return byUserId;
+
+  if (userEmail) {
+    const ownerUsernameRaw = loginEmailToUsernameDisplay(userEmail);
+    const ownerUsername =
+      ownerUsernameRaw && ownerUsernameRaw !== userEmail
+        ? normalizeUsername(ownerUsernameRaw)
+        : null;
+    if (ownerUsername) {
+      return checkOwnershipByColumn("owner_username", ownerUsername);
+    }
   }
 
-  const rows = (await res.json().catch(() => [])) as Array<{ id?: string }>;
-  return Array.isArray(rows) && rows.length > 0 ? "owned" : "forbidden";
+  return "forbidden";
 }
 
 export async function proxy(request: NextRequest) {
@@ -173,7 +196,7 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    const ownership = await isTenantOwnedByUser(tenantId, user.id);
+    const ownership = await isTenantOwnedByUser(tenantId, user.id, user.email);
     if (ownership === "error") {
       return NextResponse.json(
         { error: "Tenant erişim doğrulaması yapılamadı" },
