@@ -105,7 +105,20 @@ export default function DashboardLoginPage() {
         // Hidden admin endpoint erişilemiyorsa tenant login akışına devam et
       }
 
-      const supabase = createClient();
+      let supabase;
+      try {
+        supabase = createClient();
+      } catch (configError) {
+        const configMsg = configError instanceof Error ? configError.message : String(configError);
+        if (configMsg.includes("Supabase yapılandırması")) {
+          setError("Sistem yapılandırma hatası: Supabase istemci anahtarı geçersiz. Lütfen yönetici ile iletişime geçin.");
+        } else {
+          setError("Sistem yapılandırma hatası. Lütfen yönetici ile iletişime geçin.");
+        }
+        setLoading(false);
+        return;
+      }
+
       // İşletme girişi: sadece kullanıcı adı → sistem e-postasına çevriliyor
       const emailForAuth = usernameToLoginEmail(identifier);
       const { error: signInError } = await supabase.auth.signInWithPassword({
