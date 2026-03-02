@@ -1,8 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { generateWhatsAppLink } from "@/utils/generateTenantAssets";
-
-const BASE_URL = process.env.NEXT_PUBLIC_APP_URL || "https://ahi-ai.com";
+import { getAppBaseUrl } from "@/lib/app-url";
 
 export async function GET(
   request: NextRequest,
@@ -33,6 +32,6 @@ export async function GET(
     whatsapp_url: whatsappUrl,
     tenant_name: tenant.name,
     tenant_code: tenant.tenant_code,
-    qr_api: `${BASE_URL}/api/tenant/${id}/qr`,
+    qr_api: `${getAppBaseUrl()}/api/tenant/${id}/qr`,
   });
 }

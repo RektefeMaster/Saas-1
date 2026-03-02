@@ -9,7 +9,8 @@ import {
   type ReactNode,
 } from "react";
 
-const STORAGE_KEY = "saasrandevu-admin-theme";
+const STORAGE_KEY = "ahi-ai-admin-theme";
+const LEGACY_STORAGE_KEY = "saasrandevu-admin-theme";
 
 type Theme = "light" | "dark";
 
@@ -23,13 +24,14 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
-  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true);
-    const stored = localStorage.getItem(STORAGE_KEY) as Theme | null;
+    const stored =
+      (localStorage.getItem(STORAGE_KEY) as Theme | null) ||
+      (localStorage.getItem(LEGACY_STORAGE_KEY) as Theme | null);
     if (stored === "dark" || stored === "light") {
       setThemeState(stored);
+      localStorage.setItem(STORAGE_KEY, stored);
       document.documentElement.classList.toggle("dark", stored === "dark");
     }
   }, []);

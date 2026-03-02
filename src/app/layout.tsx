@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Manrope, Space_Grotesk } from "next/font/google";
 import { ThemeProvider } from "@/lib/theme-context";
 import "./globals.css";
+import { getDefaultAppUrl } from "@/lib/app-url";
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -16,6 +17,7 @@ const spaceGrotesk = Space_Grotesk({
 export const metadata: Metadata = {
   title: "Ahi AI | WhatsApp Randevu Asistanı",
   description: "WhatsApp ile randevu, fiyat listesi ve CRM yöneten yapay zeka destekli platform",
+  metadataBase: new URL(getDefaultAppUrl()),
 };
 
 export default function RootLayout({

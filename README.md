@@ -21,6 +21,7 @@ cp .env.example .env
 **Admin paneli:** `ADMIN_PASSWORD` (min 8 karakter) ve `ADMIN_SESSION_SECRET` (min 32 karakter, örn. `openssl rand -base64 32`) ayarlayın. Şifreyi mutlaka değiştirin.
 **İşletme paneli:** giriş modeli `kullanıcı adı + şifre`dir.
 **Gizli admin girişi:** işletme login ekranında `ADMIN_HIDDEN_LOGIN_IDENTIFIER` + `ADMIN_PASSWORD` ile admin oturumu açılabilir (publicte admin butonu yoktur).
+**Domain ayarı:** `NEXT_PUBLIC_APP_URL=https://www.aiahi.net` olacak şekilde üretim domaininizi `.env` içine yazın.
 
 ### 3. Supabase
 

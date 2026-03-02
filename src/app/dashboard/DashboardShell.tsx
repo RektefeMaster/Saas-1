@@ -19,9 +19,7 @@ import {
 import { createClient } from "@/lib/supabase-client";
 import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
 import type { User } from "@supabase/supabase-js";
-
-const baseUrl =
-  typeof window !== "undefined" ? window.location.origin : "";
+import { getAppBaseUrl } from "@/lib/app-url";
 
 function UserMenu({ user }: { user: User | null }) {
   const router = useRouter();
@@ -110,7 +108,7 @@ export default function DashboardShell({
       setTenantName(null);
       return;
     }
-    fetch(`${baseUrl}/api/tenant/${id}`)
+    fetch(`/api/tenant/${id}`)
       .then((r) => r.json())
       .then((data) => {
         setTenantName(data?.name ?? null);
@@ -141,6 +139,7 @@ export default function DashboardShell({
   }
 
   const isTenantPage = !!tenantId;
+  const appBaseUrl = getAppBaseUrl();
   const navItems = (() => {
     if (!tenantId) return [];
     const baseItems = [
@@ -164,6 +163,7 @@ export default function DashboardShell({
       return aRank - bRank;
     });
   })();
+  const mobileNavItems = navItems.slice(0, 5);
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -201,7 +201,10 @@ export default function DashboardShell({
           <aside className="fixed left-0 top-16 z-20 hidden h-[calc(100vh-4rem)] w-64 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:flex">
             <nav className="flex flex-1 flex-col gap-1 p-4">
               {navItems.map(({ href, label, icon: Icon }) => {
-                const active = pathname === href;
+                const isRoot = href === `/dashboard/${tenantId}`;
+                const active = isRoot
+                  ? pathname === href
+                  : pathname === href || pathname.startsWith(`${href}/`);
                 return (
                   <Link
                     key={href}
@@ -218,7 +221,7 @@ export default function DashboardShell({
                 );
               })}
               <a
-                href={`${baseUrl}/api/tenant/${tenantId}/link`}
+                href={`${appBaseUrl}/api/tenant/${tenantId}/link`}
                 target="_blank"
                 rel="noreferrer"
                 className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-300 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-400"
@@ -227,7 +230,7 @@ export default function DashboardShell({
                 WhatsApp Linki
               </a>
               <a
-                href={`${baseUrl}/api/tenant/${tenantId}/qr?format=png`}
+                href={`${appBaseUrl}/api/tenant/${tenantId}/qr?format=png`}
                 download
                 target="_blank"
                 rel="noreferrer"
@@ -239,9 +242,65 @@ export default function DashboardShell({
             </nav>
           </aside>
 
-          <main className="min-h-[calc(100vh-4rem)] flex-1 lg:pl-64">
+          <main className="min-h-[calc(100vh-4rem)] flex-1 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-64">
+            <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 lg:hidden">
+              <a
+                href={`${appBaseUrl}/api/tenant/${tenantId}/link`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
+              >
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp Linki
+              </a>
+              <a
+                href={`${appBaseUrl}/api/tenant/${tenantId}/qr?format=png`}
+                target="_blank"
+                rel="noreferrer"
+                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              >
+                <QrCode className="h-4 w-4" />
+                QR İndir
+              </a>
+            </div>
             {children}
           </main>
+
+          {mobileNavItems.length > 0 && (
+            <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/98 px-2 pb-[calc(0.35rem+env(safe-area-inset-bottom))] pt-1 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
+              <div
+                className="grid gap-1"
+                style={{
+                  gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))`,
+                }}
+              >
+                {mobileNavItems.map(({ href, label, icon: Icon }) => {
+                  const isRoot = href === `/dashboard/${tenantId}`;
+                  const active = isRoot
+                    ? pathname === href
+                    : pathname === href || pathname.startsWith(`${href}/`);
+                  return (
+                    <Link
+                      key={href}
+                      href={href}
+                      className={`flex min-w-0 flex-col items-center justify-center rounded-xl px-1 py-2 text-[10px] font-semibold transition ${
+                        active
+                          ? "bg-cyan-100 text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-200"
+                          : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                      }`}
+                    >
+                      <Icon
+                        className={`mb-1 h-4 w-4 ${
+                          active ? "text-cyan-600 dark:text-cyan-300" : ""
+                        }`}
+                      />
+                      <span className="truncate">{label}</span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </nav>
+          )}
         </div>
       ) : (
         <main className="min-h-[calc(100vh-4rem)]">{children}</main>

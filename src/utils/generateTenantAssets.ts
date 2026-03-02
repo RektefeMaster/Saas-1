@@ -5,6 +5,7 @@
 
 import QRCode from "qrcode";
 import type { Tenant, SharePackage } from "@/types/tenant.types";
+import { encodeTenantMarker } from "@/lib/zero-width";
 
 /** API telefon numarası (wa.me için); env: WHATSAPP_API_PHONE veya WHATSAPP_PHONE_NUMBER */
 function getApiPhone(): string {
@@ -16,7 +17,8 @@ function getApiPhone(): string {
 /**
  * Tenant için WhatsApp link üretir.
  * İşletmeye özel `config_override.messages.whatsapp_greeting` varsa onu kullanır,
- * yoksa varsayılan doğal karşılama mesajı üretir. Kod, mesajın sonuna #CODE olarak eklenir.
+ * yoksa varsayılan doğal karşılama mesajı üretir.
+ * Tenant kodu mesajın sonuna görünmez marker (zero-width) olarak eklenir.
  *
  * @param tenant - Esnaf bilgileri (id, name, tenant_code, config_override?)
  * @returns WhatsApp wa.me linki
@@ -27,7 +29,8 @@ export function generateWhatsAppLink(tenant: Tenant): string {
   const greeting = customGreeting
     ? customGreeting.replace(/\{tenant_name\}/g, tenant.name)
     : `Merhaba, ${tenant.name} için randevu almak istiyorum`;
-  const message = `${greeting} #${tenant.tenant_code}`;
+  const hiddenMarker = encodeTenantMarker(tenant.tenant_code);
+  const message = `${greeting}${hiddenMarker}`;
   const encodedText = encodeURIComponent(message);
   return `https://wa.me/${apiPhone}?text=${encodedText}`;
 }
@@ -67,14 +70,11 @@ export async function generateSharePackage(tenant: Tenant): Promise<SharePackage
     `Randevu almak için WhatsApp ile yazın`,
     ``,
     `Link: ${whatsappLink}`,
-    ``,
-    `#randevu #${tenant.tenant_code}`,
   ].join("\n");
 
   const googleMapsDescription = [
     `${tenant.name} ile randevu almak için WhatsApp üzerinden iletişime geçin.`,
     `Link: ${whatsappLink}`,
-    `Kod: ${tenant.tenant_code}`,
   ].join(" ");
 
   return {
@@ -90,10 +90,10 @@ export async function generateSharePackage(tenant: Tenant): Promise<SharePackage
  *
  * const tenant = { id: "uuid", name: "Kuaför Ahmet", tenant_code: "AHMET01" };
  * const link = generateWhatsAppLink(tenant);
- * // -> "https://wa.me/905551234567?text=Merhaba%2C%20Kuaf%C3%B6r%20Ahmet%20i%C3%A7in%20randevu%20almak%20istiyorum%20%23AHMET01"
+ * // -> "https://wa.me/905551234567?text=Merhaba%2C%20Kuaf%C3%B6r%20Ahmet%20i%C3%A7in%20randevu%20almak%20istiyorum..."
  *
  * // Özel greeting ile:
  * const t2 = { ...tenant, config_override: { messages: { whatsapp_greeting: "Selam, saç kesimi istiyorum" } } };
  * const link2 = generateWhatsAppLink(t2);
- * // -> "...?text=Selam%2C%20sa%C3%A7%20kesimi%20istiyorum%20%23AHMET01"
+ * // -> "...?text=Selam%2C%20sa%C3%A7%20kesimi%20istiyorum..."
  */

@@ -40,6 +40,7 @@ const OTP_CHALLENGE_PREFIX = "ahi-ai:otp:challenge:";
 const TENANT_CACHE_PREFIX = "ahi-ai:tenant:id:";
 const TENANT_CACHE_TTL_SECONDS = 300;
 const TTL_SECONDS = 60 * 60 * 24; // 24 saat
+const PHONE_TENANT_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 gün
 const RATE_LIMIT_TTL_SECONDS = 60; // 1 dakika
 const RATE_LIMIT_MAX = 15; // dakikada max mesaj
 
@@ -137,13 +138,16 @@ export async function setPhoneTenantMapping(
   const key = PHONE_TENANT_PREFIX + customerPhone.replace(/\D/g, "");
   if (redis) {
     try {
-      await redis.set(key, tenantId, { ex: TTL_SECONDS });
+      await redis.set(key, tenantId, { ex: PHONE_TENANT_TTL_SECONDS });
       return;
     } catch (err) {
       logRedisFallback("setPhoneTenantMapping", err);
     }
   }
-  phoneTenantStore.set(key, { value: tenantId, expiry: Date.now() + TTL_SECONDS * 1000 });
+  phoneTenantStore.set(key, {
+    value: tenantId,
+    expiry: Date.now() + PHONE_TENANT_TTL_SECONDS * 1000,
+  });
 }
 
 export async function clearPhoneTenantMapping(customerPhone: string): Promise<void> {

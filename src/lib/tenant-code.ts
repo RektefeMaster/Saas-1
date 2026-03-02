@@ -1,3 +1,5 @@
+import { decodeTenantMarker, stripZeroWidthMarkers } from "./zero-width";
+
 /**
  * tenant_code parse: Mesajdan AHMET01, HASAN02 gibi kodu çıkarır.
  * Desteklenen formatlar:
@@ -10,7 +12,10 @@ const HASHTAG_CODE_REGEX = /#([A-Za-z0-9]{3,10})\b/;
 const FALLBACK_CODE_REGEX = /\b([A-Z][A-Z0-9]{2,9})\b/;
 
 export function parseTenantCodeFromMessage(message: string): string | null {
-  const trimmed = message.trim();
+  const invisibleCode = decodeTenantMarker(message);
+  if (invisibleCode) return invisibleCode;
+
+  const trimmed = stripZeroWidthMarkers(message).trim();
   let match = trimmed.match(TENANT_CODE_REGEX);
   if (match) return match[1].toUpperCase();
 
@@ -21,4 +26,21 @@ export function parseTenantCodeFromMessage(message: string): string | null {
   if (match) return match[1].toUpperCase();
 
   return null;
+}
+
+export function sanitizeIncomingCustomerMessage(
+  message: string,
+  extractedCode?: string | null
+): string {
+  const cleaned = stripZeroWidthMarkers(message);
+  const code = (extractedCode || parseTenantCodeFromMessage(cleaned) || "").trim();
+  let normalized = cleaned;
+  if (code) {
+    const escapedCode = code.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    normalized = normalized
+      .replace(new RegExp(`(?:Kod|kod|code|CODE)\\s*[:：]?\\s*${escapedCode}\\b`, "g"), "")
+      .replace(new RegExp(`#${escapedCode}\\b`, "g"), "")
+      .trim();
+  }
+  return normalized.replace(/\s+/g, " ").trim();
 }

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { parseTenantCodeFromMessage } from "@/lib/tenant-code";
+import {
+  parseTenantCodeFromMessage,
+  sanitizeIncomingCustomerMessage,
+} from "@/lib/tenant-code";
 import { getTenantByCode, processMessage } from "@/lib/ai";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getTenantIdByPhone, setPhoneTenantMapping, setSession, getSession, deleteSession } from "@/lib/redis";
@@ -7,6 +10,7 @@ import { verifyWebhookSignatureBody, getWebhookSecret } from "@/middleware/webho
 import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
 import { supabase } from "@/lib/supabase";
 import type { ConversationState } from "@/lib/database.types";
+import { getAppBaseUrl } from "@/lib/app-url";
 
 // Vercel: OpenAI + Supabase + Redis zinciri 10s default timeout'u aşıyor.
 // Hobby plan max 60s, Pro plan max 300s.
@@ -85,10 +89,10 @@ export async function POST(request: NextRequest) {
             continue;
           }
           const from = msg.from;
-          const text = (msg.text?.body || "").trim();
+          const rawText = (msg.text?.body || "").trim();
           const customerPhone = `+${from}`;
 
-          if (!text) {
+          if (!rawText) {
             console.log("[webhook] skip empty message from", customerPhone);
             continue;
           }
@@ -105,7 +109,9 @@ export async function POST(request: NextRequest) {
             let isNewTenant = false;
             let tenantName: string | null = null;
 
-            const code = parseTenantCodeFromMessage(text);
+            const code = parseTenantCodeFromMessage(rawText);
+            const normalizedText =
+              sanitizeIncomingCustomerMessage(rawText, code) || rawText;
             if (code) {
               const tenant = await getTenantByCode(code);
               if (tenant) {
@@ -124,7 +130,7 @@ export async function POST(request: NextRequest) {
             }
 
             if (!tenantId) {
-              const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://saasrandevu.com";
+              const appUrl = getAppBaseUrl();
               const listUrl = `${appUrl}/isletmeler`;
               console.log("[webhook] no tenant, sending list to", customerPhone);
               await sendWhatsAppMessage({
@@ -144,8 +150,9 @@ export async function POST(request: NextRequest) {
               tenantName = t?.name || "İşletme";
             }
 
+            const hasTenantSwitched = Boolean(previousTenantId && previousTenantId !== tenantId);
             // İşletme değişikliğinde eski session'ı temizle
-            if (isNewTenant && previousTenantId && previousTenantId !== tenantId) {
+            if (hasTenantSwitched && previousTenantId) {
               await deleteSession(previousTenantId, customerPhone);
               console.log("[webhook] tenant switch: cleared old session for", previousTenantId);
             }
@@ -165,8 +172,16 @@ export async function POST(request: NextRequest) {
               await setSession(tenantId, customerPhone, newState);
             }
 
+            if (hasTenantSwitched) {
+              const header = (tenantName || "İşletme").toLocaleUpperCase("tr-TR");
+              await sendWhatsAppMessage({
+                to: customerPhone,
+                text: `⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛\n🏪 ${header} 🏪\n⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛`,
+              });
+            }
+
             console.log("[webhook] processMessage for tenant", tenantId, "from", customerPhone);
-            const { reply } = await processMessage(tenantId, customerPhone, text);
+            const { reply } = await processMessage(tenantId, customerPhone, normalizedText);
             const safeReply = (reply && String(reply).trim()) || "Anlamadım, tekrar yazar mısınız?";
             const prefixedReply = `*${tenantName}*\n${safeReply}`;
             console.log("[webhook] sending reply to", customerPhone);
