@@ -10,6 +10,7 @@ import {
   ChevronRight,
   LayoutDashboard,
   Menu,
+  Megaphone,
   Plus,
   ShieldCheck,
   Users,
@@ -43,6 +44,12 @@ const navItems: NavItem[] = [
     label: "İşletme Tipleri",
     description: "Kategori ve akış",
     icon: Building2,
+  },
+  {
+    href: "/admin/campaigns",
+    label: "Kampanya Mesajları",
+    description: "Toplu/tekli mesaj gönder",
+    icon: Megaphone,
   },
   {
     href: "/admin/security",

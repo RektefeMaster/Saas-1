@@ -2,10 +2,41 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { supabase } from "@/lib/supabase";
+import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
 import { setOtpChallenge } from "@/lib/redis";
 import { getTwilioVerifyStatus, sendSmsVerification } from "@/lib/twilio";
 import { OTP_TTL_SECONDS, isSms2faEnabledFlag } from "@/lib/otp-auth";
 import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
+
+async function findTenantByUserId(userId: string): Promise<{
+  tenant: Record<string, unknown> | null;
+  missingColumns: Set<string>;
+}> {
+  const requestedColumns = ["id", "owner_phone_e164", "contact_phone", "security_config"];
+  let selectColumns = [...requestedColumns];
+  const missingColumns = new Set<string>();
+  for (let i = 0; i < requestedColumns.length; i++) {
+    const result = await supabase
+      .from("tenants")
+      .select(selectColumns.join(", "))
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!result.error) {
+      return {
+        tenant: (result.data ?? null) as Record<string, unknown> | null,
+        missingColumns,
+      };
+    }
+    const missing = extractMissingSchemaColumn(result.error);
+    if (!missing || missing.table !== "tenants" || !selectColumns.includes(missing.column)) {
+      return { tenant: null, missingColumns };
+    }
+    selectColumns = selectColumns.filter((c) => c !== missing.column);
+    missingColumns.add(missing.column);
+  }
+  return { tenant: null, missingColumns };
+}
 
 export async function POST() {
   try {
@@ -35,33 +66,26 @@ export async function POST() {
       );
     }
 
-    const requestedColumns = ["id", "owner_phone_e164", "contact_phone", "security_config"];
-    let selectColumns = [...requestedColumns];
-    const missingColumns = new Set<string>();
-    let tenant: Record<string, unknown> | null = null;
-    let tenantError: { message: string } | null = null;
-    for (let i = 0; i < requestedColumns.length; i++) {
-      const result = await supabase
-        .from("tenants")
-        .select(selectColumns.join(", "))
-        .eq("user_id", user.id)
-        .is("deleted_at", null)
-        .single();
-      if (!result.error) {
-        tenant = (result.data ?? null) as unknown as Record<string, unknown>;
-        tenantError = null;
-        break;
+    let { tenant, missingColumns } = await findTenantByUserId(user.id);
+
+    // user_id eşleşmezse owner_username ile dene
+    if (!tenant && user.email) {
+      const ownerUsername = loginEmailToUsernameDisplay(user.email);
+      if (ownerUsername && ownerUsername !== user.email) {
+        const res = await supabase
+          .from("tenants")
+          .select("id, owner_phone_e164, contact_phone, security_config")
+          .eq("owner_username", ownerUsername)
+          .is("deleted_at", null)
+          .maybeSingle();
+        if (!res.error && res.data) {
+          tenant = res.data as Record<string, unknown>;
+          missingColumns = new Set();
+        }
       }
-      tenantError = { message: result.error.message };
-      const missing = extractMissingSchemaColumn(result.error);
-      if (!missing || missing.table !== "tenants" || !selectColumns.includes(missing.column)) {
-        break;
-      }
-      selectColumns = selectColumns.filter((c) => c !== missing.column);
-      missingColumns.add(missing.column);
     }
 
-    if (tenantError || !tenant) {
+    if (!tenant) {
       return NextResponse.json({ error: "İşletme bulunamadı" }, { status: 404 });
     }
 
@@ -79,10 +103,8 @@ export async function POST() {
     const contactPhone = typeof tenant.contact_phone === "string" ? tenant.contact_phone : "";
     const phone = (ownerPhone || contactPhone || "").trim();
     if (!phone) {
-      return NextResponse.json(
-        { error: "Bu hesap için owner_phone_e164 veya contact_phone tanımlı değil." },
-        { status: 400 }
-      );
+      // Telefon yoksa OTP atla; kullanıcı giriş yapabilsin (işletme sahibi panelde telefon ekleyebilir)
+      return NextResponse.json({ success: true, requires_otp: false });
     }
 
     await sendSmsVerification(phone);

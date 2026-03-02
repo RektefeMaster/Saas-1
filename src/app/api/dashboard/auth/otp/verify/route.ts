@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { supabase } from "@/lib/supabase";
 import { deleteOtpChallenge, getOtpChallenge, updateOtpChallengeAttempts } from "@/lib/redis";
 import { getTwilioVerifyStatus, verifySmsCode } from "@/lib/twilio";
 import {
@@ -75,6 +76,14 @@ export async function POST(request: NextRequest) {
     }
 
     await deleteOtpChallenge(challengeId);
+
+    // İlk OTP doğrulamasında phone_verified_at set et
+    await supabase
+      .from("tenants")
+      .update({ phone_verified_at: new Date().toISOString() })
+      .eq("user_id", user.id)
+      .is("phone_verified_at", null);
+
     const res = NextResponse.json({ success: true });
     res.cookies.set(DASHBOARD_OTP_COOKIE, user.id, {
       httpOnly: true,

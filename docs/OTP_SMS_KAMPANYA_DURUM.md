@@ -102,7 +102,7 @@ Hepsi mevcut `sendCustomerNotification` (WhatsApp + isteğe bağlı SMS) ile yap
 | Admin OTP (SMS 2FA) | Evet | `ENABLE_SMS_2FA=true` + Twilio Verify + `ADMIN_2FA_PHONE_E164` | Twilio Verify API. |
 | Dashboard OTP (SMS 2FA) | Evet | `ENABLE_SMS_2FA=true` + tenant’ta `owner_phone_e164`/`contact_phone` | Tenant bazlı kapatma: `security_config.sms_2fa_enabled: false`. |
 | Bilgi SMS (hatırlatma, iptal vb.) | Evet | `ENABLE_INFO_SMS=true` + `TWILIO_SMS_FROM_E164` (veya `TWILIO_PHONE_NUMBER`) | Twilio Messages API; `INFO_SMS_MODE`: always / fallback. |
-| Kampanya / toplu pazarlama SMS | Hayır | — | Sadece işlemsel bildirimler var; ayrı kampanya modülü yok. |
+| Kampanya mesajları (admin) | Evet | Admin panel → Kampanya Mesajları | WhatsApp + SMS; CRM/randevu müşterileri veya özel liste. |
 | Twilio SMS webhook | Evet | Twilio’da webhook URL’i bu route’a yönlendirilir | Sadece log; otomatik yanıt yok. |
 
 ---

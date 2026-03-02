@@ -105,6 +105,14 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const ownerPhoneRaw = (body.owner_phone_e164 || "").trim();
+  if (!ownerPhoneRaw || !ownerPhoneRaw.startsWith("+")) {
+    return NextResponse.json(
+      { error: "İşletme sahibi cep telefonu zorunludur (uluslararası format: +905551234567)" },
+      { status: 400 }
+    );
+  }
+
   const code = String(tenant_code).toUpperCase().trim();
   const loginEmail = legacyEmail || usernameToLoginEmail(ownerUsername);
   let userId: string | null = null;

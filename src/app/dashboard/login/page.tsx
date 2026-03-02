@@ -150,7 +150,7 @@ export default function DashboardLoginPage() {
             Randevu ve işletme akışınızı tek panelden yönetin
           </h2>
           <p className="mt-4 text-cyan-100/90">
-            Takvim, fiyat listesi, CRM defteri ve iş akışını profesyonel şekilde yönetin.
+            Takvim, fiyat listesi, müşteri defteri ve iş akışını profesyonel şekilde yönetin.
           </p>
           <ul className="mt-8 space-y-4">
             {[
@@ -194,16 +194,27 @@ export default function DashboardLoginPage() {
           <Card className="border-0 shadow-lg shadow-slate-200/50 dark:shadow-none">
             <CardContent className="p-6 sm:p-8">
               <form onSubmit={handleSubmit} className="space-y-5">
-                <Input
-                  label="Kullanıcı Adı"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                  placeholder="berber.ankara"
-                  autoComplete="username"
-                  disabled={loading}
-                  leftIcon={<User className="h-4 w-4" />}
-                />
+                <div className="group relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+                    <User className="h-4 w-4" />
+                  </span>
+                  <input
+                    id="dashboard-login-username"
+                    type="text"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                    placeholder=" "
+                    autoComplete="username"
+                    disabled={loading}
+                    className="peer w-full rounded-xl border border-slate-200 bg-white pb-2.5 pl-10 pr-4 pt-5 text-slate-900 transition-colors placeholder-transparent focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  />
+                  <label
+                    htmlFor="dashboard-login-username"
+                    className="pointer-events-none absolute left-10 top-2 z-10 translate-y-0 text-xs text-cyan-700 transition-all duration-150 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-sm peer-placeholder-shown:text-slate-400 peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-xs peer-focus:text-cyan-700 group-hover:top-2 group-hover:translate-y-0 group-hover:text-xs group-hover:text-cyan-700 dark:peer-placeholder-shown:text-slate-500 dark:peer-focus:text-cyan-300 dark:group-hover:text-cyan-300"
+                  >
+                    Kullanıcı adınız
+                  </label>
+                </div>
 
                 <div>
                   <Input
@@ -250,9 +261,13 @@ export default function DashboardLoginPage() {
                 </Button>
               </form>
 
-          <p className="mt-6 text-center text-sm text-slate-500">
-            Hesabınız yok mu? İşletmenizi kaydetmek için bizimle iletişime geçin.
-          </p>
+              <p className="mt-6 text-center text-sm text-slate-500">
+                Hesabınız yok mu?{" "}
+                <a href="tel:05060550239" className="font-medium text-cyan-700 hover:text-cyan-800">
+                  0506 055 02 39
+                </a>{" "}
+                numarasıyla iletişime geçin.
+              </p>
             </CardContent>
           </Card>
 

@@ -7,6 +7,7 @@ import {
   ArrowLeft,
   Copy,
   ExternalLink,
+  Megaphone,
   QrCode,
   Trash2,
   UserRoundCog,
@@ -105,6 +106,13 @@ export default function TenantDetailPage() {
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
+            <Link
+              href={`/admin/campaigns?tenant_id=${tenant.id}`}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-2.5 text-sm font-semibold text-cyan-800 transition hover:bg-cyan-100 dark:border-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-200 dark:hover:bg-cyan-900/50"
+            >
+              <Megaphone className="h-4 w-4" />
+              Kampanya Gönder
+            </Link>
             <a
               href={`${baseUrl}/dashboard/${tenant.id}`}
               target="_blank"
