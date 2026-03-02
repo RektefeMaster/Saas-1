@@ -24,7 +24,6 @@ import {
   mergeConfig,
   buildMessage as buildConfigMessage,
   checkRequiredFields,
-  fillTemplate,
 } from "@/services/configMerge.service";
 import {
   buildSystemPrompt as buildConfigSystemPrompt,
@@ -64,6 +63,7 @@ const MAX_CHAT_HISTORY_TURNS = 10;
 /** API'ye gönderilen sohbet turu sayısı (bağlam sıkıştırma: token tasarrufu). */
 const CONTEXT_TURNS_TO_SEND = 2;
 const MAX_TOOL_ROUNDS = 5;
+const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
 
 const VALID_STEPS = [
   "tenant_bulundu",
@@ -101,23 +101,6 @@ function getMergedMessages(
   return { ...DEFAULT_MESSAGES, ...btMessages, ...tenantOverride };
 }
 
-function getWelcomeMessage(
-  msgs: TenantMessagesConfig,
-  tenantName: string
-): string {
-  const raw = msgs.welcome ?? DEFAULT_MESSAGES.welcome!;
-  let w: string | string[] = DEFAULT_MESSAGES.welcome!;
-  if (Array.isArray(raw) && raw.length > 0) {
-    w = raw;
-  } else if (typeof raw === "string" && raw.trim()) {
-    w = raw;
-  }
-  const text = Array.isArray(w)
-    ? w[Math.floor(Math.random() * w.length)]
-    : w;
-  return (text as string).replace(/\{tenant_name\}/g, tenantName);
-}
-
 function getMisunderstandReply(tone: string): string {
   return tone === "siz"
     ? "Tam anlamadım, ne zaman randevu almak istiyordunuz?"
@@ -128,6 +111,221 @@ function getProcessErrorReply(tone: string): string {
   return tone === "siz"
     ? "Bir şeyler ters gitti, biraz sonra tekrar dener misiniz?"
     : "Bir şeyler ters gitti, biraz sonra tekrar dener misin?";
+}
+
+function normalizeIncomingText(value: string): string {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+function isAskNameIntent(message: string): boolean {
+  const text = normalizeIncomingText(message);
+  return (
+    text.includes("ismim ne") ||
+    text.includes("adim ne") ||
+    text.includes("adimi biliyor musun") ||
+    text.includes("beni hangi isimle kaydettin")
+  );
+}
+
+function isCancelConfirmation(message: string): boolean {
+  const text = normalizeIncomingText(message);
+  return (
+    text === "evet" ||
+    text === "onay" ||
+    text === "tamam" ||
+    text.includes("evet iptal") ||
+    text.includes("iptali onayliyorum") ||
+    text.includes("iptal onay")
+  );
+}
+
+function isCancelReject(message: string): boolean {
+  const text = normalizeIncomingText(message);
+  return (
+    text === "hayir" ||
+    text === "hayır" ||
+    text.includes("iptal etme") ||
+    text.includes("vazgectim") ||
+    text.includes("vazgectım") ||
+    text.includes("iptal istemiyorum")
+  );
+}
+
+const BUSINESS_SCOPE_KEYWORDS = [
+  "randevu",
+  "müsait",
+  "musait",
+  "saat",
+  "tarih",
+  "iptal",
+  "fiyat",
+  "hizmet",
+  "adres",
+  "telefon",
+  "isletme",
+  "berber",
+  "kuafor",
+  "sac",
+  "sakal",
+  "gec kal",
+];
+
+const OFFTOPIC_KEYWORDS = [
+  "kac yas",
+  "kaç yaş",
+  "allah",
+  "dolar",
+  "siyaset",
+  "ask",
+  "aşk",
+  "sohbet",
+  "fikrin ne",
+];
+
+const ABUSIVE_KEYWORDS = [
+  "aptal",
+  "salak",
+  "gerizekali",
+  "gerizekalı",
+  "mal",
+  "lan",
+];
+
+function isAbusiveMessage(message: string): boolean {
+  const text = normalizeIncomingText(message);
+  return ABUSIVE_KEYWORDS.some((word) => text.includes(word));
+}
+
+function isOutOfScopeMessage(message: string): boolean {
+  const text = normalizeIncomingText(message);
+  if (!text) return false;
+  if (BUSINESS_SCOPE_KEYWORDS.some((word) => text.includes(word))) return false;
+  return OFFTOPIC_KEYWORDS.some((word) => text.includes(word));
+}
+
+const GREETING_KEYWORDS = [
+  "merhaba",
+  "selam",
+  "slm",
+  "mrb",
+  "hey",
+  "gunaydin",
+  "günaydın",
+  "iyi gunler",
+  "iyi günler",
+  "iyi aksamlar",
+  "iyi akşamlar",
+];
+
+const SMALLTALK_KEYWORDS = [
+  "nasilsin",
+  "napıyorsun",
+  "napiyorsun",
+  "naber",
+  "iyiyim",
+  "kanka",
+];
+
+const NEGOTIATION_KEYWORDS = [
+  "indirim",
+  "pazarlik",
+  "pazarlık",
+  "uygun olur mu",
+  "fiyatta",
+  "ogrenciyim",
+  "öğrenciyim",
+  "daha ucuz",
+  "son fiyat",
+];
+
+function isGreetingOrSmallTalkOnly(message: string): boolean {
+  const text = normalizeIncomingText(message);
+  if (!text) return false;
+  if (BUSINESS_SCOPE_KEYWORDS.some((word) => text.includes(word))) return false;
+  const hasGreeting = GREETING_KEYWORDS.some((word) => text.includes(word));
+  const hasSmallTalk = SMALLTALK_KEYWORDS.some((word) => text.includes(word));
+  return hasGreeting || hasSmallTalk;
+}
+
+function isNegotiationMessage(message: string): boolean {
+  const text = normalizeIncomingText(message);
+  return NEGOTIATION_KEYWORDS.some((word) => text.includes(word));
+}
+
+function isEscalationQuestion(message: string): boolean {
+  const text = normalizeIncomingText(message);
+  if (!text.includes("usta") && !text.includes("yetkili") && !text.includes("insan")) {
+    return false;
+  }
+  return text.includes("neden") || text.includes("bagla") || text.includes("aktar");
+}
+
+function capEmojiUsage(text: string, maxCount = 1): string {
+  const emojiRegex = /[\p{Extended_Pictographic}]/gu;
+  let seen = 0;
+  return text.replace(emojiRegex, (emoji) => {
+    seen += 1;
+    return seen <= maxCount ? emoji : "";
+  });
+}
+
+function normalizeAssistantReply(reply: string): string {
+  let text = (reply || "").trim();
+  if (!text) return "";
+  text = text.replace(/\n{3,}/g, "\n\n");
+  text = capEmojiUsage(text, 1);
+  if (/yanlis anladin|yanlış anladın|oyle bir sey demedim|öyle bir şey demedim/i.test(text)) {
+    text =
+      "Az önce net anlatamadıysam kusura bakma. Şimdi randevu, fiyat veya müsaitlik konusunda net şekilde yardımcı olayım.";
+  }
+  return text.trim();
+}
+
+function normalizeHalfHourRequest(message: string): string {
+  const halfMatch = message.match(
+    /(?:^|\s)(\d{1,2})\s*(?:buçuk|bucuk|b[uıi]?[cç]?[uoö]?[uıi]?k)\b/i
+  );
+  if (!halfMatch) return message;
+  const rawHour = Number(halfMatch[1]);
+  if (!Number.isFinite(rawHour) || rawHour < 0 || rawHour > 23) return message;
+  let hour = rawHour;
+  if (hour >= 1 && hour <= 7) hour += 12;
+  const replacement = `${String(hour).padStart(2, "0")}:30`;
+  return message.replace(halfMatch[0], ` ${replacement}`);
+}
+
+async function getKnownCustomerName(
+  tenantId: string,
+  customerPhone: string,
+  state: ConversationState | null
+): Promise<string | null> {
+  const fromState = (state?.extracted as { customer_name?: string } | undefined)?.customer_name;
+  if (fromState && fromState.trim()) return fromState.trim();
+
+  const { data } = await supabase
+    .from("appointments")
+    .select("extra_data")
+    .eq("tenant_id", tenantId)
+    .eq("customer_phone", customerPhone)
+    .order("slot_start", { ascending: false })
+    .limit(10);
+
+  for (const row of data || []) {
+    const maybeName = (row.extra_data as Record<string, unknown> | null)?.customer_name;
+    if (typeof maybeName === "string" && maybeName.trim()) {
+      return maybeName.trim();
+    }
+  }
+  return null;
 }
 
 // ── System prompt builder (XML karakter kilidi) ─────────────────────────────────
@@ -143,10 +341,10 @@ function buildSystemPrompt(
 
   const rol = `Sen bu işletmenin WhatsApp asistanısın. Müşteri direkt bu işletmeye yazıyor. ${personality}. Müşteriye "${hitap}" diye hitap et. İş çözmeye yönelik konuş; randevu al, iptal et, fiyat/adres sorularına cevap ver.`;
 
-  const ton = `Kısa ve doğal cevap ver. Aynı kalıp cümleleri tekrarlama. Resmi veya robotik olma; esnaf gibi samimi ol. Randevu/iptal onayında uzun metin yazma, kısa onay ver (örn. "Tamam abi, yazdım seni").`;
+  const ton = `Kısa ve doğal cevap ver. Aynı kalıp cümleleri tekrarlama. Resmi veya robotik olma; esnaf gibi samimi ol. Emoji kullanımı en fazla 1 olsun. Randevu/iptal onayında uzun metin yazma, kısa onay ver (örn. "Tamam abi, yazdım seni"). Önceki mesajını asla inkâr etme, "öyle bir şey demedim" deme.`;
 
   const kurallar = `BAĞLAM VE HAFIZA: Konuşma geçmişindeki bilgileri kullan. Müşteri adını söylediyse tekrar sorma. "Pazartesi" = en yakın pazartesi (bağlamdaki tarih listesinden YYYY-MM-DD bul). İşlem sonrası konuşma devam eder.
-KURALLAR: Randevu öncesi müşteri adını mutlaka öğren; sonra saat belliyse direkt create_appointment. Müşteri adını bir kez öğrendikten sonra kaydet, tekrar yazınca ismiyle seslen. Saat: "6"→18:00, "sabah 10"→10:00, "öğleden sonra 3"→15:00. Tarih: bağlamdaki Bugün/Yarın kullan; "öbür gün"=yarından sonraki, "bu hafta sonu"=Cumartesi. Çalışma saatleri dışında randevu önerme. Çoklu randevu: iki create_appointment arka arkaya. Fiyat→get_services; adres→get_tenant_info. "Geç kalacağım"→notify_late. "İptal"→get_last_appointment sonra cancel_appointment. Yapamayacağın bir şey çıkarsa sadece [[INSAN]] yaz.
+KURALLAR: Randevu öncesi müşteri adını mutlaka öğren; sonra saat belliyse direkt create_appointment. Müşteri adını bir kez öğrendikten sonra kaydet, tekrar yazınca ismiyle seslen. Saat: "6"→18:00, "sabah 10"→10:00, "öğleden sonra 3"→15:00. Tarih: bağlamdaki Bugün/Yarın kullan; "öbür gün"=yarından sonraki, "bu hafta sonu"=Cumartesi. Çalışma saatleri dışında randevu önerme. Çoklu randevu: iki create_appointment arka arkaya. Fiyat→get_services; adres→get_tenant_info. "Geç kalacağım"→notify_late. "İptal" isteğinde önce get_last_appointment çağır, müşteriden açık onay ("evet iptal") aldıktan sonra cancel_appointment çağır. Yapamayacağın bir şey çıkarsa sadece [[INSAN]] yaz.
 MÜSAİTLİK: has_available_slots→saatleri sun; fully_booked→başka gün veya check_week_availability; closed_day/blocked_holiday→"O gün kapalıyız" de. "available" boş olsa bile status'a bak.
 ÖRNEKLER: "yarın 6 boş mu?"→check_availability; doluysa "6 dolu ama 5 var, alayım mı?". "tamam 15e al"→create_appointment, "Aldım, yarın 15'te görüşürüz." "randevumu iptal et"→get_last_appointment, cancel_appointment. "bu hafta ne zaman boş?"→check_week_availability. "ne kadar?"→get_services. "neredesiniz?"→get_tenant_info. "geç kalacağım"→notify_late.`;
 
@@ -166,9 +364,54 @@ function wrapContextInXml(contextBlock: string): string {
 // ── System context (dates, availability, history) ───────────────────────────────
 
 const TR_DAY_NAMES_FULL = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
+const EN_DAY_TO_INDEX: Record<string, number> = {
+  sun: 0,
+  mon: 1,
+  tue: 2,
+  wed: 3,
+  thu: 4,
+  fri: 5,
+  sat: 6,
+};
 
-function localDateStr(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+function localDateStr(d: Date, timeZone = APP_TIMEZONE): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+function localTimeStr(d: Date, timeZone = APP_TIMEZONE): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(d);
+}
+
+function localDayIndex(d: Date, timeZone = APP_TIMEZONE): number {
+  const short = new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" })
+    .format(d)
+    .toLowerCase();
+  return EN_DAY_TO_INDEX[short] ?? d.getDay();
+}
+
+function formatSlotDateTimeTr(slotStart: string): { date: string; time: string } {
+  const parsed = new Date(slotStart);
+  if (isNaN(parsed.getTime())) {
+    return { date: "", time: "" };
+  }
+  return {
+    date: parsed.toLocaleDateString("tr-TR", { timeZone: APP_TIMEZONE }),
+    time: parsed.toLocaleTimeString("tr-TR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: APP_TIMEZONE,
+    }),
+  };
 }
 
 function isValidBotConfig(c: unknown): c is BotConfig {
@@ -214,14 +457,15 @@ function buildSystemContext(
 ): string {
   const today = new Date();
   const todayStr = localDateStr(today);
-  const todayDow = today.getDay();
+  const currentTime = localTimeStr(today);
+  const todayDow = localDayIndex(today);
 
   const nextDays: string[] = [];
   for (let i = 0; i < 14; i++) {
     const d = new Date(today);
     d.setDate(today.getDate() + i);
     const ds = localDateStr(d);
-    const dayName = TR_DAY_NAMES_FULL[d.getDay()];
+    const dayName = TR_DAY_NAMES_FULL[localDayIndex(d)];
     nextDays.push(`${dayName}=${ds}`);
   }
 
@@ -229,6 +473,8 @@ function buildSystemContext(
 
   let ctx = stateSummary ? `${stateSummary}\n\n` : "";
   ctx += `Bugün: ${todayStr} (${TR_DAY_NAMES_FULL[todayDow]}).`;
+  ctx += ` Şu an saat: ${currentTime}.`;
+  ctx += ` Saat dilimi: ${APP_TIMEZONE}.`;
   ctx += ` Önümüzdeki günler: ${nextDays.join(", ")}.`;
   ctx += ` ÖNEMLİ: Müşteri "pazartesi" derse EN YAKIN pazartesiyi kullan (yukarıdaki listeden bak). "Bu hafta" veya "gelecek hafta" derse start_date olarak bugünün tarihini ver.`;
 
@@ -669,7 +915,9 @@ async function getAppointmentDate(appointmentId: string): Promise<string | null>
     .eq("id", appointmentId)
     .single();
   if (!data) return null;
-  return new Date(data.slot_start).toISOString().slice(0, 10);
+  const parsed = new Date(data.slot_start);
+  if (isNaN(parsed.getTime())) return null;
+  return localDateStr(parsed);
 }
 
 // ── Tool executor ───────────────────────────────────────────────────────────────
@@ -685,6 +933,7 @@ async function executeToolCall(
   args: Record<string, unknown>,
   tenantId: string,
   customerPhone: string,
+  lastUserMessage: string,
   state: ConversationState | null,
   configOverride?: Record<string, unknown>,
   mergedConfig?: MergedConfig | null
@@ -806,12 +1055,9 @@ async function executeToolCall(
       customerPhone
     );
     if (last) {
-      const d = new Date(last.slot_start);
-      const dateStr = d.toLocaleDateString("tr-TR");
-      const timeStr = d.toLocaleTimeString("tr-TR", {
-        hour: "2-digit",
-        minute: "2-digit",
-      });
+      const slotDateTime = formatSlotDateTimeTr(last.slot_start);
+      const dateStr = slotDateTime.date || "-";
+      const timeStr = slotDateTime.time || "-";
       return {
         result: {
           found: true,
@@ -832,6 +1078,14 @@ async function executeToolCall(
   }
 
   if (name === "cancel_appointment") {
+    if (!isCancelConfirmation(lastUserMessage)) {
+      return {
+        result: {
+          ok: false,
+          error: "İptal işlemi için müşteriden açık onay alınmalı (örn: \"evet iptal\").",
+        },
+      };
+    }
     const aptId =
       (args.appointment_id as string) ||
       (state?.extracted as { pending_cancel_appointment_id?: string })
@@ -843,9 +1097,20 @@ async function executeToolCall(
     const hasCancellationRule = mergedConfig != null || (configOverride?.cancellation_hours != null);
     const { data: apt } = await supabase
       .from("appointments")
-      .select("slot_start")
+      .select("id, slot_start")
       .eq("id", aptId)
-      .single();
+      .eq("tenant_id", tenantId)
+      .eq("customer_phone", customerPhone)
+      .in("status", ["confirmed", "pending"])
+      .maybeSingle();
+    if (!apt) {
+      return {
+        result: {
+          ok: false,
+          error: "Bu randevu için iptal yetkiniz yok veya randevu aktif değil.",
+        },
+      };
+    }
     if (hasCancellationRule && !apt?.slot_start) {
       return {
         result: {
@@ -895,7 +1160,7 @@ async function executeToolCall(
       return { result: { days: {}, message: "Geçersiz tarih formatı" } };
     }
     const [y, m, day] = parts;
-    const todayStr = new Date().toISOString().slice(0, 10);
+    const todayStr = localDateStr(new Date());
     for (let i = 0; i < 14; i++) {
       const d = new Date(y, m - 1, day + i);
       const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
@@ -927,15 +1192,23 @@ async function executeToolCall(
     if (!aptId) {
       return { result: { ok: false, error: "Randevu bulunamadı" } };
     }
-    const cancelRes = await cancelAppointment({
-      tenantId,
-      appointmentId: aptId,
-      cancelledBy: "customer",
-      reason: "Yeniden planlama",
-    });
-    if (!cancelRes.ok) {
-      return { result: { ok: false, error: cancelRes.error } };
+    const { data: currentApt } = await supabase
+      .from("appointments")
+      .select("id")
+      .eq("id", aptId)
+      .eq("tenant_id", tenantId)
+      .eq("customer_phone", customerPhone)
+      .in("status", ["confirmed", "pending"])
+      .maybeSingle();
+    if (!currentApt) {
+      return {
+        result: {
+          ok: false,
+          error: "Bu randevu için değiştirme yetkiniz yok veya randevu aktif değil.",
+        },
+      };
     }
+
     const newDate = args.new_date as string;
     const newTime = args.new_time as string;
     const todayReschedule = localDateStr(new Date());
@@ -959,25 +1232,53 @@ async function executeToolCall(
       };
     }
     const createRes = await createAppointment(tenantId, customerPhone, newDate, newTime);
-    if (createRes.ok) {
-      notifyMerchant(tenantId, customerPhone, newDate, newTime).catch(() => {});
+    if (!createRes.ok) {
       return {
         result: {
-          ok: true,
-          old_cancelled: true,
-          new_date: newDate,
-          new_date_readable: formatDateTr(newDate),
-          new_time: newTime,
+          ok: false,
+          error: createRes.error || "Yeni randevu oluşturulamadı",
+          suggested_time: createRes.suggested_time,
         },
-        sessionDeleted: true,
       };
     }
+
+    const cancelRes = await cancelAppointment({
+      tenantId,
+      appointmentId: aptId,
+      cancelledBy: "customer",
+      reason: "Yeniden planlama",
+    });
+    if (!cancelRes.ok) {
+      if (createRes.id) {
+        await supabase
+          .from("appointments")
+          .update({
+            status: "cancelled",
+            cancelled_at: new Date().toISOString(),
+            cancelled_by: "tenant",
+            cancellation_reason: "Reschedule rollback",
+          })
+          .eq("id", createRes.id)
+          .eq("tenant_id", tenantId);
+      }
+      return {
+        result: {
+          ok: false,
+          error: "Randevu değiştirilemedi, mevcut randevunuz korunuyor.",
+        },
+      };
+    }
+
+    notifyMerchant(tenantId, customerPhone, newDate, newTime).catch(() => {});
     return {
       result: {
-        ok: false,
-        error: createRes.error || "Yeni randevu oluşturulamadı",
-        suggested_time: createRes.suggested_time,
+        ok: true,
+        old_cancelled: true,
+        new_date: newDate,
+        new_date_readable: formatDateTr(newDate),
+        new_time: newTime,
       },
+      sessionDeleted: true,
     };
   }
 
@@ -1145,32 +1446,26 @@ const COMPLEX_KEYWORDS = [
   "farklı gün",
   "bekleme listesi",
   "yer açılırsa",
+  "3 arkadas",
+  "3 arkadaş",
+  "yanimda",
+  "yanımda",
+  "ve ben",
+  "fiyatta",
+  "indirim",
+  "pazarlik",
+  "pazarlık",
 ];
 
-/** Basit (selam, tek fiyat, tek randevu sorusu) → mini; karmaşık (pazarlık, iptal, çoklu) → 4o. */
+const COMPLEX_PATTERN = /\b(\d{1,2}[:.]?\d{0,2})\b.*\b(\d{1,2}[:.]?\d{0,2})\b/;
+
+/** Basit (selam, tek fiyat, tek randevu sorusu) → mini; karmaşık (pazarlık, çoklu adım, iptal) → 4o. */
 async function classifyIntentForRouting(incomingMessage: string): Promise<"simple" | "complex"> {
-  const t = incomingMessage.trim().toLowerCase();
+  const t = normalizeIncomingText(incomingMessage);
   if (COMPLEX_KEYWORDS.some((k) => t.includes(k))) return "complex";
-
-  if (!openai) return "simple";
-
-  try {
-    const res = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
-      messages: [
-        {
-          role: "system",
-          content:
-            "Niyet sınıflandırıcı. Müşteri mesajına göre yalnızca SIMPLE veya COMPLEX yaz. SIMPLE: selam, teşekkür, tek soru (fiyat, adres, tek randevu, müsaitlik). COMPLEX: pazarlık, çoklu adım, randevu değiştirme/iptal, tekrarlayan randevu, birden fazla işletme. Başka bir şey yazma.",
-        },
-        { role: "user", content: t.slice(0, 500) },
-      ],
-      max_tokens: 10,
-    });
-    const text = (res.choices[0]?.message?.content ?? "").trim().toUpperCase();
-    if (text.includes("COMPLEX")) return "complex";
-  } catch (err) {
-    console.warn("[ai] classifyIntentForRouting failed, defaulting to simple:", err);
+  if (COMPLEX_PATTERN.test(t)) return "complex";
+  if (t.includes(" ve ") && (t.includes("yarin") || t.includes("bugun") || t.includes("hafta"))) {
+    return "complex";
   }
   return "simple";
 }
@@ -1240,8 +1535,9 @@ export async function processMessage(
 
     const msgs = getMergedMessages(tenant);
     const tone = msgs.tone ?? "sen";
+    const effectiveMessage = normalizeHalfHourRequest(incomingMessage);
 
-    if (isHumanEscalationRequest(incomingMessage)) {
+    if (isHumanEscalationRequest(effectiveMessage)) {
       if (mergedConfig) {
         const msg = buildConfigMessage(mergedConfig, "human_escalation", {
           contact_phone: tenant.contact_phone?.trim() ?? "",
@@ -1265,13 +1561,13 @@ export async function processMessage(
     const reviewResult = await tryHandleReview(
       tenantId,
       customerPhone,
-      incomingMessage
+      effectiveMessage
     );
     if (reviewResult.handled && reviewResult.reply) {
       return { reply: reviewResult.reply };
     }
 
-    const state = await getSession(tenantId, customerPhone);
+    let state = await getSession(tenantId, customerPhone);
     const messageCount = (state?.message_count ?? 0) + 1;
     if (messageCount > MAX_MESSAGES_BEFORE_ESCALATION) {
       return { reply: buildHumanEscalationMessage(tenant, tone) };
@@ -1285,58 +1581,248 @@ export async function processMessage(
 
     const flowType = (bt?.config?.flow_type as FlowType) || "appointment";
 
-    // ── First message: welcome ──
+    // tenant_bulundu adımı sadece tenant bağlama içindir; müşteriye her seferinde
+    // "hoş geldiniz" dönmemek için konuşmayı "devam" moduna geçir.
     if (state?.step === "tenant_bulundu") {
-      let welcome: string;
-      if (mergedConfig) {
-        const history = await getCustomerHistory(tenantId, customerPhone);
-        const hasHistory = Array.isArray(history) && history.length > 0;
-        let raw = hasHistory
-          ? mergedConfig.returning_customer_message
-          : mergedConfig.opening_message;
-        if (typeof raw !== "string" || !raw.trim()) {
-          raw =
-            "Merhaba! {tenant_name} olarak nasıl yardımcı olabilirim?";
-        }
-        welcome = fillTemplate(raw, {
-          tenant_name: tenant.name,
-          customer_name: "",
-        });
-      } else {
-        welcome = getWelcomeMessage(msgs, tenant.name);
-      }
-      await setSession(tenantId, customerPhone, {
+      state = {
         ...(state || {}),
         tenant_id: tenantId,
         customer_phone: customerPhone,
-        step: "tarih_saat_bekleniyor",
+        step: "devam",
         extracted: state?.extracted || {},
         flow_type: flowType,
         message_count: messageCount,
-        consecutive_misunderstandings: 0,
-        chat_history: [{ role: "assistant", content: welcome }],
+        consecutive_misunderstandings: state?.consecutive_misunderstandings ?? 0,
+        chat_history: state?.chat_history || [],
         updated_at: new Date().toISOString(),
-      });
-      return { reply: welcome };
+      };
+      await setSession(tenantId, customerPhone, state);
     }
 
-    // ── Session yoksa yeniden oluştur (returning customer) ──
+    // Session yoksa minimal başlangıç state'i oluştur.
     if (!state) {
-      await setSession(tenantId, customerPhone, {
+      state = {
         tenant_id: tenantId,
         customer_phone: customerPhone,
-        step: "tarih_saat_bekleniyor",
+        step: "devam",
         extracted: {},
         flow_type: flowType,
         message_count: 1,
         consecutive_misunderstandings: 0,
         chat_history: [],
         updated_at: new Date().toISOString(),
-      });
+      };
+      await setSession(tenantId, customerPhone, state);
+    }
+
+    const extracted = (state.extracted || {}) as Record<string, unknown>;
+    const pendingCancelId = extracted.pending_cancel_appointment_id as string | undefined;
+
+    if (pendingCancelId) {
+      if (isCancelConfirmation(effectiveMessage)) {
+        const { data: pendingApt } = await supabase
+          .from("appointments")
+          .select("id, slot_start")
+          .eq("id", pendingCancelId)
+          .eq("tenant_id", tenantId)
+          .eq("customer_phone", customerPhone)
+          .in("status", ["confirmed", "pending"])
+          .maybeSingle();
+
+        if (!pendingApt) {
+          await setSession(tenantId, customerPhone, {
+            ...state,
+            step: "devam",
+            extracted: {
+              ...extracted,
+              pending_cancel_appointment_id: null,
+            },
+            message_count: messageCount,
+            updated_at: new Date().toISOString(),
+          });
+          return {
+            reply:
+              tone === "siz"
+                ? "İptal bekleyen aktif randevu bulunamadı. Yeni bir randevu planlayabiliriz."
+                : "İptal bekleyen aktif randevu görünmüyor. Yeni randevu planlayalım mı?",
+          };
+        }
+
+        const configOverride = (tenant.config_override || {}) as Record<string, unknown>;
+        const cancellationHrs =
+          mergedConfig?.cancellation_hours ??
+          (configOverride?.cancellation_hours as number) ??
+          2;
+        const hasCancellationRule =
+          mergedConfig != null || configOverride?.cancellation_hours != null;
+        const slotTime = new Date(pendingApt.slot_start).getTime();
+        const hoursLeft = (slotTime - Date.now()) / (60 * 60 * 1000);
+        if (hasCancellationRule && hoursLeft < cancellationHrs) {
+          return {
+            reply:
+              tone === "siz"
+                ? `İptal için randevu saatine en az ${cancellationHrs} saat kala bildirmeniz gerekiyor.`
+                : `İptal için randevu saatine en az ${cancellationHrs} saat kala bildirmen gerekiyor.`,
+          };
+        }
+
+        const cancelResult = await cancelAppointment({
+          tenantId,
+          appointmentId: pendingCancelId,
+          cancelledBy: "customer",
+          reason: "Müşteri onaylı iptal",
+        });
+
+        if (!cancelResult.ok) {
+          return {
+            reply:
+              tone === "siz"
+                ? "İptal işlemi şu an tamamlanamadı. Lütfen tekrar deneyin."
+                : "İptal işlemi şu an tamamlanamadı, tekrar dener misin?",
+          };
+        }
+
+        await createOpsAlert({
+          tenantId,
+          type: "cancellation",
+          severity: "medium",
+          customerPhone,
+          message: `${customerPhone} müşterisi randevusunu iptal etti.`,
+          meta: { appointment_id: pendingCancelId, source: "cancel_confirmation" },
+          dedupeKey: `cancel:${tenantId}:${pendingCancelId}`,
+        }).catch((e) => console.error("[ai] ops alert create error:", e));
+
+        await setSession(tenantId, customerPhone, {
+          ...state,
+          step: "devam",
+          extracted: {
+            ...extracted,
+            pending_cancel_appointment_id: null,
+          },
+          message_count: messageCount,
+          updated_at: new Date().toISOString(),
+          chat_history: trimChatHistory([
+            ...(state.chat_history || []),
+            { role: "user", content: incomingMessage },
+            {
+              role: "assistant",
+              content:
+                tone === "siz"
+                  ? "Randevunuzu iptal ettim. İsterseniz yeni bir saat planlayalım."
+                  : "Randevunu iptal ettim. İstersen yeni bir saat planlayalım.",
+            },
+          ]),
+        });
+        return {
+          reply:
+            tone === "siz"
+              ? "Randevunuzu iptal ettim. İsterseniz yeni bir saat planlayalım."
+              : "Randevunu iptal ettim. İstersen yeni bir saat planlayalım.",
+        };
+      }
+
+      if (isCancelReject(effectiveMessage)) {
+        await setSession(tenantId, customerPhone, {
+          ...state,
+          step: "devam",
+          extracted: {
+            ...extracted,
+            pending_cancel_appointment_id: null,
+          },
+          message_count: messageCount,
+          updated_at: new Date().toISOString(),
+        });
+        return {
+          reply:
+            tone === "siz"
+              ? "İptal isteğinizi kapattım. Randevunuz aktif olarak duruyor."
+              : "Tamam, iptali kapattım. Randevun aktif olarak duruyor.",
+        };
+      }
+
+      return {
+        reply:
+          tone === "siz"
+            ? "İptal onayı için lütfen \"evet iptal\" yazın. Vazgeçtiyseniz \"vazgeçtim\" yazabilirsiniz."
+            : "İptal onayı için \"evet iptal\" yaz. Vazgeçtiysen \"vazgeçtim\" yazabilirsin.",
+      };
+    }
+
+    if (isEscalationQuestion(effectiveMessage)) {
+      return {
+        reply:
+          tone === "siz"
+            ? "Az önce burada çözemediğim bir konuda insan desteği önermiştim. İsterseniz randevu, fiyat veya müsaitlik işlemlerine burada devam edebiliriz."
+            : "Az önce burada çözemediğim bir konuda insan desteği önermiştim. İstersen randevu, fiyat veya müsaitlik işlemlerine burada devam edebiliriz.",
+      };
+    }
+
+    if (isAskNameIntent(effectiveMessage)) {
+      const knownName = await getKnownCustomerName(tenantId, customerPhone, state);
+      if (knownName) {
+        await setSession(tenantId, customerPhone, {
+          ...state,
+          extracted: {
+            ...extracted,
+            customer_name: knownName,
+          },
+          message_count: messageCount,
+          updated_at: new Date().toISOString(),
+        });
+        return {
+          reply:
+            tone === "siz"
+              ? `Sizi ${knownName} adıyla kayıtlı görüyorum.`
+              : `Seni ${knownName} adıyla kayıtlı görüyorum.`,
+        };
+      }
+      return {
+        reply:
+          tone === "siz"
+            ? "Ad bilginizi bu konuşmada henüz almadım. Adınızı yazarsanız kaydedebilirim."
+            : "Ad bilgisini henüz almadım. Adını yazarsan kaydedeyim.",
+      };
+    }
+
+    if (isAbusiveMessage(effectiveMessage)) {
+      return {
+        reply:
+          tone === "siz"
+            ? "Hakaret içeren mesajlarda devam edemiyorum. Randevu veya işletme bilgisi için yardımcı olabilirim."
+            : "Hakaret içeren mesajlarda devam edemiyorum. Randevu veya işletme bilgisi için yardımcı olabilirim.",
+      };
+    }
+
+    if (isNegotiationMessage(effectiveMessage)) {
+      const contactPhone = tenant.contact_phone?.trim() || "işletme telefonu";
+      return {
+        reply:
+          tone === "siz"
+            ? `Fiyat konusunda son kararı işletme verir. Mevcut fiyat bilgisini paylaşabilirim; özel fiyat için ${contactPhone} numarasını arayabilirsiniz.`
+            : `Fiyat konusunda son kararı işletme verir. Mevcut fiyat bilgisini paylaşabilirim; özel fiyat için ${contactPhone} numarasını arayabilirsin.`,
+      };
+    }
+
+    if (isGreetingOrSmallTalkOnly(effectiveMessage)) {
+      return {
+        reply:
+          tone === "siz"
+            ? `Merhaba, ${tenant.name} için randevu, müsaitlik ve fiyat bilgisinde yardımcı olabilirim. Hangi hizmeti düşünüyorsunuz?`
+            : `Merhaba, ${tenant.name} için randevu, müsaitlik ve fiyat bilgisinde yardımcı olabilirim. Hangi hizmeti düşünüyorsun?`,
+      };
+    }
+
+    if (isOutOfScopeMessage(effectiveMessage)) {
+      return {
+        reply:
+          tone === "siz"
+            ? `Bu hatta sadece ${tenant.name} için randevu, fiyat ve işletme bilgisi desteği veriyorum.`
+            : `Bu hatta sadece ${tenant.name} için randevu, fiyat ve işletme bilgisi desteği veriyorum.`,
+      };
     }
 
     // ── Deterministic intent handling (cancel / delay) ──
-    const deterministicIntent = detectDeterministicIntent(incomingMessage);
+    const deterministicIntent = detectDeterministicIntent(effectiveMessage);
     if (deterministicIntent?.type === "cancel") {
       const last = await getCustomerLastActiveAppointment(tenantId, customerPhone);
       if (!last) {
@@ -1348,55 +1834,33 @@ export async function processMessage(
         };
       }
 
-      const configOverride = (tenant.config_override || {}) as Record<string, unknown>;
-      const cancellationHrs =
-        mergedConfig?.cancellation_hours ??
-        (configOverride?.cancellation_hours as number) ??
-        2;
-      const hasCancellationRule =
-        mergedConfig != null || configOverride?.cancellation_hours != null;
-      const slotTime = new Date(last.slot_start).getTime();
-      const hoursLeft = (slotTime - Date.now()) / (60 * 60 * 1000);
-      if (hasCancellationRule && hoursLeft < cancellationHrs) {
-        return {
-          reply:
-            tone === "siz"
-              ? `İptal için randevu saatine en az ${cancellationHrs} saat kala bildirmeniz gerekiyor.`
-              : `İptal için randevu saatine en az ${cancellationHrs} saat kala bildirmen gerekiyor.`,
-        };
-      }
+      const slotDateTime = formatSlotDateTimeTr(last.slot_start);
+      const dateStr = slotDateTime.date || "-";
+      const timeStr = slotDateTime.time || "-";
 
-      const cancelResult = await cancelAppointment({
-        tenantId,
-        appointmentId: last.id,
-        cancelledBy: "customer",
-        reason: "Mesajdan otomatik iptal",
+      await setSession(tenantId, customerPhone, {
+        ...state,
+        tenant_id: tenantId,
+        customer_phone: customerPhone,
+        step: "iptal_onay_bekleniyor",
+        extracted: {
+          ...extracted,
+          pending_cancel_appointment_id: last.id,
+        },
+        flow_type: flowType,
+        message_count: messageCount,
+        consecutive_misunderstandings: 0,
+        chat_history: trimChatHistory([
+          ...(state.chat_history || []),
+          { role: "user", content: incomingMessage },
+        ]),
+        updated_at: new Date().toISOString(),
       });
-
-      if (!cancelResult.ok) {
-        return {
-          reply:
-            tone === "siz"
-              ? "İptal işlemi yapılamadı. Lütfen tekrar deneyin."
-              : "İptal işlemi yapılamadı, tekrar dener misin?",
-        };
-      }
-
-      await createOpsAlert({
-        tenantId,
-        type: "cancellation",
-        severity: "medium",
-        customerPhone,
-        message: `${customerPhone} müşterisi randevusunu iptal etti.`,
-        meta: { appointment_id: last.id, source: "deterministic_intent" },
-        dedupeKey: `cancel:${tenantId}:${last.id}`,
-      }).catch((e) => console.error("[ai] ops alert create error:", e));
-
       return {
         reply:
           tone === "siz"
-            ? "Randevunuzu iptal ettim. Uygun olduğunuz yeni bir saat yazarsanız hemen yardımcı olurum."
-            : "Randevunu iptal ettim. Uygun olduğun yeni bir saat yaz, hemen yardımcı olayım.",
+            ? `${dateStr} ${timeStr} randevunuzu iptal etmek için lütfen "evet iptal" yazın.`
+            : `${dateStr} ${timeStr} randevunu iptal etmem için "evet iptal" yaz.`,
       };
     }
 
@@ -1443,8 +1907,14 @@ export async function processMessage(
       const promptContext: PromptBuilderContext = {
         today: localDateStr(today),
         tomorrow: localDateStr(tomorrow),
-        todayLabel: `${localDateStr(today)} (${today.toLocaleDateString("tr-TR", { weekday: "long" })})`,
-        tomorrowLabel: `${localDateStr(tomorrow)} (${tomorrow.toLocaleDateString("tr-TR", { weekday: "long" })})`,
+        todayLabel: `${localDateStr(today)} (${today.toLocaleDateString("tr-TR", {
+          weekday: "long",
+          timeZone: APP_TIMEZONE,
+        })})`,
+        tomorrowLabel: `${localDateStr(tomorrow)} (${tomorrow.toLocaleDateString("tr-TR", {
+          weekday: "long",
+          timeZone: APP_TIMEZONE,
+        })})`,
         availableSlots: ext.last_available_slots as string[] | undefined,
         lastAvailabilityDate: ext.last_availability_date as string | undefined,
         pendingCancelId: ext.pending_cancel_appointment_id as string | undefined,
@@ -1468,7 +1938,7 @@ export async function processMessage(
     }
 
     // ── Kademeli zeka: basit niyet → mini, karmaşık → 4o ──
-    const routingIntent = await classifyIntentForRouting(incomingMessage);
+    const routingIntent = await classifyIntentForRouting(effectiveMessage);
     const selectedModel = routingIntent === "complex" ? MODEL_COMPLEX : MODEL_SIMPLE;
 
     // ── Build OpenAI messages: state summary zaten system prompt'ta; sadece son N tur (bağlam sıkıştırma) ──
@@ -1480,7 +1950,7 @@ export async function processMessage(
     for (const msg of recentTurns) {
       openaiMessages.push({ role: msg.role, content: msg.content });
     }
-    openaiMessages.push({ role: "user", content: incomingMessage });
+    openaiMessages.push({ role: "user", content: effectiveMessage });
 
     // ── Multi-round tool calling loop ──
     let finalReply = "";
@@ -1539,31 +2009,32 @@ export async function processMessage(
 
       // Config-driven: create_appointment öncesi zorunlu alan kontrolü
       let requiredFieldsReply = "";
-      if (mergedConfig) {
-        for (const tc of tcList) {
-          if (tc.function.name === "create_appointment") {
-            const fnArgs = JSON.parse(tc.function.arguments || "{}");
-            const combined = {
-              ...(state?.extracted || {}),
-              ...fnArgs,
-            } as Record<string, unknown>;
-            const { complete, nextQuestion } = checkRequiredFields(
-              mergedConfig,
-              combined
-            );
-            if (!complete && nextQuestion) {
-              requiredFieldsReply = nextQuestion;
-              break;
-            }
-            const cn = combined.customer_name;
-            if (cn === undefined || cn === null || String(cn).trim() === "") {
-              requiredFieldsReply =
-                tone === "siz"
-                  ? "Randevuyu kimin adına alalım?"
-                  : "Randevuyu kimin adına alayım?";
-              break;
-            }
+      for (const tc of tcList) {
+        if (tc.function.name !== "create_appointment") continue;
+        const fnArgs = JSON.parse(tc.function.arguments || "{}");
+        const combined = {
+          ...(state?.extracted || {}),
+          ...fnArgs,
+        } as Record<string, unknown>;
+
+        if (mergedConfig) {
+          const { complete, nextQuestion } = checkRequiredFields(
+            mergedConfig,
+            combined
+          );
+          if (!complete && nextQuestion) {
+            requiredFieldsReply = nextQuestion;
+            break;
           }
+        }
+
+        const cn = combined.customer_name;
+        if (cn === undefined || cn === null || String(cn).trim() === "") {
+          requiredFieldsReply =
+            tone === "siz"
+              ? "Randevuyu kimin adına alalım?"
+              : "Randevuyu kimin adına alayım?";
+          break;
         }
       }
       if (requiredFieldsReply) {
@@ -1594,6 +2065,7 @@ export async function processMessage(
           fnArgs,
           tenantId,
           customerPhone,
+          effectiveMessage,
           state,
           tenant.config_override,
           mergedConfig ?? undefined
@@ -1679,6 +2151,8 @@ export async function processMessage(
       }
       if (!finalReply) finalReply = getProcessErrorReply(tone);
     }
+    finalReply = normalizeAssistantReply(finalReply);
+    if (!finalReply) finalReply = getProcessErrorReply(tone);
 
     // ── Check for human escalation tag ──
     if (finalReply.includes(HUMAN_ESCALATION_TAG)) {

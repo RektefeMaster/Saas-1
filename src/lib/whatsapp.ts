@@ -19,7 +19,7 @@ function normalizePlainValue(value: string | undefined): string {
   return trimmed.replace(/^['"]|['"]$/g, "");
 }
 
-async function resolveWhatsAppCredentials(): Promise<{
+export async function resolveWhatsAppCredentials(): Promise<{
   phoneId: string;
   token: string;
   source: "runtime" | "env";
@@ -130,12 +130,20 @@ export async function sendWhatsAppMessageDetailed({
       );
     }
     console.error("[whatsapp] send error", res.status, "to", normalizedTo, raw);
+    const errorMessage =
+      parsedError?.code === 131047
+        ? "Alıcı son 24 saatte mesaj atmadı; serbest metin yerine onaylı şablon kullanın (Meta kuralı)."
+        : parsedError?.code === 131030
+          ? "Bu numara test listesinde değil. Meta Business Suite > WhatsApp > API kurulumundan ekleyin veya production numarasına geçin."
+          : parsedError?.code === 190
+            ? "WhatsApp erişim token süresi dolmuş; WHATSAPP_ACCESS_TOKEN yenileyin."
+            : parsedError?.message || raw;
     return {
       ok: false,
       status: res.status,
       errorCode: parsedError?.code,
       errorSubcode: parsedError?.error_subcode,
-      errorMessage: parsedError?.message || raw,
+      errorMessage,
       to: normalizedTo,
       source,
     };

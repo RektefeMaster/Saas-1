@@ -10,6 +10,11 @@ import { checkBlockedDate } from "@/services/blockedDates.service";
 
 const DEFAULT_WORKING_HOURS = { start: "09:00", end: "18:00" };
 const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5, 6];
+const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
+const SAME_DAY_MIN_LEAD_MINUTES = Math.max(
+  1,
+  Number(process.env.SAME_DAY_MIN_LEAD_MINUTES || 1)
+);
 
 interface TimeInterval {
   start: number;
@@ -64,6 +69,34 @@ function normalizeDateString(date: string): string | null {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
     d.getDate()
   ).padStart(2, "0")}`;
+}
+
+function localDateStr(date: Date, timeZone = APP_TIMEZONE): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(date);
+}
+
+function localTimeToMinutes(date: Date, timeZone = APP_TIMEZONE): number {
+  const hhmm = new Intl.DateTimeFormat("en-GB", {
+    timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+  const [hour, minute] = hhmm.split(":").map(Number);
+  return hour * 60 + minute;
+}
+
+function getUtcSearchWindowForDate(localDate: string): { from: string; to: string } {
+  const [y, m, d] = localDate.split("-").map(Number);
+  return {
+    from: new Date(Date.UTC(y, m - 1, d - 1, 0, 0, 0)).toISOString(),
+    to: new Date(Date.UTC(y, m - 1, d + 2, 0, 0, 0)).toISOString(),
+  };
 }
 
 function getDayOfWeek(date: string): number {
@@ -216,12 +249,13 @@ async function getBookedIntervalsForDate(
   date: string,
   fallbackDurationMinutes: number
 ): Promise<{ intervals: TimeInterval[]; starts: string[] }> {
+  const window = getUtcSearchWindowForDate(date);
   const { data: appointments } = await supabase
     .from("appointments")
     .select("slot_start, service_slug, extra_data")
     .eq("tenant_id", tenantId)
-    .gte("slot_start", `${date}T00:00:00`)
-    .lt("slot_start", `${date}T23:59:59`)
+    .gte("slot_start", window.from)
+    .lt("slot_start", window.to)
     .neq("status", "cancelled");
 
   const rows = appointments || [];
@@ -250,11 +284,14 @@ async function getBookedIntervalsForDate(
   for (const row of rows) {
     const d = new Date(row.slot_start);
     if (isNaN(d.getTime())) continue;
-    const start = d.getHours() * 60 + d.getMinutes();
-    const time = `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(
-      2,
-      "0"
-    )}`;
+    if (localDateStr(d) !== date) continue;
+    const time = new Intl.DateTimeFormat("en-GB", {
+      timeZone: APP_TIMEZONE,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(d);
+    const start = timeToMinutes(time);
     const extraDuration = Number(
       ((row.extra_data as Record<string, unknown> | null)?.duration_minutes as number) || 0
     );
@@ -372,12 +409,20 @@ export async function getDailyAvailability(
   const workStart = timeToMinutes(schedule.startTime);
   const workEnd = timeToMinutes(schedule.endTime);
   const available: string[] = [];
+  const now = new Date();
+  const todayLocal = localDateStr(now);
+  const nowMinutes = localTimeToMinutes(now);
+  const sameDayMinStart =
+    normalizedDate === todayLocal
+      ? nowMinutes + SAME_DAY_MIN_LEAD_MINUTES
+      : Number.NEGATIVE_INFINITY;
 
   for (
     let cursor = workStart;
     cursor + durationMinutes <= workEnd;
     cursor += schedule.baseSlotMinutes
   ) {
+    if (cursor < sameDayMinStart) continue;
     const candidate: TimeInterval = {
       start: cursor,
       end: cursor + durationMinutes,

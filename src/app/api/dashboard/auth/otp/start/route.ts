@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
 import { supabase } from "@/lib/supabase";
-import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
+import { loginEmailToUsernameDisplay, normalizeUsername } from "@/lib/username-auth";
 import { setOtpChallenge } from "@/lib/redis";
 import { getTwilioVerifyStatus, sendSmsVerification } from "@/lib/twilio";
 import { OTP_TTL_SECONDS, isSms2faEnabledFlag } from "@/lib/otp-auth";
@@ -68,10 +68,11 @@ export async function POST() {
 
     let { tenant, missingColumns } = await findTenantByUserId(user.id);
 
-    // user_id eşleşmezse owner_username ile dene
+    // user_id eşleşmezse owner_username ile dene (tenant.owner_username küçük harfle saklanıyor)
     if (!tenant && user.email) {
-      const ownerUsername = loginEmailToUsernameDisplay(user.email);
-      if (ownerUsername && ownerUsername !== user.email) {
+      const ownerUsernameRaw = loginEmailToUsernameDisplay(user.email);
+      if (ownerUsernameRaw && ownerUsernameRaw !== user.email) {
+        const ownerUsername = normalizeUsername(ownerUsernameRaw);
         const res = await supabase
           .from("tenants")
           .select("id, owner_phone_e164, contact_phone, security_config")
@@ -86,7 +87,10 @@ export async function POST() {
     }
 
     if (!tenant) {
-      return NextResponse.json({ error: "İşletme bulunamadı" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Bu hesapla ilişkili işletme bulunamadı. Kullanıcı adı ve şifrenizi kontrol edin veya yöneticinizle iletişime geçin." },
+        { status: 404 }
+      );
     }
 
     const securityConfig = (

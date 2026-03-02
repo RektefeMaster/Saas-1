@@ -25,7 +25,7 @@ export default function CampaignsPage() {
   const [recipientInfo, setRecipientInfo] = useState<RecipientInfo | null>(null);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [result, setResult] = useState<{ success_count: number; recipient_count: number } | null>(null);
+  const [result, setResult] = useState<{ success_count: number; recipient_count: number; last_error?: string } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -91,6 +91,7 @@ export default function CampaignsPage() {
         success_count?: number;
         recipient_count?: number;
         error?: string;
+        last_error?: string;
       };
       if (!res.ok) {
         setError(data.error || "Gönderim başarısız");
@@ -99,6 +100,7 @@ export default function CampaignsPage() {
       setResult({
         success_count: data.success_count ?? 0,
         recipient_count: data.recipient_count ?? 0,
+        ...(data.last_error ? { last_error: data.last_error } : {}),
       });
       setMessageText("");
     } catch {
@@ -246,11 +248,18 @@ export default function CampaignsPage() {
         )}
 
         {result && (
-          <div className="flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">
-            <CheckCircle2 className="h-5 w-5 shrink-0" />
-            <span>
-              {result.success_count}/{result.recipient_count} alıcıya gönderildi
-            </span>
+          <div className="space-y-2">
+            <div className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${result.success_count > 0 ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200" : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"}`}>
+              <CheckCircle2 className="h-5 w-5 shrink-0" />
+              <span>
+                {result.success_count}/{result.recipient_count} alıcıya gönderildi
+              </span>
+            </div>
+            {result.success_count === 0 && result.last_error && (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+                Olası sebep: {result.last_error}
+              </div>
+            )}
           </div>
         )}
 

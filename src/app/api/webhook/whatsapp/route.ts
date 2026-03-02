@@ -422,7 +422,7 @@ export async function POST(request: NextRequest) {
                 customer_phone: customerPhone,
                 flow_type: "appointment",
                 extracted: {},
-                step: isNewTenant ? "tenant_bulundu" : "devam",
+                step: "devam",
                 updated_at: new Date().toISOString(),
               };
               await setSession(tenantId, customerPhone, newState);

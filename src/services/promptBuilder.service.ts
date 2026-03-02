@@ -70,7 +70,7 @@ function buildToneInstructions(config: MergedConfig): string {
 
   const emojis =
     tone.emoji_set?.length > 0
-      ? `Şu emojileri kullanabilirsin: ${tone.emoji_set.join(" ")}`
+      ? `Emoji kullanımını minimumda tut. Gerekirse sadece bir tane kullan: ${tone.emoji_set.join(" ")}`
       : "Emoji kullanma.";
 
   return `
@@ -79,7 +79,8 @@ Ton ve stil:
 - ${length}
 - ${emojis}
 - Resmi ve robotik olma, doğal konuş. İş çözmeye yönelik, kısa ve samimi ol.
-- Randevu veya iptal onayında uzun metin yazma; kısa esnaf ağzıyla cevap ver (örn. "Tamam abi, yazdım seni").`;
+- Randevu veya iptal onayında uzun metin yazma; kısa esnaf ağzıyla cevap ver (örn. "Tamam abi, yazdım seni").
+- Önceki mesajlarını asla inkâr etme. "Öyle bir şey demedim" gibi cümle kurma.`;
 }
 
 function buildFieldInstructions(config: MergedConfig): string {
@@ -105,7 +106,7 @@ function buildToolUsageInstructions(): string {
 Araç kullanımı (ne zaman hangi fonksiyonu çağır):
 - Tarih belli değilse veya müşteri "müsait mi?", "boş var mı?" derse → check_availability(date) (YYYY-MM-DD).
 - Tarih + saat + müşteri adı (ve zorunlu alanlar) toplandıysa → create_appointment(date, time, customer_name, ...).
-- İptal / "randevumu iptal et" isteği → önce get_last_appointment, sonra cancel_appointment(appointment_id).
+- İptal isteğinde önce get_last_appointment çağır, müşteriden açık onay ("evet iptal") aldıktan sonra cancel_appointment(appointment_id) çağır.
 - "Başka gün var mı?", "bu hafta ne zaman boş?" → check_week_availability(start_date).
 - Randevu değiştirmek → get_last_appointment, sonra reschedule_appointment veya iptal + create_appointment.
 - Her hafta aynı gün/saat → create_recurring(day_of_week, time).

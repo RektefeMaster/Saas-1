@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { supabase as adminSupabase } from "@/lib/supabase";
-import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
+import { loginEmailToUsernameDisplay, normalizeUsername } from "@/lib/username-auth";
 
 export default async function DashboardPage() {
   const supabase = await createClient();
@@ -22,10 +22,11 @@ export default async function DashboardPage() {
       .maybeSingle()
   ).data;
 
-  // user_id eşleşmezse owner_username ile dene (eski kayıtlar veya şema uyumsuzluğu)
+  // user_id eşleşmezse owner_username ile dene (tenant.owner_username küçük harfle saklanıyor)
   if (!tenant && user.email) {
-    const ownerUsername = loginEmailToUsernameDisplay(user.email);
-    if (ownerUsername && ownerUsername !== user.email) {
+    const ownerUsernameRaw = loginEmailToUsernameDisplay(user.email);
+    if (ownerUsernameRaw && ownerUsernameRaw !== user.email) {
+      const ownerUsername = normalizeUsername(ownerUsernameRaw);
       tenant = (
         await adminSupabase
           .from("tenants")

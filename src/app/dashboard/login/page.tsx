@@ -7,16 +7,30 @@ import Image from "next/image";
 import { Mail, Lock, Eye, EyeOff, AlertCircle, Calendar, MessageCircle, User } from "lucide-react";
 import { createClient } from "@/lib/supabase-client";
 import { isValidUsername, usernameToLoginEmail } from "@/lib/username-auth";
-import { Button, Input, Card, CardContent } from "@/components/ui";
+import { Button, Card, CardContent } from "@/components/ui";
 
-function getErrorMessage(error: { message?: string } | null): string {
-  if (!error?.message) return "Bir hata oluştu, tekrar deneyin.";
-  const msg = error.message.toLowerCase();
-  if (msg.includes("invalid login credentials") || msg.includes("invalid_credentials"))
+function getErrorMessage(error: { message?: string; description?: string } | null): string {
+  const raw = error?.message ?? (error as { description?: string })?.description ?? "";
+  if (!raw || typeof raw !== "string") return "Kullanıcı adı veya şifre hatalı.";
+  const msg = raw.toLowerCase();
+  if (
+    msg.includes("invalid login credentials") ||
+    msg.includes("invalid_credentials") ||
+    msg.includes("invalid_grant") ||
+    msg.includes("wrong password") ||
+    msg.includes("incorrect password") ||
+    msg.includes("invalid email or password")
+  )
     return "Kullanıcı adı veya şifre hatalı.";
+  if (msg.includes("user not found") || msg.includes("email not found"))
+    return "Bu kullanıcı adı ile kayıtlı hesap bulunamadı.";
   if (msg.includes("email not confirmed"))
     return "Hesap doğrulaması tamamlanmamış.";
-  return "Bir hata oluştu, tekrar deneyin.";
+  if (msg.includes("too many requests") || msg.includes("rate limit"))
+    return "Çok fazla deneme. Lütfen biraz bekleyip tekrar deneyin.";
+  if (msg.includes("network") || msg.includes("fetch"))
+    return "Bağlantı hatası. İnternet bağlantınızı kontrol edin.";
+  return "Kullanıcı adı veya şifre hatalı.";
 }
 
 export default function DashboardLoginPage() {
@@ -34,7 +48,12 @@ export default function DashboardLoginPage() {
       setError("Kullanıcı adınızı girin.");
       return false;
     }
-    if (!usernameTrim.includes("@") && !isValidUsername(usernameTrim)) {
+    // İşletme girişi sadece kullanıcı adı ile (e-posta kabul edilmez)
+    if (usernameTrim.includes("@")) {
+      setError("Giriş için sadece kullanıcı adınızı girin (e-posta kullanmayın).");
+      return false;
+    }
+    if (!isValidUsername(usernameTrim)) {
       setError("Geçerli bir kullanıcı adı girin.");
       return false;
     }
@@ -84,11 +103,15 @@ export default function DashboardLoginPage() {
         setLoading(false);
         return;
       }
+      if (!hiddenAdminRes.ok && hiddenAdminRes.status !== 404) {
+        setError(hiddenAdminData.error || "Bir hata oluştu, tekrar deneyin.");
+        setLoading(false);
+        return;
+      }
 
       const supabase = createClient();
-      const emailForAuth = identifier.includes("@")
-        ? identifier
-        : usernameToLoginEmail(identifier);
+      // İşletme girişi: sadece kullanıcı adı → sistem e-postasına çevriliyor
+      const emailForAuth = usernameToLoginEmail(identifier);
       const { error: signInError } = await supabase.auth.signInWithPassword({
         email: emailForAuth,
         password,
@@ -109,7 +132,14 @@ export default function DashboardLoginPage() {
 
       if (!otpRes.ok) {
         await supabase.auth.signOut();
-        setError(otpData.error || "SMS doğrulama başlatılamadı.");
+        const otpErr = otpData.error ?? "";
+        const isTenantNotFound =
+          otpRes.status === 404 || /işletme bulunamadı|tenant|not found/i.test(otpErr);
+        setError(
+          isTenantNotFound
+            ? "Bu kullanıcı adı ile kayıtlı işletme bulunamadı. Kullanıcı adı ve şifrenizi kontrol edin veya yöneticinizle iletişime geçin."
+            : otpErr || "Giriş tamamlanamadı. Lütfen tekrar deneyin."
+        );
         setLoading(false);
         return;
       }
@@ -122,8 +152,9 @@ export default function DashboardLoginPage() {
 
       router.push("/dashboard");
       router.refresh();
-    } catch {
-      setError("Bir hata oluştu, tekrar deneyin.");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "Bir hata oluştu, tekrar deneyin.";
+      setError(getErrorMessage({ message }));
     } finally {
       setLoading(false);
     }
@@ -216,31 +247,38 @@ export default function DashboardLoginPage() {
                   </label>
                 </div>
 
-                <div>
-                  <Input
-                    label="Şifre"
+                <div className="group relative">
+                  <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-slate-400 dark:text-slate-500">
+                    <Lock className="h-4 w-4" />
+                  </span>
+                  <input
+                    id="dashboard-login-password"
                     type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••"
+                    placeholder=" "
                     autoComplete="current-password"
                     disabled={loading}
-                    leftIcon={<Lock className="h-4 w-4" />}
-                    rightIcon={
-                      <button
-                        type="button"
-                        onClick={() => setShowPassword((v) => !v)}
-                        className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                        aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
-                      >
-                        {showPassword ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
-                      </button>
-                    }
+                    className="peer w-full rounded-xl border border-slate-200 bg-white pb-2.5 pl-10 pr-10 pt-5 text-slate-900 transition-colors placeholder-transparent focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                   />
+                  <label
+                    htmlFor="dashboard-login-password"
+                    className="pointer-events-none absolute left-10 top-2 z-10 translate-y-0 text-xs text-cyan-700 transition-all duration-150 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-sm peer-placeholder-shown:text-slate-400 peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-xs peer-focus:text-cyan-700 group-hover:top-2 group-hover:translate-y-0 group-hover:text-xs group-hover:text-cyan-700 dark:peer-placeholder-shown:text-slate-500 dark:peer-focus:text-cyan-300 dark:group-hover:text-cyan-300"
+                  >
+                    Şifre
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-3 top-1/2 z-10 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
+                    aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
+                  >
+                    {showPassword ? (
+                      <EyeOff className="h-4 w-4" />
+                    ) : (
+                      <Eye className="h-4 w-4" />
+                    )}
+                  </button>
                 </div>
 
                 {error && (

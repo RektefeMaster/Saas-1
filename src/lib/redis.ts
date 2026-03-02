@@ -62,6 +62,11 @@ const TTL_SECONDS = 60 * 60 * 24; // 24 saat
 const PHONE_TENANT_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 gün
 const RATE_LIMIT_TTL_SECONDS = 60; // 1 dakika
 const RATE_LIMIT_MAX = 15; // dakikada max mesaj
+const RATE_LIMIT_HOURLY_TTL_SECONDS = 60 * 60; // 1 saat
+const RATE_LIMIT_HOURLY_MAX = 35; // saatte max mesaj
+const RATE_LIMIT_DAILY_TTL_SECONDS = 60 * 60 * 24; // 24 saat
+const RATE_LIMIT_DAILY_MAX = 180; // günde max mesaj
+const RATE_LIMIT_COOLDOWN_SECONDS = 60 * 60 * 3; // yoğun suistimalde 3 saat soğutma
 const BOOKING_LOCK_TTL_SECONDS = 10; // Aynı slot onayı için kısa kilit
 const BOOKING_HOLD_TTL_SECONDS = 180; // 3 dk sepet tutma
 
@@ -418,25 +423,180 @@ export async function deleteOtpChallenge(challengeId: string): Promise<void> {
 // --- Rate limiting (webhook: 15 mesaj/dakika per phone) ---
 const rateLimitMemory = new Map<string, { count: number; expiry: number }>();
 
-export async function checkAndIncrementRateLimit(phone: string): Promise<{ allowed: boolean; count: number }> {
-  const key = RATE_LIMIT_PREFIX + phone.replace(/\D/g, "");
+export interface RateLimitResult {
+  allowed: boolean;
+  minuteCount: number;
+  hourCount: number;
+  dayCount: number;
+  blockedBy?: "minute" | "hour" | "day" | "cooldown";
+  cooldownSeconds?: number;
+}
+
+function rateWindowKey(phoneDigits: string, window: "minute" | "hour" | "day"): string {
+  if (window === "minute") return `${RATE_LIMIT_PREFIX}${phoneDigits}:1m`;
+  if (window === "hour") return `${RATE_LIMIT_PREFIX}${phoneDigits}:1h`;
+  return `${RATE_LIMIT_PREFIX}${phoneDigits}:1d`;
+}
+
+function rateCooldownKey(phoneDigits: string): string {
+  return `${RATE_LIMIT_PREFIX}${phoneDigits}:cooldown`;
+}
+
+function incrementMemoryCounter(key: string, ttlSeconds: number): number {
+  const now = Date.now();
+  const mem = rateLimitMemory.get(key);
+  if (!mem || mem.expiry < now) {
+    rateLimitMemory.set(key, {
+      count: 1,
+      expiry: now + ttlSeconds * 1000,
+    });
+    return 1;
+  }
+  mem.count += 1;
+  return mem.count;
+}
+
+export async function checkAndIncrementRateLimit(phone: string): Promise<RateLimitResult> {
+  const digits = phone.replace(/\D/g, "");
+  const minuteKey = rateWindowKey(digits, "minute");
+  const hourKey = rateWindowKey(digits, "hour");
+  const dayKey = rateWindowKey(digits, "day");
+  const cooldownKey = rateCooldownKey(digits);
+
   if (redis) {
     try {
-      const count = await redis.incr(key);
-      if (count === 1) await redis.expire(key, RATE_LIMIT_TTL_SECONDS);
-      return { allowed: count <= RATE_LIMIT_MAX, count };
+      const activeCooldown = await redis.ttl(cooldownKey);
+      if (typeof activeCooldown === "number" && activeCooldown > 0) {
+        return {
+          allowed: false,
+          minuteCount: 0,
+          hourCount: 0,
+          dayCount: 0,
+          blockedBy: "cooldown",
+          cooldownSeconds: activeCooldown,
+        };
+      }
+
+      const minuteCount = await redis.incr(minuteKey);
+      if (minuteCount === 1) await redis.expire(minuteKey, RATE_LIMIT_TTL_SECONDS);
+
+      const hourCount = await redis.incr(hourKey);
+      if (hourCount === 1) await redis.expire(hourKey, RATE_LIMIT_HOURLY_TTL_SECONDS);
+
+      const dayCount = await redis.incr(dayKey);
+      if (dayCount === 1) await redis.expire(dayKey, RATE_LIMIT_DAILY_TTL_SECONDS);
+
+      if (minuteCount > RATE_LIMIT_MAX) {
+        return {
+          allowed: false,
+          minuteCount,
+          hourCount,
+          dayCount,
+          blockedBy: "minute",
+          cooldownSeconds: RATE_LIMIT_TTL_SECONDS,
+        };
+      }
+
+      if (hourCount > RATE_LIMIT_HOURLY_MAX) {
+        await redis.set(cooldownKey, "1", { ex: RATE_LIMIT_COOLDOWN_SECONDS });
+        return {
+          allowed: false,
+          minuteCount,
+          hourCount,
+          dayCount,
+          blockedBy: "hour",
+          cooldownSeconds: RATE_LIMIT_COOLDOWN_SECONDS,
+        };
+      }
+
+      if (dayCount > RATE_LIMIT_DAILY_MAX) {
+        await redis.set(cooldownKey, "1", { ex: RATE_LIMIT_DAILY_TTL_SECONDS });
+        return {
+          allowed: false,
+          minuteCount,
+          hourCount,
+          dayCount,
+          blockedBy: "day",
+          cooldownSeconds: RATE_LIMIT_DAILY_TTL_SECONDS,
+        };
+      }
+
+      return {
+        allowed: true,
+        minuteCount,
+        hourCount,
+        dayCount,
+      };
     } catch (err) {
       logRedisFallback("checkAndIncrementRateLimit", err);
     }
   }
+
   const now = Date.now();
-  const mem = rateLimitMemory.get(key);
-  if (!mem || mem.expiry < now) {
-    rateLimitMemory.set(key, { count: 1, expiry: now + RATE_LIMIT_TTL_SECONDS * 1000 });
-    return { allowed: true, count: 1 };
+  const cooldownMem = rateLimitMemory.get(cooldownKey);
+  if (cooldownMem && cooldownMem.expiry > now) {
+    return {
+      allowed: false,
+      minuteCount: 0,
+      hourCount: 0,
+      dayCount: 0,
+      blockedBy: "cooldown",
+      cooldownSeconds: Math.max(1, Math.floor((cooldownMem.expiry - now) / 1000)),
+    };
   }
-  mem.count += 1;
-  return { allowed: mem.count <= RATE_LIMIT_MAX, count: mem.count };
+  rateLimitMemory.delete(cooldownKey);
+
+  const minuteCount = incrementMemoryCounter(minuteKey, RATE_LIMIT_TTL_SECONDS);
+  const hourCount = incrementMemoryCounter(hourKey, RATE_LIMIT_HOURLY_TTL_SECONDS);
+  const dayCount = incrementMemoryCounter(dayKey, RATE_LIMIT_DAILY_TTL_SECONDS);
+
+  if (minuteCount > RATE_LIMIT_MAX) {
+    return {
+      allowed: false,
+      minuteCount,
+      hourCount,
+      dayCount,
+      blockedBy: "minute",
+      cooldownSeconds: RATE_LIMIT_TTL_SECONDS,
+    };
+  }
+
+  if (hourCount > RATE_LIMIT_HOURLY_MAX) {
+    rateLimitMemory.set(cooldownKey, {
+      count: 1,
+      expiry: now + RATE_LIMIT_COOLDOWN_SECONDS * 1000,
+    });
+    return {
+      allowed: false,
+      minuteCount,
+      hourCount,
+      dayCount,
+      blockedBy: "hour",
+      cooldownSeconds: RATE_LIMIT_COOLDOWN_SECONDS,
+    };
+  }
+
+  if (dayCount > RATE_LIMIT_DAILY_MAX) {
+    rateLimitMemory.set(cooldownKey, {
+      count: 1,
+      expiry: now + RATE_LIMIT_DAILY_TTL_SECONDS * 1000,
+    });
+    return {
+      allowed: false,
+      minuteCount,
+      hourCount,
+      dayCount,
+      blockedBy: "day",
+      cooldownSeconds: RATE_LIMIT_DAILY_TTL_SECONDS,
+    };
+  }
+
+  return {
+    allowed: true,
+    minuteCount,
+    hourCount,
+    dayCount,
+  };
 }
 
 export interface BookingHoldRecord {
