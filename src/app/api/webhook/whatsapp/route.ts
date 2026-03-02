@@ -1,9 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  parseTenantCodeFromMessage,
-  sanitizeIncomingCustomerMessage,
-} from "@/lib/tenant-code";
-import { getTenantByCode, processMessage } from "@/lib/ai";
+import { processMessage } from "@/lib/ai";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
 import { getTenantIdByPhone, setPhoneTenantMapping, setSession, getSession, deleteSession } from "@/lib/redis";
 import { verifyWebhookSignatureBody, getWebhookSecret } from "@/middleware/webhookVerify.middleware";
@@ -11,6 +7,7 @@ import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
 import { supabase } from "@/lib/supabase";
 import type { ConversationState } from "@/lib/database.types";
 import { getAppBaseUrl } from "@/lib/app-url";
+import { logTenantSwitch, resolveTenantRouting } from "@/lib/tenant-routing";
 
 // Vercel: OpenAI + Supabase + Redis zinciri 10s default timeout'u aşıyor.
 // Hobby plan max 60s, Pro plan max 300s.
@@ -105,27 +102,29 @@ export async function POST(request: NextRequest) {
 
           try {
             const previousTenantId: string | null = await getTenantIdByPhone(customerPhone);
-            let tenantId: string | null = previousTenantId;
-            let isNewTenant = false;
+            let tenantId: string | null = null;
+            let routingReason: "marker" | "session" | "nlp" | "default" | "none" = "none";
             let tenantName: string | null = null;
+            let tenantCode: string | null = null;
+            let intentDomain: "haircare" | "carcare" | null = null;
 
-            const code = parseTenantCodeFromMessage(rawText);
-            const normalizedText =
-              sanitizeIncomingCustomerMessage(rawText, code) || rawText;
-            if (code) {
-              const tenant = await getTenantByCode(code);
-              if (tenant) {
-                tenantId = tenant.id;
-                tenantName = tenant.name;
-                isNewTenant = previousTenantId !== tenant.id;
-              }
-            }
+            const routing = await resolveTenantRouting({
+              customerPhone,
+              rawMessage: rawText,
+              previousTenantId,
+            });
+            tenantId = routing.tenantId;
+            tenantName = routing.tenantName;
+            routingReason = routing.reason;
+            tenantCode = routing.tenantCode;
+            intentDomain = routing.intentDomain;
+            const normalizedText = routing.normalizedMessage || rawText;
 
             if (!tenantId) {
               const defaultId = await resolveDefaultTenant();
               if (defaultId) {
                 tenantId = defaultId;
-                isNewTenant = true;
+                routingReason = "default";
               }
             }
 
@@ -151,6 +150,8 @@ export async function POST(request: NextRequest) {
             }
 
             const hasTenantSwitched = Boolean(previousTenantId && previousTenantId !== tenantId);
+            const isFirstTenantBinding = Boolean(!previousTenantId && tenantId);
+            const isNewTenant = Boolean(isFirstTenantBinding || hasTenantSwitched);
             // İşletme değişikliğinde eski session'ı temizle
             if (hasTenantSwitched && previousTenantId) {
               await deleteSession(previousTenantId, customerPhone);
@@ -170,6 +171,18 @@ export async function POST(request: NextRequest) {
                 updated_at: new Date().toISOString(),
               };
               await setSession(tenantId, customerPhone, newState);
+            }
+
+            if ((hasTenantSwitched || isFirstTenantBinding) && routingReason !== "none") {
+              await logTenantSwitch({
+                customerPhone,
+                previousTenantId,
+                nextTenantId: tenantId,
+                switchReason: routingReason,
+                intentDomain,
+                tenantCode,
+                messagePreview: normalizedText,
+              });
             }
 
             if (hasTenantSwitched) {

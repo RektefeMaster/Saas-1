@@ -2,8 +2,10 @@
  * Canlıda kapatılmalı. Env değişkenlerinin varlığını kontrol eder (değer göstermez).
  */
 import { NextResponse } from "next/server";
+import { getTwilioVerifyStatus } from "@/lib/twilio";
 
 export async function GET() {
+  const twilio = getTwilioVerifyStatus();
   const checks = {
     SUPABASE_URL: !!process.env.NEXT_PUBLIC_SUPABASE_URL,
     SUPABASE_SERVICE_ROLE: !!process.env.SUPABASE_SERVICE_ROLE_KEY,
@@ -14,7 +16,16 @@ export async function GET() {
     WHATSAPP_TOKEN: !!process.env.WHATSAPP_ACCESS_TOKEN,
     WHATSAPP_VERIFY: !!process.env.WHATSAPP_VERIFY_TOKEN,
     WHATSAPP_WEBHOOK_SECRET: !!process.env.WHATSAPP_WEBHOOK_SECRET,
+    SMS_2FA_FLAG: twilio.enabledByFlag,
+    TWILIO_VERIFY_READY: twilio.configReady,
   };
   const allOk = Object.values(checks).every(Boolean);
-  return NextResponse.json({ ok: allOk, checks });
+  return NextResponse.json({
+    ok: allOk,
+    checks,
+    twilio: {
+      missing: twilio.missing,
+      invalid: twilio.invalid,
+    },
+  });
 }

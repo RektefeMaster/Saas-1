@@ -5,16 +5,85 @@ function isTruthy(value: string | undefined): boolean {
   return ["1", "true", "yes", "on"].includes(value.trim().toLowerCase());
 }
 
+function isPlaceholder(value: string): boolean {
+  return /(your-|placeholder|changeme|xxx|example|test-token|test)/i.test(value);
+}
+
+function isAccountSidValid(value: string): boolean {
+  return /^AC[a-zA-Z0-9]{32}$/.test(value);
+}
+
+function isServiceSidValid(value: string): boolean {
+  return /^VA[a-zA-Z0-9]{32}$/.test(value);
+}
+
+function isAuthTokenValid(value: string): boolean {
+  if (isPlaceholder(value)) return false;
+  return value.trim().length >= 12;
+}
+
 export function isSms2faEnabled(): boolean {
   return isTruthy(process.env.ENABLE_SMS_2FA);
 }
 
+export interface TwilioVerifyStatus {
+  enabledByFlag: boolean;
+  configReady: boolean;
+  missing: Array<"TWILIO_ACCOUNT_SID" | "TWILIO_AUTH_TOKEN" | "TWILIO_VERIFY_SERVICE_SID">;
+  invalid: Array<"TWILIO_ACCOUNT_SID" | "TWILIO_AUTH_TOKEN" | "TWILIO_VERIFY_SERVICE_SID">;
+  accountSidSet: boolean;
+  authTokenSet: boolean;
+  serviceSidSet: boolean;
+}
+
+export function getTwilioVerifyStatus(): TwilioVerifyStatus {
+  const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim() || "";
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim() || "";
+  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID?.trim() || "";
+
+  const missing: TwilioVerifyStatus["missing"] = [];
+  const invalid: TwilioVerifyStatus["invalid"] = [];
+
+  if (!accountSid) missing.push("TWILIO_ACCOUNT_SID");
+  if (!authToken) missing.push("TWILIO_AUTH_TOKEN");
+  if (!serviceSid) missing.push("TWILIO_VERIFY_SERVICE_SID");
+
+  if (accountSid && !isAccountSidValid(accountSid)) invalid.push("TWILIO_ACCOUNT_SID");
+  if (authToken && !isAuthTokenValid(authToken)) invalid.push("TWILIO_AUTH_TOKEN");
+  if (serviceSid && !isServiceSidValid(serviceSid)) invalid.push("TWILIO_VERIFY_SERVICE_SID");
+
+  return {
+    enabledByFlag: isSms2faEnabled(),
+    configReady: missing.length === 0 && invalid.length === 0,
+    missing,
+    invalid,
+    accountSidSet: Boolean(accountSid),
+    authTokenSet: Boolean(authToken),
+    serviceSidSet: Boolean(serviceSid),
+  };
+}
+
+export function isTwilioVerifyConfigured(): boolean {
+  return getTwilioVerifyStatus().configReady;
+}
+
+export function isSms2faOperational(): boolean {
+  const status = getTwilioVerifyStatus();
+  return status.enabledByFlag && status.configReady;
+}
+
 function getTwilioConfig() {
-  const accountSid = process.env.TWILIO_ACCOUNT_SID;
-  const authToken = process.env.TWILIO_AUTH_TOKEN;
-  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID;
-  if (!accountSid || !authToken || !serviceSid) {
-    throw new Error("Twilio Verify yapılandırması eksik.");
+  const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim() || "";
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim() || "";
+  const serviceSid = process.env.TWILIO_VERIFY_SERVICE_SID?.trim() || "";
+  const status = getTwilioVerifyStatus();
+  if (!status.configReady) {
+    const parts: string[] = [];
+    if (status.missing.length) parts.push(`eksik: ${status.missing.join(", ")}`);
+    if (status.invalid.length) parts.push(`geçersiz: ${status.invalid.join(", ")}`);
+    throw new Error(
+      `Twilio Verify yapılandırması eksik veya geçersiz (${parts.join(" | ")}).`
+    );
   }
   return { accountSid, authToken, serviceSid };
 }

@@ -22,6 +22,7 @@ cp .env.example .env
 **İşletme paneli:** giriş modeli `kullanıcı adı + şifre`dir.
 **Gizli admin girişi:** işletme login ekranında `ADMIN_HIDDEN_LOGIN_IDENTIFIER` + `ADMIN_PASSWORD` ile admin oturumu açılabilir (publicte admin butonu yoktur).
 **Domain ayarı:** `NEXT_PUBLIC_APP_URL=https://www.aiahi.net` olacak şekilde üretim domaininizi `.env` içine yazın.
+**SMS 2FA:** `ENABLE_SMS_2FA=true` yapmadan önce `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_VERIFY_SERVICE_SID`, `ADMIN_2FA_PHONE_E164` değerlerini geçerli şekilde doldurun.
 
 ### 3. Supabase
 
@@ -31,6 +32,7 @@ cp .env.example .env
 4. `.env` dosyasına `NEXT_PUBLIC_SUPABASE_URL` ve `SUPABASE_SERVICE_ROLE_KEY` ekleyin
 5. Eski kurulumlarda Dashboard V2 alanları eksikse `010_dashboard_v2_crm_otp.sql` ve `011_schema_backfill_dashboard_v2.sql` migrationlarını da çalıştırın
 6. Kullanıcı adıyla giriş için `012_owner_username_login.sql` migrationını çalıştırın
+7. Faz 1 routing audit log için `013_tenant_switch_logs.sql` migrationını çalıştırın
 
 ### 4. WhatsApp (Meta Cloud API)
 
