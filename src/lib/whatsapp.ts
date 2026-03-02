@@ -1,5 +1,18 @@
 const WHATSAPP_API = "https://graph.facebook.com/v22.0";
 
+function normalizeSecretValue(value: string | undefined): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  const unquoted = trimmed.replace(/^['"]|['"]$/g, "");
+  return unquoted.replace(/\s+/g, "");
+}
+
+function normalizePlainValue(value: string | undefined): string {
+  if (!value) return "";
+  const trimmed = value.trim();
+  return trimmed.replace(/^['"]|['"]$/g, "");
+}
+
 export interface SendMessageParams {
   to: string;
   text: string;
@@ -30,8 +43,8 @@ export async function sendWhatsAppMessageDetailed({
   to,
   text,
 }: SendMessageParams): Promise<WhatsAppSendResult> {
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneId = normalizePlainValue(process.env.WHATSAPP_PHONE_NUMBER_ID);
+  const token = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
   const normalizedTo = to.replace(/\D/g, "");
   if (!phoneId || !token) {
     console.error("[whatsapp] credentials missing - phoneId:", !!phoneId, "token:", !!token);
@@ -118,8 +131,8 @@ export async function sendWhatsAppTemplateMessage({
   languageCode = "tr",
   bodyParams = [],
 }: SendTemplateMessageParams): Promise<boolean> {
-  const phoneId = process.env.WHATSAPP_PHONE_NUMBER_ID;
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const phoneId = normalizePlainValue(process.env.WHATSAPP_PHONE_NUMBER_ID);
+  const token = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
   if (!phoneId || !token) {
     console.error(
       "[whatsapp template] credentials missing - phoneId:",
@@ -172,7 +185,7 @@ export async function sendWhatsAppTemplateMessage({
 }
 
 async function getWhatsAppMediaUrl(mediaId: string): Promise<{ url: string; mimeType: string } | null> {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const token = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
   if (!token) return null;
   const url = `${WHATSAPP_API}/${mediaId}`;
   const res = await fetch(url, {
@@ -195,7 +208,7 @@ async function getWhatsAppMediaUrl(mediaId: string): Promise<{ url: string; mime
 }
 
 export async function downloadWhatsAppMedia(mediaId: string): Promise<WhatsAppMediaPayload | null> {
-  const token = process.env.WHATSAPP_ACCESS_TOKEN;
+  const token = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
   if (!token) return null;
   const meta = await getWhatsAppMediaUrl(mediaId);
   if (!meta) return null;
