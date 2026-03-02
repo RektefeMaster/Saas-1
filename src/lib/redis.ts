@@ -38,6 +38,7 @@ const RATE_LIMIT_PREFIX = "ahi-ai:ratelimit:";
 const OTP_CHALLENGE_PREFIX = "ahi-ai:otp:challenge:";
 const BOOKING_LOCK_PREFIX = "ahi-ai:booking:lock:";
 const BOOKING_HOLD_PREFIX = "ahi-ai:booking:hold:";
+const WEBHOOK_DEBUG_KEY = "ahi-ai:webhook:last";
 /** [YENİ] Tenant cache key prefix; TTL 300 saniye (5 dk). */
 const TENANT_CACHE_PREFIX = "ahi-ai:tenant:id:";
 const TENANT_CACHE_TTL_SECONDS = 300;
@@ -59,6 +60,7 @@ const bookingHoldMemory = new Map<
     expiry: number;
   }
 >();
+const webhookDebugMemory = new Map<string, { value: WebhookDebugRecord; expiry: number }>();
 
 function logRedisFallback(action: string, err: unknown) {
   if (fallbackLogged) return;
@@ -238,6 +240,45 @@ export interface OtpChallenge {
   user_id?: string;
   attempts: number;
   created_at: string;
+}
+
+export interface WebhookDebugRecord {
+  stage: string;
+  at: string;
+  [key: string]: unknown;
+}
+
+export async function setWebhookDebugRecord(
+  record: WebhookDebugRecord,
+  ttlSeconds = 60 * 60 * 24
+): Promise<void> {
+  if (redis) {
+    try {
+      await redis.set(WEBHOOK_DEBUG_KEY, JSON.stringify(record), { ex: ttlSeconds });
+      return;
+    } catch (err) {
+      logRedisFallback("setWebhookDebugRecord", err);
+    }
+  }
+  webhookDebugMemory.set(WEBHOOK_DEBUG_KEY, {
+    value: record,
+    expiry: Date.now() + ttlSeconds * 1000,
+  });
+}
+
+export async function getWebhookDebugRecord(): Promise<WebhookDebugRecord | null> {
+  if (redis) {
+    try {
+      const raw = await redis.get<unknown>(WEBHOOK_DEBUG_KEY);
+      return parseRedisJson<WebhookDebugRecord>(raw);
+    } catch (err) {
+      logRedisFallback("getWebhookDebugRecord", err);
+    }
+  }
+  const mem = webhookDebugMemory.get(WEBHOOK_DEBUG_KEY);
+  if (mem && mem.expiry > Date.now()) return mem.value;
+  webhookDebugMemory.delete(WEBHOOK_DEBUG_KEY);
+  return null;
 }
 
 export async function setOtpChallenge(

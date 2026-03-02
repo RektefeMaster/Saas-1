@@ -1,7 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { processMessage } from "@/lib/ai";
 import { downloadWhatsAppMedia, sendWhatsAppMessage } from "@/lib/whatsapp";
-import { getTenantIdByPhone, setPhoneTenantMapping, setSession, getSession, deleteSession } from "@/lib/redis";
+import {
+  getTenantIdByPhone,
+  setPhoneTenantMapping,
+  setSession,
+  getSession,
+  deleteSession,
+  getWebhookDebugRecord,
+  setWebhookDebugRecord,
+} from "@/lib/redis";
 import { verifyWebhookSignatureBody, getWebhookSecret } from "@/middleware/webhookVerify.middleware";
 import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
 import { supabase } from "@/lib/supabase";
@@ -60,12 +68,31 @@ function extractMessageText(msg: IncomingMessage): string {
   return "";
 }
 
+function maskPhone(phone: string | null | undefined): string {
+  if (!phone) return "n/a";
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) return "n/a";
+  if (digits.length <= 4) return digits;
+  return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
+}
+
 export async function GET(request: NextRequest) {
   if (!VERIFY_TOKEN) {
     return new NextResponse("WHATSAPP_VERIFY_TOKEN missing", { status: 503 });
   }
 
   const { searchParams } = new URL(request.url);
+  const diag = searchParams.get("diag");
+  if (diag === "1") {
+    const key = searchParams.get("key") || "";
+    const diagToken = (process.env.WHATSAPP_DIAG_TOKEN || VERIFY_TOKEN).trim();
+    if (!diagToken || key !== diagToken) {
+      return new NextResponse("Forbidden", { status: 403 });
+    }
+    const data = await getWebhookDebugRecord();
+    return NextResponse.json({ ok: true, data });
+  }
+
   const mode = searchParams.get("hub.mode");
   const token = searchParams.get("hub.verify_token");
   const challenge = searchParams.get("hub.challenge");
@@ -83,24 +110,51 @@ export async function POST(request: NextRequest) {
   const signature = request.headers.get("x-hub-signature-256") ?? "";
   const secret = getWebhookSecret();
   const rawBody = await request.text();
+  const userAgent = request.headers.get("user-agent") || "";
+
+  await setWebhookDebugRecord({
+    stage: "post_received",
+    at: new Date().toISOString(),
+    has_signature: Boolean(signature),
+    strict_signature: STRICT_WEBHOOK_SIGNATURE,
+    has_secret: Boolean(secret),
+    user_agent: userAgent.slice(0, 120),
+    body_size: rawBody.length,
+  });
 
   if (!secret) {
     if (STRICT_WEBHOOK_SIGNATURE) {
       console.error("[webhook] WHATSAPP_WEBHOOK_SECRET tanımlı değil, istek reddedildi");
+      await setWebhookDebugRecord({
+        stage: "rejected_missing_secret",
+        at: new Date().toISOString(),
+        strict_signature: true,
+      });
       return new NextResponse("Webhook secret missing", { status: 503 });
     }
     console.warn("[webhook] WHATSAPP_WEBHOOK_SECRET tanımlı değil, strict=false olduğu için imza doğrulama atlandı");
   } else if (!verifyWebhookSignatureBody(Buffer.from(rawBody, "utf8"), signature, secret)) {
-    const metaUa = request.headers.get("user-agent") || "";
+    const metaUa = userAgent;
     const likelyMeta = /facebook|meta|whatsapp/i.test(metaUa);
     if (STRICT_WEBHOOK_SIGNATURE) {
       console.warn("[webhook] Invalid signature, rejecting request");
+      await setWebhookDebugRecord({
+        stage: "rejected_invalid_signature",
+        at: new Date().toISOString(),
+        likely_meta: likelyMeta,
+      });
       return new NextResponse("Unauthorized", { status: 401 });
     }
     console.warn(
       "[webhook] Invalid signature but strict mode disabled; continuing.",
       { likelyMeta, hasSignature: Boolean(signature) }
     );
+    await setWebhookDebugRecord({
+      stage: "invalid_signature_but_allowed",
+      at: new Date().toISOString(),
+      likely_meta: likelyMeta,
+      has_signature: Boolean(signature),
+    });
   }
 
   let body: {
@@ -116,11 +170,21 @@ export async function POST(request: NextRequest) {
     body = JSON.parse(rawBody);
   } catch {
     console.warn("[webhook] Invalid JSON body");
+    await setWebhookDebugRecord({
+      stage: "invalid_json",
+      at: new Date().toISOString(),
+    });
     return new NextResponse("Bad Request", { status: 400 });
   }
 
   try {
     console.log("[webhook] POST received, object:", body?.object);
+    await setWebhookDebugRecord({
+      stage: "json_parsed",
+      at: new Date().toISOString(),
+      object: body?.object || null,
+      entries: Array.isArray(body.entry) ? body.entry.length : 0,
+    });
 
     if (body.object !== "whatsapp_business_account") {
       return NextResponse.json({ ok: true });
@@ -135,9 +199,22 @@ export async function POST(request: NextRequest) {
         const messages = value?.messages || [];
         console.log("[webhook] messages count:", messages.length);
 
+        if (messages.length === 0) {
+          await setWebhookDebugRecord({
+            stage: "no_messages_array",
+            at: new Date().toISOString(),
+            field: change.field || "unknown",
+          });
+        }
+
         for (const msg of messages) {
           const from = msg.from;
           if (!from) {
+            await setWebhookDebugRecord({
+              stage: "message_without_sender",
+              at: new Date().toISOString(),
+              type: msg.type || "unknown",
+            });
             continue;
           }
 
@@ -187,6 +264,12 @@ export async function POST(request: NextRequest) {
                 text: "Şu an metin ve sesli mesajları destekliyorum. Lütfen metin veya sesli mesaj gönderin.",
               });
             }
+            await setWebhookDebugRecord({
+              stage: "unsupported_or_empty_message",
+              at: new Date().toISOString(),
+              type: msgType,
+              from: maskPhone(customerPhone),
+            });
             continue;
           }
 
@@ -297,8 +380,27 @@ export async function POST(request: NextRequest) {
             const sent = await sendWhatsAppMessage({ to: customerPhone, text: prefixedReply });
             console.log("[webhook] send result:", sent);
             if (!sent) console.error("[webhook] WhatsApp send failed for", customerPhone);
+            await setWebhookDebugRecord({
+              stage: sent ? "message_replied" : "message_reply_failed",
+              at: new Date().toISOString(),
+              from: maskPhone(customerPhone),
+              type: msgType,
+              tenant_id: tenantId,
+              routing_reason: routingReason,
+              preview: normalizedText.slice(0, 80),
+            });
           } catch (err) {
             console.error("[webhook] Error processing message:", err);
+            await setWebhookDebugRecord({
+              stage: "message_processing_error",
+              at: new Date().toISOString(),
+              from: maskPhone(customerPhone),
+              type: msgType,
+              error:
+                err instanceof Error
+                  ? err.message.slice(0, 180)
+                  : String(err).slice(0, 180),
+            });
             try {
               await sendWhatsAppMessage({
                 to: customerPhone,
@@ -315,6 +417,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   } catch (err) {
     console.error("[webhook] Outer error:", err);
+    await setWebhookDebugRecord({
+      stage: "outer_error",
+      at: new Date().toISOString(),
+      error: err instanceof Error ? err.message.slice(0, 180) : String(err).slice(0, 180),
+    });
     return NextResponse.json({ ok: true });
   }
 }
