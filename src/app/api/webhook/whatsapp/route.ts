@@ -30,6 +30,8 @@ export const maxDuration = 60;
 const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || "";
 const STRICT_WEBHOOK_SIGNATURE =
   (process.env.WHATSAPP_STRICT_SIGNATURE || "").trim().toLowerCase() === "true";
+const ENABLE_QUICK_ACK =
+  (process.env.WHATSAPP_QUICK_ACK || "").trim().toLowerCase() === "true";
 
 async function resolveDefaultTenant(): Promise<string | null> {
   if (DEFAULT_TENANT_ID) return DEFAULT_TENANT_ID;
@@ -74,6 +76,7 @@ function extractMessageText(msg: IncomingMessage): string {
 }
 
 function shouldSendQuickAck(text: string): boolean {
+  if (!ENABLE_QUICK_ACK) return false;
   const normalized = text.trim().toLocaleLowerCase("tr-TR");
   return /^(merhaba|selam|mrb|slm|hey|iyi\s*günler)(\b|[!.?,\s]|$)/i.test(normalized);
 }
@@ -383,7 +386,10 @@ export async function POST(request: NextRequest) {
               console.log("[webhook] no tenant, sending list to", customerPhone);
               await sendWhatsAppMessage({
                 to: customerPhone,
-                text: `Merhaba! Hangi işletme için randevu almak istiyorsunuz?\n\nİşletme listesine buradan ulaşabilirsiniz: ${listUrl}\n\nVeya işletmenin WhatsApp linkine tıklayarak bize ulaşabilirsiniz.`,
+                text:
+                  `Mesajını aldım ama işletmeyi eşleştiremedim.\n` +
+                  `Lütfen şu formatta yaz: "Merhaba <işletme adı>, randevu almak istiyorum"\n\n` +
+                  `İşletme linkleri: ${listUrl}`,
               });
               continue;
             }
@@ -434,22 +440,15 @@ export async function POST(request: NextRequest) {
               });
             }
 
-            if (hasTenantSwitched) {
-              const header = (tenantName || "İşletme").toLocaleUpperCase("tr-TR");
-              await sendWhatsAppMessage({
-                to: customerPhone,
-                text: `⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛\n🏪 ${header} 🏪\n⬛⬛⬛⬛⬛⬛⬛⬛⬛⬛`,
-              });
-            }
+            // Doğal konuşma: tenant değişiminde işletme adı ayracı göndermiyoruz.
 
             console.log("[webhook] processMessage for tenant", tenantId, "from", customerPhone);
             const { reply } = await processMessage(tenantId, customerPhone, normalizedText);
             const safeReply = (reply && String(reply).trim()) || "Anlamadım, tekrar yazar mısınız?";
-            const prefixedReply = `*${tenantName}*\n${safeReply}`;
             console.log("[webhook] sending reply to", customerPhone);
             const sendResult = await sendWhatsAppMessageDetailed({
               to: customerPhone,
-              text: prefixedReply,
+              text: safeReply,
             });
             console.log("[webhook] send result:", sendResult.ok);
             if (!sendResult.ok) console.error("[webhook] WhatsApp send failed for", customerPhone);

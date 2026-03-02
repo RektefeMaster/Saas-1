@@ -19,10 +19,13 @@ export interface PromptBuilderContext {
   pendingCancelId?: string;
   customerHistory?: string;
   misunderstandingCount: number;
+  /** Kayan hafıza: tek cümlelik durum özeti (legacy path ile tutarlılık). */
+  stateSummary?: string;
 }
 
 /**
  * Tek giriş noktası: config + tenant adı + bağlam ile tam sistem promptu üretir.
+ * XML blokları ile karakter kilidi: model rol/ton/kurallar/bağlamdan çıkmaz.
  */
 export function buildSystemPrompt(
   config: MergedConfig,
@@ -41,21 +44,15 @@ Yapamayacağın bir şey çıkarsa, anlamadığın bir durum olursa,
 müşteri "insan", "yetkili", "sizi aramak istiyorum" yazarsa:
 Sadece [[INSAN]] yaz.`;
 
-  return `
-${persona}
+  const kurallar = [fieldInstructions, toolUsage, escalationInstructions, examples]
+    .filter(Boolean)
+    .join("\n\n");
 
-${toneInstructions}
-
-${fieldInstructions}
-
-${toolUsage}
-
-${escalationInstructions}
-
-${examples}
-
-${contextBlock}
-`.trim();
+  let out = `<rol>\n${persona.trim()}\n</rol>\n\n<ton>\n${toneInstructions.trim()}\n</ton>\n\n<kurallar>\n${kurallar.trim()}\n</kurallar>`;
+  if (contextBlock.trim()) {
+    out += `\n\n<bağlam>\n${contextBlock.trim()}\n</bağlam>`;
+  }
+  return out;
 }
 
 function buildToneInstructions(config: MergedConfig): string {
@@ -81,7 +78,8 @@ Ton ve stil:
 - ${formal}
 - ${length}
 - ${emojis}
-- Resmi ve robotik olma, doğal konuş.`;
+- Resmi ve robotik olma, doğal konuş. İş çözmeye yönelik, kısa ve samimi ol.
+- Randevu veya iptal onayında uzun metin yazma; kısa esnaf ağzıyla cevap ver (örn. "Tamam abi, yazdım seni").`;
 }
 
 function buildFieldInstructions(config: MergedConfig): string {
@@ -121,7 +119,8 @@ Araç kullanımı (ne zaman hangi fonksiyonu çağır):
 function buildContextBlock(context: PromptBuilderContext): string {
   const todayDisplay = context.todayLabel ?? context.today;
   const tomorrowDisplay = context.tomorrowLabel ?? context.tomorrow;
-  let block = `
+  let block = context.stateSummary ? `${context.stateSummary}\n\n` : "";
+  block += `
 Bugün: ${todayDisplay}
 Yarın: ${tomorrowDisplay}`;
 

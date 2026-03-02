@@ -9,7 +9,9 @@ import { decodeTenantMarker, stripZeroWidthMarkers } from "./zero-width";
  */
 const TENANT_CODE_REGEX = /(?:Kod|kod|code|CODE)\s*[:：]?\s*([A-Za-z0-9]{3,10})/i;
 const HASHTAG_CODE_REGEX = /#([A-Za-z0-9]{3,10})\b/;
-const FALLBACK_CODE_REGEX = /\b([A-Z][A-Z0-9]{2,9})\b/;
+// Fallback sadece en az bir rakam içeren kodlarda çalışır (örn: AHMET01).
+// Böylece "MERHABA" gibi kelimeler yanlışlıkla tenant kodu sayılmaz.
+const FALLBACK_CODE_REGEX = /\b([A-Z]{2,}[A-Z0-9]*\d[A-Z0-9]*)\b/;
 
 export function parseTenantCodeFromMessage(message: string): string | null {
   const invisibleCode = decodeTenantMarker(message);

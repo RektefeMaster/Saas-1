@@ -61,6 +61,8 @@ const openai =
 const HUMAN_ESCALATION_TAG = "[[INSAN]]";
 const MAX_MESSAGES_BEFORE_ESCALATION = 20;
 const MAX_CHAT_HISTORY_TURNS = 10;
+/** API'ye gönderilen sohbet turu sayısı (bağlam sıkıştırma: token tasarrufu). */
+const CONTEXT_TURNS_TO_SEND = 2;
 const MAX_TOOL_ROUNDS = 5;
 
 const VALID_STEPS = [
@@ -128,7 +130,7 @@ function getProcessErrorReply(tone: string): string {
     : "Bir şeyler ters gitti, biraz sonra tekrar dener misin?";
 }
 
-// ── System prompt builder ───────────────────────────────────────────────────────
+// ── System prompt builder (XML karakter kilidi) ─────────────────────────────────
 
 function buildSystemPrompt(
   tenantName: string,
@@ -139,60 +141,26 @@ function buildSystemPrompt(
   const personality = msgs.personality ?? "Samimi, kısa ve doğal konuş";
   const hitap = tone === "siz" ? "siz" : "sen";
 
-  let prompt = `Sen ${tenantName} işletmesinin WhatsApp asistanısın. ${personality}. Müşteriye '${hitap}' diye hitap et.
+  const rol = `Sen bu işletmenin WhatsApp asistanısın. Müşteri direkt bu işletmeye yazıyor. ${personality}. Müşteriye "${hitap}" diye hitap et. İş çözmeye yönelik konuş; randevu al, iptal et, fiyat/adres sorularına cevap ver.`;
 
-Bu müşteri direkt bu işletmeye yazıyor, başka işletme seçmesine gerek yok. Müşteri her mesaj yazdığında ${tenantName} ile konuşuyor.
+  const ton = `Kısa ve doğal cevap ver. Aynı kalıp cümleleri tekrarlama. Resmi veya robotik olma; esnaf gibi samimi ol. Randevu/iptal onayında uzun metin yazma, kısa onay ver (örn. "Tamam abi, yazdım seni").`;
 
-Ne yapman gerektiğini kendin anla: müşteri randevu istiyorsa al, iptal istiyorsa iptal et, saat soruyorsa takvime bak söyle.
+  const kurallar = `BAĞLAM VE HAFIZA: Konuşma geçmişindeki bilgileri kullan. Müşteri adını söylediyse tekrar sorma. "Pazartesi" = en yakın pazartesi (bağlamdaki tarih listesinden YYYY-MM-DD bul). İşlem sonrası konuşma devam eder.
+KURALLAR: Randevu öncesi müşteri adını mutlaka öğren; sonra saat belliyse direkt create_appointment. Müşteri adını bir kez öğrendikten sonra kaydet, tekrar yazınca ismiyle seslen. Saat: "6"→18:00, "sabah 10"→10:00, "öğleden sonra 3"→15:00. Tarih: bağlamdaki Bugün/Yarın kullan; "öbür gün"=yarından sonraki, "bu hafta sonu"=Cumartesi. Çalışma saatleri dışında randevu önerme. Çoklu randevu: iki create_appointment arka arkaya. Fiyat→get_services; adres→get_tenant_info. "Geç kalacağım"→notify_late. "İptal"→get_last_appointment sonra cancel_appointment. Yapamayacağın bir şey çıkarsa sadece [[INSAN]] yaz.
+MÜSAİTLİK: has_available_slots→saatleri sun; fully_booked→başka gün veya check_week_availability; closed_day/blocked_holiday→"O gün kapalıyız" de. "available" boş olsa bile status'a bak.
+ÖRNEKLER: "yarın 6 boş mu?"→check_availability; doluysa "6 dolu ama 5 var, alayım mı?". "tamam 15e al"→create_appointment, "Aldım, yarın 15'te görüşürüz." "randevumu iptal et"→get_last_appointment, cancel_appointment. "bu hafta ne zaman boş?"→check_week_availability. "ne kadar?"→get_services. "neredesiniz?"→get_tenant_info. "geç kalacağım"→notify_late.`;
 
-BAĞLAM VE HAFIZA:
-- Konuşma geçmişindeki TÜM bilgileri hatırla ve kullan. Müşteri adını söylediyse tekrar sorma.
-- Müşterinin daha önce söylediği tarih, saat, isim gibi bilgileri konuşma boyunca aklında tut.
-- Müşteri "o halde pazartesi" derse, bu "en yakın pazartesi" demektir. Bağlam'daki tarih listesinden doğru YYYY-MM-DD'yi bul.
-- Bir işlem tamamlandıktan sonra (randevu alındı, iptal edildi vs.) konuşma devam eder. Müşteri yeni randevu isteyebilir, soru sorabilir.
-
-Kurallar:
-- Kısa ve doğal cevap ver. Aynı kalıp cümleleri tekrarlama, her seferinde biraz farklı söyle.
-- Randevu oluşturmadan önce müşterinin adını mutlaka öğren. Ad bilmiyorsan sor: "Randevuyu kimin adına alayım?" veya "Adınızı alabilir miyim?". Adı öğrendikten sonra randevuyu oluştur.
-- Müşterinin adını öğrendikten sonra saat de belliyse direkt randevu oluştur, ekstra onay sorma.
-- Müşterinin adını bir kez öğrendikten sonra bunu kaydet. Numaraya ait kişi olarak. O numarada ki kişi tekrar yazınca tanıdığını belli et ismiyle seslen.
-- Saat: "6" → 18:00, "sabah 10" → 10:00, "öğleden sonra 3" → 15:00, "akşam üstü" → 17:00-18:00 arası.
-- Tarih: bağlamda Bugün/Yarın verilmiş, onu kullan. "öbür gün" = yarından sonraki gün. "bu hafta sonu" = Cumartesi. "yakın zamanda" → bu hafta kontrol et.
-- Çalışma saatleri dışında randevu önerme.
-- Çoklu randevu: "Ben ve eşim için iki randevu" derse arka arkaya iki saat (ör. 15:00 ve 15:30) create_appointment çağır.
-- Fiyat sorulursa get_services çağır, bilgiyi paylaş. Fiyat görünmüyorsa sıcak bir dille "Fiyat için bizi arayabilirsin" diyerek telefonu paylaş.
-- Adres/konum sorulursa get_tenant_info çağır, adresi ve varsa Google Maps linkini paylaş.
-- Müşteri "geç kalacağım" derse notify_late çağır, esnafı bilgilendir.
-- Müşteri "iptal" derse (hatırlatma mesajına cevap dahil) iptal akışını başlat.
-- Yapamayacağın bir şey çıkarsa sadece [[INSAN]] yaz.
-
-Müsaitlik durumları (check_availability sonucu):
-- status="has_available_slots" → Boş saatler var, müşteriye sun.
-- status="fully_booked" → O gün tüm saatler dolu. Başka gün sor veya check_week_availability çağır.
-- status="closed_day" → O gün işletme kapalı (tatil günü). Müşteriye "O gün kapalıyız" de, başka gün öner.
-- status="blocked_holiday" → Tatil/izin günü. "O gün kapalıyız" de.
-ÖNEMLİ: "available" listesi boş ama "status" farklı olabilir. Sadece "available" boş diye "dolu" deme, status'a bak!
-
-Müşteri "başka gün var mı?" derse → check_week_availability çağır, 2 haftalık müsaitliği göster.
-
-Örnek diyaloglar:
-Müşteri: "yarın 6 boş mu?" → check_availability çağır. 18:00 doluysa ama 17:00 boşsa: "Yarın 6 dolu ama 5 var, alayım mı?"
-Müşteri: "tamam 15e al" → create_appointment çağır. Başarılıysa: "Aldım! Yarın 15'te görüşürüz."
-Müşteri: "randevumu iptal et" → get_last_appointment çağır, sonra cancel_appointment.
-Müşteri: "bu hafta ne zaman boşsunuz?" → check_week_availability çağır, tüm haftayı göster.
-Müşteri: "başka gün olur mu?" → check_week_availability çağır, müsait günleri sun.
-Müşteri: "randevumu değiştirmek istiyorum" → get_last_appointment bul, reschedule_appointment ile yeni saate al.
-Müşteri: "her salı aynı saatte geleceğim" → create_recurring çağır.
-Müşteri: "dolu ama yer açılırsa haber verin" → add_to_waitlist çağır.
-Müşteri: "ne kadar tutar?" → get_services çağır, fiyatları söyle.
-Müşteri: "neredesiniz?" → get_tenant_info çağır, adresi ver.
-Müşteri: "10 dk geç kalacağım" → notify_late çağır, "Tamam esnafa ilettim" de.
-Müşteri: "ben ve eşim için iki randevu alalım, 15 ve 15:30" → iki kez create_appointment çağır.`;
-
+  let prompt = `<rol>\n${rol}\n</rol>\n\n<ton>\n${ton}\n</ton>\n\n<kurallar>\n${kurallar}\n</kurallar>`;
   if (extraPrompt) {
     prompt += `\n\n${extraPrompt}`;
   }
   return prompt;
+}
+
+/** Sistem prompt'un bağlam kısmını XML <bağlam> içinde döndürür (legacy + config ortak). */
+function wrapContextInXml(contextBlock: string): string {
+  if (!contextBlock.trim()) return "";
+  return `\n\n<bağlam>\n${contextBlock.trim()}\n</bağlam>`;
 }
 
 // ── System context (dates, availability, history) ───────────────────────────────
@@ -216,6 +184,30 @@ function isValidBotConfig(c: unknown): c is BotConfig {
   );
 }
 
+/** Kayan hafıza: mevcut durum özeti (niyet, adım, toplanan bilgiler). API'ye uzun geçmiş yerine bu özet + son birkaç mesaj gider. */
+function buildStateSummary(state: ConversationState | null): string {
+  if (!state) return "";
+  const ext = (state.extracted || {}) as Record<string, unknown>;
+  const parts: string[] = [];
+  const step = state.step;
+  if (step === "saat_secimi_bekleniyor") {
+    parts.push("Niyet: Randevu. Müşteri tarih/saat seçiyor.");
+  } else if (step === "iptal_onay_bekleniyor") {
+    parts.push("Niyet: İptal. Müşteri iptal onayı bekleniyor.");
+  } else if (step === "tarih_saat_bekleniyor" || step === "devam") {
+    parts.push("Niyet: Randevu veya genel.");
+  }
+  const customerName = ext.customer_name as string | undefined;
+  if (customerName) parts.push(`Müşteri adı: ${customerName}.`);
+  const lastDate = ext.last_availability_date as string | undefined;
+  const lastSlots = ext.last_available_slots as string[] | undefined;
+  if (lastDate && Array.isArray(lastSlots) && lastSlots.length > 0) {
+    parts.push(`Son müsait tarih: ${lastDate}, saatler: ${(lastSlots as string[]).join(", ")}.`);
+  }
+  if (parts.length === 0) return "";
+  return `[Durum: ${parts.join(" ")}]`;
+}
+
 function buildSystemContext(
   state: ConversationState | null,
   historySummary?: string
@@ -233,7 +225,10 @@ function buildSystemContext(
     nextDays.push(`${dayName}=${ds}`);
   }
 
-  let ctx = `Bugün: ${todayStr} (${TR_DAY_NAMES_FULL[todayDow]}).`;
+  const stateSummary = buildStateSummary(state);
+
+  let ctx = stateSummary ? `${stateSummary}\n\n` : "";
+  ctx += `Bugün: ${todayStr} (${TR_DAY_NAMES_FULL[todayDow]}).`;
   ctx += ` Önümüzdeki günler: ${nextDays.join(", ")}.`;
   ctx += ` ÖNEMLİ: Müşteri "pazartesi" derse EN YAKIN pazartesiyi kullan (yukarıdaki listeden bak). "Bu hafta" veya "gelecek hafta" derse start_date olarak bugünün tarihini ver.`;
 
@@ -1128,15 +1123,71 @@ function trimChatHistory(history: ChatMessage[]): ChatMessage[] {
   return history.slice(-maxMessages);
 }
 
+// ── Kademeli zeka: niyet sınıflandırma (çırak vs usta model) ────────────────────
+
+const COMPLEX_KEYWORDS = [
+  "iptal",
+  "iptal et",
+  "değiştir",
+  "ertelemek",
+  "ertele",
+  "her hafta",
+  "her salı",
+  "her pazartesi",
+  "yan dükkan",
+  "iki randevu",
+  "ve eşim",
+  "ve oğlum",
+  "randevumu iptal",
+  "randevumu değiştir",
+  "yeniden planla",
+  "başka güne al",
+  "farklı gün",
+  "bekleme listesi",
+  "yer açılırsa",
+];
+
+/** Basit (selam, tek fiyat, tek randevu sorusu) → mini; karmaşık (pazarlık, iptal, çoklu) → 4o. */
+async function classifyIntentForRouting(incomingMessage: string): Promise<"simple" | "complex"> {
+  const t = incomingMessage.trim().toLowerCase();
+  if (COMPLEX_KEYWORDS.some((k) => t.includes(k))) return "complex";
+
+  if (!openai) return "simple";
+
+  try {
+    const res = await openai.chat.completions.create({
+      model: "gpt-4o-mini",
+      messages: [
+        {
+          role: "system",
+          content:
+            "Niyet sınıflandırıcı. Müşteri mesajına göre yalnızca SIMPLE veya COMPLEX yaz. SIMPLE: selam, teşekkür, tek soru (fiyat, adres, tek randevu, müsaitlik). COMPLEX: pazarlık, çoklu adım, randevu değiştirme/iptal, tekrarlayan randevu, birden fazla işletme. Başka bir şey yazma.",
+        },
+        { role: "user", content: t.slice(0, 500) },
+      ],
+      max_tokens: 10,
+    });
+    const text = (res.choices[0]?.message?.content ?? "").trim().toUpperCase();
+    if (text.includes("COMPLEX")) return "complex";
+  } catch (err) {
+    console.warn("[ai] classifyIntentForRouting failed, defaulting to simple:", err);
+  }
+  return "simple";
+}
+
+const MODEL_SIMPLE = "gpt-4o-mini";
+const MODEL_COMPLEX = "gpt-4o";
+
 // ── OpenAI call with retry ──────────────────────────────────────────────────────
 
 async function callOpenAI(
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
-  tools?: OpenAI.Chat.Completions.ChatCompletionTool[]
+  tools?: OpenAI.Chat.Completions.ChatCompletionTool[],
+  model: string = MODEL_SIMPLE
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
   try {
     return await openai!.chat.completions.create({
-      model: "gpt-4o-mini",
+      model,
       messages,
       ...(tools ? { tools, tool_choice: "auto" as const } : {}),
     });
@@ -1152,7 +1203,7 @@ async function callOpenAI(
     if (e?.status === 429) {
       await new Promise((r) => setTimeout(r, 1500));
       return await openai!.chat.completions.create({
-        model: "gpt-4o-mini",
+        model,
         messages,
         ...(tools ? { tools, tool_choice: "auto" as const } : {}),
       });
@@ -1399,6 +1450,7 @@ export async function processMessage(
         pendingCancelId: ext.pending_cancel_appointment_id as string | undefined,
         customerHistory: historySummary,
         misunderstandingCount: state?.consecutive_misunderstandings ?? 0,
+        stateSummary: buildStateSummary(state),
       };
       systemPrompt = buildConfigSystemPrompt(mergedConfig, tenant.name, promptContext);
     } else {
@@ -1406,8 +1458,7 @@ export async function processMessage(
         (bt?.config as { ai_prompt_template?: string })?.ai_prompt_template || "";
       systemPrompt =
         buildSystemPrompt(tenant.name, msgs, extraPrompt) +
-        "\n\n" +
-        systemContext;
+        wrapContextInXml(systemContext);
     }
 
     if (!openai) {
@@ -1416,12 +1467,17 @@ export async function processMessage(
       };
     }
 
-    // ── Build OpenAI messages with conversation history ──
+    // ── Kademeli zeka: basit niyet → mini, karmaşık → 4o ──
+    const routingIntent = await classifyIntentForRouting(incomingMessage);
+    const selectedModel = routingIntent === "complex" ? MODEL_COMPLEX : MODEL_SIMPLE;
+
+    // ── Build OpenAI messages: state summary zaten system prompt'ta; sadece son N tur (bağlam sıkıştırma) ──
     const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =
       [{ role: "system", content: systemPrompt }];
 
     const chatHistory = state?.chat_history || [];
-    for (const msg of chatHistory) {
+    const recentTurns = chatHistory.slice(-(CONTEXT_TURNS_TO_SEND * 2));
+    for (const msg of recentTurns) {
       openaiMessages.push({ role: msg.role, content: msg.content });
     }
     openaiMessages.push({ role: "user", content: incomingMessage });
@@ -1436,7 +1492,8 @@ export async function processMessage(
       try {
         response = await callOpenAI(
           openaiMessages,
-          round === 0 ? TOOLS : TOOLS
+          round === 0 ? TOOLS : TOOLS,
+          selectedModel
         );
       } catch {
         if (mergedConfig) {

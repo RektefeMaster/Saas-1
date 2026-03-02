@@ -17,6 +17,7 @@ export type IntentDomain = "haircare" | "carcare";
 interface TenantSummary {
   id: string;
   name: string;
+  status?: string | null;
 }
 
 interface TenantProfile extends TenantSummary {
@@ -124,16 +125,27 @@ function scoreTenantNameMatch(message: string, tenantName: string): number {
   return score;
 }
 
+function normalizeTenantStatus(status: string | null | undefined): string {
+  return (status || "").toLocaleLowerCase("tr-TR").trim();
+}
+
+function isTenantRoutable(status: string | null | undefined): boolean {
+  const normalized = normalizeTenantStatus(status);
+  if (!normalized) return true;
+  if (normalized === "active" || normalized === "aktif") return true;
+  if (normalized === "enabled" || normalized === "on") return true;
+  return false;
+}
+
 async function getTenantSummaryByNameMention(message: string): Promise<TenantSummary | null> {
   const canonicalMessage = canonicalize(message);
   if (!canonicalMessage || canonicalMessage.length < 3) return null;
 
   const { data, error } = await supabase
     .from("tenants")
-    .select("id, name")
-    .eq("status", "active")
+    .select("id, name, status")
     .is("deleted_at", null)
-    .limit(500);
+    .limit(800);
 
   if (error || !data || data.length === 0) return null;
 
@@ -141,22 +153,23 @@ async function getTenantSummaryByNameMention(message: string): Promise<TenantSum
   let bestScore = 0;
 
   for (const tenant of data) {
+    if (!isTenantRoutable(tenant.status)) continue;
     const score = scoreTenantNameMatch(message, tenant.name);
     if (score > bestScore) {
       bestScore = score;
-      best = { id: tenant.id, name: tenant.name };
+      best = { id: tenant.id, name: tenant.name, status: tenant.status };
       continue;
     }
     if (score > 0 && score === bestScore && best) {
       // Tie-break: prefer longer business name match.
       if (canonicalize(tenant.name).length > canonicalize(best.name).length) {
-        best = { id: tenant.id, name: tenant.name };
+        best = { id: tenant.id, name: tenant.name, status: tenant.status };
       }
     }
   }
 
   // Lower threshold allows natural phrases like "merhaba <işletme adı>" while avoiding noise.
-  return bestScore >= 70 ? best : null;
+  return bestScore >= 45 ? best : null;
 }
 
 function scoreDomain(text: string, domain: IntentDomain): number {
@@ -198,24 +211,24 @@ function isMissingTenantSwitchTable(message: string): boolean {
 async function getTenantSummaryById(tenantId: string): Promise<TenantSummary | null> {
   const { data, error } = await supabase
     .from("tenants")
-    .select("id, name")
+    .select("id, name, status")
     .eq("id", tenantId)
-    .eq("status", "active")
     .is("deleted_at", null)
     .single();
   if (error || !data) return null;
+  if (!isTenantRoutable(data.status)) return null;
   return data;
 }
 
 async function getTenantSummaryByCode(tenantCode: string): Promise<TenantSummary | null> {
   const { data, error } = await supabase
     .from("tenants")
-    .select("id, name")
+    .select("id, name, status")
     .eq("tenant_code", tenantCode.toUpperCase())
-    .eq("status", "active")
     .is("deleted_at", null)
     .single();
   if (error || !data) return null;
+  if (!isTenantRoutable(data.status)) return null;
   return data;
 }
 
@@ -247,9 +260,8 @@ async function getTenantProfiles(tenantIds: string[]): Promise<Map<string, Tenan
   const [tenantsRes, servicesRes] = await Promise.all([
     supabase
       .from("tenants")
-      .select("id, name, business_type_id")
+      .select("id, name, business_type_id, status")
       .in("id", uniqueIds)
-      .eq("status", "active")
       .is("deleted_at", null),
     supabase.from("services").select("tenant_id, name, slug").in("tenant_id", uniqueIds),
   ]);
@@ -278,10 +290,12 @@ async function getTenantProfiles(tenantIds: string[]): Promise<Map<string, Tenan
 
   const profiles = new Map<string, TenantProfile>();
   for (const t of tenantRows) {
+    if (!isTenantRoutable(t.status)) continue;
     const bt = businessTypeMap.get(t.business_type_id);
     profiles.set(t.id, {
       id: t.id,
       name: t.name,
+      status: t.status,
       businessTypeName: bt?.name,
       businessTypeSlug: bt?.slug,
       serviceTexts: servicesByTenant.get(t.id) || [],
