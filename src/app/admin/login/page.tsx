@@ -77,7 +77,13 @@ function AdminLoginForm() {
       };
 
       if (!res.ok) {
-        setError(data.error || "Giriş başarısız");
+        const errorMsg = data.error || "Giriş başarısız";
+        // E-posta hatası için daha açıklayıcı mesaj
+        if (errorMsg.includes("Geçersiz e-posta") || errorMsg.includes("Admin e-postası")) {
+          setError("Geçersiz e-posta adresi. Lütfen admin e-posta adresini kontrol edin.");
+        } else {
+          setError(errorMsg);
+        }
         setLoading(false);
         return;
       }

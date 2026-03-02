@@ -38,14 +38,13 @@ interface ScrollRevealProps {
   once?: boolean;
   amount?: number | "some" | "all";
   className?: string;
-  as?: "div" | "section" | "article" | "li";
+  as?: "div" | "section" | "article";
 }
 
 const MotionComponents = {
   div: motion.div,
   section: motion.section,
   article: motion.article,
-  li: motion.li,
 };
 
 export function ScrollReveal({

@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from "react";
 import { motion, useScroll, useTransform } from "motion/react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import { Loader2, Clock, XCircle, MessageCircle, X, Calendar, AlertCircle, CheckCircle2 } from "lucide-react";
 
 interface Appointment {
   id: string;
@@ -614,24 +615,29 @@ export default function EsnafDashboard({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <a
+              <motion.a
                 href={`${baseUrl}/api/tenant/${tenantId}/link`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-800"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex items-center gap-2 rounded-xl border-2 border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
               >
-                <span aria-hidden>📱</span> WhatsApp Link
-              </a>
-              <a
+                <MessageCircle className="h-4 w-4" />
+                WhatsApp Link
+              </motion.a>
+              <motion.a
                 href={`${baseUrl}/api/tenant/${tenantId}/qr?format=png`}
                 download={`${tenant?.tenant_code || "qr"}-qr.png`}
                 target="_blank"
                 rel="noreferrer"
-                className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
               >
-                <span aria-hidden>📷</span> QR Kod
-              </a>
-              <button
+                <span className="text-base">📷</span> QR Kod
+              </motion.a>
+              <motion.button
                 type="button"
                 onClick={() => {
                   setAddDate("");
@@ -639,102 +645,189 @@ export default function EsnafDashboard({
                   setAddPhone("");
                   setShowAdd(true);
                 }}
-                className="inline-flex items-center gap-1.5 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
               >
-                <span aria-hidden>+</span> Randevu Ekle
-              </button>
+                <span className="text-lg">+</span> Randevu Ekle
+              </motion.button>
             </div>
           </div>
-          {/* Mini stats */}
-          <div className="mt-4 flex gap-4">
-            <div className="rounded-xl bg-slate-100/80 px-4 py-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">Bugün</span>
-              <p className="text-lg font-bold text-slate-900">{todayCount} randevu</p>
-            </div>
-            <div className="rounded-xl bg-slate-100/80 px-4 py-2">
-              <span className="text-xs font-medium uppercase tracking-wide text-slate-500">14 gün</span>
-              <p className="text-lg font-bold text-slate-900">{weekCount} randevu</p>
-            </div>
+          {/* Mini stats - Geliştirilmiş */}
+          <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.1 }}
+              className="rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 px-4 py-3 shadow-sm"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Bugün</span>
+              <p className="mt-1 text-2xl font-bold text-emerald-900">{todayCount}</p>
+              <p className="text-xs text-emerald-700">randevu</p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15 }}
+              className="rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 px-4 py-3 shadow-sm"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">14 Gün</span>
+              <p className="mt-1 text-2xl font-bold text-blue-900">{weekCount}</p>
+              <p className="text-xs text-blue-700">randevu</p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 }}
+              className="rounded-xl bg-gradient-to-br from-cyan-50 to-cyan-100/50 px-4 py-3 shadow-sm"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Aylık</span>
+              <p className="mt-1 text-2xl font-bold text-cyan-900">
+                {commandCenter?.kpis.monthly_appointments || 0}
+              </p>
+              <p className="text-xs text-cyan-700">randevu</p>
+            </motion.div>
+            <motion.div
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.25 }}
+              className="rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 px-4 py-3 shadow-sm"
+            >
+              <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">Doluluk</span>
+              <p className="mt-1 text-2xl font-bold text-amber-900">
+                %{commandCenter?.kpis.fill_rate_pct.toFixed(0) || 0}
+              </p>
+              <p className="text-xs text-amber-700">oranı</p>
+            </motion.div>
           </div>
         </div>
       </motion.header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6">
-          <section className="rounded-2xl border border-emerald-200 bg-white p-5 shadow-sm">
-          <div className="mb-4 flex items-center justify-between">
+          <section className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-white to-emerald-50/30 p-6 shadow-lg">
+          <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="text-sm font-semibold uppercase tracking-wide text-emerald-700">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-emerald-900">
+                <span className="text-xl">🎯</span>
                 Command Center
               </h2>
-              <p className="mt-1 text-xs text-slate-500">
-                Gelir ve operasyon aksiyonlarinizi buradan yonetin.
+              <p className="mt-1 text-sm text-slate-600">
+                Gelir ve operasyon aksiyonlarınızı buradan yönetin
               </p>
             </div>
             {commandCenterLoading && (
-              <span className="text-xs text-slate-500">Yenileniyor...</span>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Yenileniyor...
+              </div>
             )}
           </div>
 
           {!commandCenter ? (
-            <p className="text-sm text-slate-500">Command center verisi aliniyor...</p>
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+              <p className="mt-3 text-sm text-slate-500">Command center verisi alınıyor...</p>
+            </div>
           ) : (
             <>
-              <div className="mb-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                <div className="rounded-xl bg-slate-100 px-3 py-2">
-                  <p className="text-[11px] font-semibold uppercase text-slate-500">Aylik Ciro</p>
-                  <p className="text-lg font-bold text-slate-900">
-                    {commandCenter.kpis.monthly_revenue_try.toLocaleString("tr-TR")} TL
+              <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.1 }}
+                  className="rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 px-4 py-4 shadow-sm"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Aylık Ciro</p>
+                  <p className="mt-2 text-2xl font-bold text-emerald-900">
+                    {commandCenter.kpis.monthly_revenue_try.toLocaleString("tr-TR")} ₺
                   </p>
-                </div>
-                <div className="rounded-xl bg-slate-100 px-3 py-2">
-                  <p className="text-[11px] font-semibold uppercase text-slate-500">Doluluk</p>
-                  <p className="text-lg font-bold text-slate-900">
-                    %{commandCenter.kpis.fill_rate_pct}
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.15 }}
+                  className="rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 px-4 py-4 shadow-sm"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Doluluk</p>
+                  <p className="mt-2 text-2xl font-bold text-blue-900">
+                    %{commandCenter.kpis.fill_rate_pct.toFixed(1)}
                   </p>
-                </div>
-                <div className="rounded-xl bg-slate-100 px-3 py-2">
-                  <p className="text-[11px] font-semibold uppercase text-slate-500">No-show</p>
-                  <p className="text-lg font-bold text-slate-900">
-                    %{commandCenter.kpis.no_show_rate_pct}
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.2 }}
+                  className="rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 border-2 border-amber-200 px-4 py-4 shadow-sm"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">No-show</p>
+                  <p className="mt-2 text-2xl font-bold text-amber-900">
+                    %{commandCenter.kpis.no_show_rate_pct.toFixed(1)}
                   </p>
-                </div>
-                <div className="rounded-xl bg-slate-100 px-3 py-2">
-                  <p className="text-[11px] font-semibold uppercase text-slate-500">Riskte Musteri</p>
-                  <p className="text-lg font-bold text-slate-900">
+                </motion.div>
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.25 }}
+                  className="rounded-xl bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-200 px-4 py-4 shadow-sm"
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Riskte Müşteri</p>
+                  <p className="mt-2 text-2xl font-bold text-red-900">
                     {commandCenter.kpis.at_risk_customers}
                   </p>
-                </div>
+                </motion.div>
               </div>
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 {commandCenter.actions.length === 0 ? (
-                  <p className="text-sm text-slate-500">Bugun icin kritik aksiyon bulunmuyor.</p>
+                  <div className="rounded-xl bg-slate-50 border-2 border-slate-200 p-6 text-center">
+                    <p className="text-sm font-medium text-slate-600">Bugün için kritik aksiyon bulunmuyor</p>
+                    <p className="mt-1 text-xs text-slate-500">Her şey yolunda görünüyor! 🎉</p>
+                  </div>
                 ) : (
-                  commandCenter.actions.map((action) => (
-                    <div
-                      key={action.id}
-                      className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5"
-                    >
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{action.title}</p>
-                        <p className="text-xs text-slate-600">{action.description}</p>
-                        {action.estimated_impact_try > 0 && (
-                          <p className="mt-1 text-xs font-medium text-emerald-700">
-                            Tahmini etki: {action.estimated_impact_try.toLocaleString("tr-TR")} TL
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => runCommandAction(action)}
-                        disabled={runningActionId === action.id}
-                        className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-60"
+                  commandCenter.actions.map((action, idx) => {
+                    const severityColors = {
+                      high: "from-red-50 to-red-100 border-red-300",
+                      medium: "from-amber-50 to-amber-100 border-amber-300",
+                      low: "from-blue-50 to-blue-100 border-blue-300",
+                    };
+                    return (
+                      <motion.div
+                        key={action.id}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: idx * 0.1 }}
+                        className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border-2 bg-gradient-to-r ${severityColors[action.severity]} px-4 py-4 shadow-sm`}
                       >
-                        {runningActionId === action.id ? "Calisiyor..." : action.cta_label}
-                      </button>
-                    </div>
-                  ))
+                        <div className="flex-1">
+                          <p className="text-sm font-semibold text-slate-900">{action.title}</p>
+                          <p className="mt-1 text-xs text-slate-600">{action.description}</p>
+                          {action.estimated_impact_try > 0 && (
+                            <p className="mt-2 inline-block rounded-lg bg-white/80 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                              💰 Tahmini etki: {action.estimated_impact_try.toLocaleString("tr-TR")} ₺
+                            </p>
+                          )}
+                        </div>
+                        <motion.button
+                          type="button"
+                          onClick={() => runCommandAction(action)}
+                          disabled={runningActionId === action.id}
+                          whileHover={{ scale: runningActionId === action.id ? 1 : 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-4 py-2.5 text-xs font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-60"
+                        >
+                          {runningActionId === action.id ? (
+                            <span className="flex items-center gap-2">
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              Çalışıyor...
+                            </span>
+                          ) : (
+                            action.cta_label
+                          )}
+                        </motion.button>
+                      </motion.div>
+                    );
+                  })
                 )}
               </div>
             </>
@@ -743,43 +836,93 @@ export default function EsnafDashboard({
         </ScrollReveal>
 
         <ScrollReveal variant="fadeUp" delay={0.08} as="section" className="mb-6">
-        <section className="rounded-2xl border border-red-200 bg-white p-4 shadow-sm">
-          <div className="mb-3 flex items-center justify-between">
-            <h2 className="text-sm font-semibold uppercase tracking-wide text-red-700">
-              Operasyon Uyarıları
-            </h2>
+        <section className="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-white to-red-50/30 p-5 shadow-lg">
+          <div className="mb-4 flex items-center justify-between">
+            <div>
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-red-900">
+                <AlertCircle className="h-5 w-5" />
+                Operasyon Uyarıları
+              </h2>
+              <p className="mt-1 text-xs text-slate-600">
+                {opsAlerts.length > 0
+                  ? `${opsAlerts.length} açık uyarı`
+                  : "Açık uyarı yok"}
+              </p>
+            </div>
             {opsAlertsLoading && (
-              <span className="text-xs text-slate-500">Yenileniyor…</span>
+              <div className="flex items-center gap-2 text-xs text-slate-500">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Yenileniyor…
+              </div>
             )}
           </div>
           {opsAlerts.length === 0 ? (
-            <p className="text-sm text-slate-500">Açık operasyon uyarısı yok.</p>
+            <div className="rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-200 p-6 text-center">
+              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
+              <p className="mt-3 text-sm font-medium text-emerald-800">Açık operasyon uyarısı yok</p>
+              <p className="mt-1 text-xs text-emerald-700">Her şey yolunda görünüyor! ✅</p>
+            </div>
           ) : (
-            <div className="space-y-2">
-              {opsAlerts.map((alert) => (
-                <div
-                  key={alert.id}
-                  className={`rounded-xl border px-3 py-2 ${severityClass(alert.severity)}`}
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-medium">{alert.message}</p>
-                      <p className="mt-1 text-xs opacity-80">
-                        {new Date(alert.created_at).toLocaleString("tr-TR")}
-                        {alert.customer_phone ? ` • ${alert.customer_phone}` : ""}
-                      </p>
+            <div className="space-y-3">
+              {opsAlerts.map((alert, idx) => {
+                const severityStyles = {
+                  high: "from-red-50 to-red-100 border-red-300 text-red-900",
+                  medium: "from-amber-50 to-amber-100 border-amber-300 text-amber-900",
+                  low: "from-blue-50 to-blue-100 border-blue-300 text-blue-900",
+                };
+                return (
+                  <motion.div
+                    key={alert.id}
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className={`rounded-xl border-2 bg-gradient-to-r ${severityStyles[alert.severity]} px-4 py-3 shadow-sm`}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <div className="flex items-start gap-2">
+                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
+                          <div>
+                            <p className="text-sm font-semibold">{alert.message}</p>
+                            <p className="mt-1.5 flex items-center gap-2 text-xs opacity-80">
+                              <Clock className="h-3 w-3" />
+                              {new Date(alert.created_at).toLocaleString("tr-TR", {
+                                day: "numeric",
+                                month: "short",
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                              {alert.customer_phone && (
+                                <>
+                                  <span>•</span>
+                                  <span>{alert.customer_phone}</span>
+                                </>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                      <motion.button
+                        type="button"
+                        onClick={() => handleResolveAlert(alert.id)}
+                        disabled={resolvingAlertId === alert.id}
+                        whileHover={{ scale: 1.05 }}
+                        whileTap={{ scale: 0.95 }}
+                        className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white hover:shadow-md disabled:opacity-50"
+                      >
+                        {resolvingAlertId === alert.id ? (
+                          <span className="flex items-center gap-1.5">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Kapanıyor…
+                          </span>
+                        ) : (
+                          "Kapat"
+                        )}
+                      </motion.button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleResolveAlert(alert.id)}
-                      disabled={resolvingAlertId === alert.id}
-                      className="rounded-lg bg-white/80 px-2.5 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-white disabled:opacity-50"
-                    >
-                      {resolvingAlertId === alert.id ? "Kapanıyor…" : "Kapat"}
-                    </button>
-                  </div>
-                </div>
-              ))}
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </section>
@@ -787,23 +930,41 @@ export default function EsnafDashboard({
 
         <ScrollReveal variant="fadeUp" delay={0.12} className="mb-6">
         <div>
-          <button
+          <motion.button
             type="button"
             onClick={() => setShowSettingsPanel((v) => !v)}
-            className="flex w-full items-center justify-between rounded-2xl border border-slate-200 bg-white px-5 py-4 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50/50"
+            whileHover={{ scale: 1.01 }}
+            whileTap={{ scale: 0.99 }}
+            className="flex w-full items-center justify-between rounded-2xl border-2 border-slate-200 bg-gradient-to-r from-white to-slate-50 px-6 py-5 text-left shadow-md transition hover:border-slate-300 hover:shadow-lg"
           >
-            <span className="flex items-center gap-2 font-semibold text-slate-900">
-              <span aria-hidden>⚙️</span> Ayarlar
+            <span className="flex items-center gap-3 text-lg font-semibold text-slate-900">
+              <span className="text-2xl">⚙️</span> Ayarlar ve Yapılandırma
             </span>
-            <span className="text-sm text-slate-500">{showSettingsPanel ? "Gizle" : "Göster"}</span>
-          </button>
+            <motion.span
+              animate={{ rotate: showSettingsPanel ? 180 : 0 }}
+              className="text-sm font-medium text-slate-600"
+            >
+              {showSettingsPanel ? "Gizle ▲" : "Göster ▼"}
+            </motion.span>
+          </motion.button>
         </div>
         </ScrollReveal>
 
         {showSettingsPanel && (
-        <div className="mb-8 space-y-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-1 font-semibold text-slate-900">🔔 Hatırlatma</h3>
+        <motion.div
+          initial={{ opacity: 0, height: 0 }}
+          animate={{ opacity: 1, height: "auto" }}
+          exit={{ opacity: 0, height: 0 }}
+          className="mb-8 mt-4 space-y-6"
+        >
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-blue-50/30 p-6 shadow-lg"
+        >
+          <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="text-xl">🔔</span> Hatırlatma Ayarları
+          </h3>
           <p className="mb-4 text-sm text-slate-600">
             Her sabah 08:00&apos;da yarınki randevular için kimlere mesaj gitsin?
           </p>
@@ -818,19 +979,35 @@ export default function EsnafDashboard({
               <option value="merchant_only">Sadece bana (dashboard’da görürüm)</option>
               <option value="both">İkisine de (müşteriye + bana)</option>
             </select>
-            <button
+            <motion.button
               type="button"
               onClick={handleSaveReminderPref}
               disabled={reminderSaving}
-              className="rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-white hover:bg-zinc-700 disabled:opacity-50"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50"
             >
-              {reminderSaving ? "Kaydediliyor…" : "Kaydet"}
-            </button>
+              {reminderSaving ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Kaydediliyor…
+                </span>
+              ) : (
+                "Kaydet"
+              )}
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-1 font-semibold text-slate-900">💬 Mesaj Ayarları</h3>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.1 }}
+          className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-purple-50/30 p-6 shadow-lg"
+        >
+          <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="text-xl">💬</span> Mesaj Ayarları
+          </h3>
           <p className="mb-4 text-sm text-slate-600">
             Müşterilere gönderilen karşılama ve WhatsApp mesajlarını özelleştirin.
           </p>
@@ -865,19 +1042,35 @@ export default function EsnafDashboard({
                 Müşteri QR kod veya linke tıkladığında WhatsApp&apos;ta hazır görünen mesaj. {"{tenant_name}"} yerine işletme adı yazılır.
               </p>
             </div>
-            <button
+            <motion.button
               type="button"
               onClick={handleSaveMessages}
               disabled={messagesSaving}
-              className="rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-50"
+              whileHover={{ scale: 1.02 }}
+              whileTap={{ scale: 0.98 }}
+              className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50"
             >
-              {messagesSaving ? "Kaydediliyor…" : "Mesajları Kaydet"}
-            </button>
+              {messagesSaving ? (
+                <span className="flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Kaydediliyor…
+                </span>
+              ) : (
+                "Mesajları Kaydet"
+              )}
+            </motion.button>
           </div>
-        </div>
+        </motion.div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-          <h3 className="mb-1 font-semibold text-slate-900">🤖 Bot Ayarları</h3>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.2 }}
+          className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-indigo-50/30 p-6 shadow-lg"
+        >
+          <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900">
+            <span className="text-xl">🤖</span> Bot Ayarları
+          </h3>
           <p className="mb-4 text-sm text-slate-600">
             İşletme tipine göre bot davranışını buradan özelleştirebilirsiniz. Boş bırakılan alanlar varsayılan değeri kullanır.
           </p>
@@ -893,105 +1086,117 @@ export default function EsnafDashboard({
           )}
           <div className="space-y-4">
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">İletişim telefonu</label>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">İletişim Telefonu</label>
               <input
                 type="text"
                 value={contactPhone}
                 onChange={(e) => setContactPhone(e.target.value)}
                 placeholder="İnsan yönlendirme mesajında gösterilir"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Çalışma saatleri metni</label>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">Çalışma Saatleri Metni</label>
               <input
                 type="text"
                 value={workingHoursText}
                 onChange={(e) => setWorkingHoursText(e.target.value)}
                 placeholder="Örn: Hafta içi 09:00-18:00"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Açılış mesajı</label>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">Açılış Mesajı</label>
               <input
                 type="text"
                 value={openingMessage}
                 onChange={(e) => setOpeningMessage(e.target.value)}
                 placeholder="Müşteri ilk yazdığında gönderilen mesaj"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Randevu onay mesajı</label>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">Randevu Onay Mesajı</label>
               <input
                 type="text"
                 value={confirmationMessage}
                 onChange={(e) => setConfirmationMessage(e.target.value)}
                 placeholder="Randevu alındığında gönderilen mesaj. {date}, {time} kullanabilirsiniz"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
             <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">Hatırlatma mesajı (24 saat önce)</label>
+              <label className="mb-2 block text-sm font-semibold text-slate-700">Hatırlatma Mesajı (24 saat önce)</label>
               <input
                 type="text"
                 value={reminderMessage}
                 onChange={(e) => setReminderMessage(e.target.value)}
                 placeholder="Yarın randevu hatırlatması. {time} kullanabilirsiniz"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
               />
             </div>
-            <div className="flex flex-wrap gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Slot süresi (dk)</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">Slot Süresi (dk)</label>
                 <select
                   value={slotDuration}
                   onChange={(e) => setSlotDuration(Number(e.target.value))}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 >
-                  <option value={30}>30</option>
-                  <option value={45}>45</option>
-                  <option value={60}>60</option>
+                  <option value={30}>30 dakika</option>
+                  <option value={45}>45 dakika</option>
+                  <option value={60}>60 dakika</option>
+                  <option value={90}>90 dakika</option>
+                  <option value={120}>120 dakika</option>
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">Kaç gün önceden randevu</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">Kaç Gün Önceden Randevu</label>
                 <select
                   value={advanceBookingDays}
                   onChange={(e) => setAdvanceBookingDays(Number(e.target.value))}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 >
-                  <option value={7}>7</option>
-                  <option value={14}>14</option>
-                  <option value={30}>30</option>
-                  <option value={60}>60</option>
+                  <option value={7}>7 gün</option>
+                  <option value={14}>14 gün</option>
+                  <option value={30}>30 gün</option>
+                  <option value={60}>60 gün</option>
                 </select>
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700">İptal (saat öncesi)</label>
+                <label className="mb-2 block text-sm font-semibold text-slate-700">İptal Süresi (saat)</label>
                 <select
                   value={cancellationHours}
                   onChange={(e) => setCancellationHours(Number(e.target.value))}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
                 >
-                  <option value={1}>1</option>
-                  <option value={2}>2</option>
-                  <option value={4}>4</option>
-                  <option value={24}>24</option>
+                  <option value={1}>1 saat</option>
+                  <option value={2}>2 saat</option>
+                  <option value={4}>4 saat</option>
+                  <option value={24}>24 saat</option>
+                  <option value={48}>48 saat</option>
                 </select>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={handleSaveBotSettings}
-              disabled={botSettingsSaving}
-              className="rounded-xl bg-slate-800 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 disabled:opacity-50"
-            >
-              {botSettingsSaving ? "Kaydediliyor…" : "Bot Ayarlarını Kaydet"}
-            </button>
+              <motion.button
+                type="button"
+                onClick={handleSaveBotSettings}
+                disabled={botSettingsSaving}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+                className="w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50"
+              >
+                {botSettingsSaving ? (
+                  <span className="flex items-center justify-center gap-2">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Kaydediliyor…
+                  </span>
+                ) : (
+                  "Bot Ayarlarını Kaydet"
+                )}
+              </motion.button>
           </div>
-        </div>
+        </motion.div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
           <div className="mb-2 flex items-center justify-between">
@@ -1074,7 +1279,7 @@ export default function EsnafDashboard({
           )}
         </div>
 
-        </div>
+        </motion.div>
         )}
 
         {/* Haftalık takvim */}
@@ -1107,7 +1312,7 @@ export default function EsnafDashboard({
             </div>
           </div>
           <div className="grid grid-cols-7 gap-2">
-            {getWeekDates(weekAnchor).map((dateStr) => {
+            {getWeekDates(weekAnchor).map((dateStr, idx) => {
               const d = new Date(dateStr + "T12:00:00");
               const isSelected = selectedDate === dateStr;
               const hasAppts = grouped[dateStr]?.length;
@@ -1115,28 +1320,54 @@ export default function EsnafDashboard({
                 (b) => dateStr >= b.start_date && dateStr <= b.end_date
               );
               const isPast = dateStr < new Date().toISOString().slice(0, 10);
+              const isToday = dateStr === new Date().toISOString().slice(0, 10);
               return (
-                <button
+                <motion.button
                   key={dateStr}
                   type="button"
-                  onClick={() => setSelectedDate(dateStr)}
+                  onClick={() => !isPast && setSelectedDate(dateStr)}
                   disabled={isPast}
-                  className={`flex flex-col items-center rounded-xl px-1 py-3 text-sm font-medium transition ${
+                  initial={{ opacity: 0, scale: 0.9 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  transition={{ delay: idx * 0.02 }}
+                  whileHover={!isPast ? { scale: 1.05 } : {}}
+                  whileTap={!isPast ? { scale: 0.95 } : {}}
+                  className={`relative flex flex-col items-center rounded-xl px-1 py-3 text-sm font-medium transition ${
                     isSelected
-                      ? "bg-emerald-600 text-white shadow-md"
+                      ? "bg-gradient-to-br from-emerald-600 to-emerald-700 text-white shadow-lg ring-2 ring-emerald-300"
                       : isPast
                       ? "cursor-not-allowed bg-slate-100 text-slate-400"
                       : isBlocked
-                      ? "bg-amber-100 text-amber-800 hover:bg-amber-200"
-                      : "bg-slate-100 text-slate-800 hover:bg-emerald-50 hover:text-emerald-800"
+                      ? "bg-gradient-to-br from-amber-100 to-amber-200 text-amber-900 hover:from-amber-200 hover:to-amber-300 border-2 border-amber-300"
+                      : isToday
+                      ? "bg-gradient-to-br from-cyan-50 to-blue-50 text-cyan-900 border-2 border-cyan-300 hover:from-cyan-100 hover:to-blue-100"
+                      : "bg-gradient-to-br from-slate-50 to-slate-100 text-slate-800 border-2 border-slate-200 hover:from-emerald-50 hover:to-emerald-100 hover:border-emerald-300 hover:text-emerald-800"
                   }`}
                 >
-                  <span className="text-xs font-medium opacity-80">{DAY_NAMES[d.getDay()]}</span>
-                  <span>{d.getDate()}</span>
+                  <span className={`text-xs font-semibold ${isSelected ? "text-white/90" : "opacity-70"}`}>
+                    {DAY_NAMES[d.getDay()]}
+                  </span>
+                  <span className={`mt-1 text-lg font-bold ${isSelected ? "text-white" : ""}`}>
+                    {d.getDate()}
+                  </span>
                   {hasAppts && (
-                    <span className="mt-1 h-1.5 w-1.5 rounded-full bg-emerald-500" title={`${hasAppts} randevu`} />
+                    <motion.span
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      className={`mt-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
+                        isSelected
+                          ? "bg-white/20 text-white"
+                          : "bg-emerald-500 text-white"
+                      }`}
+                      title={`${hasAppts} randevu`}
+                    >
+                      {hasAppts}
+                    </motion.span>
                   )}
-                </button>
+                  {isToday && !isSelected && (
+                    <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-cyan-500 ring-2 ring-white" />
+                  )}
+                </motion.button>
               );
             })}
           </div>
@@ -1154,31 +1385,77 @@ export default function EsnafDashboard({
               })}
             </h3>
             {availabilityLoading ? (
-              <div className="py-8 text-center text-slate-500">Yükleniyor...</div>
+              <div className="py-12 text-center">
+                <Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-600" />
+                <p className="mt-3 text-sm text-slate-500">Müsaitlik kontrol ediliyor...</p>
+              </div>
             ) : availability?.blocked ? (
-              <p className="rounded-xl bg-amber-50 py-4 text-center text-sm font-medium text-amber-800">Bu gün kapalı (tatil/izin)</p>
+              <div className="rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 py-6 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 mb-3">
+                  <XCircle className="h-6 w-6 text-amber-600" />
+                </div>
+                <p className="text-sm font-semibold text-amber-900">Bu gün kapalı</p>
+                <p className="mt-1 text-xs text-amber-700">Tatil veya izin günü</p>
+              </div>
             ) : availability?.noSchedule ? (
-              <p className="rounded-xl bg-slate-100 py-4 text-center text-sm text-slate-600">Çalışma saati tanımlı değil</p>
+              <div className="rounded-xl bg-gradient-to-r from-slate-50 to-slate-100 border-2 border-slate-200 py-6 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 mb-3">
+                  <Clock className="h-6 w-6 text-slate-600" />
+                </div>
+                <p className="text-sm font-semibold text-slate-700">Çalışma saati tanımlı değil</p>
+                <p className="mt-1 text-xs text-slate-600">Ayarlardan çalışma saatlerini tanımlayın</p>
+              </div>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {availability?.available?.map((time) => (
-                  <button
-                    key={time}
-                    type="button"
-                    onClick={() => handleSlotClick(selectedDate, time)}
-                    className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm font-medium text-emerald-800 shadow-sm transition hover:bg-emerald-100"
-                  >
-                    {time} <span className="text-emerald-600">boş</span>
-                  </button>
-                ))}
-                {availability?.booked?.map((b) => (
-                  <div
-                    key={b.time + (b.id ?? "")}
-                    className="rounded-xl bg-slate-100 px-4 py-2.5 text-sm text-slate-700"
-                  >
-                    {b.time} <span className="font-medium text-slate-900">dolu</span> – {b.customer_phone}
+              <div className="space-y-3">
+                {availability?.available && availability.available.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700">
+                      Müsait Saatler ({availability.available.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {availability.available.map((time) => (
+                        <motion.button
+                          key={time}
+                          type="button"
+                          onClick={() => handleSlotClick(selectedDate, time)}
+                          whileHover={{ scale: 1.05 }}
+                          whileTap={{ scale: 0.95 }}
+                          className="rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-sm transition hover:border-emerald-400 hover:shadow-md"
+                        >
+                          <Clock className="mr-1.5 inline h-3.5 w-3.5" />
+                          {time}
+                        </motion.button>
+                      ))}
+                    </div>
                   </div>
-                ))}
+                )}
+                {availability?.booked && availability.booked.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                      Dolu Saatler ({availability.booked.length})
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {availability.booked.map((b) => (
+                        <div
+                          key={b.time + (b.id ?? "")}
+                          className="rounded-xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 px-4 py-2.5 text-sm text-slate-700 shadow-sm"
+                        >
+                          <Clock className="mr-1.5 inline h-3.5 w-3.5 text-slate-500" />
+                          <span className="font-semibold">{b.time}</span>
+                          {b.customer_phone && (
+                            <span className="ml-2 text-xs text-slate-500">– {b.customer_phone}</span>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {(!availability?.available || availability.available.length === 0) &&
+                  (!availability?.booked || availability.booked.length === 0) && (
+                    <div className="rounded-xl bg-slate-50 py-6 text-center">
+                      <p className="text-sm text-slate-600">Bu gün için müsait saat bulunmuyor</p>
+                    </div>
+                  )}
               </div>
             )}
           </section>
@@ -1186,36 +1463,23 @@ export default function EsnafDashboard({
         )}
 
         {showAdd && (
-          <form
+          <motion.form
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
             onSubmit={handleAddAppointment}
-            className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm"
+            className="mb-6 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-white to-emerald-50/30 p-6 shadow-lg"
           >
-            <h3 className="mb-4 font-semibold text-slate-900">
-              {addDate && addTime
-                ? `Randevu ekle — ${new Date(addDate + "T12:00:00").toLocaleDateString("tr-TR")} saat ${addTime}`
-                : "Randevu ekle"}
-            </h3>
-            <div className="flex flex-wrap items-end gap-3">
-              {!addDate || !addTime ? (
-                <input
-                  type="datetime-local"
-                  value={addDatetimeLocal}
-                  onChange={(e) => setAddDatetimeLocal(e.target.value)}
-                  className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                  required={!addDate || !addTime}
-                />
-              ) : null}
-              <input
-                type="tel"
-                placeholder="Müşteri telefonu"
-                value={addPhone}
-                onChange={(e) => setAddPhone(e.target.value)}
-                className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-                required
-              />
-              <button type="submit" className="rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-emerald-700">
-                Ekle
-              </button>
+            <div className="mb-4 flex items-center justify-between">
+              <h3 className="text-lg font-semibold text-slate-900">
+                {addDate && addTime
+                  ? `Randevu Ekle — ${new Date(addDate + "T12:00:00").toLocaleDateString("tr-TR", {
+                      day: "numeric",
+                      month: "long",
+                      weekday: "long",
+                    })} saat ${addTime}`
+                  : "Yeni Randevu Ekle"}
+              </h3>
               <button
                 type="button"
                 onClick={() => {
@@ -1223,74 +1487,209 @@ export default function EsnafDashboard({
                   setAddDate("");
                   setAddTime("");
                   setAddDatetimeLocal("");
+                  setAddPhone("");
                 }}
-                className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
               >
-                İptal
+                <X className="h-5 w-5" />
               </button>
             </div>
-          </form>
-        )}
-
-        {/* Yaklaşan randevular */}
-        <ScrollReveal variant="fadeUp" delay={0.1} as="section" className="mb-6">
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm">
-          <h3 className="border-b border-slate-100 px-5 py-4 font-semibold text-slate-900">📋 Yaklaşan randevular</h3>
-          {loading ? (
-            <div className="p-8 text-center text-slate-500">Yükleniyor...</div>
-          ) : sortedDates.length === 0 ? (
-            <div className="p-8 text-center text-slate-500">Henüz randevu yok</div>
-          ) : (
-            <div className="divide-y divide-slate-100">
-              {sortedDates.map((date) => (
-                <div key={date} className="p-4">
-                  <div className="mb-2 text-sm font-medium capitalize text-slate-500">
-                    {new Date(date + "T12:00:00").toLocaleDateString("tr-TR", {
-                      weekday: "long",
-                      day: "numeric",
-                      month: "long",
-                    })}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {grouped[date].map((apt) => {
-                      const time = new Date(apt.slot_start).toLocaleTimeString("tr-TR", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      });
-                      const name = (apt.extra_data as { customer_name?: string })?.customer_name;
-                      return (
-                        <div
-                          key={apt.id}
-                          className="flex items-center gap-2 rounded-xl bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800 shadow-sm"
-                        >
-                          <div>
-                            <span className="font-semibold">{time}</span> – {name || apt.customer_phone}
-                          </div>
-                          <button
-                            type="button"
-                            onClick={async () => {
-                              if (!confirm("Bu randevuyu iptal etmek istiyor musunuz?")) return;
-                              const res = await fetch(`${baseUrl}/api/tenant/${tenantId}/cancel`, {
-                                method: "POST",
-                                headers: { "Content-Type": "application/json" },
-                                body: JSON.stringify({ appointment_id: apt.id, cancelled_by: "tenant" }),
-                              });
-                              if (res.ok) {
-                                setAppointments((prev) => prev.filter((a) => a.id !== apt.id));
-                                if (selectedDate) fetchAvailability(selectedDate);
-                              }
-                            }}
-                            className="ml-1 rounded-lg px-2 py-1 text-xs font-medium text-red-600 transition hover:bg-red-50"
-                            title="İptal et"
-                          >
-                            İptal
-                          </button>
-                        </div>
-                      );
-                    })}
+            <div className="space-y-4">
+              {!addDate || !addTime ? (
+                <div>
+                  <label className="mb-2 block text-sm font-medium text-slate-700">
+                    Tarih ve Saat
+                  </label>
+                  <input
+                    type="datetime-local"
+                    value={addDatetimeLocal}
+                    onChange={(e) => setAddDatetimeLocal(e.target.value)}
+                    className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                    required={!addDate || !addTime}
+                  />
+                </div>
+              ) : (
+                <div className="rounded-xl bg-emerald-50 p-4">
+                  <div className="flex items-center gap-2 text-sm text-emerald-800">
+                    <Calendar className="h-4 w-4" />
+                    <span className="font-medium">
+                      {new Date(addDate + "T12:00:00").toLocaleDateString("tr-TR", {
+                        day: "numeric",
+                        month: "long",
+                        weekday: "long",
+                      })}
+                    </span>
+                    <span className="mx-2">•</span>
+                    <Clock className="h-4 w-4" />
+                    <span className="font-medium">{addTime}</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setAddDate("");
+                        setAddTime("");
+                        setAddDatetimeLocal("");
+                      }}
+                      className="ml-auto text-xs text-emerald-600 hover:text-emerald-800"
+                    >
+                      Değiştir
+                    </button>
                   </div>
                 </div>
-              ))}
+              )}
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700">
+                  Müşteri Telefonu
+                </label>
+                <input
+                  type="tel"
+                  placeholder="05XX XXX XX XX"
+                  value={addPhone}
+                  onChange={(e) => setAddPhone(e.target.value)}
+                  className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
+                  required
+                />
+              </div>
+              <div className="flex gap-3">
+                <motion.button
+                  type="submit"
+                  whileHover={{ scale: 1.02 }}
+                  whileTap={{ scale: 0.98 }}
+                  className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl"
+                >
+                  Randevuyu Ekle
+                </motion.button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowAdd(false);
+                    setAddDate("");
+                    setAddTime("");
+                    setAddDatetimeLocal("");
+                    setAddPhone("");
+                  }}
+                  className="rounded-xl border-2 border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50"
+                >
+                  İptal
+                </button>
+              </div>
+            </div>
+          </motion.form>
+        )}
+
+        {/* Yaklaşan randevular - Geliştirilmiş */}
+        <ScrollReveal variant="fadeUp" delay={0.1} as="section" className="mb-6">
+        <section className="rounded-2xl border-2 border-slate-200 bg-white shadow-lg">
+          <div className="border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4">
+            <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900">
+              <Calendar className="h-5 w-5 text-emerald-600" />
+              Yaklaşan Randevular
+            </h3>
+            <p className="mt-1 text-xs text-slate-500">
+              {sortedDates.length > 0
+                ? `${sortedDates.reduce((acc, d) => acc + (grouped[d]?.length ?? 0), 0)} randevu`
+                : "Henüz randevu yok"}
+            </p>
+          </div>
+          {loading ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+              <p className="mt-3 text-sm text-slate-500">Randevular yükleniyor...</p>
+            </div>
+          ) : sortedDates.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-12">
+              <Calendar className="h-12 w-12 text-slate-300" />
+              <p className="mt-4 text-sm font-medium text-slate-600">Henüz randevu yok</p>
+              <p className="mt-1 text-xs text-slate-500">Yeni randevu eklemek için yukarıdaki butonu kullanın</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {sortedDates.map((date, idx) => {
+                const dateInfo = new Date(date + "T12:00:00");
+                const isToday = date === new Date().toISOString().slice(0, 10);
+                return (
+                  <motion.div
+                    key={date}
+                    initial={{ opacity: 0, y: 10 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: idx * 0.05 }}
+                    className="p-5 transition hover:bg-slate-50/50"
+                  >
+                    <div className="mb-3 flex items-center gap-2">
+                      <div
+                        className={`flex h-8 w-8 items-center justify-center rounded-lg ${
+                          isToday ? "bg-emerald-100 text-emerald-700" : "bg-slate-100 text-slate-600"
+                        }`}
+                      >
+                        <span className="text-xs font-bold">{dateInfo.getDate()}</span>
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold capitalize text-slate-900">
+                          {dateInfo.toLocaleDateString("tr-TR", {
+                            weekday: "long",
+                            month: "long",
+                          })}
+                        </div>
+                        {isToday && (
+                          <span className="text-xs font-medium text-emerald-600">Bugün</span>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {grouped[date].map((apt) => {
+                        const time = new Date(apt.slot_start).toLocaleTimeString("tr-TR", {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        });
+                        const name = (apt.extra_data as { customer_name?: string })?.customer_name;
+                        const statusColors = {
+                          confirmed: "from-emerald-50 to-emerald-100 border-emerald-200 text-emerald-800",
+                          pending: "from-amber-50 to-amber-100 border-amber-200 text-amber-800",
+                          cancelled: "from-red-50 to-red-100 border-red-200 text-red-800",
+                        };
+                        const statusColor = statusColors[apt.status as keyof typeof statusColors] || "from-slate-50 to-slate-100 border-slate-200 text-slate-800";
+                        return (
+                          <motion.div
+                            key={apt.id}
+                            initial={{ opacity: 0, scale: 0.95 }}
+                            animate={{ opacity: 1, scale: 1 }}
+                            className={`flex items-center gap-2 rounded-xl border-2 bg-gradient-to-r ${statusColor} px-4 py-2.5 text-sm shadow-sm`}
+                          >
+                            <Clock className="h-3.5 w-3.5 shrink-0" />
+                            <div className="flex-1">
+                              <span className="font-semibold">{time}</span>
+                              <span className="mx-1.5">–</span>
+                              <span>{name || apt.customer_phone}</span>
+                            </div>
+                            {apt.status === "confirmed" && (
+                              <motion.button
+                                type="button"
+                                onClick={async () => {
+                                  if (!confirm("Bu randevuyu iptal etmek istiyor musunuz?")) return;
+                                  const res = await fetch(`${baseUrl}/api/tenant/${tenantId}/cancel`, {
+                                    method: "POST",
+                                    headers: { "Content-Type": "application/json" },
+                                    body: JSON.stringify({ appointment_id: apt.id, cancelled_by: "tenant" }),
+                                  });
+                                  if (res.ok) {
+                                    setAppointments((prev) => prev.filter((a) => a.id !== apt.id));
+                                    if (selectedDate) fetchAvailability(selectedDate);
+                                  }
+                                }}
+                                whileHover={{ scale: 1.05 }}
+                                whileTap={{ scale: 0.95 }}
+                                className="ml-2 rounded-lg bg-white/80 px-2.5 py-1 text-xs font-medium text-red-600 transition hover:bg-white hover:text-red-700"
+                                title="İptal et"
+                              >
+                                İptal
+                              </motion.button>
+                            )}
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </motion.div>
+                );
+              })}
             </div>
           )}
         </section>
