@@ -46,6 +46,9 @@ cp .env.example .env
 4. Webhook URL: `https://your-domain.com/api/webhook/whatsapp`
 5. Verify Token: `.env` içindeki `WHATSAPP_VERIFY_TOKEN`
 6. `WHATSAPP_PHONE_NUMBER_ID` ve `WHATSAPP_ACCESS_TOKEN` ekleyin
+7. `WHATSAPP_WEBHOOK_SECRET` değeri Meta App Secret ile aynı olmalı (imza doğrulama için)
+8. Test numara kullanıyorsanız mesaj gönderen telefonları Meta API Setup > Allowed recipients listesine ekleyin
+9. App Secret ile eşleşme doğrulanana kadar `WHATSAPP_STRICT_SIGNATURE=false` kullanabilirsiniz (geçici). Eşleşme tamamlanınca `true` yapın.
 
 ### 5. Redis (Opsiyonel)
 
@@ -81,6 +84,7 @@ npm run dev
 
 1. `WHATSAPP_ACCESS_TOKEN` geçerli ve süresi dolmamış olmalı.
 2. Meta Webhook Callback URL doğrudan çalışan production URL olmalı: `https://<domain>/api/webhook/whatsapp`
+   Önemli: `https://aiahi.net` -> `https://www.aiahi.net` gibi redirect varsa Meta POST istekleri başarısız olabilir. Callback URL'i redirectsiz nihai host (`https://www.aiahi.net/api/webhook/whatsapp`) olarak girin.
 3. Vercel Deployment Protection açıksa Meta webhook istekleri 401 alır; webhook endpointi dış dünyaya açık olmalıdır.
 
 ## Cron

@@ -25,15 +25,22 @@ export async function GET() {
   }
 
   try {
-    const res = await fetch(`${WHATSAPP_API}/${phoneId}?fields=id`, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
-      cache: "no-store",
-    });
+    const res = await fetch(
+      `${WHATSAPP_API}/${phoneId}?fields=id,display_phone_number,verified_name,quality_rating,status`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+        cache: "no-store",
+      }
+    );
 
     const payload = (await res.json().catch(() => ({}))) as {
       id?: string;
+      display_phone_number?: string;
+      verified_name?: string;
+      quality_rating?: string;
+      status?: string;
       error?: { code?: number; error_subcode?: number; message?: string };
     };
 
@@ -49,9 +56,21 @@ export async function GET() {
       );
     }
 
+    const warnings: string[] = [];
+    if ((payload.verified_name || "").toLowerCase().includes("test number")) {
+      warnings.push(
+        "Bu numara Meta test numarası görünüyor; sadece allowed list içindeki numaralara yanıt verebilir."
+      );
+    }
+
     return NextResponse.json({
       ok: true,
       phone_id: payload.id ?? phoneId,
+      display_phone_number: payload.display_phone_number ?? null,
+      verified_name: payload.verified_name ?? null,
+      quality_rating: payload.quality_rating ?? null,
+      status: payload.status ?? null,
+      warnings,
     });
   } catch (err) {
     return NextResponse.json(

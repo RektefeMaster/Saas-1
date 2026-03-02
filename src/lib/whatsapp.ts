@@ -67,6 +67,16 @@ export async function sendWhatsAppMessage({
     if (maybeExpired) {
       console.error("[whatsapp] access token expired - refresh WHATSAPP_ACCESS_TOKEN");
     }
+    if (parsedError?.code === 131030) {
+      console.error(
+        "[whatsapp] recipient not in allowed list (test number). Add recipient in Meta WhatsApp > API Setup or switch to production number."
+      );
+    }
+    if (parsedError?.code === 131047) {
+      console.error(
+        "[whatsapp] outside 24h service window. Use an approved template message first."
+      );
+    }
     console.error("[whatsapp] send error", res.status, "to", normalizedTo, raw);
     return false;
   }

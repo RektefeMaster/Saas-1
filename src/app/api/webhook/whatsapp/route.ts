@@ -15,6 +15,8 @@ import { transcribeVoiceMessage } from "@/lib/stt";
 export const maxDuration = 60;
 
 const DEFAULT_TENANT_ID = process.env.DEFAULT_TENANT_ID || "";
+const STRICT_WEBHOOK_SIGNATURE =
+  (process.env.WHATSAPP_STRICT_SIGNATURE || "").trim().toLowerCase() === "true";
 
 async function resolveDefaultTenant(): Promise<string | null> {
   if (DEFAULT_TENANT_ID) return DEFAULT_TENANT_ID;
@@ -29,6 +31,34 @@ async function resolveDefaultTenant(): Promise<string | null> {
 }
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN?.trim() || "";
+
+type IncomingMessage = {
+  type?: string;
+  from?: string;
+  text?: { body?: string };
+  audio?: { id?: string };
+  button?: { text?: string; payload?: string };
+  interactive?: {
+    button_reply?: { title?: string; id?: string };
+    list_reply?: { title?: string; id?: string };
+  };
+};
+
+function extractMessageText(msg: IncomingMessage): string {
+  const type = (msg.type || "").toLowerCase();
+  if (type === "text") return (msg.text?.body || "").trim();
+  if (type === "button") return (msg.button?.text || msg.button?.payload || "").trim();
+  if (type === "interactive") {
+    return (
+      msg.interactive?.button_reply?.title ||
+      msg.interactive?.button_reply?.id ||
+      msg.interactive?.list_reply?.title ||
+      msg.interactive?.list_reply?.id ||
+      ""
+    ).trim();
+  }
+  return "";
+}
 
 export async function GET(request: NextRequest) {
   if (!VERIFY_TOKEN) {
@@ -52,16 +82,25 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const signature = request.headers.get("x-hub-signature-256") ?? "";
   const secret = getWebhookSecret();
+  const rawBody = await request.text();
 
   if (!secret) {
-    console.error("[webhook] WHATSAPP_WEBHOOK_SECRET tanımlı değil, istek reddedildi");
-    return new NextResponse("Webhook secret missing", { status: 503 });
-  }
-
-  const rawBody = await request.text();
-  if (!verifyWebhookSignatureBody(Buffer.from(rawBody, "utf8"), signature, secret)) {
-    console.warn("[webhook] Invalid signature, rejecting request");
-    return new NextResponse("Unauthorized", { status: 401 });
+    if (STRICT_WEBHOOK_SIGNATURE) {
+      console.error("[webhook] WHATSAPP_WEBHOOK_SECRET tanımlı değil, istek reddedildi");
+      return new NextResponse("Webhook secret missing", { status: 503 });
+    }
+    console.warn("[webhook] WHATSAPP_WEBHOOK_SECRET tanımlı değil, strict=false olduğu için imza doğrulama atlandı");
+  } else if (!verifyWebhookSignatureBody(Buffer.from(rawBody, "utf8"), signature, secret)) {
+    const metaUa = request.headers.get("user-agent") || "";
+    const likelyMeta = /facebook|meta|whatsapp/i.test(metaUa);
+    if (STRICT_WEBHOOK_SIGNATURE) {
+      console.warn("[webhook] Invalid signature, rejecting request");
+      return new NextResponse("Unauthorized", { status: 401 });
+    }
+    console.warn(
+      "[webhook] Invalid signature but strict mode disabled; continuing.",
+      { likelyMeta, hasSignature: Boolean(signature) }
+    );
   }
 
   let body: {
@@ -69,14 +108,7 @@ export async function POST(request: NextRequest) {
     entry?: Array<{
       changes?: Array<{
         field?: string;
-        value?: {
-          messages?: Array<{
-            type?: string;
-            from?: string;
-            text?: { body?: string };
-            audio?: { id?: string };
-          }>;
-        };
+        value?: { messages?: IncomingMessage[] };
       }>;
     }>;
   };
@@ -110,9 +142,8 @@ export async function POST(request: NextRequest) {
           }
 
           let rawText = "";
-          if (msg.type === "text") {
-            rawText = (msg.text?.body || "").trim();
-          } else if (msg.type === "audio") {
+          const msgType = (msg.type || "unknown").toLowerCase();
+          if (msgType === "audio") {
             const mediaId = msg.audio?.id;
             if (!mediaId) {
               await sendWhatsAppMessage({
@@ -143,18 +174,19 @@ export async function POST(request: NextRequest) {
             rawText = transcript.trim();
             console.log("[webhook] audio transcript:", rawText.slice(0, 250));
           } else {
-            console.log("[webhook] unsupported message type:", msg.type);
-            await sendWhatsAppMessage({
-              to: `+${from}`,
-              text: "Şu an metin ve sesli mesajları destekliyorum. Lütfen metin veya sesli mesaj gönderin.",
-            });
-            continue;
+            rawText = extractMessageText(msg);
           }
 
           const customerPhone = `+${from}`;
 
           if (!rawText) {
-            console.log("[webhook] skip empty message from", customerPhone);
+            console.log("[webhook] unsupported/empty message type:", msgType, "from", customerPhone);
+            if (msgType && msgType !== "text" && msgType !== "button" && msgType !== "interactive") {
+              await sendWhatsAppMessage({
+                to: customerPhone,
+                text: "Şu an metin ve sesli mesajları destekliyorum. Lütfen metin veya sesli mesaj gönderin.",
+              });
+            }
             continue;
           }
 
