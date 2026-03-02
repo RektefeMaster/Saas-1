@@ -194,10 +194,33 @@ export async function POST(request: NextRequest) {
     for (const entry of entries) {
       const changes = entry.changes || [];
       for (const change of changes) {
-        if (change.field !== "messages") continue;
+        if (change.field !== "messages") {
+          await setWebhookDebugRecord({
+            stage: "ignored_change_field",
+            at: new Date().toISOString(),
+            field: change.field || "unknown",
+            value_keys:
+              change.value && typeof change.value === "object"
+                ? Object.keys(change.value as Record<string, unknown>)
+                : [],
+          });
+          continue;
+        }
         const value = change.value;
         const messages = value?.messages || [];
         console.log("[webhook] messages count:", messages.length);
+
+        await setWebhookDebugRecord({
+          stage: "messages_field_received",
+          at: new Date().toISOString(),
+          message_count: messages.length,
+          has_statuses: Boolean(
+            value &&
+              typeof value === "object" &&
+              Array.isArray((value as { statuses?: unknown[] }).statuses) &&
+              ((value as { statuses?: unknown[] }).statuses?.length || 0) > 0
+          ),
+        });
 
         if (messages.length === 0) {
           await setWebhookDebugRecord({
