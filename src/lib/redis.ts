@@ -1,6 +1,21 @@
 import { Redis } from "@upstash/redis";
 import type { ConversationState } from "./database.types";
 
+function normalizeSecretValue(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  const unquoted = trimmed.replace(/^['"]|['"]$/g, "");
+  const compact = unquoted.replace(/\s+/g, "");
+  return compact || undefined;
+}
+
+function normalizePlainValue(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  const trimmed = value.trim();
+  const unquoted = trimmed.replace(/^['"]|['"]$/g, "");
+  return unquoted || undefined;
+}
+
 function isPlaceholder(value: string): boolean {
   return /(your-|placeholder|changeme|xxx\.upstash\.io|your-token|test-token)/i.test(value);
 }
@@ -16,8 +31,8 @@ function isRedisConfigUsable(url?: string, token?: string): boolean {
   }
 }
 
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+const redisUrl = normalizePlainValue(process.env.UPSTASH_REDIS_REST_URL);
+const redisToken = normalizeSecretValue(process.env.UPSTASH_REDIS_REST_TOKEN);
 
 const redis: Redis | null =
   isRedisConfigUsable(redisUrl, redisToken)
