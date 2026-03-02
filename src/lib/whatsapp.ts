@@ -1,3 +1,5 @@
+import { getRuntimeWhatsAppConfig } from "./redis";
+
 const WHATSAPP_API = "https://graph.facebook.com/v22.0";
 
 function normalizeSecretValue(value: string | undefined): string {
@@ -13,6 +15,24 @@ function normalizePlainValue(value: string | undefined): string {
   return trimmed.replace(/^['"]|['"]$/g, "");
 }
 
+async function resolveWhatsAppCredentials(): Promise<{
+  phoneId: string;
+  token: string;
+  source: "runtime" | "env";
+}> {
+  const runtime = await getRuntimeWhatsAppConfig();
+  const runtimePhone = normalizePlainValue(runtime?.phone_id);
+  const runtimeToken = normalizeSecretValue(runtime?.token);
+
+  if (runtimePhone && runtimeToken) {
+    return { phoneId: runtimePhone, token: runtimeToken, source: "runtime" };
+  }
+
+  const envPhone = normalizePlainValue(process.env.WHATSAPP_PHONE_NUMBER_ID);
+  const envToken = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
+  return { phoneId: envPhone, token: envToken, source: "env" };
+}
+
 export interface SendMessageParams {
   to: string;
   text: string;
@@ -25,6 +45,7 @@ export interface WhatsAppSendResult {
   errorSubcode?: number;
   errorMessage?: string;
   to?: string;
+  source?: "runtime" | "env";
 }
 
 export interface SendTemplateMessageParams {
@@ -43,8 +64,7 @@ export async function sendWhatsAppMessageDetailed({
   to,
   text,
 }: SendMessageParams): Promise<WhatsAppSendResult> {
-  const phoneId = normalizePlainValue(process.env.WHATSAPP_PHONE_NUMBER_ID);
-  const token = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
+  const { phoneId, token, source } = await resolveWhatsAppCredentials();
   const normalizedTo = to.replace(/\D/g, "");
   if (!phoneId || !token) {
     console.error("[whatsapp] credentials missing - phoneId:", !!phoneId, "token:", !!token);
@@ -53,6 +73,7 @@ export async function sendWhatsAppMessageDetailed({
       status: 0,
       errorMessage: "credentials_missing",
       to: normalizedTo,
+      source,
     };
   }
 
@@ -112,9 +133,10 @@ export async function sendWhatsAppMessageDetailed({
       errorSubcode: parsedError?.error_subcode,
       errorMessage: parsedError?.message || raw,
       to: normalizedTo,
+      source,
     };
   }
-  return { ok: true, status: res.status, to: normalizedTo };
+  return { ok: true, status: res.status, to: normalizedTo, source };
 }
 
 export async function sendWhatsAppMessage({
@@ -131,8 +153,7 @@ export async function sendWhatsAppTemplateMessage({
   languageCode = "tr",
   bodyParams = [],
 }: SendTemplateMessageParams): Promise<boolean> {
-  const phoneId = normalizePlainValue(process.env.WHATSAPP_PHONE_NUMBER_ID);
-  const token = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
+  const { phoneId, token } = await resolveWhatsAppCredentials();
   if (!phoneId || !token) {
     console.error(
       "[whatsapp template] credentials missing - phoneId:",
@@ -185,7 +206,7 @@ export async function sendWhatsAppTemplateMessage({
 }
 
 async function getWhatsAppMediaUrl(mediaId: string): Promise<{ url: string; mimeType: string } | null> {
-  const token = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
+  const { token } = await resolveWhatsAppCredentials();
   if (!token) return null;
   const url = `${WHATSAPP_API}/${mediaId}`;
   const res = await fetch(url, {
@@ -208,7 +229,7 @@ async function getWhatsAppMediaUrl(mediaId: string): Promise<{ url: string; mime
 }
 
 export async function downloadWhatsAppMedia(mediaId: string): Promise<WhatsAppMediaPayload | null> {
-  const token = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
+  const { token } = await resolveWhatsAppCredentials();
   if (!token) return null;
   const meta = await getWhatsAppMediaUrl(mediaId);
   if (!meta) return null;

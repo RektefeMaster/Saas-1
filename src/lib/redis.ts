@@ -39,6 +39,7 @@ const OTP_CHALLENGE_PREFIX = "ahi-ai:otp:challenge:";
 const BOOKING_LOCK_PREFIX = "ahi-ai:booking:lock:";
 const BOOKING_HOLD_PREFIX = "ahi-ai:booking:hold:";
 const WEBHOOK_DEBUG_KEY = "ahi-ai:webhook:last";
+const RUNTIME_WHATSAPP_KEY = "ahi-ai:runtime:whatsapp";
 /** [YENİ] Tenant cache key prefix; TTL 300 saniye (5 dk). */
 const TENANT_CACHE_PREFIX = "ahi-ai:tenant:id:";
 const TENANT_CACHE_TTL_SECONDS = 300;
@@ -61,6 +62,7 @@ const bookingHoldMemory = new Map<
   }
 >();
 const webhookDebugMemory = new Map<string, { value: WebhookDebugRecord; expiry: number }>();
+const runtimeWhatsAppMemory = new Map<string, { value: RuntimeWhatsAppConfig; expiry: number }>();
 
 function logRedisFallback(action: string, err: unknown) {
   if (fallbackLogged) return;
@@ -248,6 +250,13 @@ export interface WebhookDebugRecord {
   [key: string]: unknown;
 }
 
+export interface RuntimeWhatsAppConfig {
+  token?: string;
+  phone_id?: string;
+  updated_at: string;
+  source?: string;
+}
+
 export async function setWebhookDebugRecord(
   record: WebhookDebugRecord,
   ttlSeconds = 60 * 60 * 24
@@ -279,6 +288,51 @@ export async function getWebhookDebugRecord(): Promise<WebhookDebugRecord | null
   if (mem && mem.expiry > Date.now()) return mem.value;
   webhookDebugMemory.delete(WEBHOOK_DEBUG_KEY);
   return null;
+}
+
+export async function setRuntimeWhatsAppConfig(
+  config: RuntimeWhatsAppConfig,
+  ttlSeconds = 60 * 60 * 24 * 30
+): Promise<void> {
+  if (redis) {
+    try {
+      await redis.set(RUNTIME_WHATSAPP_KEY, JSON.stringify(config), { ex: ttlSeconds });
+      return;
+    } catch (err) {
+      logRedisFallback("setRuntimeWhatsAppConfig", err);
+    }
+  }
+  runtimeWhatsAppMemory.set(RUNTIME_WHATSAPP_KEY, {
+    value: config,
+    expiry: Date.now() + ttlSeconds * 1000,
+  });
+}
+
+export async function getRuntimeWhatsAppConfig(): Promise<RuntimeWhatsAppConfig | null> {
+  if (redis) {
+    try {
+      const raw = await redis.get<unknown>(RUNTIME_WHATSAPP_KEY);
+      return parseRedisJson<RuntimeWhatsAppConfig>(raw);
+    } catch (err) {
+      logRedisFallback("getRuntimeWhatsAppConfig", err);
+    }
+  }
+  const mem = runtimeWhatsAppMemory.get(RUNTIME_WHATSAPP_KEY);
+  if (mem && mem.expiry > Date.now()) return mem.value;
+  runtimeWhatsAppMemory.delete(RUNTIME_WHATSAPP_KEY);
+  return null;
+}
+
+export async function clearRuntimeWhatsAppConfig(): Promise<void> {
+  if (redis) {
+    try {
+      await redis.del(RUNTIME_WHATSAPP_KEY);
+      return;
+    } catch (err) {
+      logRedisFallback("clearRuntimeWhatsAppConfig", err);
+    }
+  }
+  runtimeWhatsAppMemory.delete(RUNTIME_WHATSAPP_KEY);
 }
 
 export async function setOtpChallenge(
