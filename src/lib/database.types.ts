@@ -59,6 +59,8 @@ export interface Tenant {
   owner_phone_e164?: string | null;
   /** Dashboard giriş kullanıcı adı */
   owner_username?: string | null;
+  /** Tenant timezone (v1: opsiyonel, varsayılan Europe/Istanbul) */
+  timezone?: string | null;
 }
 
 export interface Appointment {
@@ -121,4 +123,9 @@ export interface ConversationState {
   message_count?: number;
   consecutive_misunderstandings?: number;
   chat_history?: ChatMessage[];
+  window_status?: "OPEN" | "CLOSED";
+  last_customer_message_at?: string;
+  retry_count?: number;
+  pause_reason?: string | null;
+  timezone?: string;
 }

@@ -1,4 +1,5 @@
 import { Redis } from "@upstash/redis";
+import { createCipheriv, randomBytes } from "crypto";
 import type { ConversationState } from "./database.types";
 
 function normalizeSecretValue(value: string | undefined): string | undefined {
@@ -53,6 +54,9 @@ const RATE_LIMIT_PREFIX = "ahi-ai:ratelimit:";
 const OTP_CHALLENGE_PREFIX = "ahi-ai:otp:challenge:";
 const BOOKING_LOCK_PREFIX = "ahi-ai:booking:lock:";
 const BOOKING_HOLD_PREFIX = "ahi-ai:booking:hold:";
+const WEBHOOK_MESSAGE_DEDUPE_PREFIX = "ahi-ai:webhook:msg:";
+const BOT_PROCESS_LOCK_PREFIX = "ahi-ai:bot:lock:";
+const TEMP_MEDIA_PREFIX = "ahi-ai:media:tmp:";
 const WEBHOOK_DEBUG_KEY = "ahi-ai:webhook:last";
 const RUNTIME_WHATSAPP_KEY = "ahi-ai:runtime:whatsapp";
 /** [YENİ] Tenant cache key prefix; TTL 300 saniye (5 dk). */
@@ -81,8 +85,11 @@ const bookingHoldMemory = new Map<
     expiry: number;
   }
 >();
+const botProcessLockMemory = new Map<string, { owner: string; expiry: number }>();
 const webhookDebugMemory = new Map<string, { value: WebhookDebugRecord; expiry: number }>();
 const runtimeWhatsAppMemory = new Map<string, { value: RuntimeWhatsAppConfig; expiry: number }>();
+const webhookMessageDedupeMemory = new Map<string, { expiry: number }>();
+const tempMediaMemory = new Map<string, { value: string; expiry: number }>();
 
 function logRedisFallback(action: string, err: unknown) {
   if (fallbackLogged) return;
@@ -275,6 +282,207 @@ export interface RuntimeWhatsAppConfig {
   phone_id?: string;
   updated_at: string;
   source?: string;
+}
+
+function botLockKey(lockKey: string): string {
+  return `${BOT_PROCESS_LOCK_PREFIX}${lockKey}`;
+}
+
+export async function acquireBotProcessingLock(
+  lockKey: string,
+  owner: string,
+  ttlSeconds = 20
+): Promise<boolean> {
+  const key = botLockKey(lockKey);
+  if (redis) {
+    try {
+      const result = await redis.set(key, owner, { nx: true, ex: ttlSeconds });
+      return result === "OK";
+    } catch (err) {
+      logRedisFallback("acquireBotProcessingLock", err);
+    }
+  }
+  const now = Date.now();
+  const mem = botProcessLockMemory.get(key);
+  if (mem && mem.expiry > now) return false;
+  botProcessLockMemory.set(key, {
+    owner,
+    expiry: now + ttlSeconds * 1000,
+  });
+  return true;
+}
+
+export async function releaseBotProcessingLock(
+  lockKey: string,
+  owner: string
+): Promise<boolean> {
+  const key = botLockKey(lockKey);
+  if (redis) {
+    try {
+      const current = await redis.get<string>(key);
+      if (current !== owner) return false;
+      await redis.del(key);
+      return true;
+    } catch (err) {
+      logRedisFallback("releaseBotProcessingLock", err);
+    }
+  }
+  const mem = botProcessLockMemory.get(key);
+  if (!mem) return false;
+  if (mem.owner !== owner) return false;
+  botProcessLockMemory.delete(key);
+  return true;
+}
+
+function getMediaEncryptionKey(): Buffer | null {
+  const raw = (process.env.MEDIA_ENCRYPTION_KEY || "").trim();
+  if (!raw) return null;
+  try {
+    if (/^[0-9a-f]{64}$/i.test(raw)) {
+      const keyHex = Buffer.from(raw, "hex");
+      if (keyHex.length === 32) return keyHex;
+    }
+    const keyB64 = Buffer.from(raw, "base64");
+    if (keyB64.length === 32) return keyB64;
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function tempMediaKey(traceId: string, messageId: string): string {
+  return `${TEMP_MEDIA_PREFIX}${traceId}:${messageId}`;
+}
+
+export async function storeTemporaryEncryptedMedia(
+  input: {
+    traceId: string;
+    messageId: string;
+    mimeType: string;
+    buffer: Buffer;
+  },
+  ttlSeconds = 60 * 60 * 48
+): Promise<{ key: string } | null> {
+  const encKey = getMediaEncryptionKey();
+  if (!encKey) return null;
+
+  const iv = randomBytes(12);
+  const cipher = createCipheriv("aes-256-gcm", encKey, iv);
+  const encrypted = Buffer.concat([cipher.update(input.buffer), cipher.final()]);
+  const tag = cipher.getAuthTag();
+  const payload = JSON.stringify({
+    v: 1,
+    mime_type: input.mimeType,
+    iv: iv.toString("base64"),
+    tag: tag.toString("base64"),
+    ciphertext: encrypted.toString("base64"),
+    created_at: new Date().toISOString(),
+  });
+  const key = tempMediaKey(input.traceId, input.messageId);
+
+  if (redis) {
+    try {
+      await redis.set(key, payload, { ex: ttlSeconds });
+      return { key };
+    } catch (err) {
+      logRedisFallback("storeTemporaryEncryptedMedia", err);
+    }
+  }
+
+  tempMediaMemory.set(key, {
+    value: payload,
+    expiry: Date.now() + ttlSeconds * 1000,
+  });
+  return { key };
+}
+
+export async function purgeExpiredTemporaryMedia(
+  maxKeys = 500
+): Promise<{ scanned: number; removed: number }> {
+  let scanned = 0;
+  let removed = 0;
+
+  if (redis) {
+    try {
+      const keys = await redis.keys(`${TEMP_MEDIA_PREFIX}*`);
+      for (const key of (keys || []).slice(0, maxKeys)) {
+        scanned += 1;
+        const ttl = await redis.ttl(key);
+        if (typeof ttl === "number" && ttl <= 0) {
+          await redis.del(key);
+          removed += 1;
+          continue;
+        }
+        const raw = await redis.get<string>(key);
+        if (!raw) {
+          await redis.del(key);
+          removed += 1;
+          continue;
+        }
+        let createdAt = 0;
+        try {
+          const parsed = JSON.parse(raw) as { created_at?: string };
+          createdAt = parsed.created_at ? new Date(parsed.created_at).getTime() : 0;
+        } catch {
+          createdAt = 0;
+        }
+        if (!Number.isFinite(createdAt) || createdAt <= 0) continue;
+        if (Date.now() - createdAt >= 48 * 60 * 60 * 1000) {
+          await redis.del(key);
+          removed += 1;
+        }
+      }
+      return { scanned, removed };
+    } catch (err) {
+      logRedisFallback("purgeExpiredTemporaryMedia", err);
+    }
+  }
+
+  const now = Date.now();
+  for (const [key, entry] of tempMediaMemory.entries()) {
+    if (!key.startsWith(TEMP_MEDIA_PREFIX)) continue;
+    scanned += 1;
+    if (entry.expiry <= now) {
+      tempMediaMemory.delete(key);
+      removed += 1;
+    }
+  }
+  return { scanned, removed };
+}
+
+function webhookMessageDedupeKey(messageId: string): string {
+  return `${WEBHOOK_MESSAGE_DEDUPE_PREFIX}${messageId.trim()}`;
+}
+
+/**
+ * Webhook mesaj ID'sini atomik olarak claim eder.
+ * true  -> ilk kez görüldü, işlenebilir
+ * false -> daha önce işlendi, tekrar işlenmemeli
+ */
+export async function claimWebhookMessageId(
+  messageId: string,
+  ttlSeconds = 60 * 60 * 24
+): Promise<boolean> {
+  const normalized = messageId.trim();
+  if (!normalized) return true;
+  const key = webhookMessageDedupeKey(normalized);
+
+  if (redis) {
+    try {
+      const result = await redis.set(key, "1", { nx: true, ex: ttlSeconds });
+      return result === "OK";
+    } catch (err) {
+      logRedisFallback("claimWebhookMessageId", err);
+    }
+  }
+
+  const now = Date.now();
+  const mem = webhookMessageDedupeMemory.get(key);
+  if (mem && mem.expiry > now) return false;
+  webhookMessageDedupeMemory.set(key, {
+    expiry: now + ttlSeconds * 1000,
+  });
+  return true;
 }
 
 export async function setWebhookDebugRecord(

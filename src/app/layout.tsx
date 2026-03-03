@@ -24,6 +24,9 @@ export const metadata: Metadata = {
   description:
     "Randevu, CRM, otomasyon, kampanya ve operasyon süreçlerini tek panelde yöneten yapay zeka platformu",
   metadataBase: new URL(getDefaultAppUrl()),
+  icons: {
+    icon: "/favicon.png",
+  },
 };
 
 export default function RootLayout({

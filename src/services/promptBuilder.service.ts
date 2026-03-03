@@ -12,6 +12,8 @@ import {
 export interface PromptBuilderContext {
   today: string;
   tomorrow: string;
+  currentTime?: string;
+  timeZone?: string;
   todayLabel?: string;
   tomorrowLabel?: string;
   availableSlots?: string[];
@@ -124,7 +126,9 @@ function buildContextBlock(context: PromptBuilderContext): string {
   let block = context.stateSummary ? `${context.stateSummary}\n\n` : "";
   block += `
 Bugün: ${todayDisplay}
-Yarın: ${tomorrowDisplay}`;
+Yarın: ${tomorrowDisplay}
+Şu an: ${context.currentTime || "bilinmiyor"}
+Saat dilimi: ${context.timeZone || "Europe/Istanbul"}`;
 
   if (context.customerHistory) {
     block += `\n\nMüşteri geçmişi:\n${context.customerHistory}`;

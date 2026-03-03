@@ -330,8 +330,12 @@ export async function resolveTenantRouting(input: RoutingInput): Promise<Routing
   const { customerPhone, rawMessage, previousTenantId } = input;
 
   const tenantCode = parseTenantCodeFromMessage(rawMessage);
-  const normalizedMessage =
-    sanitizeIncomingCustomerMessage(rawMessage, tenantCode) || rawMessage;
+  const sanitizedMessage = sanitizeIncomingCustomerMessage(rawMessage, tenantCode);
+  const rawVisibleMessage = rawMessage
+    .replace(/[\u200B\u200C\u200D\uFEFF]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const normalizedMessage = sanitizedMessage || rawVisibleMessage;
 
   if (tenantCode) {
     const byCode = await getTenantSummaryByCode(tenantCode);

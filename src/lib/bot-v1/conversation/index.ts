@@ -5,4 +5,6 @@ export {
   checkAvailability,
   createAppointment,
   buildHumanEscalationMessage,
-} from "./bot-v1/conversation";
+} from "./processor";
+
+export type { ProcessMessageMetrics } from "./processor";

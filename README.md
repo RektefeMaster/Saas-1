@@ -72,6 +72,7 @@ npm run dev
 - `/dashboard/[tenantId]/settings` - Kişiselleştirme/iletişim ayarları
 - `/t/[tenantId]` - WhatsApp'a yönlendiren kısa link
 - `/api/webhook/whatsapp` - WhatsApp webhook (GET: doğrulama, POST: mesajlar)
+- `/api/inngest` - Inngest event/worker endpoint (async bot processing)
 - `/api/webhook/twilio/sms` - Twilio SMS webhook (bilgi amaçlı)
 - `/api/webhook/twilio/voice` - Twilio Voice webhook
 - `/api/tenant/[id]/appointments/hold` - Slotu geçici kilitleme (3 dk sepet)
@@ -84,6 +85,7 @@ npm run dev
 - `/api/tenant/[id]/automation/reactivation` - Geri kazanım adayları ve kampanya kuyruklama
 - `/api/tenant/[id]/reputation/summary` - Yorum/itibar ve kurtarma aksiyon özeti
 - `/api/cron/reminders` - 24 saat önce randevu hatırlatma (cron)
+- `/api/cron/media-retention` - Geçici şifreli medya retention cleanup (saatlik cron)
 - `/api/debug/env-check` - Çalışma ortamı değişken kontrolü
 - `/api/debug/whatsapp-health` - WhatsApp token/phone-id canlı sağlık kontrolü
 
