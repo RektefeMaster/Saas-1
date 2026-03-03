@@ -1,31 +1,63 @@
 "use client";
 
-import { useState, useMemo } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
+import { useMemo, useState } from "react";
 import Image from "next/image";
-import { Mail, Lock, Eye, EyeOff, AlertCircle, Calendar, MessageCircle, User } from "lucide-react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { AlertCircle, Eye, EyeOff, Lock, UserRound } from "lucide-react";
 import { createClient } from "@/lib/supabase-client";
+import { useLocale } from "@/lib/locale-context";
 import { isValidUsername, usernameToLoginEmail } from "@/lib/username-auth";
-import { Button, Card, CardContent } from "@/components/ui";
+import { Button, ThemeLocaleSwitch } from "@/components/ui";
 
-function getErrorMessage(error: { message?: string; description?: string; status?: number; name?: string } | null): string {
+const ADMIN_LOGIN_EMAIL = "nuronuro458@gmail.com";
+
+const COPY = {
+  tr: {
+    title: "İşletme Paneli Girişi",
+    subtitle:
+      "Kullanıcı adın ve şifrenle giriş yap. Güvenlik gerektiriyorsa SMS doğrulama adımı otomatik başlar.",
+    username: "Kullanıcı adı (admin için e-posta)",
+    password: "Şifre",
+    submit: "Giriş Yap",
+    submitting: "Giriş yapılıyor...",
+    contact: "Hesabın yok mu? Kurulum için",
+    back: "Ana sayfaya dön",
+  },
+  en: {
+    title: "Business Dashboard Login",
+    subtitle:
+      "Sign in with your username and password. If required, SMS verification starts automatically.",
+    username: "Username",
+    password: "Password",
+    submit: "Sign In",
+    submitting: "Signing in...",
+    contact: "Need an account? For onboarding call",
+    back: "Back to home",
+  },
+} as const;
+
+function getErrorMessage(
+  error: { message?: string; description?: string; status?: number; name?: string } | null,
+  locale: "tr" | "en"
+): string {
   const raw = error?.message ?? (error as { description?: string })?.description ?? "";
-  if (!raw || typeof raw !== "string") return "Kullanıcı adı veya şifre hatalı.";
+  const tr = locale === "tr";
+  if (!raw || typeof raw !== "string") return tr ? "Kullanıcı adı veya şifre hatalı." : "Invalid username or password.";
   const msg = raw.toLowerCase();
-  
-  // Supabase API key hataları için daha kapsamlı kontrol
+
   if (
-    msg.includes("invalid api key") || 
+    msg.includes("invalid api key") ||
     msg.includes("apikey") ||
-    msg.includes("invalid api") ||
     msg.includes("api key") ||
     msg.includes("jwt") ||
     msg.includes("unauthorized") ||
     error?.status === 401 ||
     (error?.status === 400 && msg.includes("key"))
   ) {
-    return "Sistem yapılandırma hatası: Supabase istemci anahtarı geçersiz. Lütfen yönetici ile iletişime geçin.";
+    return tr
+      ? "Sistem yapılandırma hatası: Supabase istemci anahtarı geçersiz."
+      : "System configuration issue: invalid Supabase client key.";
   }
   if (
     msg.includes("invalid login credentials") ||
@@ -34,45 +66,62 @@ function getErrorMessage(error: { message?: string; description?: string; status
     msg.includes("wrong password") ||
     msg.includes("incorrect password") ||
     msg.includes("invalid email or password")
-  )
-    return "Kullanıcı adı veya şifre hatalı.";
-  if (msg.includes("user not found") || msg.includes("email not found"))
-    return "Bu kullanıcı adı ile kayıtlı hesap bulunamadı.";
-  if (msg.includes("email not confirmed"))
-    return "Hesap doğrulaması tamamlanmamış.";
-  if (msg.includes("too many requests") || msg.includes("rate limit"))
-    return "Çok fazla deneme. Lütfen biraz bekleyip tekrar deneyin.";
-  if (msg.includes("network") || msg.includes("fetch"))
-    return "Bağlantı hatası. İnternet bağlantınızı kontrol edin.";
-  return "Kullanıcı adı veya şifre hatalı.";
+  ) {
+    return tr ? "Kullanıcı adı veya şifre hatalı." : "Invalid username or password.";
+  }
+  if (msg.includes("user not found") || msg.includes("email not found")) {
+    return tr ? "Bu kullanıcı adı ile kayıtlı hesap bulunamadı." : "No account found for this username.";
+  }
+  if (msg.includes("too many requests") || msg.includes("rate limit")) {
+    return tr ? "Çok fazla deneme. Biraz bekleyip tekrar deneyin." : "Too many attempts. Please try again later.";
+  }
+  if (msg.includes("network") || msg.includes("fetch")) {
+    return tr ? "Bağlantı hatası. İnternet bağlantınızı kontrol edin." : "Network error. Check your connection.";
+  }
+  return tr ? "Kullanıcı adı veya şifre hatalı." : "Invalid username or password.";
 }
 
 export default function DashboardLoginPage() {
   const router = useRouter();
+  const { locale } = useLocale();
+  const t = COPY[locale];
+
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const featureItems = useMemo(
+    () =>
+      locale === "tr"
+        ? ["Canlı takvim ve kapasite yönetimi", "Müşteri Defteri notları ve hatırlatma akışları", "Operasyon uyarıları ve raporlama"]
+        : ["Live calendar and capacity control", "CRM notes and reminder flows", "Operations alerts and reporting"],
+    [locale]
+  );
+
   const validate = (): boolean => {
     setError(null);
     const usernameTrim = username.trim().toLowerCase();
     if (!usernameTrim) {
-      setError("Kullanıcı adınızı girin.");
+      setError(locale === "tr" ? "Kullanıcı adınızı girin." : "Enter your username.");
       return false;
     }
-    // İşletme girişi sadece kullanıcı adı ile (e-posta kabul edilmez)
-    if (usernameTrim.includes("@")) {
-      setError("Giriş için sadece kullanıcı adınızı girin (e-posta kullanmayın).");
+    const isAdminEmail = usernameTrim === ADMIN_LOGIN_EMAIL;
+    if (usernameTrim.includes("@") && !isAdminEmail) {
+      setError(
+        locale === "tr"
+          ? "Sadece admin hesabı e-posta ile giriş yapabilir."
+          : "Use username only, not email."
+      );
       return false;
     }
-    if (!isValidUsername(usernameTrim)) {
-      setError("Geçerli bir kullanıcı adı girin.");
+    if (!isAdminEmail && !isValidUsername(usernameTrim)) {
+      setError(locale === "tr" ? "Geçerli bir kullanıcı adı girin." : "Enter a valid username.");
       return false;
     }
     if (password.length < 6) {
-      setError("Şifre en az 6 karakter olmalıdır.");
+      setError(locale === "tr" ? "Şifre en az 6 karakter olmalıdır." : "Password must be at least 6 characters.");
       return false;
     }
     return true;
@@ -87,8 +136,8 @@ export default function DashboardLoginPage() {
 
     try {
       const identifier = username.trim().toLowerCase();
+      const isAdminEmail = identifier === ADMIN_LOGIN_EMAIL;
 
-      // Gizli admin girişi (publicte görünmez, sadece bilen kullanır)
       try {
         const hiddenAdminRes = await fetch("/api/admin/auth/hidden", {
           method: "POST",
@@ -112,8 +161,18 @@ export default function DashboardLoginPage() {
           router.refresh();
           return;
         }
+        if (isAdminEmail) {
+          setError(locale === "tr" ? "Admin giriş bilgileri doğrulanamadı." : "Admin login could not be verified.");
+          setLoading(false);
+          return;
+        }
       } catch {
-        // Hidden admin endpoint erişilemiyorsa tenant login akışına devam et
+        // hidden admin route unreachable, continue tenant login.
+        if (isAdminEmail) {
+          setError(locale === "tr" ? "Admin giriş servisine ulaşılamadı." : "Admin login service is unavailable.");
+          setLoading(false);
+          return;
+        }
       }
 
       let supabase;
@@ -122,30 +181,26 @@ export default function DashboardLoginPage() {
       } catch (configError) {
         const configMsg = configError instanceof Error ? configError.message : String(configError);
         if (configMsg.includes("Supabase yapılandırması")) {
-          setError("Sistem yapılandırma hatası: Supabase istemci anahtarı geçersiz. Lütfen yönetici ile iletişime geçin.");
+          setError(
+            locale === "tr"
+              ? "Sistem yapılandırma hatası: Supabase istemci anahtarı geçersiz."
+              : "System configuration issue: invalid Supabase client key."
+          );
         } else {
-          setError("Sistem yapılandırma hatası. Lütfen yönetici ile iletişime geçin.");
+          setError(locale === "tr" ? "Sistem yapılandırma hatası." : "System configuration error.");
         }
         setLoading(false);
         return;
       }
 
-      // İşletme girişi: sadece kullanıcı adı → sistem e-postasına çevriliyor
       const emailForAuth = usernameToLoginEmail(identifier);
-      const { error: signInError, data } = await supabase.auth.signInWithPassword({
+      const { error: signInError } = await supabase.auth.signInWithPassword({
         email: emailForAuth,
         password,
       });
 
       if (signInError) {
-        // Gerçek hatayı console'da göster (debug için)
-        console.error("Supabase signIn hatası:", {
-          message: signInError.message,
-          status: signInError.status,
-          name: signInError.name,
-          fullError: signInError,
-        });
-        setError(getErrorMessage(signInError));
+        setError(getErrorMessage(signInError, locale));
         setLoading(false);
         return;
       }
@@ -164,8 +219,10 @@ export default function DashboardLoginPage() {
           otpRes.status === 404 || /işletme bulunamadı|tenant|not found/i.test(otpErr);
         setError(
           isTenantNotFound
-            ? "Bu kullanıcı adı ile kayıtlı işletme bulunamadı. Kullanıcı adı ve şifrenizi kontrol edin veya yöneticinizle iletişime geçin."
-            : otpErr || "Giriş tamamlanamadı. Lütfen tekrar deneyin."
+            ? locale === "tr"
+              ? "Bu kullanıcı adı ile kayıtlı işletme bulunamadı."
+              : "No business account found for this username."
+            : otpErr || (locale === "tr" ? "Giriş tamamlanamadı." : "Login could not be completed.")
         );
         setLoading(false);
         return;
@@ -180,196 +237,141 @@ export default function DashboardLoginPage() {
       router.push("/dashboard");
       router.refresh();
     } catch (err) {
-      const message = err instanceof Error ? err.message : "Bir hata oluştu, tekrar deneyin.";
-      setError(getErrorMessage({ message }));
+      const message = err instanceof Error ? err.message : "";
+      setError(getErrorMessage({ message }, locale));
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div className="relative flex min-h-screen flex-col bg-slate-50 md:flex-row">
+    <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <Image
         src="/arkaplan.png"
-        alt="Ahi AI arkaplan"
+        alt="Ahi AI backdrop"
         fill
-        className="pointer-events-none object-cover opacity-[0.08] blur-[1px]"
         priority
-        quality={75}
-        sizes="100vw"
-        placeholder="blur"
-        blurDataURL="data:image/jpeg;base64,/9j/4AAQSkZJRgABAQAAAQABAAD/2wBDAAYEBQYFBAYGBQYHBwYIChAKCgkJChQODwwQFxQYGBcUFhYaHSUfGhsjHBYWICwgIyYnKSopGR8tMC0oMCUoKSj/2wBDAQcHBwoIChMKChMoGhYaKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCgoKCj/wAARCAAIAAoDASIAAhEBAxEB/8QAFQABAQAAAAAAAAAAAAAAAAAAAAv/xAAhEAACAQMDBQAAAAAAAAAAAAABAgMABAUGIWEREiMxUf/EABUBAQEAAAAAAAAAAAAAAAAAAAMF/8QAGhEAAgIDAAAAAAAAAAAAAAAAAAECEgMRkf/aAAwDAQACEQADAD8AkjR4t6s0bfI5xdrLqNLX4HaH9bcfaSXWGaRmknyJckliyjqTzSlT54b6bk+h0R//2Q=="
+        className="pointer-events-none object-cover opacity-[0.08] blur-[1.2px]"
       />
-      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-blue-500/10" />
-      {/* Sol panel - marka ve tanıtım */}
-      <div className="relative hidden flex-1 flex-col justify-between bg-gradient-to-br from-slate-900 via-blue-900 to-cyan-900 p-10 text-white md:flex lg:p-14">
-        <Link href="/" className="inline-flex items-center gap-3 text-xl font-bold tracking-tight text-white/95">
-          <Image 
-            src="/appicon.png" 
-            alt="Ahi AI logo" 
-            width={36} 
-            height={36} 
-            className="rounded-lg bg-white/90 p-1 shadow-lg" 
-            priority
-            quality={90}
-            sizes="36px"
-          />
-          Ahi AI
-        </Link>
-        <div className="max-w-md">
-          <h2 className="text-2xl font-bold leading-tight lg:text-3xl">
-            Randevu ve işletme akışınızı tek panelden yönetin
-          </h2>
-          <p className="mt-4 text-cyan-100/90">
-            Takvim, fiyat listesi, müşteri defteri ve iş akışını profesyonel şekilde yönetin.
-          </p>
-          <ul className="mt-8 space-y-4">
-            {useMemo(
-              () => [
-                { icon: Calendar, text: "Takvim ve müsaitlik yönetimi" },
-                { icon: MessageCircle, text: "WhatsApp linki ve QR kod" },
-                { icon: Mail, text: "Randevu hatırlatmaları ve bildirimler" },
-              ],
-              []
-            ).map(({ icon: Icon, text }) => (
-              <li key={text} className="flex items-center gap-3">
-                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-white/15">
-                  <Icon className="h-5 w-5" />
-                </span>
-                <span className="text-white/95">{text}</span>
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_40%_at_15%_0%,rgba(56,189,248,0.22),transparent),radial-gradient(35%_30%_at_90%_10%,rgba(16,185,129,0.18),transparent)]" />
+
+      <div className="absolute right-4 top-4 z-20">
+        <ThemeLocaleSwitch compact />
+      </div>
+
+      <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
+        <section className="hidden rounded-3xl border border-slate-200 bg-white/85 p-7 shadow-sm backdrop-blur lg:block dark:border-slate-800 dark:bg-slate-900/80">
+          <Link href="/" className="inline-flex items-center gap-3">
+            <Image
+              src="/appicon.png"
+              alt="Ahi AI"
+              width={36}
+              height={36}
+              className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
+            />
+            <span className="font-mono text-sm font-semibold">Ahi AI Workspace</span>
+          </Link>
+          <h1 className="mt-7 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            {t.title}
+          </h1>
+          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{t.subtitle}</p>
+
+          <ul className="mt-8 space-y-3">
+            {featureItems.map((item) => (
+              <li
+                key={item}
+                className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
+              >
+                {item}
               </li>
             ))}
           </ul>
-        </div>
-        <p className="text-sm text-white/70">
-          © {new Date().getFullYear()} Ahi AI. Tüm hakları saklıdır.
-        </p>
-      </div>
+        </section>
 
-      {/* Sağ panel - giriş formu */}
-      <div className="relative z-10 flex min-h-screen flex-1 flex-col justify-center px-4 py-12 sm:px-6 lg:px-8">
-        <div className="mx-auto w-full max-w-[400px] animate-fade-in">
-          <div className="mb-8 md:hidden">
-            <Link href="/" className="inline-flex items-center gap-2 text-xl font-bold tracking-tight text-cyan-700">
-              <Image 
-                src="/appicon.png" 
-                alt="Ahi AI logo" 
-                width={28} 
-                height={28} 
-                className="rounded-md bg-white p-0.5 shadow-sm" 
-                priority
-                quality={90}
-                sizes="28px"
+        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 sm:p-7">
+          <div className="mb-5">
+            <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-300">
+              <Image
+                src="/appicon.png"
+                alt="Ahi AI"
+                width={28}
+                height={28}
+                className="rounded-md border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
               />
               Ahi AI
             </Link>
+            <h2 className="mt-5 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+              {t.title}
+            </h2>
           </div>
 
-          <div className="mb-8">
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-              İşletme paneline giriş
-            </h1>
-            <p className="mt-2 text-slate-600">
-              Kullanıcı adı ve şifrenizle giriş yapın, gerekiyorsa SMS doğrulamasını tamamlayın
-            </p>
-          </div>
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
+                {t.username}
+              </span>
+              <div className="relative">
+                <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase())}
+                  autoComplete="username"
+                  disabled={loading}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                />
+              </div>
+            </label>
 
-          <Card className="border-0 shadow-lg shadow-slate-200/50 dark:shadow-none">
-            <CardContent className="p-6 sm:p-8">
-              <form onSubmit={handleSubmit} className="space-y-5">
-                <div className="group relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-slate-400 dark:text-slate-500">
-                    <User className="h-4 w-4" />
-                  </span>
-                  <input
-                    id="dashboard-login-username"
-                    type="text"
-                    value={username}
-                    onChange={(e) => setUsername(e.target.value.toLowerCase())}
-                    placeholder=" "
-                    autoComplete="username"
-                    disabled={loading}
-                    className="peer w-full rounded-xl border border-slate-200 bg-white pb-2.5 pl-10 pr-4 pt-5 text-slate-900 transition-colors placeholder-transparent focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  />
-                  <label
-                    htmlFor="dashboard-login-username"
-                    className="pointer-events-none absolute left-10 top-2 z-10 translate-y-0 text-xs text-cyan-700 transition-all duration-150 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-sm peer-placeholder-shown:text-slate-400 peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-xs peer-focus:text-cyan-700 group-hover:top-2 group-hover:translate-y-0 group-hover:text-xs group-hover:text-cyan-700 dark:peer-placeholder-shown:text-slate-500 dark:peer-focus:text-cyan-300 dark:group-hover:text-cyan-300"
-                  >
-                    Kullanıcı adınız
-                  </label>
-                </div>
-
-                <div className="group relative">
-                  <span className="pointer-events-none absolute left-3 top-1/2 z-10 -translate-y-1/2 text-slate-400 dark:text-slate-500">
-                    <Lock className="h-4 w-4" />
-                  </span>
-                  <input
-                    id="dashboard-login-password"
-                    type={showPassword ? "text" : "password"}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder=" "
-                    autoComplete="current-password"
-                    disabled={loading}
-                    className="peer w-full rounded-xl border border-slate-200 bg-white pb-2.5 pl-10 pr-10 pt-5 text-slate-900 transition-colors placeholder-transparent focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  />
-                  <label
-                    htmlFor="dashboard-login-password"
-                    className="pointer-events-none absolute left-10 top-2 z-10 translate-y-0 text-xs text-cyan-700 transition-all duration-150 peer-placeholder-shown:top-1/2 peer-placeholder-shown:-translate-y-1/2 peer-placeholder-shown:text-sm peer-placeholder-shown:text-slate-400 peer-focus:top-2 peer-focus:translate-y-0 peer-focus:text-xs peer-focus:text-cyan-700 group-hover:top-2 group-hover:translate-y-0 group-hover:text-xs group-hover:text-cyan-700 dark:peer-placeholder-shown:text-slate-500 dark:peer-focus:text-cyan-300 dark:group-hover:text-cyan-300"
-                  >
-                    Şifre
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword((v) => !v)}
-                    className="absolute right-3 top-1/2 z-10 -translate-y-1/2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                    aria-label={showPassword ? "Şifreyi gizle" : "Şifreyi göster"}
-                  >
-                    {showPassword ? (
-                      <EyeOff className="h-4 w-4" />
-                    ) : (
-                      <Eye className="h-4 w-4" />
-                    )}
-                  </button>
-                </div>
-
-                {error && (
-                  <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
-                    <AlertCircle className="h-4 w-4 shrink-0" />
-                    <span>{error}</span>
-                  </div>
-                )}
-
-                <Button
-                  type="submit"
-                  fullWidth
-                  size="lg"
-                  loading={loading}
-                  className="mt-2"
+            <label className="block">
+              <span className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
+                {t.password}
+              </span>
+              <div className="relative">
+                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                  disabled={loading}
+                  className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-9 text-sm outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((v) => !v)}
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  aria-label={showPassword ? "Hide password" : "Show password"}
                 >
-                  {loading ? "Giriş yapılıyor..." : "Giriş Yap"}
-                </Button>
-              </form>
+                  {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </button>
+              </div>
+            </label>
 
-              <p className="mt-6 text-center text-sm text-slate-500">
-                Hesabınız yok mu?{" "}
-                <a href="tel:05060550239" className="font-medium text-cyan-700 hover:text-cyan-800">
-                  0506 055 02 39
-                </a>{" "}
-                numarasıyla iletişime geçin.
-              </p>
-            </CardContent>
-          </Card>
+            {error && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
-          <p className="mt-6 text-center">
-            <Link
-              href="/"
-              className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-            >
-              ← Ana sayfaya dön
-            </Link>
+            <Button type="submit" fullWidth size="lg" loading={loading}>
+              {loading ? t.submitting : t.submit}
+            </Button>
+          </form>
+
+          <p className="mt-5 text-center text-sm text-slate-500 dark:text-slate-400">
+            {t.contact}{" "}
+            <a href="tel:05060550239" className="font-semibold text-cyan-700 hover:text-cyan-800 dark:text-cyan-300">
+              0506 055 02 39
+            </a>
           </p>
-        </div>
+
+          <div className="mt-4 text-center">
+            <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
+              {t.back}
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
   );

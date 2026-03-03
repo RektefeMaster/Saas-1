@@ -111,25 +111,23 @@ export async function POST(request: NextRequest) {
     }
 
     const challengeId = randomUUID();
-    const verifyResult = await sendSmsVerification(adminPhone);
-    if (!verifyResult.success) {
-      return NextResponse.json(
-        { error: `SMS gönderilemedi: ${verifyResult.error || "Bilinmeyen hata"}` },
-        { status: 500 }
-      );
-    }
-
-    await setOtpChallenge({
-      challenge_id: challengeId,
-      scope: "admin",
-      phone: adminPhone,
-      expires_at: new Date(Date.now() + OTP_TTL_SECONDS * 1000).toISOString(),
-      attempts: 0,
-    });
+    await sendSmsVerification(adminPhone);
+    await setOtpChallenge(
+      {
+        id: challengeId,
+        scope: "admin",
+        phone: adminPhone,
+        attempts: 0,
+        created_at: new Date().toISOString(),
+      },
+      OTP_TTL_SECONDS
+    );
 
     return NextResponse.json({
+      success: true,
       requires_otp: true,
       challenge_id: challengeId,
+      expires_in: OTP_TTL_SECONDS,
     });
   } catch (error) {
     console.error("Admin login hatası:", error);

@@ -1,29 +1,77 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
-  LayoutDashboard,
-  MessageCircle,
-  QrCode,
-  ChevronDown,
-  LogOut,
   Calendar,
+  ChevronDown,
+  LayoutDashboard,
   ListChecks,
   KanbanSquare,
   Users,
   Settings,
+  MessageCircle,
+  QrCode,
+  LogOut,
+  Menu,
+  X,
 } from "lucide-react";
-import { createClient } from "@/lib/supabase-client";
-import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
 import type { User } from "@supabase/supabase-js";
+import { createClient } from "@/lib/supabase-client";
 import { getAppBaseUrl } from "@/lib/app-url";
+import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
+import { useLocale } from "@/lib/locale-context";
+import { ThemeLocaleSwitch } from "@/components/ui";
 
-function UserMenu({ user }: { user: User | null }) {
+type NavKey = "overview" | "pricing" | "workflow" | "crm" | "settings";
+
+const COPY = {
+  tr: {
+    panel: "İşletme Paneli",
+    loading: "Yükleniyor...",
+    nav: {
+      overview: "Özet",
+      pricing: "Fiyat Listesi",
+      workflow: "İş Akışı",
+      crm: "Müşteri Defteri",
+      settings: "Ayarlar",
+    },
+    whatsappLink: "WhatsApp Linki",
+    qrDownload: "QR Kod İndir",
+    logout: "Çıkış Yap",
+    section: "Panel",
+    quick: "Hızlı Erişim",
+  },
+  en: {
+    panel: "Business Panel",
+    loading: "Loading...",
+    nav: {
+      overview: "Overview",
+      pricing: "Pricing",
+      workflow: "Workflow",
+      crm: "Customer Book",
+      settings: "Settings",
+    },
+    whatsappLink: "WhatsApp Link",
+    qrDownload: "Download QR",
+    logout: "Sign Out",
+    section: "Operations",
+    quick: "Quick Access",
+  },
+} as const;
+
+function UserMenu({
+  user,
+  logoutLabel,
+}: {
+  user: User | null;
+  logoutLabel: string;
+}) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
+  const accountLabel = loginEmailToUsernameDisplay(user?.email);
+  const initial = accountLabel.slice(0, 1).toUpperCase() || "?";
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -34,49 +82,33 @@ function UserMenu({ user }: { user: User | null }) {
     router.refresh();
   };
 
-  const accountLabel = loginEmailToUsernameDisplay(user?.email);
-  const initial = accountLabel.slice(0, 1).toUpperCase() || "?";
-
   return (
     <div className="relative">
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:hover:border-slate-600 dark:hover:bg-slate-700"
-        aria-expanded={open}
-        aria-haspopup="true"
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-100 font-semibold text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-400">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
           {initial}
         </span>
-        <span className="hidden max-w-[120px] truncate text-sm font-medium text-slate-700 dark:text-slate-200 sm:inline">
+        <span className="hidden max-w-[140px] truncate font-medium text-slate-700 dark:text-slate-200 sm:inline">
           {accountLabel}
         </span>
-        <ChevronDown className="h-4 w-4 shrink-0 text-slate-400" />
+        <ChevronDown className="h-4 w-4 text-slate-400" />
       </button>
+
       {open && (
         <>
-          <div
-            className="fixed inset-0 z-40"
-            aria-hidden
-            onClick={() => setOpen(false)}
-          />
-          <div className="absolute right-0 top-full z-50 mt-2 w-56 rounded-xl border border-slate-200 bg-white py-1 shadow-lg dark:border-slate-700 dark:bg-slate-900">
-            <div className="border-b border-slate-100 px-4 py-2 dark:border-slate-800">
-              <p className="truncate text-sm font-medium text-slate-900 dark:text-slate-100">
-                {accountLabel}
-              </p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">
-                İşletme paneli
-              </p>
-            </div>
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
+          <div className="absolute right-0 top-full z-40 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
             <button
               type="button"
               onClick={handleLogout}
-              className="flex w-full items-center gap-2 px-4 py-2.5 text-left text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
             >
               <LogOut className="h-4 w-4" />
-              Çıkış Yap
+              {logoutLabel}
             </button>
           </div>
         </>
@@ -85,19 +117,22 @@ function UserMenu({ user }: { user: User | null }) {
   );
 }
 
-export default function DashboardShell({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
+export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isLogin = pathname === "/dashboard/login";
+  const { locale } = useLocale();
+  const t = COPY[locale];
+  const isLogin = pathname === "/dashboard/login" || pathname.startsWith("/dashboard/login/");
 
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [tenantName, setTenantName] = useState<string | null>(null);
   const [moduleVisibility, setModuleVisibility] = useState<Record<string, boolean> | null>(null);
   const [moduleOrder, setModuleOrder] = useState<string[] | null>(null);
   const [user, setUser] = useState<User | null>(null);
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   useEffect(() => {
     if (isLogin) return;
@@ -117,9 +152,7 @@ export default function DashboardShell({
           (data?.config_override?.ui_preferences as Record<string, unknown> | undefined) ||
           {};
         setModuleVisibility((uiPrefs.moduleVisibility as Record<string, boolean>) || null);
-        setModuleOrder(
-          Array.isArray(uiPrefs.moduleOrder) ? (uiPrefs.moduleOrder as string[]) : null
-        );
+        setModuleOrder(Array.isArray(uiPrefs.moduleOrder) ? (uiPrefs.moduleOrder as string[]) : null);
       })
       .catch(() => {
         setTenantName(null);
@@ -134,166 +167,174 @@ export default function DashboardShell({
     supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
   }, [isLogin]);
 
-  if (isLogin) {
-    return <>{children}</>;
-  }
+  if (isLogin) return <>{children}</>;
 
   const isTenantPage = !!tenantId;
   const appBaseUrl = getAppBaseUrl();
-  const navItems = (() => {
-    if (!tenantId) return [];
-    const baseItems = [
-      { key: "overview", href: `/dashboard/${tenantId}`, label: "Özet & Takvim", icon: LayoutDashboard },
-      { key: "pricing", href: `/dashboard/${tenantId}/pricing`, label: "Fiyat Listesi", icon: ListChecks },
-      { key: "workflow", href: `/dashboard/${tenantId}/workflow`, label: "İş Akışı", icon: KanbanSquare },
-      { key: "crm", href: `/dashboard/${tenantId}/crm`, label: "CRM Defteri", icon: Users },
-      { key: "settings", href: `/dashboard/${tenantId}/settings`, label: "Ayarlar", icon: Settings },
-    ];
 
-    let visible = baseItems;
+  const baseNav = useMemo(
+    () =>
+      (tenantId
+        ? [
+            { key: "overview" as NavKey, href: `/dashboard/${tenantId}`, label: t.nav.overview, icon: LayoutDashboard },
+            { key: "pricing" as NavKey, href: `/dashboard/${tenantId}/pricing`, label: t.nav.pricing, icon: ListChecks },
+            { key: "workflow" as NavKey, href: `/dashboard/${tenantId}/workflow`, label: t.nav.workflow, icon: KanbanSquare },
+            { key: "crm" as NavKey, href: `/dashboard/${tenantId}/crm`, label: t.nav.crm, icon: Users },
+            { key: "settings" as NavKey, href: `/dashboard/${tenantId}/settings`, label: t.nav.settings, icon: Settings },
+          ]
+        : []),
+    [tenantId, t]
+  );
+
+  const navItems = useMemo(() => {
+    let visible = baseNav;
     if (moduleVisibility) {
-      visible = baseItems.filter((item) => moduleVisibility[item.key] !== false);
+      visible = baseNav.filter((item) => moduleVisibility[item.key] !== false);
     }
-
     if (!moduleOrder || moduleOrder.length === 0) return visible;
     const rank = new Map(moduleOrder.map((key, index) => [key, index]));
-    return [...visible].sort((a, b) => {
-      const aRank = rank.get(a.key) ?? 999;
-      const bRank = rank.get(b.key) ?? 999;
-      return aRank - bRank;
-    });
-  })();
+    return [...visible].sort((a, b) => (rank.get(a.key) ?? 999) - (rank.get(b.key) ?? 999));
+  }, [baseNav, moduleOrder, moduleVisibility]);
+
   const mobileNavItems = navItems.slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      {/* Üst bar - tüm sayfalar */}
-      <header className="sticky top-0 z-30 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:px-6">
-        <div className="flex items-center gap-4">
-          <Link
-            href="/dashboard"
-            className="flex items-center gap-2 rounded-lg transition hover:opacity-90"
-          >
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-500 to-emerald-700 text-white shadow-sm">
-              <Calendar className="h-4 w-4" />
+    <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
+      <div className="pointer-events-none fixed inset-0 opacity-50">
+        <div className="absolute -left-16 -top-20 h-72 w-72 rounded-full bg-slate-300/25 blur-3xl dark:bg-slate-700/20" />
+        <div className="absolute right-0 top-0 h-80 w-80 rounded-full bg-blue-200/20 blur-3xl dark:bg-blue-900/15" />
+      </div>
+
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+        <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between px-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            {isTenantPage && (
+              <button
+                type="button"
+                onClick={() => setMobileOpen(true)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 lg:hidden"
+                aria-label="Open menu"
+              >
+                <Menu className="h-4 w-4" />
+              </button>
+            )}
+            <Link href="/dashboard" className="inline-flex items-center gap-2">
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-800 text-white shadow-sm dark:bg-slate-700">
+                <Calendar className="h-4 w-4" />
+              </span>
+              <span className="font-mono text-sm font-semibold">Ahi AI</span>
+            </Link>
+            <div className="min-w-0 border-l border-slate-200 pl-3 dark:border-slate-700">
+              <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {t.section}
+              </p>
+              <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
+                {tenantName || (tenantId ? t.loading : t.panel)}
+              </p>
             </div>
-            <span className="text-lg font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              Ahi AI
-            </span>
-          </Link>
-          {tenantName && (
-            <span className="hidden border-l border-slate-200 pl-4 text-sm font-medium text-slate-600 dark:border-slate-700 dark:text-slate-400 sm:block">
-              {tenantName}
-            </span>
-          )}
-          {tenantId && !tenantName && (
-            <span className="hidden text-sm text-slate-400 sm:block">
-              Yükleniyor...
-            </span>
-          )}
+          </div>
+
+          <div className="flex items-center gap-2">
+            <div className="hidden md:block">
+              <ThemeLocaleSwitch compact />
+            </div>
+            <UserMenu user={user} logoutLabel={t.logout} />
+          </div>
         </div>
-        <UserMenu user={user} />
       </header>
 
-      {/* Tenant sayfasında: sidebar + içerik */}
       {isTenantPage ? (
-        <div className="flex">
-          <aside className="fixed left-0 top-16 z-20 hidden h-[calc(100vh-4rem)] w-64 flex-col border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:flex">
-            <nav className="flex flex-1 flex-col gap-1 p-4">
+        <div className="relative">
+          <div
+            className={`fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-sm transition-opacity lg:hidden ${
+              mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
+            }`}
+            onClick={() => setMobileOpen(false)}
+          />
+
+          <aside
+            className={`fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] w-72 border-r border-slate-200/80 bg-white/95 p-4 shadow-lg backdrop-blur transition-transform dark:border-slate-800 dark:bg-slate-900/95 lg:translate-x-0 ${
+              mobileOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
+            <div className="mb-3 flex items-center justify-between lg:hidden">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                {t.quick}
+              </span>
+              <button
+                type="button"
+                onClick={() => setMobileOpen(false)}
+                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <div className="space-y-1">
               {navItems.map(({ href, label, icon: Icon }) => {
                 const isRoot = href === `/dashboard/${tenantId}`;
-                const active = isRoot
-                  ? pathname === href
-                  : pathname === href || pathname.startsWith(`${href}/`);
+                const active = isRoot ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
                 return (
                   <Link
                     key={href}
                     href={href}
                     className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
                       active
-                        ? "bg-cyan-100/70 text-cyan-900 dark:bg-cyan-950/40 dark:text-cyan-300"
-                        : "text-slate-700 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
+                        ? "bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900"
+                        : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                     }`}
                   >
-                    <Icon className={`h-5 w-5 shrink-0 ${active ? "text-cyan-600 dark:text-cyan-400" : "text-slate-500"}`} />
+                    <Icon className={`h-4 w-4 ${active ? "" : "text-slate-400"}`} />
                     {label}
                   </Link>
                 );
               })}
+            </div>
+
+            <div className="mt-4 space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
               <a
                 href={`${appBaseUrl}/api/tenant/${tenantId}/link`}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-emerald-50 hover:text-emerald-700 dark:text-slate-300 dark:hover:bg-emerald-950/30 dark:hover:text-emerald-400"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
-                <MessageCircle className="h-5 w-5 shrink-0 text-slate-500" />
-                WhatsApp Linki
+                <MessageCircle className="h-4 w-4" />
+                {t.whatsappLink}
               </a>
               <a
                 href={`${appBaseUrl}/api/tenant/${tenantId}/qr?format=png`}
                 download
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-100 hover:text-slate-900 dark:text-slate-300 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-              >
-                <QrCode className="h-5 w-5 shrink-0 text-slate-500" />
-                QR Kod İndir
-              </a>
-            </nav>
-          </aside>
-
-          <main className="min-h-[calc(100vh-4rem)] flex-1 pb-[calc(5.5rem+env(safe-area-inset-bottom))] lg:pb-0 lg:pl-64">
-            <div className="flex items-center gap-2 border-b border-slate-200 bg-white px-4 py-3 dark:border-slate-800 dark:bg-slate-900 lg:hidden">
-              <a
-                href={`${appBaseUrl}/api/tenant/${tenantId}/link`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-100 dark:border-emerald-900/70 dark:bg-emerald-950/40 dark:text-emerald-300 dark:hover:bg-emerald-900/60"
-              >
-                <MessageCircle className="h-4 w-4" />
-                WhatsApp Linki
-              </a>
-              <a
-                href={`${appBaseUrl}/api/tenant/${tenantId}/qr?format=png`}
-                target="_blank"
-                rel="noreferrer"
-                className="flex flex-1 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <QrCode className="h-4 w-4" />
-                QR İndir
+                {t.qrDownload}
               </a>
             </div>
+          </aside>
+
+          <main className="min-h-[calc(100vh-4rem)] pb-[calc(5.6rem+env(safe-area-inset-bottom))] lg:ml-72 lg:pb-0">
             {children}
           </main>
 
           {mobileNavItems.length > 0 && (
-            <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/98 px-2 pb-[calc(0.35rem+env(safe-area-inset-bottom))] pt-1 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
-              <div
-                className="grid gap-1"
-                style={{
-                  gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))`,
-                }}
-              >
+            <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/98 px-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
+              <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}>
                 {mobileNavItems.map(({ href, label, icon: Icon }) => {
                   const isRoot = href === `/dashboard/${tenantId}`;
-                  const active = isRoot
-                    ? pathname === href
-                    : pathname === href || pathname.startsWith(`${href}/`);
+                  const active = isRoot ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
                   return (
                     <Link
                       key={href}
                       href={href}
                       className={`flex min-w-0 flex-col items-center justify-center rounded-xl px-1 py-2 text-[10px] font-semibold transition ${
                         active
-                          ? "bg-cyan-100 text-cyan-800 dark:bg-cyan-950/60 dark:text-cyan-200"
+                          ? "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100"
                           : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                       }`}
                     >
-                      <Icon
-                        className={`mb-1 h-4 w-4 ${
-                          active ? "text-cyan-600 dark:text-cyan-300" : ""
-                        }`}
-                      />
+                      <Icon className={`mb-1 h-4 w-4 ${active ? "text-slate-700 dark:text-slate-100" : ""}`} />
                       <span className="truncate">{label}</span>
                     </Link>
                   );

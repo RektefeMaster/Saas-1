@@ -81,6 +81,24 @@ function shouldSendQuickAck(text: string): boolean {
   return /^(merhaba|selam|mrb|slm|hey|iyi\s*günler)(\b|[!.?,\s]|$)/i.test(normalized);
 }
 
+function resolveSendFailureStage(result: {
+  ok: boolean;
+  errorCode?: number;
+  blockedReason?: string;
+}): string {
+  if (result.ok) return "message_replied";
+  if (result.blockedReason === "test_number_allowed_list" || result.errorCode === 131030) {
+    return "message_reply_blocked_test_number";
+  }
+  if (result.blockedReason === "outside_24h_window" || result.errorCode === 131047) {
+    return "message_reply_blocked_24h_window";
+  }
+  if (result.blockedReason === "token_expired" || result.errorCode === 190) {
+    return "message_reply_failed_token_expired";
+  }
+  return "message_reply_failed";
+}
+
 function maskPhone(phone: string | null | undefined): string {
   if (!phone) return "n/a";
   const digits = phone.replace(/\D/g, "");
@@ -340,7 +358,9 @@ export async function POST(request: NextRequest) {
               text: "Mesajını aldım, hemen kontrol ediyorum.",
             });
             await setWebhookDebugRecord({
-              stage: ackResult.ok ? "quick_ack_sent" : "quick_ack_failed",
+              stage: ackResult.ok
+                ? "quick_ack_sent"
+                : resolveSendFailureStage(ackResult).replace("message_reply_", "quick_ack_"),
               at: new Date().toISOString(),
               from: maskPhone(customerPhone),
               type: msgType,
@@ -348,6 +368,8 @@ export async function POST(request: NextRequest) {
               send_error_code: ackResult.errorCode ?? null,
               send_error_subcode: ackResult.errorSubcode ?? null,
               send_error_message: (ackResult.errorMessage || "").slice(0, 180),
+              blocked_reason: ackResult.blockedReason ?? null,
+              is_test_number: ackResult.isTestNumber ?? null,
             });
           }
 
@@ -453,7 +475,7 @@ export async function POST(request: NextRequest) {
             console.log("[webhook] send result:", sendResult.ok);
             if (!sendResult.ok) console.error("[webhook] WhatsApp send failed for", customerPhone);
             await setWebhookDebugRecord({
-              stage: sendResult.ok ? "message_replied" : "message_reply_failed",
+              stage: resolveSendFailureStage(sendResult),
               at: new Date().toISOString(),
               from: maskPhone(customerPhone),
               type: msgType,
@@ -464,6 +486,8 @@ export async function POST(request: NextRequest) {
               send_error_code: sendResult.errorCode ?? null,
               send_error_subcode: sendResult.errorSubcode ?? null,
               send_error_message: (sendResult.errorMessage || "").slice(0, 180),
+              blocked_reason: sendResult.blockedReason ?? null,
+              is_test_number: sendResult.isTestNumber ?? null,
             });
           } catch (err) {
             console.error("[webhook] Error processing message:", err);

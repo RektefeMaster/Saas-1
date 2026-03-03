@@ -9,9 +9,19 @@ export default async function DashboardTenantLayout({
   params,
 }: {
   children: React.ReactNode;
-  params: Promise<{ tenantId: string }>;
+  params: Promise<unknown>;
 }) {
-  const { tenantId } = await params;
+  const resolved = await params;
+  const tenantId =
+    resolved &&
+    typeof resolved === "object" &&
+    "tenantId" in resolved &&
+    typeof (resolved as { tenantId?: unknown }).tenantId === "string"
+      ? (resolved as { tenantId: string }).tenantId
+      : "";
+  if (!tenantId) {
+    redirect("/dashboard");
+  }
   const supabase = await createClient();
   const {
     data: { user },
@@ -32,7 +42,7 @@ export default async function DashboardTenantLayout({
       .eq("id", tenantId)
       .single();
     if (!result.error) {
-      tenant = (result.data ?? null) as Record<string, unknown> | null;
+      tenant = (result.data ?? null) as unknown as Record<string, unknown> | null;
       break;
     }
     const missing = extractMissingSchemaColumn(result.error);

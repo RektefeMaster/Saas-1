@@ -48,6 +48,8 @@ export interface WhatsAppSendResult {
   errorCode?: number;
   errorSubcode?: number;
   errorMessage?: string;
+  blockedReason?: "test_number_allowed_list" | "outside_24h_window" | "token_expired";
+  isTestNumber?: boolean;
   to?: string;
   source?: "runtime" | "env";
 }
@@ -62,6 +64,76 @@ export interface SendTemplateMessageParams {
 export interface WhatsAppMediaPayload {
   buffer: Buffer;
   mimeType: string;
+}
+
+export interface WhatsAppPhoneProfile {
+  phoneId: string;
+  displayPhoneNumber: string | null;
+  verifiedName: string | null;
+  qualityRating: string | null;
+  status: string | null;
+  isTestNumber: boolean;
+  fetchedAt: string;
+}
+
+let phoneProfileCache:
+  | {
+      key: string;
+      expiry: number;
+      value: WhatsAppPhoneProfile;
+    }
+  | null = null;
+
+async function getWhatsAppPhoneProfile(
+  phoneId: string,
+  token: string
+): Promise<WhatsAppPhoneProfile | null> {
+  if (!phoneId || !token) return null;
+  const cacheKey = `${phoneId}:${token.slice(-8)}`;
+  if (phoneProfileCache && phoneProfileCache.key === cacheKey && phoneProfileCache.expiry > Date.now()) {
+    return phoneProfileCache.value;
+  }
+
+  const url = `${WHATSAPP_API}/${phoneId}?fields=id,display_phone_number,verified_name,quality_rating,status`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${token}`,
+    },
+  });
+  if (!res.ok) {
+    const raw = await res.text().catch(() => "");
+    console.error("[whatsapp] phone profile fetch error", res.status, raw);
+    return null;
+  }
+  const payload = (await res.json().catch(() => ({}))) as {
+    id?: string;
+    display_phone_number?: string;
+    verified_name?: string;
+    quality_rating?: string;
+    status?: string;
+  };
+  const profile: WhatsAppPhoneProfile = {
+    phoneId: payload.id || phoneId,
+    displayPhoneNumber: payload.display_phone_number || null,
+    verifiedName: payload.verified_name || null,
+    qualityRating: payload.quality_rating || null,
+    status: payload.status || null,
+    isTestNumber: (payload.verified_name || "").toLocaleLowerCase("en-US").includes("test number"),
+    fetchedAt: new Date().toISOString(),
+  };
+  phoneProfileCache = {
+    key: cacheKey,
+    value: profile,
+    expiry: Date.now() + 5 * 60 * 1000,
+  };
+  return profile;
+}
+
+export async function getWhatsAppPhoneProfileSummary(): Promise<WhatsAppPhoneProfile | null> {
+  const { phoneId, token } = await resolveWhatsAppCredentials();
+  if (!phoneId || !token) return null;
+  return getWhatsAppPhoneProfile(phoneId, token);
 }
 
 export async function sendWhatsAppMessageDetailed({
@@ -103,6 +175,7 @@ export async function sendWhatsAppMessageDetailed({
   if (!res.ok) {
     const raw = await res.text();
     let parsedError: { code?: number; error_subcode?: number; message?: string } | undefined;
+    let phoneProfile: WhatsAppPhoneProfile | null = null;
     try {
       const parsed = JSON.parse(raw) as {
         error?: { code?: number; error_subcode?: number; message?: string };
@@ -120,6 +193,7 @@ export async function sendWhatsAppMessageDetailed({
       console.error("[whatsapp] access token expired - refresh WHATSAPP_ACCESS_TOKEN");
     }
     if (parsedError?.code === 131030) {
+      phoneProfile = await getWhatsAppPhoneProfile(phoneId, token);
       console.error(
         "[whatsapp] recipient not in allowed list (test number). Add recipient in Meta WhatsApp > API Setup or switch to production number."
       );
@@ -134,7 +208,9 @@ export async function sendWhatsAppMessageDetailed({
       parsedError?.code === 131047
         ? "Alıcı son 24 saatte mesaj atmadı; serbest metin yerine onaylı şablon kullanın (Meta kuralı)."
         : parsedError?.code === 131030
-          ? "Bu numara test listesinde değil. Meta Business Suite > WhatsApp > API kurulumundan ekleyin veya production numarasına geçin."
+          ? phoneProfile?.isTestNumber
+            ? "WhatsApp numarası Meta'da Test Number modunda. Bu alıcı allowed recipients listesinde değil; Meta Business Suite > WhatsApp > API Setup bölümüne numarayı ekleyin veya production numarasına geçin."
+            : "Alıcıya WhatsApp gönderimi Meta politikası nedeniyle engellendi. Numara eşleşmesi ve hesap durumunu kontrol edin."
           : parsedError?.code === 190
             ? "WhatsApp erişim token süresi dolmuş; WHATSAPP_ACCESS_TOKEN yenileyin."
             : parsedError?.message || raw;
@@ -144,6 +220,15 @@ export async function sendWhatsAppMessageDetailed({
       errorCode: parsedError?.code,
       errorSubcode: parsedError?.error_subcode,
       errorMessage,
+      blockedReason:
+        parsedError?.code === 131030 && phoneProfile?.isTestNumber
+          ? "test_number_allowed_list"
+          : parsedError?.code === 131047
+            ? "outside_24h_window"
+            : parsedError?.code === 190
+              ? "token_expired"
+              : undefined,
+      isTestNumber: phoneProfile?.isTestNumber,
       to: normalizedTo,
       source,
     };

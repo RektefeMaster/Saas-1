@@ -1,16 +1,47 @@
 "use client";
 
 import { Suspense, useMemo, useState } from "react";
-import Link from "next/link";
 import Image from "next/image";
+import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { AlertCircle, ShieldCheck, Smartphone } from "lucide-react";
-import { Button, Card, CardContent, Input } from "@/components/ui";
+import { AlertCircle, Smartphone } from "lucide-react";
+import { Button, Input, ThemeLocaleSwitch } from "@/components/ui";
+import { useLocale } from "@/lib/locale-context";
+
+const COPY = {
+  tr: {
+    title: "SMS Doğrulama",
+    subtitle: "Telefonunuza gelen doğrulama kodunu girin.",
+    code: "Doğrulama kodu",
+    verify: "Doğrula ve Devam Et",
+    verifying: "Doğrulanıyor...",
+    resend: "Kodu tekrar gönder",
+    resending: "Gönderiliyor...",
+    back: "Giriş ekranına dön",
+    missing: "OTP oturumu bulunamadı. Lütfen tekrar giriş yapın.",
+    invalid: "Doğrulama kodunu girin.",
+  },
+  en: {
+    title: "SMS Verification",
+    subtitle: "Enter the verification code sent to your phone.",
+    code: "Verification code",
+    verify: "Verify and Continue",
+    verifying: "Verifying...",
+    resend: "Resend code",
+    resending: "Sending...",
+    back: "Back to login",
+    missing: "OTP session not found. Please login again.",
+    invalid: "Please enter the verification code.",
+  },
+} as const;
 
 function VerifyForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const challengeId = useMemo(() => searchParams.get("challenge") || "", [searchParams]);
+  const { locale } = useLocale();
+  const t = COPY[locale];
+
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
@@ -19,11 +50,11 @@ function VerifyForm() {
   const verify = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!challengeId) {
-      setError("OTP oturumu bulunamadı. Lütfen tekrar giriş yapın.");
+      setError(t.missing);
       return;
     }
     if (code.trim().length < 4) {
-      setError("Doğrulama kodunu girin.");
+      setError(t.invalid);
       return;
     }
     setLoading(true);
@@ -35,7 +66,7 @@ function VerifyForm() {
     });
     const payload = (await response.json().catch(() => ({}))) as { error?: string };
     if (!response.ok) {
-      setError(payload.error || "Kod doğrulanamadı.");
+      setError(payload.error || (locale === "tr" ? "Kod doğrulanamadı." : "Code verification failed."));
       setLoading(false);
       return;
     }
@@ -53,80 +84,82 @@ function VerifyForm() {
     };
     setResending(false);
     if (!response.ok || !payload.challenge_id) {
-      setError(payload.error || "Kod tekrar gönderilemedi.");
+      setError(payload.error || (locale === "tr" ? "Kod tekrar gönderilemedi." : "Failed to resend code."));
       return;
     }
     router.replace(`/dashboard/login/verify?challenge=${encodeURIComponent(payload.challenge_id)}`);
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-12">
+    <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <Image
         src="/arkaplan.png"
-        alt="Ahi AI arkaplan"
+        alt="Ahi AI backdrop"
         fill
-        className="pointer-events-none object-cover opacity-[0.08] blur-[1px]"
         priority
+        className="pointer-events-none object-cover opacity-[0.07]"
       />
-      <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-blue-500/10" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_40%_at_15%_0%,rgba(56,189,248,0.2),transparent),radial-gradient(35%_30%_at_90%_10%,rgba(16,185,129,0.17),transparent)]" />
 
-      <div className="relative z-10 w-full max-w-md animate-fade-in">
-        <div className="mb-8 text-center">
-          <Link href="/" className="inline-flex items-center gap-3">
-            <Image src="/appicon.png" alt="Ahi AI logo" width={36} height={36} className="rounded-lg bg-white p-0.5 shadow-sm" />
-            <span className="text-xl font-semibold tracking-tight text-slate-900">Ahi AI</span>
+      <div className="absolute right-4 top-4 z-20">
+        <ThemeLocaleSwitch compact />
+      </div>
+
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-xl items-center px-4 py-10 sm:px-6">
+        <section className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 sm:p-7">
+          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-300">
+            <Image
+              src="/appicon.png"
+              alt="Ahi AI"
+              width={28}
+              height={28}
+              className="rounded-md border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
+            />
+            Ahi AI
           </Link>
-          <h1 className="mt-6 text-2xl font-bold text-slate-900">SMS doğrulama</h1>
-          <p className="mt-2 text-sm text-slate-600">
-            Güvenlik için telefonunuza gelen doğrulama kodunu girin.
-          </p>
-        </div>
+          <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            {t.title}
+          </h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{t.subtitle}</p>
 
-        <Card className="border border-slate-200 bg-white/95 backdrop-blur">
-          <CardContent className="p-6 sm:p-8">
-            <form onSubmit={verify} className="space-y-5">
-              <Input
-                label="Doğrulama kodu"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
-                placeholder="123456"
-                autoFocus
-                disabled={loading}
-                maxLength={8}
-                leftIcon={<Smartphone className="h-4 w-4" />}
-              />
+          <form onSubmit={verify} className="mt-5 space-y-4">
+            <Input
+              label={t.code}
+              value={code}
+              onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))}
+              placeholder="123456"
+              autoFocus
+              disabled={loading}
+              maxLength={8}
+              leftIcon={<Smartphone className="h-4 w-4" />}
+            />
 
-              {error && (
-                <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>{error}</span>
-                </div>
-              )}
+            {error && (
+              <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
+                <AlertCircle className="h-4 w-4 shrink-0" />
+                <span>{error}</span>
+              </div>
+            )}
 
-              <Button type="submit" fullWidth size="lg" loading={loading}>
-                {loading ? "Doğrulanıyor..." : "Doğrula ve Devam Et"}
-              </Button>
-            </form>
+            <Button type="submit" fullWidth size="lg" loading={loading}>
+              {loading ? t.verifying : t.verify}
+            </Button>
+          </form>
 
-            <div className="mt-6 flex items-center justify-between text-sm">
-              <button
-                type="button"
-                onClick={resend}
-                disabled={resending}
-                className="font-medium text-cyan-700 hover:text-cyan-800 disabled:opacity-50"
-              >
-                {resending ? "Gönderiliyor..." : "Kodu tekrar gönder"}
-              </button>
-              <Link
-                href="/dashboard/login"
-                className="inline-flex items-center gap-1 font-medium text-slate-600 hover:text-slate-900"
-              >
-                <ShieldCheck className="h-4 w-4" />
-                Girişe dön
-              </Link>
-            </div>
-          </CardContent>
-        </Card>
+          <div className="mt-5 flex items-center justify-between text-sm">
+            <button
+              type="button"
+              onClick={resend}
+              disabled={resending}
+              className="font-semibold text-cyan-700 hover:text-cyan-800 disabled:opacity-50 dark:text-cyan-300 dark:hover:text-cyan-200"
+            >
+              {resending ? t.resending : t.resend}
+            </button>
+            <Link href="/dashboard/login" className="font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
+              {t.back}
+            </Link>
+          </div>
+        </section>
       </div>
     </div>
   );

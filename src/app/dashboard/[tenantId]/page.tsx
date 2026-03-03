@@ -621,10 +621,10 @@ export default function EsnafDashboard({
                 rel="noreferrer"
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center gap-2 rounded-xl border-2 border-emerald-200 bg-white px-4 py-2.5 text-sm font-medium text-emerald-700 shadow-sm transition hover:border-emerald-300 hover:bg-emerald-50"
+                className="inline-flex items-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50"
               >
                 <MessageCircle className="h-4 w-4" />
-                WhatsApp Link
+                WhatsApp Bağlantısı
               </motion.a>
               <motion.a
                 href={`${baseUrl}/api/tenant/${tenantId}/qr?format=png`}
@@ -647,7 +647,7 @@ export default function EsnafDashboard({
                 }}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
-                className="inline-flex items-center gap-2 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-5 py-2.5 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2"
               >
                 <span className="text-lg">+</span> Randevu Ekle
               </motion.button>
@@ -659,45 +659,45 @@ export default function EsnafDashboard({
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.1 }}
-              className="rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100/50 px-4 py-3 shadow-sm"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
             >
-              <span className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Bugün</span>
-              <p className="mt-1 text-2xl font-bold text-emerald-900">{todayCount}</p>
-              <p className="text-xs text-emerald-700">randevu</p>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Bugün</span>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{todayCount}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">randevu</p>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.15 }}
-              className="rounded-xl bg-gradient-to-br from-blue-50 to-blue-100/50 px-4 py-3 shadow-sm"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
             >
-              <span className="text-xs font-semibold uppercase tracking-wide text-blue-700">14 Gün</span>
-              <p className="mt-1 text-2xl font-bold text-blue-900">{weekCount}</p>
-              <p className="text-xs text-blue-700">randevu</p>
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">14 Gün</span>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{weekCount}</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">randevu</p>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.2 }}
-              className="rounded-xl bg-gradient-to-br from-cyan-50 to-cyan-100/50 px-4 py-3 shadow-sm"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
             >
-              <span className="text-xs font-semibold uppercase tracking-wide text-cyan-700">Aylık</span>
-              <p className="mt-1 text-2xl font-bold text-cyan-900">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Aylık</span>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {commandCenter?.kpis.monthly_appointments || 0}
               </p>
-              <p className="text-xs text-cyan-700">randevu</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">randevu</p>
             </motion.div>
             <motion.div
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: 0.25 }}
-              className="rounded-xl bg-gradient-to-br from-amber-50 to-amber-100/50 px-4 py-3 shadow-sm"
+              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
             >
-              <span className="text-xs font-semibold uppercase tracking-wide text-amber-700">Doluluk</span>
-              <p className="mt-1 text-2xl font-bold text-amber-900">
+              <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Doluluk</span>
+              <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 %{commandCenter?.kpis.fill_rate_pct.toFixed(0) || 0}
               </p>
-              <p className="text-xs text-amber-700">oranı</p>
+              <p className="text-xs text-slate-500 dark:text-slate-400">oranı</p>
             </motion.div>
           </div>
         </div>
@@ -705,12 +705,12 @@ export default function EsnafDashboard({
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6">
-          <section className="rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-white to-emerald-50/30 p-6 shadow-lg">
+          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-6 flex items-center justify-between">
             <div>
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-emerald-900">
+              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
                 <span className="text-xl">🎯</span>
-                Command Center
+                Operasyon Merkezi
               </h2>
               <p className="mt-1 text-sm text-slate-600">
                 Gelir ve operasyon aksiyonlarınızı buradan yönetin
@@ -726,8 +726,8 @@ export default function EsnafDashboard({
 
           {!commandCenter ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
-              <p className="mt-3 text-sm text-slate-500">Command center verisi alınıyor...</p>
+              <Loader2 className="h-8 w-8 animate-spin text-slate-600" />
+              <p className="mt-3 text-sm text-slate-500">Operasyon verisi alınıyor...</p>
             </div>
           ) : (
             <>
@@ -736,10 +736,10 @@ export default function EsnafDashboard({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.1 }}
-                  className="rounded-xl bg-gradient-to-br from-emerald-50 to-emerald-100 border-2 border-emerald-200 px-4 py-4 shadow-sm"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700">Aylık Ciro</p>
-                  <p className="mt-2 text-2xl font-bold text-emerald-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Aylık Ciro</p>
+                  <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                     {commandCenter.kpis.monthly_revenue_try.toLocaleString("tr-TR")} ₺
                   </p>
                 </motion.div>
@@ -747,10 +747,10 @@ export default function EsnafDashboard({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.15 }}
-                  className="rounded-xl bg-gradient-to-br from-blue-50 to-blue-100 border-2 border-blue-200 px-4 py-4 shadow-sm"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-blue-700">Doluluk</p>
-                  <p className="mt-2 text-2xl font-bold text-blue-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Doluluk</p>
+                  <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                     %{commandCenter.kpis.fill_rate_pct.toFixed(1)}
                   </p>
                 </motion.div>
@@ -758,10 +758,10 @@ export default function EsnafDashboard({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.2 }}
-                  className="rounded-xl bg-gradient-to-br from-amber-50 to-amber-100 border-2 border-amber-200 px-4 py-4 shadow-sm"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">No-show</p>
-                  <p className="mt-2 text-2xl font-bold text-amber-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Gelmeme</p>
+                  <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                     %{commandCenter.kpis.no_show_rate_pct.toFixed(1)}
                   </p>
                 </motion.div>
@@ -769,10 +769,10 @@ export default function EsnafDashboard({
                   initial={{ opacity: 0, y: 10 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.25 }}
-                  className="rounded-xl bg-gradient-to-br from-red-50 to-red-100 border-2 border-red-200 px-4 py-4 shadow-sm"
+                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
                 >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-red-700">Riskte Müşteri</p>
-                  <p className="mt-2 text-2xl font-bold text-red-900">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Riskli Müşteri</p>
+                  <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                     {commandCenter.kpis.at_risk_customers}
                   </p>
                 </motion.div>
@@ -787,9 +787,9 @@ export default function EsnafDashboard({
                 ) : (
                   commandCenter.actions.map((action, idx) => {
                     const severityColors = {
-                      high: "from-red-50 to-red-100 border-red-300",
-                      medium: "from-amber-50 to-amber-100 border-amber-300",
-                      low: "from-blue-50 to-blue-100 border-blue-300",
+                      high: "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60",
+                      medium: "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60",
+                      low: "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60",
                     };
                     return (
                       <motion.div
@@ -797,13 +797,13 @@ export default function EsnafDashboard({
                         initial={{ opacity: 0, x: -10 }}
                         animate={{ opacity: 1, x: 0 }}
                         transition={{ delay: idx * 0.1 }}
-                        className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border-2 bg-gradient-to-r ${severityColors[action.severity]} px-4 py-4 shadow-sm`}
+                        className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border px-4 py-4 shadow-sm ${severityColors[action.severity]}`}
                       >
                         <div className="flex-1">
                           <p className="text-sm font-semibold text-slate-900">{action.title}</p>
                           <p className="mt-1 text-xs text-slate-600">{action.description}</p>
                           {action.estimated_impact_try > 0 && (
-                            <p className="mt-2 inline-block rounded-lg bg-white/80 px-2.5 py-1 text-xs font-medium text-emerald-700">
+                            <p className="mt-2 inline-block rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
                               💰 Tahmini etki: {action.estimated_impact_try.toLocaleString("tr-TR")} ₺
                             </p>
                           )}
@@ -814,7 +814,7 @@ export default function EsnafDashboard({
                           disabled={runningActionId === action.id}
                           whileHover={{ scale: runningActionId === action.id ? 1 : 1.05 }}
                           whileTap={{ scale: 0.95 }}
-                          className="rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-4 py-2.5 text-xs font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-60"
+                          className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
                         >
                           {runningActionId === action.id ? (
                             <span className="flex items-center gap-2">

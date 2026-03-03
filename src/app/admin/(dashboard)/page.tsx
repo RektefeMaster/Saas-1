@@ -12,6 +12,7 @@ import {
   RefreshCcw,
   Users,
 } from "lucide-react";
+import { useLocale } from "@/lib/locale-context";
 
 interface BusinessType {
   id: string;
@@ -44,7 +45,17 @@ const FLOW_LABELS: Record<string, string> = {
   hybrid: "Hibrit",
 };
 
+const FLOW_LABELS_EN: Record<string, string> = {
+  appointment: "Appointment",
+  appointment_with_extras: "Appointment + Extras",
+  order: "Order",
+  reservation: "Reservation",
+  hybrid: "Hybrid",
+};
+
 export default function AdminPage() {
+  const { locale } = useLocale();
+  const isTr = locale === "tr";
   const [businessTypes, setBusinessTypes] = useState<BusinessType[]>([]);
   const [tenants, setTenants] = useState<Tenant[]>([]);
   const [stats, setStats] = useState<Stats | null>(null);
@@ -63,11 +74,11 @@ export default function AdminPage() {
 
       if (!btRes.ok) {
         const btErr = await btRes.json().catch(() => ({}));
-        throw new Error(btErr.error || "İşletme tipleri alınamadı");
+        throw new Error(btErr.error || (isTr ? "İşletme tipleri alınamadı" : "Failed to load business types"));
       }
       if (!tRes.ok) {
         const tErr = await tRes.json().catch(() => ({}));
-        throw new Error(tErr.error || "İşletmeler alınamadı");
+        throw new Error(tErr.error || (isTr ? "İşletmeler alınamadı" : "Failed to load businesses"));
       }
 
       const btData = await btRes.json();
@@ -77,7 +88,7 @@ export default function AdminPage() {
       setTenants(Array.isArray(tData) ? tData : []);
       setStats(statsData);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Bir hata oluştu");
+      setError(err instanceof Error ? err.message : isTr ? "Bir hata oluştu" : "An error occurred");
       setBusinessTypes([]);
       setTenants([]);
       setStats(null);
@@ -88,7 +99,7 @@ export default function AdminPage() {
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [isTr]);
 
   const normalizedStats = useMemo<Stats>(() => {
     if (stats) return stats;
@@ -104,30 +115,30 @@ export default function AdminPage() {
 
   const statItems = [
     {
-      label: "Toplam İşletme",
+      label: isTr ? "Toplam İşletme" : "Total Businesses",
       value: normalizedStats.tenants,
-      hint: `${normalizedStats.activeTenants} aktif işletme`,
+      hint: isTr ? `${normalizedStats.activeTenants} aktif işletme` : `${normalizedStats.activeTenants} active businesses`,
       icon: Users,
       tone: "bg-cyan-50 text-cyan-700 dark:bg-cyan-900/30 dark:text-cyan-300",
     },
     {
-      label: "İşletme Tipi",
+      label: isTr ? "İşletme Tipi" : "Business Type",
       value: normalizedStats.businessTypes,
-      hint: "Tanımlı kategori",
+      hint: isTr ? "Tanımlı kategori" : "Defined category",
       icon: Building2,
       tone: "bg-emerald-50 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-300",
     },
     {
-      label: "Bugünkü Randevu",
+      label: isTr ? "Bugünkü Randevu" : "Appointments Today",
       value: normalizedStats.appointmentsToday,
-      hint: "Canlı günlük trafik",
+      hint: isTr ? "Canlı günlük trafik" : "Live daily traffic",
       icon: CalendarClock,
       tone: "bg-amber-50 text-amber-700 dark:bg-amber-900/30 dark:text-amber-300",
     },
     {
-      label: "Toplam Randevu",
+      label: isTr ? "Toplam Randevu" : "Total Appointments",
       value: normalizedStats.appointmentsTotal,
-      hint: "Sistem genel hacim",
+      hint: isTr ? "Sistem genel hacim" : "System-wide volume",
       icon: ClipboardList,
       tone: "bg-violet-50 text-violet-700 dark:bg-violet-900/30 dark:text-violet-300",
     },
@@ -140,13 +151,15 @@ export default function AdminPage() {
           <div>
             <p className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
               <CircleDot className="h-3.5 w-3.5 text-emerald-500" />
-              Ahi AI Yönetim Merkezi
+              {isTr ? "Ahi AI Yönetim Merkezi" : "Ahi AI Control Center"}
             </p>
             <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-              Admin Paneli Genel Bakış
+              {isTr ? "Admin Paneli Genel Bakış" : "Admin Dashboard Overview"}
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-400 sm:text-base">
-              İşletme ekleme, tip yönetimi ve güvenlik durumunu tek panelden takip edin. Mobil ve masaüstünde aynı akışla hızlı işlem yapabilirsiniz.
+              {isTr
+                ? "İşletme ekleme, tip yönetimi ve güvenlik durumunu tek panelden takip edin. Mobil ve masaüstünde aynı akışla hızlı işlem yapabilirsiniz."
+                : "Track business onboarding, type management, and security from one panel. Keep the same fast flow on mobile and desktop."}
             </p>
           </div>
           <div className="flex flex-wrap gap-2">
@@ -155,13 +168,13 @@ export default function AdminPage() {
               className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
               <Plus className="h-4 w-4" />
-              Yeni İşletme
+              {isTr ? "Yeni İşletme" : "New Business"}
             </Link>
             <Link
               href="/admin/business-types/new"
               className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              İşletme Tipi Ekle
+              {isTr ? "İşletme Tipi Ekle" : "Add Business Type"}
               <ArrowUpRight className="h-4 w-4" />
             </Link>
           </div>
@@ -177,7 +190,7 @@ export default function AdminPage() {
             className="inline-flex items-center justify-center gap-2 rounded-lg bg-red-600 px-3 py-2 text-sm font-semibold text-white transition hover:bg-red-700"
           >
             <RefreshCcw className="h-4 w-4" />
-            Tekrar dene
+            {isTr ? "Tekrar dene" : "Retry"}
           </button>
         </div>
       )}
@@ -213,14 +226,16 @@ export default function AdminPage() {
         <article className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between border-b border-slate-200/80 px-5 py-4 dark:border-slate-800">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">İşletme Tipleri</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Aktif kategori özeti</p>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">
+                {isTr ? "İşletme Tipleri" : "Business Types"}
+              </h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{isTr ? "Aktif kategori özeti" : "Active category summary"}</p>
             </div>
             <Link
               href="/admin/business-types"
               className="text-sm font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-300 dark:hover:text-cyan-200"
             >
-              Tümünü Gör
+              {isTr ? "Tümünü Gör" : "View All"}
             </Link>
           </div>
           <div className="p-5">
@@ -232,13 +247,13 @@ export default function AdminPage() {
               </div>
             ) : businessTypes.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-slate-700 dark:bg-slate-900/50">
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Henüz işletme tipi yok</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{isTr ? "Henüz işletme tipi yok" : "No business type yet"}</p>
                 <Link
                   href="/admin/business-types/new"
                   className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
                 >
                   <Plus className="h-4 w-4" />
-                  İlk tipi oluştur
+                  {isTr ? "İlk tipi oluştur" : "Create first type"}
                 </Link>
               </div>
             ) : (
@@ -257,7 +272,7 @@ export default function AdminPage() {
                       </p>
                     </div>
                     <span className="ml-3 rounded-lg border border-slate-200 bg-white px-2 py-1 text-[11px] font-medium text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300">
-                      {FLOW_LABELS[bt.flow_type] ?? bt.flow_type}
+                      {(isTr ? FLOW_LABELS : FLOW_LABELS_EN)[bt.flow_type] ?? bt.flow_type}
                     </span>
                   </li>
                 ))}
@@ -269,14 +284,14 @@ export default function AdminPage() {
         <article className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="flex items-center justify-between border-b border-slate-200/80 px-5 py-4 dark:border-slate-800">
             <div>
-              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">İşletmeler</h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Son kayıtlar ve durumlar</p>
+              <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{isTr ? "İşletmeler" : "Businesses"}</h2>
+              <p className="text-xs text-slate-500 dark:text-slate-400">{isTr ? "Son kayıtlar ve durumlar" : "Latest records and statuses"}</p>
             </div>
             <Link
               href="/admin/tenants"
               className="text-sm font-medium text-cyan-700 hover:text-cyan-800 dark:text-cyan-300 dark:hover:text-cyan-200"
             >
-              Tümünü Gör
+              {isTr ? "Tümünü Gör" : "View All"}
             </Link>
           </div>
           <div className="p-5">
@@ -288,13 +303,13 @@ export default function AdminPage() {
               </div>
             ) : tenants.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-6 text-center dark:border-slate-700 dark:bg-slate-900/50">
-                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">Henüz işletme yok</p>
+                <p className="text-sm font-medium text-slate-700 dark:text-slate-300">{isTr ? "Henüz işletme yok" : "No business yet"}</p>
                 <Link
                   href="/admin/tenants/new"
                   className="mt-3 inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white hover:bg-slate-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
                 >
                   <Plus className="h-4 w-4" />
-                  İlk işletmeyi ekle
+                  {isTr ? "İlk işletmeyi ekle" : "Add first business"}
                 </Link>
               </div>
             ) : (
@@ -323,13 +338,23 @@ export default function AdminPage() {
                               : "bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200"
                         }`}
                       >
-                        {tenant.status === "active" ? "Aktif" : tenant.status === "suspended" ? "Askıda" : "Pasif"}
+                        {tenant.status === "active"
+                          ? isTr
+                            ? "Aktif"
+                            : "Active"
+                          : tenant.status === "suspended"
+                            ? isTr
+                              ? "Askıda"
+                              : "Suspended"
+                            : isTr
+                              ? "Pasif"
+                              : "Passive"}
                       </span>
                       <Link
                         href={`/admin/tenants/${tenant.id}`}
                         className="rounded-lg border border-slate-300 bg-white px-2.5 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
                       >
-                        Detay
+                        {isTr ? "Detay" : "Detail"}
                       </Link>
                     </div>
                   </li>
