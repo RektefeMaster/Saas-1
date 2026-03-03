@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/cron/media-retention",
-      "schedule": "0 * * * *"
+      "schedule": "0 3 * * *"
     }
   ]
 }
