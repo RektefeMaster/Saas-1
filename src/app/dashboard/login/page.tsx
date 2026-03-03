@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { AlertCircle, Eye, EyeOff, Lock, UserRound } from "lucide-react";
 import { createClient } from "@/lib/supabase-client";
+import { setRememberMeCookie } from "@/lib/remember-me";
 import { useLocale } from "@/lib/locale-context";
 import { isValidUsername, usernameToLoginEmail } from "@/lib/username-auth";
 import { Button, ThemeLocaleSwitch } from "@/components/ui";
@@ -19,6 +20,7 @@ const COPY = {
       "Kullanıcı adın ve şifrenle giriş yap. Güvenlik gerektiriyorsa SMS doğrulama adımı otomatik başlar.",
     username: "Kullanıcı adı (admin için e-posta)",
     password: "Şifre",
+    rememberMe: "Beni hatırla",
     submit: "Giriş Yap",
     submitting: "Giriş yapılıyor...",
     contact: "Hesabın yok mu? Kurulum için",
@@ -30,6 +32,7 @@ const COPY = {
       "Sign in with your username and password. If required, SMS verification starts automatically.",
     username: "Username",
     password: "Password",
+    rememberMe: "Remember me",
     submit: "Sign In",
     submitting: "Signing in...",
     contact: "Need an account? For onboarding call",
@@ -88,6 +91,7 @@ export default function DashboardLoginPage() {
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
+  const [rememberMe, setRememberMe] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -174,6 +178,8 @@ export default function DashboardLoginPage() {
           return;
         }
       }
+
+      setRememberMeCookie(rememberMe);
 
       let supabase;
       try {
@@ -345,6 +351,17 @@ export default function DashboardLoginPage() {
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               </div>
+            </label>
+
+            <label className="flex cursor-pointer items-center gap-2">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={(e) => setRememberMe(e.target.checked)}
+                disabled={loading}
+                className="h-4 w-4 rounded border-slate-300 text-cyan-600 focus:ring-cyan-500 dark:border-slate-600 dark:bg-slate-800"
+              />
+              <span className="text-sm text-slate-600 dark:text-slate-300">{t.rememberMe}</span>
             </label>
 
             {error && (

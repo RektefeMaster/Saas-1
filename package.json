@@ -5,6 +5,7 @@
   "scripts": {
     "dev": "next dev --webpack",
     "dev:turbo": "next dev --turbo",
+    "dev:inngest": "npx inngest-cli@latest dev",
     "build": "next build --webpack",
     "start": "next start",
     "lint": "eslint",
