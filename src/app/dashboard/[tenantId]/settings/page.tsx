@@ -8,11 +8,9 @@ import {
   Calendar,
   CheckCircle2,
   MessageSquare,
-  Pencil,
   Save,
   SlidersHorizontal,
   Store,
-  X,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 
@@ -84,9 +82,6 @@ const COPY = {
     // Mesajlar
     messagesTitle: "Mesaj Şablonları",
     messagesDesc: "Müşterilere gönderilen otomatik mesajları özelleştirin.",
-    messagesEdit: "Düzenle",
-    messagesCancelEdit: "İptal",
-    messagesEmpty: "Boş",
     welcomeMsg: "Karşılama mesajı",
     welcomeMsgHint: "Müşteri ilk yazdığında gönderilir. {işletme_adınız} yazarsanız işletme adınız otomatik eklenir",
     whatsappGreeting: "WhatsApp link mesajı",
@@ -94,9 +89,9 @@ const COPY = {
     openingMessage: "Açılış mesajı",
     openingMessageHint: "Bot konuşma başında sorduğu ilk soru",
     confirmationMsg: "Onay mesajı",
-    confirmationMsgHint: "Randevu onaylandığında müşteriye giden mesaj",
+    confirmationMsgHint: "Randevu onaylandığında müşteriye giden mesaj. {date} ve {time} otomatik doldurulur",
     reminderMsg: "Hatırlatma mesajı",
-    reminderMsgHint: "Randevudan 24 saat önce gönderilen mesaj",
+    reminderMsgHint: "Randevudan 24 saat önce gönderilir. {time} otomatik doldurulur",
 
     // Fiyat
     pricingTitle: "Fiyat Belirtilmemiş Hizmetler",
@@ -142,9 +137,6 @@ const COPY = {
 
     messagesTitle: "Message Templates",
     messagesDesc: "Customize automatic messages sent to customers.",
-    messagesEdit: "Edit",
-    messagesCancelEdit: "Cancel",
-    messagesEmpty: "Empty",
     welcomeMsg: "Welcome message",
     welcomeMsgHint: "Sent when customer first writes. {your business name} will be replaced with your business name",
     whatsappGreeting: "WhatsApp link message",
@@ -152,9 +144,9 @@ const COPY = {
     openingMessage: "Opening message",
     openingMessageHint: "First question the bot asks when conversation starts",
     confirmationMsg: "Confirmation message",
-    confirmationMsgHint: "Message sent to customer when appointment is confirmed",
+    confirmationMsgHint: "Sent when appointment is confirmed. {date} and {time} are auto-filled",
     reminderMsg: "Reminder message",
-    reminderMsgHint: "Message sent 24 hours before appointment",
+    reminderMsgHint: "Sent 24 hours before appointment. {time} is auto-filled",
 
     pricingTitle: "Pricing Fallback",
     pricingDesc: "What to show for services without a price.",
@@ -165,25 +157,89 @@ const COPY = {
   },
 } as const;
 
-function MessageReadOnlyItem({
+function SectionCard({
+  icon: Icon,
+  title,
+  desc,
+  children,
+}: {
+  icon: React.ElementType;
+  title: string;
+  desc: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-5 flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{desc}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+}
+
+function InputField<T extends string | number>({
   label,
-  value,
   hint,
-  emptyText,
+  value,
+  onChange,
+  type = "text",
+  min,
+  max,
+  step,
+  placeholder,
+  id,
 }: {
   label: string;
-  value: string;
-  hint: string;
-  emptyText: string;
+  hint?: string;
+  value: T;
+  onChange: (v: T) => void;
+  type?: "text" | "number" | "textarea";
+  min?: number;
+  max?: number;
+  step?: number;
+  placeholder?: string;
+  id?: string;
 }) {
-  const display = value.trim() || emptyText;
+  const inputId = id ?? `input-${label.replace(/\s/g, "-")}`;
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-800/30">
-      <p className="mb-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
-      <p className={`whitespace-pre-wrap text-sm ${!value.trim() ? "italic text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-200"}`}>
-        {display}
-      </p>
-      <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{hint}</p>
+    <div className="block">
+      <label htmlFor={inputId} className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">
+        {label}
+      </label>
+      {type === "textarea" ? (
+        <textarea
+          id={inputId}
+          value={value}
+          onChange={(e) => onChange(e.target.value as T)}
+          placeholder={placeholder}
+          rows={3}
+          autoComplete="off"
+          className="w-full resize-y min-h-[80px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        />
+      ) : (
+        <input
+          id={inputId}
+          type={type}
+          value={value}
+          onChange={(e) =>
+            onChange((type === "number" ? Number(e.target.value) || 0 : e.target.value) as T)
+          }
+          min={min}
+          max={max}
+          step={step}
+          placeholder={placeholder}
+          autoComplete="off"
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        />
+      )}
+      {hint && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p>}
     </div>
   );
 }
@@ -225,16 +281,6 @@ export default function TenantSettingsPage({
   // Fiyat
   const [fallbackLabel, setFallbackLabel] = useState(locale === "tr" ? "Fiyat için arayın" : "Call for price");
   const [fallbackPhone, setFallbackPhone] = useState("");
-
-  // Mesaj şablonları: düzenleme modu
-  const [messagesEditMode, setMessagesEditMode] = useState(false);
-  const [messagesSnapshot, setMessagesSnapshot] = useState<{
-    welcomeMsg: string;
-    whatsappGreeting: string;
-    openingMessage: string;
-    confirmationMsg: string;
-    reminderMsg: string;
-  } | null>(null);
 
   useEffect(() => {
     params.then((p) => setTenantId(p.tenantId));
@@ -321,8 +367,6 @@ export default function TenantSettingsPage({
       });
       if (res.ok) {
         setSaved(true);
-        setMessagesEditMode(false);
-        setMessagesSnapshot(null);
         setTimeout(() => setSaved(false), 2400);
       } else {
         setSaveError(t.saveError);
@@ -354,82 +398,6 @@ export default function TenantSettingsPage({
       </div>
     );
   }
-
-  const SectionCard = ({
-    icon: Icon,
-    title,
-    desc,
-    children,
-  }: {
-    icon: React.ElementType;
-    title: string;
-    desc: string;
-    children: React.ReactNode;
-  }) => (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-5 flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-          <Icon className="h-5 w-5" />
-        </div>
-        <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
-          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{desc}</p>
-        </div>
-      </div>
-      {children}
-    </section>
-  );
-
-  const InputField = <T extends string | number>({
-    label,
-    hint,
-    value,
-    onChange,
-    type = "text",
-    min,
-    max,
-    step,
-    placeholder,
-  }: {
-    label: string;
-    hint?: string;
-    value: T;
-    onChange: (v: T) => void;
-    type?: "text" | "number" | "textarea";
-    min?: number;
-    max?: number;
-    step?: number;
-    placeholder?: string;
-  }) => (
-    <label className="block">
-      <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
-      {type === "textarea" ? (
-        <textarea
-          value={value}
-          onChange={(e) => onChange(e.target.value as T)}
-          placeholder={placeholder}
-          rows={3}
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-        />
-      ) : (
-        <input
-          type={type}
-          value={value}
-          onChange={(e) =>
-            onChange(
-              (type === "number" ? Number(e.target.value) || 0 : e.target.value) as T
-            )
-          }
-          min={min}
-          max={max}
-          step={step}
-          placeholder={placeholder}
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-        />
-      )}
-      {hint && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p>}
-    </label>
-  );
 
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
@@ -533,97 +501,66 @@ export default function TenantSettingsPage({
         </SectionCard>
 
         <SectionCard icon={MessageSquare} title={t.messagesTitle} desc={t.messagesDesc}>
-          <div className="space-y-4">
-            {messagesEditMode ? (
-              <>
-                <div className="flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (messagesSnapshot) {
-                        setWelcomeMsg(messagesSnapshot.welcomeMsg);
-                        setWhatsappGreeting(messagesSnapshot.whatsappGreeting);
-                        setOpeningMessage(messagesSnapshot.openingMessage);
-                        setConfirmationMsg(messagesSnapshot.confirmationMsg);
-                        setReminderMsg(messagesSnapshot.reminderMsg);
-                        setMessagesSnapshot(null);
-                      }
-                      setMessagesEditMode(false);
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                    {t.messagesCancelEdit}
-                  </button>
-                </div>
-                <InputField
-                  label={t.welcomeMsg}
-                  hint={t.welcomeMsgHint}
-                  value={welcomeMsg}
-                  onChange={setWelcomeMsg}
-                  type="textarea"
-                  placeholder="Merhaba! Ben {işletme_adınız} asistanıyım, size nasıl yardımcı olabilirim?"
-                />
-                <InputField
-                  label={t.whatsappGreeting}
-                  hint={t.whatsappGreetingHint}
-                  value={whatsappGreeting}
-                  onChange={setWhatsappGreeting}
-                  placeholder="Merhaba {işletme_adınız} ile görüşmek istiyorum"
-                />
-                <InputField
-                  label={t.openingMessage}
-                  hint={t.openingMessageHint}
-                  value={openingMessage}
-                  onChange={setOpeningMessage}
-                  type="textarea"
-                  placeholder="Merhaba! Ne zaman randevu almak istiyorsunuz?"
-                />
-                <InputField
-                  label={t.confirmationMsg}
-                  hint={t.confirmationMsgHint}
-                  value={confirmationMsg}
-                  onChange={setConfirmationMsg}
-                  type="textarea"
-                  placeholder="Randevunuz onaylandı. Teşekkür ederiz!"
-                />
-                <InputField
-                  label={t.reminderMsg}
-                  hint={t.reminderMsgHint}
-                  value={reminderMsg}
-                  onChange={setReminderMsg}
-                  type="textarea"
-                  placeholder="Yarın saat X'te randevunuz var. Lütfen unutmayın."
-                />
-              </>
-            ) : (
-              <>
-                <div className="flex justify-end">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setMessagesSnapshot({
-                        welcomeMsg,
-                        whatsappGreeting,
-                        openingMessage,
-                        confirmationMsg,
-                        reminderMsg,
-                      });
-                      setMessagesEditMode(true);
-                    }}
-                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-                  >
-                    <Pencil className="h-3.5 w-3.5" />
-                    {t.messagesEdit}
-                  </button>
-                </div>
-                <MessageReadOnlyItem label={t.welcomeMsg} value={welcomeMsg} hint={t.welcomeMsgHint} emptyText={t.messagesEmpty} />
-                <MessageReadOnlyItem label={t.whatsappGreeting} value={whatsappGreeting} hint={t.whatsappGreetingHint} emptyText={t.messagesEmpty} />
-                <MessageReadOnlyItem label={t.openingMessage} value={openingMessage} hint={t.openingMessageHint} emptyText={t.messagesEmpty} />
-                <MessageReadOnlyItem label={t.confirmationMsg} value={confirmationMsg} hint={t.confirmationMsgHint} emptyText={t.messagesEmpty} />
-                <MessageReadOnlyItem label={t.reminderMsg} value={reminderMsg} hint={t.reminderMsgHint} emptyText={t.messagesEmpty} />
-              </>
-            )}
+          <div className="space-y-6">
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                {locale === "tr" ? "Karşılama" : "Greeting"}
+              </p>
+              <InputField
+                id="msg-welcome"
+                label={t.welcomeMsg}
+                hint={t.welcomeMsgHint}
+                value={welcomeMsg}
+                onChange={setWelcomeMsg}
+                type="textarea"
+                placeholder="Merhaba! Ben {işletme_adınız} asistanıyım, size nasıl yardımcı olabilirim?"
+              />
+              <InputField
+                id="msg-whatsapp"
+                label={t.whatsappGreeting}
+                hint={t.whatsappGreetingHint}
+                value={whatsappGreeting}
+                onChange={setWhatsappGreeting}
+                placeholder="Merhaba {işletme_adınız} ile görüşmek istiyorum"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                {locale === "tr" ? "Bot" : "Bot"}
+              </p>
+              <InputField
+                id="msg-opening"
+                label={t.openingMessage}
+                hint={t.openingMessageHint}
+                value={openingMessage}
+                onChange={setOpeningMessage}
+                type="textarea"
+                placeholder="Merhaba! Ne zaman randevu almak istiyorsunuz?"
+              />
+            </div>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
+                {locale === "tr" ? "Randevu sonrası" : "Post-appointment"}
+              </p>
+              <InputField
+                id="msg-confirmation"
+                label={t.confirmationMsg}
+                hint={t.confirmationMsgHint}
+                value={confirmationMsg}
+                onChange={setConfirmationMsg}
+                type="textarea"
+                placeholder="Randevunuz {date} saat {time} için kaydedildi. Teşekkür ederiz!"
+              />
+              <InputField
+                id="msg-reminder"
+                label={t.reminderMsg}
+                hint={t.reminderMsgHint}
+                value={reminderMsg}
+                onChange={setReminderMsg}
+                type="textarea"
+                placeholder="Yarın saat {time} randevunuz var. Lütfen unutmayın."
+              />
+            </div>
           </div>
         </SectionCard>
 
