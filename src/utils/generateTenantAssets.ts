@@ -68,30 +68,20 @@ export function generateWhatsAppLink(tenant: Tenant): string {
 }
 
 /**
- * WhatsApp linkinin QR kodunu PNG buffer olarak üretir.
+ * QR kodunu üretir. Doğrudan wa.me linki kullanır – taranınca WhatsApp açılır.
  *
  * @param tenant - Esnaf bilgileri
  * @returns PNG buffer (Node.js Buffer)
- *
- * @example
- * const buffer = await generateQRCode(tenant);
- * fs.writeFileSync("qr.png", buffer);
  */
 export async function generateQRCode(tenant: Tenant): Promise<Buffer> {
-  const link = generateWhatsAppLink(tenant);
+  const link = generateDirectWhatsAppLink(tenant);
   return QRCode.toBuffer(link, { width: 256, margin: 2 });
 }
 
 /**
  * Esnaf paylaşım paketi: link, QR (base64), Instagram bio, Google Maps açıklama
- *
- * @param tenant - Esnaf bilgileri
- * @returns SharePackage
- *
- * @example
- * const pkg = await generateSharePackage(tenant);
- * console.log(pkg.whatsapp_link);
- * console.log(pkg.instagram_bio);
+ * whatsapp_link: uygulama giriş linki (/t/tenantId)
+ * QR: doğrudan wa.me linki (taranınca WhatsApp açılır)
  */
 export async function generateSharePackage(tenant: Tenant): Promise<SharePackage> {
   const whatsappLink = generateWhatsAppLink(tenant);
