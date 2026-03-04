@@ -205,8 +205,13 @@ export default function AdminPage() {
       )}
 
       {!loading && normalizedStats.tenants > 0 && (
-        <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-          <h2 className="mb-4 text-sm font-semibold text-slate-900 dark:text-slate-100">Özet Grafik</h2>
+        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h2 className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Özet Grafik
+          </h2>
+          <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+            Platform metrikleri
+          </p>
           <LazyBarChart
             data={[
               { name: "İşletme", value: normalizedStats.tenants },
@@ -217,7 +222,7 @@ export default function AdminPage() {
             ]}
             index="name"
             categories={["value"]}
-            colors={["cyan"]}
+            colors={["emerald"]}
             showLegend={false}
             valueFormatter={(v) => v.toString()}
           />

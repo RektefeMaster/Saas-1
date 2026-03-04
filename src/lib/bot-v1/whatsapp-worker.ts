@@ -444,6 +444,22 @@ export async function processWhatsAppInboundEvent(
         traceId,
         tenantId,
         customerPhone,
+        direction: "inbound",
+        messageText: normalizedText || null,
+        messageType: messageType,
+        stage: "admin_takeover_inbound",
+        messageId,
+        metadata: {
+          routing_reason: routingReason,
+          pause_reason: existingSession.pause_reason || null,
+        },
+        createdAt: event.received_at,
+      });
+
+      await logConversationMessage({
+        traceId,
+        tenantId,
+        customerPhone,
         direction: "system",
         messageText: null,
         messageType: "system",

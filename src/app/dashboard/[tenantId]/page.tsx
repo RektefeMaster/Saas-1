@@ -1269,8 +1269,13 @@ export default function EsnafDashboard({
         {/* Haftalık randevu grafiği */}
         {appointments.length > 0 && (
           <ScrollReveal variant="fadeUp" delay={0.02} as="section" className="mb-6">
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
-              <h3 className="mb-4 font-semibold text-slate-900">Haftalık Randevu Özeti</h3>
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <h3 className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+                Haftalık Randevu Özeti
+              </h3>
+              <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+                Son 7 günün randevu dağılımı
+              </p>
               <LazyBarChart
                 data={weekDates.slice(0, 7).map((dateStr) => {
                   const d = new Date(dateStr + "T12:00:00");

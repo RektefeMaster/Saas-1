@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
-import { LottieAnimationLazyLazy } from "@/components/ui/LottieAnimationLazyLazy";
+import { LottieAnimationLazy } from "@/components/ui";
 
 interface RecipientItem {
   phone: string;

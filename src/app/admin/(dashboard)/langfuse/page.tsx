@@ -251,9 +251,14 @@ export default function AdminLangfusePage() {
 
       {/* Günlük grafik */}
       {chartData.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100">Günlük Kullanım</h3>
-          <div className="mt-4 h-64">
+        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <h3 className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
+            Günlük Kullanım
+          </h3>
+          <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
+            Maliyet, token ve çağrı sayıları
+          </p>
+          <div className="mt-2">
             <LazyBarChart
               data={chartData}
               index="tarih"

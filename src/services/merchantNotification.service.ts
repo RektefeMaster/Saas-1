@@ -52,7 +52,7 @@ async function getTenantNotifyTargets(
     if (!staffRes.error || missingPhoneColumn || missingTable === "staff") {
       const staff = staffRes.data;
       const staffPhone = (staff?.phone_e164 || "").trim();
-      if (staffPhone) {
+      if (staffPhone && staff) {
         targets.push({
           phone: staffPhone,
           kind: "staff",

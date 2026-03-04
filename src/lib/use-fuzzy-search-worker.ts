@@ -64,8 +64,8 @@ export function useFuzzySearchWorker<T>({
     abortRef.current = false;
     setLoading(true);
     try {
-      const payload = { list, query: trimmed, keys, threshold, limit };
-      const res = await worker.search(payload);
+      const payload = { list, query: trimmed, keys: keys as string[], threshold, limit };
+      const res = (await worker.search(payload)) as T[];
       if (!abortRef.current) setResult(res);
     } catch {
       const syncResult = fuzzySearch({ list, query: trimmed, keys, threshold, limit });

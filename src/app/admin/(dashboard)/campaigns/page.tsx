@@ -19,7 +19,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { LottieAnimationLazyLazy } from "@/components/ui/LottieAnimationLazyLazy";
+import { LottieAnimationLazy } from "@/components/ui";
 
 interface Tenant {
   id: string;

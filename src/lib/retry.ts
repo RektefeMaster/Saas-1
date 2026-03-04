@@ -13,7 +13,7 @@ const DEFAULT_OPTIONS: Options = {
   onFailedAttempt: (err) => {
     console.warn(
       `[retry] Deneme ${err.attemptNumber}/${err.retriesLeft + err.attemptNumber} başarısız:`,
-      err.message
+      err.error?.message ?? err.error
     );
   },
 };

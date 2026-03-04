@@ -11,10 +11,14 @@ import type { z } from "zod";
  */
 export function useFormWithZod<TSchema extends z.ZodType>(
   schema: TSchema,
+  // @ts-expect-error Zod 4 + react-hook-form FieldValues uyumsuzluğu
   options?: Parameters<typeof useForm<z.infer<TSchema>>>[0]
 ) {
-  return useForm<z.infer<TSchema>>({
-    resolver: zodResolver(schema),
+  type Output = z.infer<TSchema>;
+  // Zod 4 ile @hookform/resolvers arasında tip uyumsuzluğu var; runtime doğru çalışır
+  // @ts-expect-error Zod 4 + react-hook-form FieldValues uyumsuzluğu
+  return useForm<Output>({
+    resolver: zodResolver(schema as any),
     ...options,
   });
 }

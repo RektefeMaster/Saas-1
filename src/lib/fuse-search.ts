@@ -3,7 +3,7 @@
  * Yazım hatalarına toleranslı, Türkçe karakterlere uyumlu arama sağlar.
  */
 
-import Fuse from "fuse.js";
+import Fuse, { type FuseOptionKey } from "fuse.js";
 
 const DEFAULT_THRESHOLD = 0.4; // 0 = tam eşleşme, 1 = hiç eşleşme yok
 
@@ -37,7 +37,7 @@ export function fuzzySearch<T>({
   }
 
   const fuse = new Fuse(list, {
-    keys: keys as Fuse.FuseOptionKeyObject<T>[],
+    keys: keys as FuseOptionKey<T>[],
     threshold,
     includeScore: false,
   });
@@ -66,7 +66,7 @@ export function fuzzySearchBest<T>(
   if (!trimmed || list.length === 0) return null;
 
   const fuse = new Fuse(list, {
-    keys: keys as Fuse.FuseOptionKeyObject<T>[],
+    keys: keys as FuseOptionKey<T>[],
     threshold,
     includeScore: true,
   });

@@ -37,7 +37,7 @@ export const createAppointmentSchema = z.object({
   service_slug: z.string().min(1, "service_slug boş olamaz"),
   staff_id: z.string().optional(),
   use_package: z.boolean().optional(),
-  extra_data: z.record(z.unknown()).optional(),
+  extra_data: z.record(z.string(), z.unknown()).optional(),
 });
 
 export const cancelAppointmentSchema = z.object({

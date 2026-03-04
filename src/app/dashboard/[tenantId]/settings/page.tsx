@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 import { humanizeMinutes } from "@/lib/humanize-duration";
-import { LottieAnimationLazyLazy, QRCodeModal } from "@/components/ui";
+import { LottieAnimationLazy, QRCodeModal } from "@/components/ui";
 
 interface TenantData {
   id: string;

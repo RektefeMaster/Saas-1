@@ -205,3 +205,87 @@ a:focus-visible {
     min-height: 42px;
   }
 }
+
+/* ===== Profesyonel Grafik Stilleri (Tremor/Recharts) ===== */
+.chart-container {
+  --chart-bar-radius: 6;
+  --chart-grid-opacity: 0.4;
+  --chart-axis-fill: #64748b;
+  --chart-bar-opacity: 0.92;
+}
+
+.dark .chart-container {
+  --chart-grid-opacity: 0.25;
+  --chart-axis-fill: #94a3b8;
+}
+
+/* Sütunlar: ince, yuvarlatılmış, yumuşak gölge */
+.recharts-bar-rectangle {
+  rx: var(--chart-bar-radius, 6);
+  ry: var(--chart-bar-radius, 6);
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.06));
+}
+
+.dark .recharts-bar-rectangle {
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.2));
+}
+
+/* Grid çizgileri: ince, hafif */
+.recharts-cartesian-grid-horizontal line,
+.recharts-cartesian-grid-vertical line {
+  stroke: var(--border);
+  stroke-opacity: var(--chart-grid-opacity, 0.4);
+  stroke-width: 1;
+}
+
+/* Eksen metinleri: okunabilir */
+.recharts-xAxis .recharts-text,
+.recharts-yAxis .recharts-text {
+  fill: var(--muted-foreground) !important;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* Tooltip: profesyonel kart */
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}
+
+.recharts-default-tooltip {
+  padding: 0 !important;
+  border-radius: 10px !important;
+  border: 1px solid var(--border) !important;
+  background: var(--card) !important;
+  box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1) !important;
+  font-size: 13px !important;
+}
+
+.recharts-default-tooltip .label {
+  padding: 10px 14px !important;
+  border-bottom: 1px solid var(--border) !important;
+  font-weight: 600 !important;
+  color: var(--foreground) !important;
+}
+
+.recharts-default-tooltip .content {
+  padding: 8px 14px 10px !important;
+}
+
+.recharts-default-tooltip .item {
+  padding: 2px 0 !important;
+  color: var(--muted-foreground) !important;
+}
+
+/* Legend: kompakt */
+.recharts-legend-wrapper {
+  padding-bottom: 4px !important;
+}
+
+.recharts-legend-item {
+  font-size: 12px !important;
+}
+
+/* Bar hover: hafif vurgu */
+.recharts-bar-rectangle:hover {
+  opacity: 0.9;
+}

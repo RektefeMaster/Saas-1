@@ -38,6 +38,7 @@ cp .env.example .env
 7. Faz 1 routing audit log için `013_tenant_switch_logs.sql` migrationını çalıştırın
 8. Faz 3 operasyon uyarıları için `014_ops_alerts.sql` migrationını çalıştırın
 
+
 ### 4. WhatsApp (Meta Cloud API)
 
 1. [Meta for Developers](https://developers.facebook.com) hesabı oluşturun

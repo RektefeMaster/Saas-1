@@ -1119,6 +1119,7 @@ export interface BookingHoldRecord {
   customer_phone: string;
   duration_minutes: number;
   expires_at: string;
+  staff_id?: string | null;
 }
 
 function bookingLockKey(tenantId: string, date: string, time: string): string {

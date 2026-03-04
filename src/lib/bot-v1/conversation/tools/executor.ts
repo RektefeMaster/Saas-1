@@ -110,7 +110,7 @@ export async function executeToolCall(
   if (name === "match_service") {
     const userText = (args.user_text as string)?.trim() ?? "";
     const matchResult = await matchServiceToSlug(tenantId, userText);
-    return { result: matchResult };
+    return { result: matchResult as unknown as Record<string, unknown> };
   }
 
   if (name === "create_appointment") {

@@ -233,13 +233,22 @@ export async function GET(request: NextRequest) {
   if (error) {
     const missing = extractMissingSchemaTable(error);
     if (missing === "conversation_messages") {
-      return NextResponse.json(
-        {
-          error:
-            "conversation_messages tablosu bulunamadi. Supabase migration 029 calistirilmali.",
+      return NextResponse.json({
+        query: {
+          hours,
+          min_score_filter: minScore,
+          limit,
+          tenant_id: tenantId || null,
+          phone_digits: phoneDigits,
+          from: from.toISOString(),
+          to: now.toISOString(),
         },
-        { status: 500 }
-      );
+        total: 0,
+        items: [],
+        migration_hint: true,
+        migration_message:
+          "conversation_messages tablosu bulunamadı. Supabase migration 029 çalıştırılmalı: supabase db push veya supabase migration up",
+      });
     }
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
