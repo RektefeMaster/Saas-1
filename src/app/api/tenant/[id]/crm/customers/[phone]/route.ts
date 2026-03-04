@@ -4,9 +4,12 @@ import {
   extractMissingSchemaColumn,
   extractMissingSchemaTable,
 } from "@/lib/postgrest-schema";
+import { normalizePhoneE164, normalizePhoneDigits } from "@/lib/phone";
 
-function normalizePhone(input: string): string {
-  return input.replace(/\s+/g, "").trim();
+function normalizePhoneForLookup(input: string): string {
+  const e164 = normalizePhoneE164(decodeURIComponent(input || ""));
+  if (e164) return e164;
+  return normalizePhoneDigits(decodeURIComponent(input || "")) || input.replace(/\s+/g, "").trim();
 }
 
 const CUSTOMER_COLUMNS = [
@@ -86,7 +89,7 @@ export async function GET(
 ) {
   try {
     const { id: tenantId, phone } = await params;
-    const customerPhone = normalizePhone(phone);
+    const customerPhone = normalizePhoneForLookup(phone);
 
     const { customer } = await getCustomerWithFallback(tenantId, customerPhone);
 
@@ -133,7 +136,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; phone: string }> }
 ) {
   const { id: tenantId, phone } = await params;
-  const customerPhone = normalizePhone(phone);
+  const customerPhone = normalizePhoneForLookup(phone);
   const body = (await request.json().catch(() => ({}))) as {
     customer_name?: string | null;
     tags?: string[];

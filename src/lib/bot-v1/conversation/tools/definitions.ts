@@ -40,15 +40,37 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "match_service",
+      description:
+        "Müşterinin söylediği hizmet ifadesini (sadece saç, sakal traşı, saç+fön vb.) fiyat listesindeki hizmete eşleştirir. Randevu almadan önce mutlaka çağır.",
+      parameters: {
+        type: "object",
+        properties: {
+          user_text: {
+            type: "string",
+            description: "Müşterinin hizmet hakkında söylediği metin (örn: sadece saç, sakal traşı)",
+          },
+        },
+        required: ["user_text"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "create_appointment",
-      description: "Randevu oluştur. Müşterinin adını mutlaka sor ve customer_name olarak gönder.",
+      description:
+        "Randevu oluştur. Müşterinin adını ve hizmeti mutlaka sor. service_slug için önce match_service çağır.",
       parameters: {
         type: "object",
         properties: {
           date: { type: "string", description: "YYYY-MM-DD" },
           time: { type: "string", description: "HH:MM" },
           customer_name: { type: "string", description: "Müşterinin adı soyadı" },
-          service_slug: { type: "string", description: "Opsiyonel hizmet slug" },
+          service_slug: {
+            type: "string",
+            description: "Hizmet slug (match_service sonucundan veya get_services listesinden)",
+          },
           staff_id: { type: "string", description: "Opsiyonel personel ID" },
           use_package: {
             type: "boolean",
@@ -56,7 +78,7 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           },
           extra_data: { type: "object", description: "Opsiyonel ek veri" },
         },
-        required: ["date", "time", "customer_name"],
+        required: ["date", "time", "customer_name", "service_slug"],
       },
     },
   },

@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import Link from "next/link";
+import { Link } from "next-view-transitions";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import useSWR from "swr";
 import {
@@ -56,7 +56,7 @@ interface DashboardFeatureFlags {
 const COPY = {
   tr: {
     panel: "İşletme Paneli",
-    loading: "Yükleniyor...",
+    loading: "Yükleniyor…",
     nav: {
       overview: "Özet",
       pricing: "Fiyat Listesi",
@@ -67,7 +67,7 @@ const COPY = {
       staff: "Personel",
       settings: "Ayarlar",
     },
-    whatsappLink: "WhatsApp Linki",
+    whatsappLink: "WhatsApp Bağlantısı",
     qrCode: "QR Kod",
     logout: "Çıkış Yap",
     section: "Panel",

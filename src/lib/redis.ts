@@ -1,5 +1,7 @@
 import { Redis } from "@upstash/redis";
+import { Ratelimit } from "@upstash/ratelimit";
 import { createCipheriv, randomBytes } from "crypto";
+import { normalizePhoneDigits } from "./phone";
 import type { ConversationState } from "./database.types";
 import { isSupabaseConfigured, supabase } from "./supabase";
 
@@ -60,6 +62,7 @@ const BOT_PROCESS_LOCK_PREFIX = "ahi-ai:bot:lock:";
 const TEMP_MEDIA_PREFIX = "ahi-ai:media:tmp:";
 const WEBHOOK_DEBUG_KEY = "ahi-ai:webhook:last";
 const RUNTIME_WHATSAPP_KEY = "ahi-ai:runtime:whatsapp";
+const GLOBAL_KILL_SWITCH_KEY = "ahi-ai:global:kill_switch";
 /** [YENİ] Tenant cache key prefix; TTL 300 saniye (5 dk). */
 const TENANT_CACHE_PREFIX = "ahi-ai:tenant:id:";
 const TENANT_CACHE_TTL_SECONDS = 300;
@@ -89,6 +92,7 @@ const bookingHoldMemory = new Map<
 const botProcessLockMemory = new Map<string, { owner: string; expiry: number }>();
 const webhookDebugMemory = new Map<string, { value: WebhookDebugRecord; expiry: number }>();
 const runtimeWhatsAppMemory = new Map<string, { value: RuntimeWhatsAppConfig; expiry: number }>();
+let globalKillSwitchMemory: GlobalKillSwitchState | null = null;
 const webhookMessageDedupeMemory = new Map<string, { expiry: number }>();
 const tempMediaMemory = new Map<string, { value: string; expiry: number }>();
 
@@ -117,6 +121,23 @@ function parseRedisJson<T>(raw: unknown): T | null {
 function sessionKey(tenantId: string, customerPhone: string): string {
   const normalized = customerPhone.replace(/\D/g, "");
   return `${SESSION_PREFIX}${tenantId}:${normalized}`;
+}
+
+function parseSessionStorageKey(key: string): { tenantId: string; customerPhone: string } | null {
+  if (!key.startsWith(SESSION_PREFIX)) return null;
+  const raw = key.slice(SESSION_PREFIX.length);
+  const sepIdx = raw.indexOf(":");
+  if (sepIdx <= 0) return null;
+  const tenantId = raw.slice(0, sepIdx);
+  const customerPhone = raw.slice(sepIdx + 1);
+  if (!tenantId || !customerPhone) return null;
+  return { tenantId, customerPhone };
+}
+
+export interface PausedSessionItem {
+  tenantId: string;
+  customerPhone: string;
+  state: ConversationState;
 }
 
 export async function getSession(
@@ -169,6 +190,72 @@ export async function deleteSession(
     }
   }
   memoryStore.delete(key);
+}
+
+export async function listPausedSessions(input?: {
+  tenantId?: string;
+  limit?: number;
+}): Promise<PausedSessionItem[]> {
+  const tenantFilter = (input?.tenantId || "").trim();
+  const limit = Math.min(Math.max(input?.limit ?? 200, 1), 500);
+  const collected: PausedSessionItem[] = [];
+
+  if (redis) {
+    try {
+      const pattern = tenantFilter
+        ? `${SESSION_PREFIX}${tenantFilter}:*`
+        : `${SESSION_PREFIX}*`;
+      const keys = (await redis.keys(pattern)) || [];
+      for (const key of keys) {
+        if (collected.length >= limit) break;
+        const parsed = parseSessionStorageKey(key);
+        if (!parsed) continue;
+        const state = await redis.get<ConversationState>(key);
+        if (!state) continue;
+        if (state.step !== "PAUSED_FOR_HUMAN") continue;
+        collected.push({
+          tenantId: parsed.tenantId,
+          customerPhone: parsed.customerPhone,
+          state,
+        });
+      }
+      return collected
+        .sort(
+          (a, b) =>
+            new Date(b.state.updated_at || 0).getTime() -
+            new Date(a.state.updated_at || 0).getTime()
+        )
+        .slice(0, limit);
+    } catch (err) {
+      logRedisFallback("listPausedSessions", err);
+    }
+  }
+
+  const now = Date.now();
+  for (const [key, entry] of memoryStore.entries()) {
+    if (collected.length >= limit) break;
+    if (entry.expiry <= now) {
+      memoryStore.delete(key);
+      continue;
+    }
+    const parsed = parseSessionStorageKey(key);
+    if (!parsed) continue;
+    if (tenantFilter && parsed.tenantId !== tenantFilter) continue;
+    if (entry.value.step !== "PAUSED_FOR_HUMAN") continue;
+    collected.push({
+      tenantId: parsed.tenantId,
+      customerPhone: parsed.customerPhone,
+      state: entry.value,
+    });
+  }
+
+  return collected
+    .sort(
+      (a, b) =>
+        new Date(b.state.updated_at || 0).getTime() -
+        new Date(a.state.updated_at || 0).getTime()
+    )
+    .slice(0, limit);
 }
 
 export function hasRedis(): boolean {
@@ -337,6 +424,49 @@ export interface RuntimeWhatsAppConfig {
   phone_id?: string;
   updated_at: string;
   source?: string;
+}
+
+export interface GlobalKillSwitchState {
+  enabled: boolean;
+  updated_at: string;
+  source?: string;
+}
+
+function parseGlobalKillSwitchState(raw: unknown): GlobalKillSwitchState | null {
+  if (raw == null) return null;
+
+  if (typeof raw === "string") {
+    const trimmed = raw.trim();
+    if (trimmed === "1") {
+      return { enabled: true, updated_at: "", source: "legacy" };
+    }
+    if (trimmed === "0") {
+      return { enabled: false, updated_at: "", source: "legacy" };
+    }
+    try {
+      return parseGlobalKillSwitchState(JSON.parse(trimmed));
+    } catch {
+      return null;
+    }
+  }
+
+  if (typeof raw === "number") {
+    if (raw === 1) return { enabled: true, updated_at: "", source: "legacy" };
+    if (raw === 0) return { enabled: false, updated_at: "", source: "legacy" };
+    return null;
+  }
+
+  if (typeof raw === "object") {
+    const obj = raw as Record<string, unknown>;
+    if (typeof obj.enabled !== "boolean") return null;
+    return {
+      enabled: obj.enabled,
+      updated_at: typeof obj.updated_at === "string" ? obj.updated_at : "",
+      source: typeof obj.source === "string" ? obj.source : undefined,
+    };
+  }
+
+  return null;
 }
 
 function botLockKey(lockKey: string): string {
@@ -618,6 +748,53 @@ export async function clearRuntimeWhatsAppConfig(): Promise<void> {
   runtimeWhatsAppMemory.delete(RUNTIME_WHATSAPP_KEY);
 }
 
+export async function setGlobalKillSwitch(
+  enabled: boolean,
+  source = "admin"
+): Promise<GlobalKillSwitchState> {
+  const state: GlobalKillSwitchState = {
+    enabled,
+    updated_at: new Date().toISOString(),
+    source,
+  };
+
+  if (redis) {
+    try {
+      await redis.set(GLOBAL_KILL_SWITCH_KEY, JSON.stringify(state));
+      globalKillSwitchMemory = state;
+      return state;
+    } catch (err) {
+      logRedisFallback("setGlobalKillSwitch", err);
+    }
+  }
+
+  globalKillSwitchMemory = state;
+  return state;
+}
+
+export async function getGlobalKillSwitch(): Promise<GlobalKillSwitchState> {
+  if (redis) {
+    try {
+      const raw = await redis.get<unknown>(GLOBAL_KILL_SWITCH_KEY);
+      const parsed = parseGlobalKillSwitchState(raw);
+      if (parsed) {
+        globalKillSwitchMemory = parsed;
+        return parsed;
+      }
+    } catch (err) {
+      logRedisFallback("getGlobalKillSwitch", err);
+    }
+  }
+
+  if (globalKillSwitchMemory) return globalKillSwitchMemory;
+
+  return {
+    enabled: false,
+    updated_at: "",
+    source: "default",
+  };
+}
+
 export async function setOtpChallenge(
   challenge: OtpChallenge,
   ttlSeconds = 300
@@ -719,12 +896,85 @@ function incrementMemoryCounter(key: string, ttlSeconds: number): number {
   return mem.count;
 }
 
+// @upstash/ratelimit: Redis varsa kullan (spam koruması)
+const upstashRatelimitMinute =
+  redis
+    ? new Ratelimit({
+        redis,
+        limiter: Ratelimit.slidingWindow(RATE_LIMIT_MAX, "1 m"),
+        analytics: false,
+      })
+    : null;
+const upstashRatelimitHour = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(RATE_LIMIT_HOURLY_MAX, "1 h"),
+      analytics: false,
+    })
+  : null;
+const upstashRatelimitDay = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(RATE_LIMIT_DAILY_MAX, "1 d"),
+      analytics: false,
+    })
+  : null;
+
 export async function checkAndIncrementRateLimit(phone: string): Promise<RateLimitResult> {
-  const digits = phone.replace(/\D/g, "");
+  const digits = normalizePhoneDigits(phone);
   const minuteKey = rateWindowKey(digits, "minute");
   const hourKey = rateWindowKey(digits, "hour");
   const dayKey = rateWindowKey(digits, "day");
   const cooldownKey = rateCooldownKey(digits);
+
+  // @upstash/ratelimit ile öncelikli kontrol
+  if (upstashRatelimitMinute && upstashRatelimitHour && upstashRatelimitDay) {
+    try {
+      const [minRes, hourRes, dayRes] = await Promise.all([
+        upstashRatelimitMinute.limit(digits),
+        upstashRatelimitHour.limit(digits),
+        upstashRatelimitDay.limit(digits),
+      ]);
+      if (!minRes.success) {
+        return {
+          allowed: false,
+          minuteCount: 0,
+          hourCount: 0,
+          dayCount: 0,
+          blockedBy: "minute",
+          cooldownSeconds: Math.max(1, Math.ceil((minRes.reset - Date.now()) / 1000)),
+        };
+      }
+      if (!hourRes.success) {
+        return {
+          allowed: false,
+          minuteCount: 0,
+          hourCount: 0,
+          dayCount: 0,
+          blockedBy: "hour",
+          cooldownSeconds: Math.max(1, Math.ceil((hourRes.reset - Date.now()) / 1000)),
+        };
+      }
+      if (!dayRes.success) {
+        return {
+          allowed: false,
+          minuteCount: 0,
+          hourCount: 0,
+          dayCount: 0,
+          blockedBy: "day",
+          cooldownSeconds: Math.max(1, Math.ceil((dayRes.reset - Date.now()) / 1000)),
+        };
+      }
+      return {
+        allowed: true,
+        minuteCount: minRes.limit - minRes.remaining,
+        hourCount: hourRes.limit - hourRes.remaining,
+        dayCount: dayRes.limit - dayRes.remaining,
+      };
+    } catch (err) {
+      logRedisFallback("checkAndIncrementRateLimit (upstash)", err);
+    }
+  }
 
   if (redis) {
     try {

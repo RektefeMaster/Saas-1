@@ -32,6 +32,10 @@ export async function PATCH(
     security_config,
     ui_preferences,
     campaign_enabled,
+    subscription_end_at,
+    subscription_plan,
+    rate_limit_override,
+    monthly_revenue,
   } = body;
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (name !== undefined) updates.name = name;
@@ -43,6 +47,10 @@ export async function PATCH(
   if (security_config !== undefined) updates.security_config = security_config;
   if (ui_preferences !== undefined) updates.ui_preferences = ui_preferences;
   if (campaign_enabled !== undefined) updates.campaign_enabled = Boolean(campaign_enabled);
+  if (subscription_end_at !== undefined) updates.subscription_end_at = subscription_end_at;
+  if (subscription_plan !== undefined) updates.subscription_plan = subscription_plan;
+  if (rate_limit_override !== undefined) updates.rate_limit_override = rate_limit_override;
+  if (monthly_revenue !== undefined) updates.monthly_revenue = monthly_revenue;
 
   const patchPayload = { ...updates };
   let data: Record<string, unknown> | null = null;

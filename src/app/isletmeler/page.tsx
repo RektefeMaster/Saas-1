@@ -1,11 +1,13 @@
 "use client";
 
-import { memo, useEffect, useMemo, useState } from "react";
+import { memo, useEffect, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { ArrowLeft, Building2, MessageCircle, Search, Store } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
-import { LottieAnimation, ThemeLocaleSwitch } from "@/components/ui";
+import { LottieAnimationLazy, ThemeLocaleSwitch } from "@/components/ui";
+import { useFuzzySearchWorker } from "@/lib/use-fuzzy-search-worker";
+import { VirtualList } from "@/components/ui";
 
 interface TenantItem {
   id: string;
@@ -16,8 +18,8 @@ interface TenantItem {
 
 const COPY = {
   tr: {
-    title: "Canlı İşletme Dizini",
-    desc: "İşletme seç, WhatsApp veya dijital kanallar üzerinden hızlıca aksiyon al.",
+    title: "İşletmeler",
+    desc: "İşletme seçin, WhatsApp üzerinden hemen iletişime geçin.",
     search: "İşletme adı veya kodu ara...",
     empty: "Aradığınız kriterde işletme bulunamadı.",
     loading: "İşletmeler yükleniyor...",
@@ -47,7 +49,7 @@ const TenantCard = memo(function TenantCard({
   badge: string;
 }) {
   return (
-    <li className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
+    <div className="group rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-3">
           <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
@@ -73,7 +75,7 @@ const TenantCard = memo(function TenantCard({
         <MessageCircle className="h-4 w-4" />
         {cta}
       </a>
-    </li>
+    </div>
   );
 });
 
@@ -94,16 +96,12 @@ export default function IsletmelerPage() {
     return () => controller.abort();
   }, []);
 
-  const filtered = useMemo(() => {
-    const q = search.trim().toLocaleLowerCase("tr-TR");
-    if (!q) return tenants;
-    return tenants.filter((tenant) => {
-      return (
-        tenant.name.toLocaleLowerCase("tr-TR").includes(q) ||
-        tenant.tenant_code.toLocaleLowerCase("tr-TR").includes(q)
-      );
-    });
-  }, [search, tenants]);
+  const { result: filtered } = useFuzzySearchWorker({
+    list: tenants,
+    query: search,
+    keys: ["name", "tenant_code"],
+    threshold: 0.4,
+  });
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
@@ -168,20 +166,24 @@ export default function IsletmelerPage() {
 
         {loading ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white p-10 text-center text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-            <LottieAnimation src="loading" width={96} height={96} />
+            <LottieAnimationLazy src="loading" width={96} height={96} />
             {t.loading}
           </div>
         ) : filtered.length === 0 ? (
           <div className="flex flex-col items-center justify-center gap-3 rounded-2xl border border-dashed border-slate-300 bg-white/85 p-10 text-center text-sm text-slate-600 dark:border-slate-700 dark:bg-slate-900/80 dark:text-slate-300">
-            <LottieAnimation src="empty" width={80} height={80} />
+            <LottieAnimationLazy src="empty" width={80} height={80} />
             {t.empty}
           </div>
         ) : (
-          <ul className="grid gap-4 md:grid-cols-2">
-            {filtered.map((tenant) => (
-              <TenantCard key={tenant.id} tenant={tenant} cta={t.cta} badge={t.badge} />
-            ))}
-          </ul>
+          <VirtualList
+            items={filtered}
+            height={500}
+            estimateSize={140}
+            className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+            renderItem={(tenant) => (
+              <TenantCard tenant={tenant} cta={t.cta} badge={t.badge} />
+            )}
+          />
         )}
       </main>
     </div>

@@ -1,8 +1,11 @@
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { normalizePhoneE164, normalizePhoneDigits } from "@/lib/phone";
 
-function normalizePhone(input: string): string {
-  return input.replace(/\s+/g, "").trim();
+function normalizePhoneForQuery(input: string): string {
+  const e164 = normalizePhoneE164(input);
+  if (e164) return e164;
+  return normalizePhoneDigits(input) || input.replace(/\s+/g, "").trim();
 }
 
 interface PackageRelRow {
@@ -45,7 +48,7 @@ export async function checkCustomerPackage(
   customerPhone: string,
   serviceSlug: string
 ): Promise<ActiveCustomerPackage | null> {
-  const normalizedPhone = normalizePhone(customerPhone);
+  const normalizedPhone = normalizePhoneForQuery(customerPhone);
   if (!normalizedPhone || !serviceSlug?.trim()) return null;
 
   const nowIso = new Date().toISOString();

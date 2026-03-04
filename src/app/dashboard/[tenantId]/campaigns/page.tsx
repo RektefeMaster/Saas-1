@@ -20,7 +20,7 @@ import {
   X,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
-import { LottieAnimation } from "@/components/ui";
+import { LottieAnimationLazyLazy } from "@/components/ui/LottieAnimationLazyLazy";
 
 interface RecipientItem {
   phone: string;
@@ -47,10 +47,10 @@ interface CampaignRecord {
 const COPY = {
   tr: {
     contactUsMessage: "Kampanya göndermek için bizimle iletişime geçin.",
-    contactUsSubtext: "Kampanya özelliği şu an için hesabınızda aktif değildir. Etkinleştirmek için destek ekibimizle iletişime geçebilirsiniz.",
+    contactUsSubtext: "Kampanya özelliği şu an hesabınızda kapalı. Açmak için bizimle iletişime geçebilirsiniz.",
     title: "Kampanyalar",
     subtitle: "Müşterilerinize toplu WhatsApp veya SMS kampanya mesajı gönderin.",
-    backToPanel: "Panele Dön",
+    backToPanel: "Panele dön",
     send: "Gönder",
     sending: "Gönderiliyor...",
     recipients: "Alıcılar",
@@ -61,18 +61,18 @@ const COPY = {
     recipientCount: "alıcı",
     loadingRecipients: "Alıcılar yükleniyor...",
     tagFilter: "Etiket filtresi (opsiyonel)",
-    tagFilterHint: "Seçili etiketlerden en az birine sahip müşterilere gönderilir",
+    tagFilterHint: "Seçtiğiniz etiketlerden en az birine sahip müşterilere gider",
     loadingTags: "Etiketler yükleniyor...",
     noTags: "Henüz etiket yok.",
     selectAll: "Tümünü seç",
     clearTags: "Temizle",
     customPhones: "Özel numara listesi (opsiyonel)",
-    customPhonesHint: "Boş bırakırsanız CRM ve randevu müşterilerine gönderilir. Virgül veya satır ile ayırın.",
+    customPhonesHint: "Boş bırakırsanız CRM ve randevu müşterilerine gider. Virgül veya satırla ayırın.",
     campaignMessage: "Kampanya Mesajı",
     messagePlaceholder: "Kampanya mesajını yazın...",
     charsSms: "karakter (~{n} SMS)",
     confirmTitle: "Kampanyayı Gönder",
-    confirmMessage: "{count} alıcıya bu mesaj gönderilecek. Emin misiniz?",
+    confirmMessage: "{count} kişiye bu mesaj gönderilecek. Devam etmek istiyor musunuz?",
     confirmSend: "Evet, Gönder",
     confirmCancel: "İptal",
     errorRequired: "Mesaj metni zorunlu.",
@@ -93,7 +93,7 @@ const COPY = {
     delete: "Sil",
     deleting: "Siliniyor...",
     confirmDelete: "Bu kampanyayı silmek istediğinize emin misiniz?",
-    confirmResend: "Bu kampanyayı aynı alıcılara tekrar göndermek istiyor musunuz?",
+    confirmResend: "Aynı kişilere tekrar göndermek istiyor musunuz?",
     viewRecipients: "Alıcıları Gör / Düzenle",
     addRecipient: "Numara ekle",
     addRecipientPlaceholder: "+90 5XX XXX XX XX",
@@ -521,7 +521,7 @@ export default function CampaignsPage({
 
         {campaignEnabled === null && (
           <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 dark:border-slate-800 dark:bg-slate-900">
-            <LottieAnimation src="loading" width={64} height={64} />
+            <LottieAnimationLazy src="loading" width={64} height={64} />
           </div>
         )}
 
@@ -594,7 +594,7 @@ export default function CampaignsPage({
             <div className="mt-5 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/80 px-5 py-4 dark:border-slate-700 dark:from-slate-800/50 dark:to-slate-900/50">
               {loading ? (
                 <div className="flex items-center gap-3">
-                  <LottieAnimation src="loading" width={48} height={48} />
+                  <LottieAnimationLazy src="loading" width={48} height={48} />
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{t.loadingRecipients}</p>
                 </div>
               ) : (
@@ -760,7 +760,7 @@ export default function CampaignsPage({
               >
                 <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${result.success_count > 0 ? "bg-emerald-200/80 dark:bg-emerald-800/50" : "bg-amber-200/80 dark:bg-amber-800/50"}`}>
                   {result.success_count > 0 ? (
-                    <LottieAnimation src="success" width={48} height={48} loop={false} />
+                    <LottieAnimationLazy src="success" width={48} height={48} loop={false} />
                   ) : (
                     <CheckCircle2 className="h-6 w-6 text-amber-700 dark:text-amber-300" />
                   )}
@@ -824,7 +824,7 @@ export default function CampaignsPage({
           </div>
           {historyLoading ? (
             <div className="flex flex-col items-center justify-center py-8">
-              <LottieAnimation src="loading" width={64} height={64} />
+              <LottieAnimationLazy src="loading" width={64} height={64} />
             </div>
           ) : historyError ? (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
@@ -832,7 +832,7 @@ export default function CampaignsPage({
             </div>
           ) : history.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-12 dark:border-slate-700">
-              <LottieAnimation src="empty" width={80} height={80} />
+              <LottieAnimationLazy src="empty" width={80} height={80} />
               <p className="mt-4 text-sm font-medium text-slate-600 dark:text-slate-300">{t.historyEmpty}</p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {locale === "tr" ? "İlk kampanyanızı gönderin" : "Send your first campaign"}

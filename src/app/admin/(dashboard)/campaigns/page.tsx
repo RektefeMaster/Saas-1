@@ -19,7 +19,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { LottieAnimation } from "@/components/ui";
+import { LottieAnimationLazyLazy } from "@/components/ui/LottieAnimationLazyLazy";
 
 interface Tenant {
   id: string;
@@ -395,7 +395,8 @@ export default function AdminCampaignsPage() {
   const tenantsWithCampaignStatus = tenants;
 
   return (
-    <div className="space-y-6">
+    <>
+      <div className="space-y-6">
         <header className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -523,7 +524,7 @@ export default function AdminCampaignsPage() {
               <div className="mt-5 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/80 px-5 py-4 dark:border-slate-700 dark:from-slate-800/50 dark:to-slate-900/50">
                 {loading ? (
                   <div className="flex items-center gap-3">
-                    <LottieAnimation src="loading" width={48} height={48} />
+                    <LottieAnimationLazy src="loading" width={48} height={48} />
                     <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
                       Alıcılar yükleniyor…
                     </p>
@@ -679,7 +680,7 @@ export default function AdminCampaignsPage() {
                     }`}
                   >
                     {result.success_count > 0 ? (
-                      <LottieAnimation src="success" width={48} height={48} loop={false} />
+                      <LottieAnimationLazy src="success" width={48} height={48} loop={false} />
                     ) : (
                       <CheckCircle2 className="h-6 w-6 text-amber-700 dark:text-amber-300" />
                     )}
@@ -740,7 +741,7 @@ export default function AdminCampaignsPage() {
             </div>
             {historyLoading ? (
               <div className="flex flex-col items-center justify-center py-8">
-                <LottieAnimation src="loading" width={64} height={64} />
+                <LottieAnimationLazy src="loading" width={64} height={64} />
               </div>
             ) : historyError ? (
               <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
@@ -748,7 +749,7 @@ export default function AdminCampaignsPage() {
               </div>
             ) : history.length === 0 ? (
               <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-12 dark:border-slate-700">
-                <LottieAnimation src="empty" width={80} height={80} />
+                <LottieAnimationLazy src="empty" width={80} height={80} />
                 <p className="mt-4 text-sm font-medium text-slate-600 dark:text-slate-300">
                   Henüz kampanya gönderilmedi
                 </p>
@@ -1036,6 +1037,6 @@ export default function AdminCampaignsPage() {
           </div>
         </div>
       )}
-    </div>
+    </>
   );
 }

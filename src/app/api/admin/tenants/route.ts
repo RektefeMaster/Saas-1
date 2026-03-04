@@ -7,17 +7,8 @@ import {
   usernameToLoginEmail,
 } from "@/lib/username-auth";
 import type { AdminTenantWizardPayload } from "@/types/dashboard-v2.types";
+import { slugify } from "@/lib/slugify";
 import { detectBlueprintSlug } from "@/services/blueprint.service";
-
-function slugify(value: string): string {
-  return value
-    .toLowerCase()
-    .trim()
-    .replace(/[^a-z0-9\s-]/g, "")
-    .replace(/\s+/g, "-")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
-}
 
 export async function GET(request: NextRequest) {
   if (!isSupabaseConfigured()) {

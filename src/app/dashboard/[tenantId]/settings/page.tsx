@@ -17,7 +17,8 @@ import {
   Store,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
-import { LottieAnimation, QRCodeModal } from "@/components/ui";
+import { humanizeMinutes } from "@/lib/humanize-duration";
+import { LottieAnimationLazyLazy, QRCodeModal } from "@/components/ui";
 
 interface TenantData {
   id: string;
@@ -49,32 +50,32 @@ interface TenantData {
 const COPY = {
   tr: {
     title: "Ayarlar",
-    subtitle: "İşletme bilgileri, randevu kuralları, mesajlar ve fiyatlandırma ayarlarını yönetin.",
-    backToPanel: "Panele Dön",
+    subtitle: "İşletme bilgilerinizi, randevu kurallarınızı ve mesaj şablonlarınızı buradan düzenleyebilirsiniz.",
+    backToPanel: "Panele dön",
     save: "Kaydet",
-    saving: "Kaydediliyor...",
+    saving: "Kaydediliyor…",
     saved: "Değişiklikler kaydedildi",
     saveError: "Kaydedilemedi. Lütfen tekrar deneyin.",
     loading: "Ayarlar yükleniyor...",
-    loadError: "Ayarlar yüklenemedi.",
+    loadError: "Ayarlar yüklenemedi. Lütfen sayfayı yenileyin.",
 
     // İletişim
     contactTitle: "İletişim ve Çalışma Saati",
     contactDesc: "Müşterilerin sizinle iletişime geçebileceği bilgiler.",
     contactPhone: "İletişim telefonu",
-    contactPhoneHint: "Müşteri yönlendirme ve yedek mesajlarında kullanılır",
+    contactPhoneHint: "Müşteri bilgilendirme ve acil durum mesajlarında kullanılır",
     workingHours: "Çalışma saatleri metni",
     workingHoursHint: "Örn: Hafta içi 09:00-18:00, Cumartesi 10:00-14:00",
 
     // Randevu
     schedulingTitle: "Randevu Ayarları",
     schedulingDesc: "Randevu slot süresi, ileri rezervasyon ve iptal kuralları.",
-    slotDuration: "Slot süresi (dakika)",
-    slotDurationHint: "Her randevu için ayrılan süre (varsayılan: 30)",
+    slotDuration: "Randevu süresi (dakika)",
+    slotDurationHint: "Her randevu için ayrılan süre",
     advanceBooking: "İleri rezervasyon (gün)",
-    advanceBookingHint: "Kaç gün önceden randevu alınabilir (varsayılan: 30)",
+    advanceBookingHint: "Müşteriler kaç gün önceden randevu alabilsin",
     cancellationHours: "İptal süresi (saat)",
-    cancellationHoursHint: "Randevudan kaç saat önce iptal edilebilir (varsayılan: 2)",
+    cancellationHoursHint: "Randevudan kaç saat önce iptal yapılabilsin",
 
     // Hatırlatma
     reminderTitle: "Hatırlatma Ayarları",
@@ -88,23 +89,23 @@ const COPY = {
     messagesTitle: "Mesaj Şablonları",
     messagesDesc: "Müşterilere gönderilen otomatik mesajları özelleştirin.",
     welcomeMsg: "Karşılama mesajı",
-    welcomeMsgHint: "Müşteri ilk yazdığında gönderilir. {işletme_adınız} yazarsanız işletme adınız otomatik eklenir",
-    whatsappGreeting: "WhatsApp link mesajı",
-    whatsappGreetingHint: "QR/link tıklandığında hazır görünen mesaj. {işletme_adınız} yazarsanız işletme adınız otomatik eklenir",
+    welcomeMsgHint: "Müşteri ilk yazdığında gönderilir. {işletme_adınız} yazarsanız işletme adınız otomatik gelir",
+    whatsappGreeting: "WhatsApp karşılama mesajı",
+    whatsappGreetingHint: "Müşteri linke tıkladığında hazır görünen mesaj. {işletme_adınız} yazarsanız işletme adınız otomatik gelir",
     openingMessage: "Açılış mesajı",
-    openingMessageHint: "Bot konuşma başında sorduğu ilk soru",
+    openingMessageHint: "Randevu sürecinde asistanın ilk sorduğu soru",
     confirmationMsg: "Onay mesajı",
-    confirmationMsgHint: "Randevu onaylandığında müşteriye giden mesaj. {date} ve {time} otomatik doldurulur",
+    confirmationMsgHint: "Randevu onaylandığında müşteriye giden mesaj. {date} ve {time} otomatik gelir",
     reminderMsg: "Hatırlatma mesajı",
-    reminderMsgHint: "Randevudan 24 saat önce gönderilir. {time} otomatik doldurulur",
+    reminderMsgHint: "Randevudan 24 saat önce gönderilir. {time} otomatik gelir",
 
     // Fiyat
-    pricingTitle: "Fiyat Belirtilmemiş Hizmetler",
-    pricingDesc: "Fiyatı belirtilmemiş hizmetler için gösterilecek bilgi.",
+    pricingTitle: "Fiyatı Olmayan Hizmetler",
+    pricingDesc: "Fiyat girmediğiniz hizmetlerde müşteriye ne gösterilsin",
     fallbackLabel: "Gösterilecek metin",
     fallbackLabelHint: "Örn: Fiyat için arayın",
     fallbackPhone: "Aranacak telefon",
-    fallbackPhoneHint: "Aranacak numara (boş bırakılırsa iletişim telefonu kullanılır)",
+    fallbackPhoneHint: "Boş bırakırsanız iletişim telefonunuz kullanılır",
 
     whatsappTitle: "WhatsApp Bağlantısı",
     whatsappDesc: "Müşterilerinizin size ulaşması için link ve QR kod.",
@@ -412,7 +413,7 @@ export default function TenantSettingsPage({
     return (
       <div className="min-h-screen bg-slate-50 p-4 pb-24 dark:bg-slate-950 sm:p-6 lg:p-10">
         <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-          {!loadError && <LottieAnimation src="loading" width={80} height={80} />}
+          {!loadError && <LottieAnimationLazy src="loading" width={80} height={80} />}
           <p className={loadError ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}>
             {loadError ?? t.loading}
           </p>
@@ -517,7 +518,7 @@ export default function TenantSettingsPage({
           <div className="grid gap-4 sm:grid-cols-3">
             <InputField
               label={t.slotDuration}
-              hint={t.slotDurationHint}
+              hint={`${t.slotDurationHint} (${humanizeMinutes(slotDuration)})`}
               type="number"
               value={slotDuration}
               onChange={setSlotDuration}
@@ -673,7 +674,7 @@ export default function TenantSettingsPage({
           </button>
           {saved && (
             <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-              <LottieAnimation src="success" width={20} height={20} loop={false} />
+              <LottieAnimationLazy src="success" width={20} height={20} loop={false} />
               {t.saved}
             </span>
           )}

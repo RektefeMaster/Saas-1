@@ -8,6 +8,7 @@ import {
 } from "@/lib/redis";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 import { checkBlockedDate } from "@/services/blockedDates.service";
+import { normalizePhoneDigits } from "@/lib/phone";
 
 const DEFAULT_WORKING_HOURS = { start: "09:00", end: "18:00" };
 const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5, 6];
@@ -160,7 +161,7 @@ function overlaps(a: TimeInterval, b: TimeInterval): boolean {
 }
 
 function normalizePhone(phone: string): string {
-  return phone.replace(/\D/g, "");
+  return normalizePhoneDigits(phone);
 }
 
 async function getTenantScheduleContext(

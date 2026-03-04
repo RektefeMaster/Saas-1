@@ -1,5 +1,6 @@
 import type { ConversationState } from "../../database.types";
 import { APP_TIMEZONE, TR_DAY_NAMES_FULL, EN_DAY_TO_INDEX } from "./constants";
+import { parseNaturalDateTime } from "@/lib/chrono-parse";
 
 export function localDateStr(d: Date, timeZone = APP_TIMEZONE): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -67,7 +68,8 @@ export function buildStateSummary(state: ConversationState | null): string {
 
 export function buildSystemContext(
   state: ConversationState | null,
-  historySummary?: string
+  historySummary?: string,
+  lastUserMessage?: string
 ): string {
   const today = new Date();
   const todayStr = localDateStr(today);
@@ -91,6 +93,14 @@ export function buildSystemContext(
   ctx += ` Saat dilimi: ${APP_TIMEZONE}.`;
   ctx += ` Önümüzdeki günler: ${nextDays.join(", ")}.`;
   ctx += ` ÖNEMLİ: Müşteri "pazartesi" derse EN YAKIN pazartesiyi kullan (yukarıdaki listeden bak). "Bu hafta" veya "gelecek hafta" derse start_date olarak bugünün tarihini ver.`;
+
+  // chrono-node: Doğal dil tarih ayrıştırma (İngilizce ifadeler desteklenir)
+  if (lastUserMessage && lastUserMessage.trim().length > 3) {
+    const parsed = parseNaturalDateTime(lastUserMessage.trim());
+    if (parsed) {
+      ctx += ` [Müşteri son mesajda tarih/saat belirtti → chrono çözümü: date=${parsed.date}, time=${parsed.time}]`;
+    }
+  }
 
   const ext = (state?.extracted || {}) as Record<string, unknown>;
 

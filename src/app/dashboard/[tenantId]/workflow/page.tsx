@@ -54,7 +54,7 @@ const STATUS_ORDER: AppointmentStatus[] = ["pending", "confirmed", "completed", 
 const STATUS_CONFIG: Record<AppointmentStatus, StatusColumnConfig> = {
   pending: {
     title: "Yeni",
-    description: "Hızlı karar verilmesi gereken yeni talepler.",
+    description: "Henüz onaylanmamış yeni randevu talepleri",
     icon: Sparkles,
     columnClass: "border-amber-200 bg-amber-50/80 dark:border-amber-800 dark:bg-amber-950/20",
     badgeClass: "bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200",
@@ -63,7 +63,7 @@ const STATUS_CONFIG: Record<AppointmentStatus, StatusColumnConfig> = {
   },
   confirmed: {
     title: "Onaylı",
-    description: "Gün içinde servis verilmesi beklenen randevular.",
+    description: "Onaylanmış, bugün gerçekleşecek randevular",
     icon: Check,
     columnClass: "border-cyan-200 bg-cyan-50/70 dark:border-cyan-800 dark:bg-cyan-950/20",
     badgeClass: "bg-cyan-100 text-cyan-900 dark:bg-cyan-900/50 dark:text-cyan-200",
@@ -72,16 +72,16 @@ const STATUS_CONFIG: Record<AppointmentStatus, StatusColumnConfig> = {
   },
   completed: {
     title: "Tamamlandı",
-    description: "Servisi başarıyla sonuçlanan randevular.",
+    description: "Tamamlanmış randevular",
     icon: CheckCircle2,
     columnClass: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/20",
     badgeClass: "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200",
     emptyClass: "border-emerald-200/80 text-emerald-700 dark:border-emerald-800/80 dark:text-emerald-300",
-    emptyMessage: "Bütün müşterileriniz ile ilgilendiniz!",
+    emptyMessage: "Bugün tamamlanan randevu yok",
   },
   cancelled: {
     title: "İptal",
-    description: "Müşteri veya işletme tarafından iptal edilenler.",
+    description: "İptal edilmiş randevular",
     icon: XOctagon,
     columnClass: "border-rose-200 bg-rose-50/70 dark:border-rose-800 dark:bg-rose-950/20",
     badgeClass: "bg-rose-100 text-rose-900 dark:bg-rose-900/50 dark:text-rose-200",
@@ -90,12 +90,12 @@ const STATUS_CONFIG: Record<AppointmentStatus, StatusColumnConfig> = {
   },
   no_show: {
     title: "Gelmedi",
-    description: "Onaylı olup randevuya katılmayan müşteriler.",
+    description: "Randevuya gelmeyen müşteriler",
     icon: UserX,
     columnClass: "border-orange-200 bg-orange-50/70 dark:border-orange-800 dark:bg-orange-950/20",
     badgeClass: "bg-orange-100 text-orange-900 dark:bg-orange-900/50 dark:text-orange-200",
     emptyClass: "border-orange-200/80 text-orange-700 dark:border-orange-800/80 dark:text-orange-300",
-    emptyMessage: "Gelmedi kaydı yok",
+    emptyMessage: "Gelmeyen müşteri yok",
   },
 };
 
@@ -343,7 +343,7 @@ export default function WorkflowPage({
   const isToday = date === todayIso;
   const firstLoad = loading && totalCount === 0;
   const boardDisabled = Boolean(updatingId);
-  const lastSyncedLabel = lastSyncedAt ? `${formatClock(lastSyncedAt)} itibarıyla güncel` : "Henüz senkron yok";
+  const lastSyncedLabel = lastSyncedAt ? `${formatClock(lastSyncedAt)} itibarıyla güncel` : "Henüz güncellenmedi";
 
   return (
     <div className="space-y-5 p-4 pb-28 sm:p-6 lg:p-8">
@@ -358,23 +358,23 @@ export default function WorkflowPage({
                 className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white/90 px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 <ArrowLeft className="h-4 w-4" />
-                Panele Dön
+                Panele dön
               </Link>
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-                  İş Akışı Merkezi
+                  İş Akışı
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-                  Günlük randevularınızı tek ekranda takip edin, tek tıkla durum güncelleyin.
+                  Günlük randevularınızı tek ekranda takip edin. Kartlara tıklayarak durum güncelleyebilirsiniz.
                 </p>
               </div>
             </div>
             <div className="min-w-[16rem] rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/95">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Son Senkron
+                Son güncelleme
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{lastSyncedLabel}</p>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">60 sn'de bir otomatik yenilenir.</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Her dakika otomatik yenilenir.</p>
             </div>
           </div>
 
@@ -385,15 +385,15 @@ export default function WorkflowPage({
                 <Activity className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />
                 {totalCount}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Seçili gün randevusu</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Seçilen günün randevuları</p>
             </article>
             <article className="min-w-[11.5rem] rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Aktif Takip</p>
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Bekleyen</p>
               <p className="mt-1 inline-flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 <Clock3 className="h-5 w-5 text-amber-600 dark:text-amber-300" />
                 {activeCount}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Yeni + onaylı kayıt</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Yeni ve onaylı randevular</p>
             </article>
             <article className="min-w-[11.5rem] rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
@@ -411,7 +411,7 @@ export default function WorkflowPage({
                 <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-300" />
                 {riskCount}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">İptal + gelmedi</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">İptal ve gelmeyenler</p>
             </article>
           </div>
 

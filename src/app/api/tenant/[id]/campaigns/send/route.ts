@@ -8,18 +8,10 @@ import {
   sendWhatsAppTemplateMessage,
   resolveWhatsAppCredentials,
 } from "@/lib/whatsapp";
+import { normalizePhoneE164 } from "@/lib/phone";
 
 const CAMPAIGN_TEMPLATE = (process.env.WHATSAPP_CAMPAIGN_TEMPLATE_NAME || "").trim();
 const TEMPLATE_LANG = (process.env.WHATSAPP_TEMPLATE_LANG || "tr").trim();
-
-function normalizePhone(phone: string): string | null {
-  let digits = (phone || "").replace(/\D/g, "");
-  if (!digits || digits.length < 10) return null;
-  if (digits.startsWith("0")) digits = `90${digits.slice(1)}`;
-  else if (!digits.startsWith("90")) digits = `90${digits}`;
-  if (digits.length !== 12) return null;
-  return `+${digits}`;
-}
 
 export async function POST(
   request: NextRequest,
@@ -88,7 +80,7 @@ export async function POST(
 
     let phones: string[] = [];
     if (recipientPhones.length > 0) {
-      const normalized = recipientPhones.map(normalizePhone).filter((phone): phone is string => phone != null);
+      const normalized = recipientPhones.map((p) => normalizePhoneE164(p)).filter((phone): phone is string => phone != null);
       phones = [...new Set(normalized)];
     } else {
       const { data: crmList } = await supabase
@@ -112,7 +104,7 @@ export async function POST(
       const aptSet = new Set((aptPhones || []).map((row) => row.customer_phone));
       const merged = new Set([...fromCrm, ...aptSet]);
       phones = Array.from(merged)
-        .map((phone) => normalizePhone(String(phone || "")))
+        .map((phone) => normalizePhoneE164(String(phone || "")))
         .filter((phone): phone is string => phone != null);
     }
 

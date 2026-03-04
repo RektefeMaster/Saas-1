@@ -65,6 +65,45 @@ export async function PATCH(
     } catch {
       // CRM güncellemesi başarısız olsa da status geçişi başarılı kalmalı.
     }
+
+    // Ciroya ekleme (idempotency: aynı randevu için çift kayıt engeli)
+    const serviceSlug = data.service_slug as string | null | undefined;
+    if (serviceSlug?.trim()) {
+      const existingRevenue = await supabase
+        .from("revenue_events")
+        .select("id")
+        .eq("appointment_id", appointmentId)
+        .maybeSingle();
+
+      if (!existingRevenue.error && !existingRevenue.data) {
+        const { data: service } = await supabase
+          .from("services")
+          .select("price")
+          .eq("tenant_id", tenantId)
+          .eq("slug", serviceSlug.trim())
+          .maybeSingle();
+
+        const price = Number(service?.price ?? 0);
+        if (price > 0) {
+          const insertRes = await supabase.from("revenue_events").insert({
+            tenant_id: tenantId,
+            appointment_id: appointmentId,
+            customer_phone: data.customer_phone,
+            source: "appointment",
+            gross_amount: price,
+            discount_amount: 0,
+            tax_amount: 0,
+            net_amount: price,
+            currency: "TRY",
+            event_at: data.slot_start,
+            meta: { ai_assisted: true },
+          });
+          if (insertRes.error) {
+            console.error("[status] revenue_events insert error:", insertRes.error);
+          }
+        }
+      }
+    }
   }
 
   await logTenantEvent({

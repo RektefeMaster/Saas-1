@@ -90,6 +90,10 @@ import {
 } from "./helpers";
 import { TOOLS } from "./tools/definitions";
 import { executeToolCall } from "./tools/executor";
+import { validateToolArgs } from "./tools/tool-schemas";
+import { getValidNextStep } from "../fsm/bot-state-machine";
+import { withRetry } from "@/lib/retry";
+import { isAdminTakeoverReason } from "@/lib/human-takeover";
 
 // ── Human escalation ────────────────────────────────────────────────────────────
 
@@ -326,31 +330,36 @@ async function callOpenAI(
   tools?: OpenAI.Chat.Completions.ChatCompletionTool[],
   model: string = MODEL_SIMPLE
 ): Promise<OpenAI.Chat.Completions.ChatCompletion> {
-  try {
-    return await openai!.chat.completions.create({
-      model,
-      messages,
-      ...(tools ? { tools, tool_choice: "auto" as const } : {}),
-    });
-  } catch (err: unknown) {
-    const e = err as { status?: number; error?: { message?: string }; message?: string };
-    console.error(
-      "[ai] OpenAI error",
-      "status:",
-      e?.status,
-      "message:",
-      e?.error?.message ?? e?.message
-    );
-    if (e?.status === 429) {
-      await new Promise((r) => setTimeout(r, 1500));
-      return await openai!.chat.completions.create({
-        model,
-        messages,
-        ...(tools ? { tools, tool_choice: "auto" as const } : {}),
-      });
-    }
-    throw err;
-  }
+  return withRetry(
+    async () => {
+      try {
+        return await openai!.chat.completions.create({
+          model,
+          messages,
+          ...(tools ? { tools, tool_choice: "auto" as const } : {}),
+        });
+      } catch (err: unknown) {
+        const e = err as { status?: number; error?: { message?: string }; message?: string };
+        console.error(
+          "[ai] OpenAI error",
+          "status:",
+          e?.status,
+          "message:",
+          e?.error?.message ?? e?.message
+        );
+        if (e?.status === 429) {
+          await new Promise((r) => setTimeout(r, 1500));
+          return await openai!.chat.completions.create({
+            model,
+            messages,
+            ...(tools ? { tools, tool_choice: "auto" as const } : {}),
+          });
+        }
+        throw err;
+      }
+    },
+    { retries: 3 }
+  );
 }
 
 // ── Main process ────────────────────────────────────────────────────────────────
@@ -447,6 +456,14 @@ export async function processMessage(
 
     let state = await getSession(tenantId, customerPhone);
     if (state?.step === "PAUSED_FOR_HUMAN") {
+      if (isAdminTakeoverReason(state.pause_reason)) {
+        return {
+          reply:
+            tone === "siz"
+              ? "Bu sohbet su an insan destek ekibinde. Botu yalnizca yonetici yeniden devreye alabilir."
+              : "Bu sohbet su an insan destek ekibinde. Botu yalnizca yonetici yeniden devreye alabilir.",
+        };
+      }
       const pausedAt = state.updated_at ? new Date(state.updated_at).getTime() : 0;
       const inactiveMs = Date.now() - pausedAt;
       const wantsBotResume = /bot devam|devam et|geri don|geri dön/i.test(effectiveMessage);
@@ -842,7 +859,7 @@ export async function processMessage(
     // ── Build context ──
     const history = await getCustomerHistory(tenantId, customerPhone);
     const historySummary = formatHistoryForPrompt(history);
-    const systemContext = buildSystemContext(state, historySummary);
+    const systemContext = buildSystemContext(state, historySummary, effectiveMessage);
 
     let systemPrompt: string;
     if (mergedConfig) {
@@ -975,7 +992,12 @@ export async function processMessage(
       let requiredFieldsReply = "";
       for (const tc of tcList) {
         if (tc.function.name !== "create_appointment") continue;
-        const fnArgs = JSON.parse(tc.function.arguments || "{}");
+        let fnArgs: Record<string, unknown>;
+        try {
+          fnArgs = JSON.parse(tc.function.arguments || "{}");
+        } catch {
+          fnArgs = {};
+        }
         const combined = {
           ...(state?.extracted || {}),
           ...fnArgs,
@@ -1023,10 +1045,24 @@ export async function processMessage(
       const confirmationResults: TemplateVars[] = [];
       let templateReply: { key: "cancellation_by_customer" | "rescheduled"; vars: TemplateVars } | null = null;
       for (const tc of tcList) {
-        const fnArgs = JSON.parse(tc.function.arguments || "{}");
+        let fnArgs: Record<string, unknown>;
+        try {
+          fnArgs = JSON.parse(tc.function.arguments || "{}");
+        } catch {
+          fnArgs = {};
+        }
+        const validation = validateToolArgs(tc.function.name, fnArgs);
+        if (!validation.success) {
+          openaiMessages.push({
+            role: "tool" as const,
+            tool_call_id: tc.id,
+            content: JSON.stringify({ ok: false, error: validation.error }),
+          });
+          continue;
+        }
         const toolExec = await executeToolCall(
           tc.function.name,
-          fnArgs,
+          validation.data,
           tenantId,
           customerPhone,
           effectiveMessage,
@@ -1192,8 +1228,10 @@ export async function processMessage(
         ...(state?.extracted || {}),
         ...(mergedSessionUpdate.extracted || {}),
       },
-      step:
-        (mergedSessionUpdate.step as string) || state?.step || "devam",
+      step: getValidNextStep(
+        state?.step || "INIT",
+        (mergedSessionUpdate.step as string) || state?.step || "devam"
+      ),
       message_count: messageCount,
       consecutive_misunderstandings: 0,
       retry_count: 0,

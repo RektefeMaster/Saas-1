@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
+import { logger } from "@/lib/logger";
+import { isValidEmail } from "@/lib/validation";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
@@ -26,8 +28,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
+    if (!isValidEmail(email)) {
       return NextResponse.json(
         { error: "Geçerli bir e-posta adresi girin." },
         { status: 400 }
@@ -36,7 +37,7 @@ export async function POST(request: NextRequest) {
 
     const apiKey = process.env.RESEND_API_KEY;
     if (!apiKey) {
-      console.error("RESEND_API_KEY tanımlı değil");
+      logger.error("RESEND_API_KEY tanımlı değil");
       return NextResponse.json(
         { error: "E-posta servisi yapılandırılmamış." },
         { status: 503 }
@@ -65,7 +66,7 @@ export async function POST(request: NextRequest) {
     });
 
     if (error) {
-      console.error("Resend error:", error);
+      logger.error({ err: error }, "Resend error");
       return NextResponse.json(
         { error: "Mesaj gönderilemedi. Lütfen daha sonra tekrar deneyin." },
         { status: 500 }
@@ -74,7 +75,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true });
   } catch (err) {
-    console.error("Contact API error:", err);
+    logger.error({ err }, "Contact API error");
     return NextResponse.json(
       { error: "Bir hata oluştu. Lütfen daha sonra tekrar deneyin." },
       { status: 500 }

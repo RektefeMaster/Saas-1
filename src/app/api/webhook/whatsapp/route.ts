@@ -1,5 +1,6 @@
-import { randomUUID } from "crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { nanoid } from "@/lib/id";
+import { logger } from "@/lib/logger";
 import { inngest } from "@/lib/inngest/client";
 import type { IncomingWebhookValue, WhatsAppInboundEventData } from "@/lib/bot-v1/types";
 import { getWebhookSecret, verifyWebhookSignatureBody } from "@/middleware/webhookVerify.middleware";
@@ -101,7 +102,7 @@ export async function POST(request: NextRequest) {
       });
       return new NextResponse("Webhook secret missing", { status: 503 });
     }
-    console.warn(
+    logger.warn(
       "[webhook] WHATSAPP_WEBHOOK_SECRET tanımlı değil, strict=false olduğu için imza doğrulama atlandı"
     );
   } else if (!verifyWebhookSignatureBody(Buffer.from(rawBody, "utf8"), signature, secret)) {
@@ -162,11 +163,11 @@ export async function POST(request: NextRequest) {
         const from = msg.from ? `+${msg.from}` : "";
         if (!from) continue;
 
-        const messageId = (msg.id || "").trim() || `gen_${randomUUID()}`;
+        const messageId = (msg.id || "").trim() || `gen_${nanoid(12)}`;
         const receivedAtIso = msg.timestamp
           ? new Date(Number(msg.timestamp) * 1000).toISOString()
           : new Date().toISOString();
-        const traceId = randomUUID();
+        const traceId = nanoid();
         const eventData: WhatsAppInboundEventData = {
           trace_id: traceId,
           provider: "whatsapp",

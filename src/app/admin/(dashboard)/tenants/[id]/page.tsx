@@ -5,8 +5,10 @@ import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import {
   ArrowLeft,
+  CalendarPlus2,
   Copy,
   ExternalLink,
+  Link2,
   Megaphone,
   QrCode,
   Trash2,
@@ -20,6 +22,8 @@ interface Tenant {
   tenant_code: string;
   status: string;
   campaign_enabled?: boolean;
+  subscription_end_at?: string | null;
+  subscription_plan?: string | null;
   business_types: { name: string } | null;
 }
 
@@ -42,6 +46,13 @@ export default function TenantDetailPage() {
   const [copied, setCopied] = useState<string | null>(null);
   const [campaignEnabled, setCampaignEnabled] = useState<boolean>(true);
   const [savingCampaign, setSavingCampaign] = useState(false);
+  const [subscriptionPlan, setSubscriptionPlan] = useState("starter");
+  const [subscriptionEndAt, setSubscriptionEndAt] = useState<string | null>(null);
+  const [subscriptionLoading, setSubscriptionLoading] = useState(false);
+  const [magicLinkLoading, setMagicLinkLoading] = useState(false);
+  const [magicExpiresIn, setMagicExpiresIn] = useState("7d");
+  const [magicLink, setMagicLink] = useState<string | null>(null);
+  const [opsMessage, setOpsMessage] = useState<string | null>(null);
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
   useEffect(() => {
@@ -53,6 +64,8 @@ export default function TenantDetailPage() {
         if (!tenantData.error) {
           setTenant(tenantData);
           setCampaignEnabled(tenantData.campaign_enabled !== false);
+          setSubscriptionPlan(tenantData.subscription_plan || "starter");
+          setSubscriptionEndAt(tenantData.subscription_end_at || null);
         }
         if (!assetsData.error) setAssets(assetsData);
       })
@@ -77,6 +90,71 @@ export default function TenantDetailPage() {
       setDeleteError(err instanceof Error ? err.message : "Kampanya ayarı güncellenemedi");
     } finally {
       setSavingCampaign(false);
+    }
+  };
+
+  const handleExtendSubscription = async (action: "1w" | "1m") => {
+    setOpsMessage(null);
+    setSubscriptionLoading(true);
+    try {
+      const res = await fetch(`/api/admin/tenants/${id}/extend-subscription`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          action,
+          subscription_plan: subscriptionPlan,
+        }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        subscription_end_at?: string | null;
+        subscription_plan?: string | null;
+      };
+      if (!res.ok) {
+        throw new Error(payload.error || "Abonelik uzatilamadi");
+      }
+      setSubscriptionEndAt(payload.subscription_end_at || null);
+      if (payload.subscription_plan) setSubscriptionPlan(payload.subscription_plan);
+      setOpsMessage(
+        action === "1w" ? "Abonelik 1 hafta uzatildi." : "Abonelik 1 ay uzatildi."
+      );
+    } catch (err) {
+      setDeleteError(
+        err instanceof Error ? err.message : "Abonelik uzatma islemi basarisiz"
+      );
+    } finally {
+      setSubscriptionLoading(false);
+    }
+  };
+
+  const handleCreateMagicLink = async () => {
+    setOpsMessage(null);
+    setMagicLinkLoading(true);
+    setMagicLink(null);
+    try {
+      const res = await fetch(`/api/admin/tenants/${id}/magic-link`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          expires_in: magicExpiresIn,
+          purpose: "tenant_public_link",
+        }),
+      });
+      const payload = (await res.json().catch(() => ({}))) as {
+        error?: string;
+        magic_url?: string;
+      };
+      if (!res.ok) {
+        throw new Error(payload.error || "Magic link olusturulamadi");
+      }
+      if (payload.magic_url) {
+        setMagicLink(payload.magic_url);
+        setOpsMessage("Magic link olusturuldu.");
+      }
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Magic link olusturulamadi");
+    } finally {
+      setMagicLinkLoading(false);
     }
   };
 
@@ -212,6 +290,116 @@ export default function TenantDetailPage() {
           </p>
         )}
       </section>
+
+      <section className="grid gap-4 lg:grid-cols-2">
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <CalendarPlus2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
+            Abonelik Uzatma
+          </h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Tenant aboneligini hizli uzatmak icin kullanin.
+          </p>
+          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+            <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              Plan
+              <select
+                value={subscriptionPlan}
+                onChange={(event) => setSubscriptionPlan(event.target.value)}
+                className="mt-1 w-full rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+              >
+                <option value="starter">starter</option>
+                <option value="growth">growth</option>
+                <option value="pro">pro</option>
+                <option value="enterprise">enterprise</option>
+                <option value="custom">custom</option>
+              </select>
+            </label>
+            <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
+              Bitis
+              <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
+                {subscriptionEndAt
+                  ? new Date(subscriptionEndAt).toLocaleString("tr-TR")
+                  : "Tanimsiz"}
+              </div>
+            </div>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => handleExtendSubscription("1w")}
+              disabled={subscriptionLoading}
+              className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
+            >
+              {subscriptionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              +1 Hafta
+            </button>
+            <button
+              type="button"
+              onClick={() => handleExtendSubscription("1m")}
+              disabled={subscriptionLoading}
+              className="inline-flex items-center gap-2 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-100 disabled:opacity-60 dark:border-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-300"
+            >
+              {subscriptionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              +1 Ay
+            </button>
+          </div>
+        </article>
+
+        <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
+            <Link2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
+            Magic Link
+          </h2>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+            Tek kullanimlik baglanti olusturup tenanta iletebilirsiniz.
+          </p>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <select
+              value={magicExpiresIn}
+              onChange={(event) => setMagicExpiresIn(event.target.value)}
+              className="rounded-lg border border-slate-300 bg-white px-2.5 py-2 text-sm dark:border-slate-700 dark:bg-slate-900"
+            >
+              <option value="15m">15 dakika</option>
+              <option value="1h">1 saat</option>
+              <option value="1d">1 gun</option>
+              <option value="7d">7 gun</option>
+            </select>
+            <button
+              type="button"
+              onClick={handleCreateMagicLink}
+              disabled={magicLinkLoading}
+              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+            >
+              {magicLinkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+              Magic Link Uret
+            </button>
+          </div>
+          {magicLink && (
+            <div className="mt-3 flex flex-col gap-2 sm:flex-row">
+              <input
+                readOnly
+                value={magicLink}
+                className="w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2 text-xs text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+              <button
+                type="button"
+                onClick={() => copyToClipboard(magicLink, "magic")}
+                className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              >
+                <Copy className="h-4 w-4" />
+                {copied === "magic" ? "Kopyalandi" : "Kopyala"}
+              </button>
+            </div>
+          )}
+        </article>
+      </section>
+
+      {opsMessage && (
+        <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm text-emerald-700 dark:border-emerald-900/60 dark:bg-emerald-950/30 dark:text-emerald-300">
+          {opsMessage}
+        </p>
+      )}
 
       <section className="grid gap-4 md:grid-cols-3">
         <a

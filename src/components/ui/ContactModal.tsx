@@ -1,9 +1,21 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
 import { MessageCircle, X, Send, CheckCircle2, AlertCircle } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 import { Button } from "./Button";
+
+const contactSchema = z.object({
+  name: z.string().min(1, "Ad zorunludur").max(120, "Ad çok uzun"),
+  email: z.string().min(1, "E-posta zorunludur").email("Geçerli bir e-posta girin"),
+  phone: z.string().optional(),
+  message: z.string().min(1, "Mesaj zorunludur").max(2000, "Mesaj çok uzun"),
+});
+
+type ContactFormData = z.infer<typeof contactSchema>;
 
 const COPY = {
   tr: {
@@ -49,12 +61,18 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
   const { locale } = useLocale();
   const t = COPY[locale];
 
-  const [name, setName] = useState("");
-  const [email, setEmail] = useState("");
-  const [phone, setPhone] = useState("");
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors, isSubmitting },
+    setError: setFormError,
+    clearErrors,
+  } = useForm<ContactFormData>({
+    resolver: zodResolver(contactSchema),
+    defaultValues: { name: "", email: "", phone: "", message: "" },
+  });
+
   const [success, setSuccess] = useState(false);
 
   useEffect(() => {
@@ -70,45 +88,34 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
     };
   }, [isOpen, onClose]);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setError(null);
-    if (!name.trim() || !email.trim() || !message.trim()) {
-      setError(locale === "tr" ? "Ad, e-posta ve mesaj zorunludur." : "Name, email and message are required.");
-      return;
-    }
-    setLoading(true);
+  const onSubmit = async (data: ContactFormData) => {
+    clearErrors("root");
     try {
       const res = await fetch("/api/contact", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          name: name.trim(),
-          email: email.trim(),
-          phone: phone.trim() || undefined,
-          message: message.trim(),
+          name: data.name.trim(),
+          email: data.email.trim(),
+          phone: data.phone?.trim() || undefined,
+          message: data.message.trim(),
         }),
       });
-      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      const json = (await res.json().catch(() => ({}))) as { error?: string };
       if (!res.ok) {
-        setError(data.error || (locale === "tr" ? "Gönderilemedi." : "Failed to send."));
+        setFormError("root", { message: json.error || (locale === "tr" ? "Gönderilemedi." : "Failed to send.") });
         return;
       }
       setSuccess(true);
-      setName("");
-      setEmail("");
-      setPhone("");
-      setMessage("");
+      reset();
     } catch {
-      setError(locale === "tr" ? "Bağlantı hatası. Tekrar deneyin." : "Connection error. Please try again.");
-    } finally {
-      setLoading(false);
+      setFormError("root", { message: locale === "tr" ? "Bağlantı hatası. Tekrar deneyin." : "Connection error. Please try again." });
     }
   };
 
   const handleClose = () => {
     setSuccess(false);
-    setError(null);
+    clearErrors();
     onClose();
   };
 
@@ -162,69 +169,78 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
               </Button>
             </div>
           ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
+                <label htmlFor="contact-name" className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
                   {t.name}
                 </label>
                 <input
+                  id="contact-name"
                   type="text"
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
+                  {...register("name")}
                   placeholder={t.namePlaceholder}
-                  disabled={loading}
+                  disabled={isSubmitting}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
+                {errors.name && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.name.message}</p>
+                )}
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
+                <label htmlFor="contact-email" className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
                   {t.email}
                 </label>
                 <input
+                  id="contact-email"
                   type="email"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  {...register("email")}
                   placeholder={t.emailPlaceholder}
-                  disabled={loading}
+                  disabled={isSubmitting}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
+                {errors.email && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.email.message}</p>
+                )}
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
+                <label htmlFor="contact-phone" className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
                   {t.phone}
                 </label>
                 <input
+                  id="contact-phone"
                   type="tel"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
+                  {...register("phone")}
                   placeholder={t.phonePlaceholder}
-                  disabled={loading}
+                  disabled={isSubmitting}
                   className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
               </div>
               <div>
-                <label className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
+                <label htmlFor="contact-message" className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
                   {t.message}
                 </label>
                 <textarea
-                  value={message}
-                  onChange={(e) => setMessage(e.target.value)}
-                  placeholder={t.messagePlaceholder}
+                  id="contact-message"
                   rows={4}
-                  disabled={loading}
+                  {...register("message")}
+                  placeholder={t.messagePlaceholder}
+                  disabled={isSubmitting}
                   className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
                 />
+                {errors.message && (
+                  <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.message.message}</p>
+                )}
               </div>
 
-              {error && (
+              {errors.root && (
                 <div className="flex items-center gap-2 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700 dark:border-red-900/60 dark:bg-red-950/30 dark:text-red-300">
                   <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>{error}</span>
+                  <span>{errors.root.message}</span>
                 </div>
               )}
 
-              <Button type="submit" fullWidth size="lg" loading={loading}>
-                {loading ? (
+              <Button type="submit" fullWidth size="lg" loading={isSubmitting}>
+                {isSubmitting ? (
                   t.sending
                 ) : (
                   <>

@@ -1,4 +1,5 @@
 import { getRuntimeWhatsAppConfig } from "./redis";
+import { withRetry } from "./retry";
 
 const WHATSAPP_API = "https://graph.facebook.com/v22.0";
 
@@ -163,14 +164,21 @@ export async function sendWhatsAppMessageDetailed({
     text: { body: text },
   };
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${token}`,
-      "Content-Type": "application/json",
+  const res = await withRetry(
+    async () => {
+      const r = await fetch(url, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+      if (r.status >= 500) throw new Error(`WhatsApp API ${r.status}`);
+      return r;
     },
-    body: JSON.stringify(body),
-  });
+    { retries: 3 }
+  );
 
   if (!res.ok) {
     const raw = await res.text();

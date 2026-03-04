@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import useSWR from "swr";
 import { MotionConfig, motion, useScroll, useTransform } from "motion/react";
+import { LazyBarChart } from "@/components/charts/LazyBarChart";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Loader2, Clock, XCircle, MessageCircle, X, Calendar, AlertCircle, CheckCircle2, Check, XOctagon, UserX } from "lucide-react";
 import {
@@ -13,8 +14,9 @@ import {
   type CommandCenterAction,
 } from "./components/CommandCenterSection";
 import { MessageSettings } from "./components/MessageSettings";
-import { LottieAnimation } from "@/components/ui";
+import { LottieAnimationLazy } from "@/components/ui/LottieAnimationLazy";
 import { fetcher } from "@/lib/swr-fetcher";
+import { group, sort } from "radash";
 
 const QRCodeModal = dynamic(
   () => import("@/components/ui/QRCodeModal").then((m) => ({ default: m.QRCodeModal })),
@@ -133,18 +135,14 @@ function getWeekDates(anchor: Date): string[] {
   return dates;
 }
 
-function groupByDate(apts: Appointment[]) {
-  const groups: Record<string, Appointment[]> = {};
-  for (const a of apts) {
-    const d = new Date(a.slot_start);
-    const key = d.toISOString().split("T")[0];
-    if (!groups[key]) groups[key] = [];
-    groups[key].push(a);
+function groupByDate(apts: Appointment[]): Record<string, Appointment[]> {
+  const grouped = group(apts, (a) => new Date(a.slot_start).toISOString().split("T")[0] as string);
+  const result: Record<string, Appointment[]> = {};
+  for (const k of Object.keys(grouped)) {
+    const arr = grouped[k] ?? [];
+    result[k] = sort(arr, (a) => new Date(a.slot_start).getTime());
   }
-  for (const k of Object.keys(groups)) {
-    groups[k].sort((a, b) => new Date(a.slot_start).getTime() - new Date(b.slot_start).getTime());
-  }
-  return groups;
+  return result;
 }
 
 export default function EsnafDashboard({
@@ -1268,6 +1266,29 @@ export default function EsnafDashboard({
         </motion.div>
         )}
 
+        {/* Haftalık randevu grafiği */}
+        {appointments.length > 0 && (
+          <ScrollReveal variant="fadeUp" delay={0.02} as="section" className="mb-6">
+            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+              <h3 className="mb-4 font-semibold text-slate-900">Haftalık Randevu Özeti</h3>
+              <LazyBarChart
+                data={weekDates.slice(0, 7).map((dateStr) => {
+                  const d = new Date(dateStr + "T12:00:00");
+                  return {
+                    gün: DAY_NAMES[d.getDay()],
+                    Randevu: grouped[dateStr]?.length ?? 0,
+                  };
+                })}
+                index="gün"
+                categories={["Randevu"]}
+                colors={["emerald"]}
+                showLegend={false}
+                valueFormatter={(v) => v.toString()}
+              />
+            </section>
+          </ScrollReveal>
+        )}
+
         {/* Haftalık takvim */}
         <ScrollReveal variant="fadeUp" delay={0.05} as="section" className="mb-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1372,7 +1393,7 @@ export default function EsnafDashboard({
             </h3>
             {availabilityLoading ? (
               <div className="py-12 text-center">
-                <LottieAnimation src="loading" width={80} height={80} className="mx-auto" />
+                <LottieAnimationLazy src="loading" width={80} height={80} className="mx-auto" />
                 <p className="mt-3 text-sm text-slate-500">Müsaitlik kontrol ediliyor...</p>
               </div>
             ) : availability?.blocked ? (
@@ -1609,12 +1630,12 @@ export default function EsnafDashboard({
           </div>
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <LottieAnimation src="loading" width={96} height={96} />
+              <LottieAnimationLazy src="loading" width={96} height={96} />
               <p className="mt-3 text-sm text-slate-500">Randevular yükleniyor...</p>
             </div>
           ) : sortedDates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <LottieAnimation src="empty" width={80} height={80} />
+              <LottieAnimationLazy src="empty" width={80} height={80} />
               <p className="mt-4 text-sm font-medium text-slate-600">Henüz randevu yok</p>
               <p className="mt-1 text-xs text-slate-500">Yeni randevu eklemek için yukarıdaki butonu kullanın</p>
             </div>

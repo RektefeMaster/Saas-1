@@ -1,5 +1,6 @@
 import type { NextConfig } from "next";
 import path from "path";
+import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   // Deploy build hatasinda asil sebep TS ise gecici olarak true yap; sonra duzeltip false'a al
@@ -14,6 +15,7 @@ const nextConfig: NextConfig = {
   compress: true,
   poweredByHeader: false,
   reactStrictMode: true,
+  reactCompiler: true,
   // Image optimizasyonu
   images: {
     formats: ["image/avif", "image/webp"],
@@ -25,7 +27,7 @@ const nextConfig: NextConfig = {
   },
   // Experimental optimizasyonlar - tree-shaking ile bundle küçültme
   experimental: {
-    optimizePackageImports: ["lucide-react", "@supabase/supabase-js", "motion"],
+    optimizePackageImports: ["lucide-react", "@supabase/supabase-js", "motion", "@tremor/react"],
   },
   async headers() {
     return [
@@ -87,4 +89,10 @@ const nextConfig: NextConfig = {
   },
 };
 
-export default nextConfig;
+export default withSentryConfig(nextConfig, {
+  org: process.env.SENTRY_ORG,
+  project: process.env.SENTRY_PROJECT,
+  authToken: process.env.SENTRY_AUTH_TOKEN,
+  silent: !process.env.CI,
+  widenClientFileUpload: true,
+});

@@ -10,6 +10,7 @@ import {
   acquireBotProcessingLock,
   claimWebhookMessageId,
   deleteSession,
+  getGlobalKillSwitch,
   getSession,
   getTenantIdByPhone,
   releaseBotProcessingLock,
@@ -21,8 +22,11 @@ import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
 import { logTenantSwitch, resolveTenantRouting } from "@/lib/tenant-routing";
 import { transcribeVoiceMessage } from "@/lib/stt";
 import { stripZeroWidthMarkers } from "@/lib/zero-width";
+import { isAdminTakeoverReason } from "@/lib/human-takeover";
 import type { ConversationState } from "@/lib/database.types";
 import { logBotMessageAudit } from "@/services/botAudit.service";
+import { logConversationMessage } from "@/services/conversationMessages.service";
+import { createOpsAlert } from "@/services/opsAlert.service";
 import type { IncomingMessage, IncomingWebhookValue, WhatsAppInboundEventData } from "./types";
 import { extractSafeEntities, maskSensitivePII } from "./pii";
 
@@ -30,19 +34,14 @@ const ENABLE_QUICK_ACK =
   (process.env.WHATSAPP_QUICK_ACK || "").trim().toLowerCase() === "true";
 const WHATSAPP_RESUME_TEMPLATE_NAME =
   (process.env.WHATSAPP_RESUME_TEMPLATE_NAME || "").trim() || "continue_chat_tr";
+const WHATSAPP_KILL_SWITCH_MESSAGE =
+  (process.env.WHATSAPP_KILL_SWITCH_MESSAGE || "").trim() ||
+  "Sistemimiz su anda bakim modunda. Kisa sure sonra tekrar deneyebilir misiniz?";
 const MODEL_PRICING_VERSION = (process.env.MODEL_PRICING_VERSION || "v1").trim();
 const MESSAGE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function digitsOnly(value: string | null | undefined): string {
   return (value || "").replace(/\D/g, "");
-}
-
-function maskPhone(phone: string | null | undefined): string {
-  if (!phone) return "n/a";
-  const digits = digitsOnly(phone);
-  if (!digits) return "n/a";
-  if (digits.length <= 4) return digits;
-  return `${"*".repeat(Math.max(0, digits.length - 4))}${digits.slice(-4)}`;
 }
 
 function normalizeIncomingText(raw: string): string {
@@ -149,6 +148,45 @@ export async function processWhatsAppInboundEvent(
   }
 
   try {
+    const logInbound = async (input: {
+      tenantId?: string | null;
+      text?: string | null;
+      stage: string;
+      messageType?: string | null;
+      metadata?: Record<string, unknown>;
+    }) =>
+      logConversationMessage({
+        traceId,
+        tenantId: input.tenantId ?? event.tenant_hint,
+        customerPhone,
+        direction: "inbound",
+        messageText: input.text || null,
+        messageType: input.messageType || messageType,
+        stage: input.stage,
+        messageId,
+        metadata: input.metadata || {},
+        createdAt: event.received_at,
+      });
+
+    const logOutbound = async (input: {
+      tenantId?: string | null;
+      text?: string | null;
+      stage: string;
+      messageType?: string | null;
+      metadata?: Record<string, unknown>;
+    }) =>
+      logConversationMessage({
+        traceId,
+        tenantId: input.tenantId ?? event.tenant_hint,
+        customerPhone,
+        direction: "outbound",
+        messageText: input.text || null,
+        messageType: input.messageType || "text",
+        stage: input.stage,
+        messageId,
+        metadata: input.metadata || {},
+      });
+
     const isFirstSeen = await claimWebhookMessageId(messageId);
     if (!isFirstSeen) {
       await logBotMessageAudit({
@@ -176,6 +214,30 @@ export async function processWhatsAppInboundEvent(
       return;
     }
 
+    const killSwitch = await getGlobalKillSwitch();
+    if (killSwitch.enabled) {
+      await sendWhatsAppMessage({
+        to: customerPhone,
+        text: WHATSAPP_KILL_SWITCH_MESSAGE,
+      });
+      await logOutbound({
+        text: WHATSAPP_KILL_SWITCH_MESSAGE,
+        stage: "global_kill_switch_blocked",
+        messageType: "text",
+        metadata: { source: killSwitch.source || "unknown" },
+      });
+      await logBotMessageAudit({
+        traceId,
+        tenantId: event.tenant_hint,
+        customerPhone,
+        direction: "system",
+        stage: "global_kill_switch_blocked",
+        policyReason: "kill_switch",
+        messageId,
+      });
+      return;
+    }
+
     let rawText = "";
     if (messageType === "audio") {
       const mediaId = event.message.audio?.id;
@@ -184,6 +246,11 @@ export async function processWhatsAppInboundEvent(
           to: customerPhone,
           text: "Sesli mesajı çözemedim. Lütfen tekrar deneyin veya metin yazın.",
         });
+        await logInbound({ text: null, stage: "audio_missing_media_id", messageType: "audio" });
+        await logOutbound({
+          text: "Sesli mesajı çözemedim. Lütfen tekrar deneyin veya metin yazın.",
+          stage: "audio_missing_media_id_reply",
+        });
         return;
       }
       const media = await downloadWhatsAppMedia(mediaId);
@@ -191,6 +258,11 @@ export async function processWhatsAppInboundEvent(
         await sendWhatsAppMessage({
           to: customerPhone,
           text: "Ses dosyası alınamadı. Lütfen tekrar deneyin veya metin yazın.",
+        });
+        await logInbound({ text: null, stage: "audio_media_download_failed", messageType: "audio" });
+        await logOutbound({
+          text: "Ses dosyası alınamadı. Lütfen tekrar deneyin veya metin yazın.",
+          stage: "audio_media_download_failed_reply",
         });
         return;
       }
@@ -209,6 +281,11 @@ export async function processWhatsAppInboundEvent(
           to: customerPhone,
           text: "Sesli mesajı anlayamadım. Kısa bir metinle yazabilir misiniz?",
         });
+        await logInbound({ text: null, stage: "audio_transcribe_failed", messageType: "audio" });
+        await logOutbound({
+          text: "Sesli mesajı anlayamadım. Kısa bir metinle yazabilir misiniz?",
+          stage: "audio_transcribe_failed_reply",
+        });
         return;
       }
       rawText = transcript;
@@ -216,6 +293,15 @@ export async function processWhatsAppInboundEvent(
       await sendWhatsAppMessage({
         to: customerPhone,
         text: "Görsel analiz özelliği şu an sınırlı. Lütfen ne istediğinizi kısa bir metinle yazın.",
+      });
+      await logInbound({
+        text: null,
+        stage: "image_fallback_requested_text",
+        messageType: "image",
+      });
+      await logOutbound({
+        text: "Görsel analiz özelliği şu an sınırlı. Lütfen ne istediğinizi kısa bir metinle yazın.",
+        stage: "image_fallback_requested_text_reply",
       });
       await logBotMessageAudit({
         traceId,
@@ -236,6 +322,11 @@ export async function processWhatsAppInboundEvent(
           to: customerPhone,
           text: "Şu an metin ve sesli mesajları destekliyorum. Lütfen metin veya sesli mesaj gönderin.",
         });
+        await logOutbound({
+          text: "Şu an metin ve sesli mesajları destekliyorum. Lütfen metin veya sesli mesaj gönderin.",
+          stage: "unsupported_message_reply",
+          messageType: "text",
+        });
       }
       await logBotMessageAudit({
         traceId,
@@ -248,11 +339,23 @@ export async function processWhatsAppInboundEvent(
       return;
     }
 
+    await logInbound({
+      text: rawText,
+      stage: "inbound_received",
+      metadata: {
+        message_type: messageType,
+      },
+    });
+
     const rateLimitResult = await enforceRateLimit(customerPhone);
     if (!rateLimitResult.allowed) {
       await sendWhatsAppMessage({
         to: customerPhone,
         text: rateLimitResult.message,
+      });
+      await logOutbound({
+        text: rateLimitResult.message,
+        stage: "rate_limited",
       });
       await logBotMessageAudit({
         traceId,
@@ -263,13 +366,6 @@ export async function processWhatsAppInboundEvent(
         messageId,
       });
       return;
-    }
-
-    if (shouldSendQuickAck(rawText)) {
-      await sendWhatsAppMessageDetailed({
-        to: customerPhone,
-        text: "Mesajını aldım, hemen kontrol ediyorum.",
-      });
     }
 
     const previousTenantId = await getTenantIdByPhone(customerPhone);
@@ -307,6 +403,12 @@ export async function processWhatsAppInboundEvent(
         text:
           "Mesajınızı aldım. Hangi işletme için randevu almak istediğinizi anlayamadım. Lütfen işletme adını yazın (örn: Kuaför Ahmet).",
       });
+      await logOutbound({
+        tenantId: null,
+        text:
+          "Mesajınızı aldım. Hangi işletme için randevu almak istediğinizi anlayamadım. Lütfen işletme adını yazın (örn: Kuaför Ahmet).",
+        stage: "tenant_not_found",
+      });
       await logBotMessageAudit({
         traceId,
         tenantId: null,
@@ -326,6 +428,62 @@ export async function processWhatsAppInboundEvent(
 
     await setPhoneTenantMapping(customerPhone, tenantId);
     const existingSession = await getSession(tenantId, customerPhone);
+    const adminTakeoverActive = Boolean(
+      existingSession?.step === "PAUSED_FOR_HUMAN" &&
+        isAdminTakeoverReason(existingSession.pause_reason)
+    );
+    if (adminTakeoverActive && existingSession) {
+      await setSession(tenantId, customerPhone, {
+        ...existingSession,
+        last_customer_message_at: event.received_at,
+        window_status: "OPEN",
+        updated_at: new Date().toISOString(),
+      });
+
+      await logConversationMessage({
+        traceId,
+        tenantId,
+        customerPhone,
+        direction: "system",
+        messageText: null,
+        messageType: "system",
+        stage: "admin_takeover_bypass",
+        messageId,
+        metadata: {
+          routing_reason: routingReason,
+          pause_reason: existingSession.pause_reason || null,
+        },
+      });
+
+      const takeoverBucket = Math.floor(Date.now() / (10 * 60 * 1000));
+      await createOpsAlert({
+        tenantId,
+        type: "system",
+        severity: "medium",
+        customerPhone,
+        message: `${customerPhone} yeni mesaj gonderdi (admin takeover aktif).`,
+        meta: {
+          source: "whatsapp_worker",
+          stage: "admin_takeover_bypass",
+          trace_id: traceId,
+        },
+        dedupeKey: `admin_takeover_inbound:${tenantId}:${digitsOnly(customerPhone)}:${takeoverBucket}`,
+      }).catch(() => undefined);
+
+      await logBotMessageAudit({
+        traceId,
+        tenantId,
+        customerPhone,
+        direction: "system",
+        stage: "admin_takeover_bypassed",
+        messageId,
+        policyReason: "admin_takeover",
+        fsmStateBefore: existingSession.step || "PAUSED_FOR_HUMAN",
+        fsmStateAfter: existingSession.step || "PAUSED_FOR_HUMAN",
+      });
+      return;
+    }
+
     const nextExtracted = {
       ...(existingSession?.extracted || {}),
       ...(extractedEntities.customer_name
@@ -374,7 +532,23 @@ export async function processWhatsAppInboundEvent(
         to: customerPhone,
         text: "Mesajın boş görünüyor. Kısa bir metinle tekrar yazabilir misin?",
       });
+      await logOutbound({
+        tenantId,
+        text: "Mesajın boş görünüyor. Kısa bir metinle tekrar yazabilir misin?",
+        stage: "normalized_text_empty",
+      });
       return;
+    }
+
+    if (shouldSendQuickAck(rawText)) {
+      await sendWhatsAppMessageDetailed({
+        to: customerPhone,
+        text: "Mesajını aldım, hemen kontrol ediyorum.",
+      });
+      await logOutbound({
+        text: "Mesajını aldım, hemen kontrol ediyorum.",
+        stage: "quick_ack_sent",
+      });
     }
 
     const aiStart = Date.now();
@@ -405,6 +579,20 @@ export async function processWhatsAppInboundEvent(
         }
       }
     }
+
+    await logOutbound({
+      tenantId,
+      text:
+        sendStage === "template_recovery_sent" || sendStage === "template_recovery_failed"
+          ? `[template:${WHATSAPP_RESUME_TEMPLATE_NAME}]`
+          : safeReply,
+      stage: sendStage,
+      metadata: {
+        window_open: windowOpen,
+        routing_reason: routingReason,
+        send_error_code: sendErrorCode,
+      },
+    });
 
     await logBotMessageAudit({
       traceId,

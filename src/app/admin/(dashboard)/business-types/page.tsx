@@ -240,7 +240,7 @@ export default function BusinessTypesListPage() {
               <LayoutGrid className="h-8 w-8 text-slate-400 dark:text-slate-500" />
             </div>
             <p className="text-base font-semibold text-slate-800 dark:text-slate-200">
-              {search || flowFilter ? "Filtreye uygun tip bulunamadı" : "Henüz işletme tipi yok"}
+              {search || flowFilter ? "Aramanıza uygun tip bulunamadı" : "Henüz işletme tipi yok"}
             </p>
             <p className="text-sm text-slate-500 dark:text-slate-400">
               {search || flowFilter

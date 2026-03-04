@@ -7,7 +7,7 @@ import { useLocale } from "@/lib/locale-context";
 const COPY = {
   tr: {
     title: "WhatsApp QR Kodu",
-    subtitle: "Müşterileriniz bu kodu tarayarak size WhatsApp üzerinden ulaşabilir.",
+    subtitle: "Müşterileriniz bu kodu tarayarak size WhatsApp üzerinden yazabilir.",
     download: "PNG İndir",
     close: "Kapat",
   },

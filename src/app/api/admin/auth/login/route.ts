@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { randomUUID } from "crypto";
+import { shortId } from "@/lib/id";
 import {
   createAdminToken,
   getAdminCookieName,
@@ -116,7 +116,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const challengeId = randomUUID();
+    const challengeId = shortId(12);
     await sendSmsVerification(adminPhone);
     await setOtpChallenge(
       {

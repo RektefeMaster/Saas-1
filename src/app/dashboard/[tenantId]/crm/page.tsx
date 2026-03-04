@@ -1,7 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { preload } from "swr";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 import {
   ArrowLeft,
   BellPlus,
@@ -13,6 +15,9 @@ import {
   X,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
+import { fetcher } from "@/lib/swr-fetcher";
+import { VirtualList } from "@/components/ui";
+import { useCrmStore } from "@/stores/crm-store";
 
 interface CrmCustomer {
   customer_phone: string;
@@ -52,10 +57,10 @@ type ReminderFilter = "all" | "pending" | "sent" | "cancelled";
 const COPY = {
   tr: {
     title: "Müşteri Defteri",
-    subtitle: "Müşteri bilgileri, notlar, etiketler ve hatırlatmaları tek yerden yönetin.",
-    back: "Panele Dön",
+    subtitle: "Müşteri bilgilerinizi, notlarınızı ve hatırlatmalarınızı tek yerden yönetin.",
+    back: "Panele dön",
     search: "Telefon, ad veya etikete göre ara...",
-    noCustomers: "Kayıt bulunamadı.",
+    noCustomers: "Müşteri bulunamadı.",
     selectCustomer: "Soldaki listeden bir müşteri seçin.",
     profile: "Müşteri Kartı",
     notes: "Not Geçmişi",
@@ -70,7 +75,7 @@ const COPY = {
     summary: "Kısa müşteri özeti",
     extendedProfile: "Genişletilmiş Profil (JSON)",
     extendedProfileHint:
-      "Alerji, cilt tipi, renk geçmişi gibi alanları JSON olarak kaydedin.",
+      "Alerji, cilt tipi, renk geçmişi gibi bilgileri buraya ekleyebilirsiniz.",
     customerName: "Müşteri adı",
     lastVisit: "Son ziyaret",
     visits: "ziyaret",
@@ -159,14 +164,15 @@ export default function CrmPage({
 
   const [tenantId, setTenantId] = useState("");
   const [crmExtendedProfileEnabled, setCrmExtendedProfileEnabled] = useState(false);
-  const [search, setSearch] = useState("");
+  const search = useCrmStore((s) => s.search);
+  const setSearch = useCrmStore((s) => s.setSearch);
   const [searchQuery, setSearchQuery] = useState("");
   const [customers, setCustomers] = useState<CrmCustomer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
-  const [selectedPhone, setSelectedPhone] = useState("");
+  const selectedPhone = useCrmStore((s) => s.selectedPhone);
+  const setSelectedPhone = useCrmStore((s) => s.setSelectedPhone);
   const [selectedCustomer, setSelectedCustomer] = useState<CrmCustomer | null>(null);
   const [notes, setNotes] = useState<CrmNote[]>([]);
-  const [detailLoading, setDetailLoading] = useState(false);
   const [reminders, setReminders] = useState<CrmReminder[]>([]);
   const [remindersLoading, setRemindersLoading] = useState(false);
   const [reminderFilter, setReminderFilter] = useState<ReminderFilter>("all");
@@ -189,7 +195,11 @@ export default function CrmPage({
   });
 
   useEffect(() => {
-    params.then((p) => setTenantId(p.tenantId));
+    params.then((p) => {
+      setTenantId(p.tenantId);
+      useCrmStore.getState().setSearch("");
+      useCrmStore.getState().setSelectedPhone("");
+    });
   }, [params]);
 
   useEffect(() => {
@@ -246,38 +256,42 @@ export default function CrmPage({
     setCustomersLoading(false);
   }, [clearMessageLater, searchQuery, selectedPhone, tenantId]);
 
-  const loadCustomerDetail = useCallback(
-    async (phone: string) => {
-      if (!tenantId || !phone) return;
-      setDetailLoading(true);
-      const res = await fetch(
-        `/api/tenant/${tenantId}/crm/customers/${encodeURIComponent(phone)}`
-      );
-      const payload = (await res.json().catch(() => ({}))) as {
-        customer?: CrmCustomer;
-        notes?: CrmNote[];
-        error?: string;
-      };
-      if (!res.ok) {
-        setError(payload.error || "Müşteri detayı alınamadı.");
-        setDetailLoading(false);
-        clearMessageLater();
-        return;
-      }
-      const customer = payload.customer || null;
-      setSelectedCustomer(customer);
-      setProfileForm({
-        customer_name: customer?.customer_name || "",
-        notes_summary: customer?.notes_summary || "",
-      });
-      const metadata =
-        customer?.metadata && typeof customer.metadata === "object" ? customer.metadata : {};
-      setMetadataJson(JSON.stringify(metadata, null, 2));
-      setNotes(Array.isArray(payload.notes) ? payload.notes : []);
-      setDetailLoading(false);
-    },
-    [clearMessageLater, tenantId]
-  );
+  const detailKey =
+    selectedPhone && tenantId
+      ? `/api/tenant/${tenantId}/crm/customers/${encodeURIComponent(selectedPhone)}`
+      : null;
+  const {
+    data: detailData,
+    error: detailError,
+    isLoading: detailLoading,
+    mutate: mutateDetail,
+  } = useSWR<{ customer?: CrmCustomer; notes?: CrmNote[]; error?: string }>(detailKey, fetcher);
+
+  useEffect(() => {
+    if (!detailData || !selectedPhone) return;
+    if (detailData.error) {
+      setError(detailData.error);
+      clearMessageLater();
+      return;
+    }
+    const customer = detailData.customer || null;
+    setSelectedCustomer(customer);
+    setProfileForm({
+      customer_name: customer?.customer_name || "",
+      notes_summary: customer?.notes_summary || "",
+    });
+    const metadata =
+      customer?.metadata && typeof customer.metadata === "object" ? customer.metadata : {};
+    setMetadataJson(JSON.stringify(metadata, null, 2));
+    setNotes(Array.isArray(detailData.notes) ? detailData.notes : []);
+  }, [detailData, selectedPhone, clearMessageLater]);
+
+  useEffect(() => {
+    if (detailError) {
+      setError("Müşteri detayı alınamadı.");
+      clearMessageLater();
+    }
+  }, [detailError, clearMessageLater]);
 
   const loadReminders = useCallback(async () => {
     if (!tenantId) return;
@@ -299,11 +313,6 @@ export default function CrmPage({
   useEffect(() => {
     loadCustomers();
   }, [loadCustomers]);
-
-  useEffect(() => {
-    if (!selectedPhone) return;
-    loadCustomerDetail(selectedPhone);
-  }, [loadCustomerDetail, selectedPhone]);
 
   useEffect(() => {
     loadReminders();
@@ -348,7 +357,7 @@ export default function CrmPage({
       return;
     }
     setInfo(locale === "tr" ? "Müşteri kartı güncellendi." : "Customer profile updated.");
-    await Promise.all([loadCustomerDetail(selectedPhone), loadCustomers()]);
+    await Promise.all([mutateDetail(), loadCustomers()]);
     clearMessageLater();
   };
 
@@ -368,7 +377,7 @@ export default function CrmPage({
       return;
     }
     setNewTag("");
-    await Promise.all([loadCustomerDetail(selectedPhone), loadCustomers()]);
+    await Promise.all([mutateDetail(), loadCustomers()]);
   };
 
   const removeTag = async (tag: string) => {
@@ -386,7 +395,7 @@ export default function CrmPage({
       clearMessageLater();
       return;
     }
-    await Promise.all([loadCustomerDetail(selectedPhone), loadCustomers()]);
+    await Promise.all([mutateDetail(), loadCustomers()]);
   };
 
   const addNote = async () => {
@@ -408,7 +417,7 @@ export default function CrmPage({
       return;
     }
     setNewNote("");
-    await Promise.all([loadCustomerDetail(selectedPhone), loadCustomers()]);
+    await Promise.all([mutateDetail(), loadCustomers()]);
   };
 
   const createReminder = async (e: React.FormEvent) => {
@@ -510,26 +519,37 @@ export default function CrmPage({
                 {t.noCustomers}
               </p>
             ) : (
-              customers.map((customer) => (
-                <button
-                  key={customer.customer_phone}
-                  type="button"
-                  onClick={() => setSelectedPhone(customer.customer_phone)}
-                  className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
-                    selectedPhone === customer.customer_phone
-                      ? "border-slate-400 bg-slate-100 dark:border-slate-600 dark:bg-slate-800"
-                      : "border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60"
-                  }`}
-                >
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                    {customer.customer_name || customer.customer_phone}
-                  </p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">{customer.customer_phone}</p>
-                  <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                    {customer.total_visits} {t.visits}
-                  </p>
-                </button>
-              ))
+              <VirtualList
+                items={customers}
+                height={400}
+                estimateSize={72}
+                renderItem={(customer) => (
+                  <button
+                    type="button"
+                    onMouseEnter={() =>
+                      tenantId &&
+                      preload(
+                        `/api/tenant/${tenantId}/crm/customers/${encodeURIComponent(customer.customer_phone)}`,
+                        fetcher
+                      )
+                    }
+                    onClick={() => setSelectedPhone(customer.customer_phone)}
+                    className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
+                      selectedPhone === customer.customer_phone
+                        ? "border-slate-400 bg-slate-100 dark:border-slate-600 dark:bg-slate-800"
+                        : "border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60"
+                    }`}
+                  >
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {customer.customer_name || customer.customer_phone}
+                    </p>
+                    <p className="text-xs text-slate-500 dark:text-slate-400">{customer.customer_phone}</p>
+                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
+                      {customer.total_visits} {t.visits}
+                    </p>
+                  </button>
+                )}
+              />
             )}
           </div>
         </section>

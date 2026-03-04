@@ -1,4 +1,5 @@
 import { checkAndIncrementRateLimit } from "@/lib/redis";
+import { normalizePhoneDigits } from "@/lib/phone";
 
 function buildRateLimitMessage(blockedBy?: string, cooldownSeconds?: number): string {
   if (blockedBy === "minute") {
@@ -25,7 +26,7 @@ export async function enforceRateLimit(phone: string): Promise<
   | { allowed: true }
   | { allowed: false; message: string }
 > {
-  const normalized = phone.replace(/\D/g, "");
+  const normalized = normalizePhoneDigits(phone);
   if (!normalized) {
     return { allowed: true };
   }

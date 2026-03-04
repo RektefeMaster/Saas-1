@@ -8,6 +8,8 @@ import { createOpsAlert } from "@/services/opsAlert.service";
 import { isCancelConfirmation } from "../intent-detection";
 import { formatDateTr, formatDateReadableTr } from "../helpers";
 import { localDateStr, formatSlotDateTimeTr } from "../context-builder";
+import { todayStr } from "@/lib/dayjs-utils";
+import { withRetry } from "@/lib/retry";
 import type { ConversationState } from "../../../database.types";
 import type { MergedConfig } from "@/types/botConfig.types";
 import {
@@ -18,6 +20,7 @@ import {
   checkCustomerPackage,
   consumeCustomerPackageSession,
 } from "@/services/package.service";
+import { matchServiceToSlug } from "./match-service";
 
 export interface ToolExecResult {
   result: Record<string, unknown>;
@@ -104,16 +107,22 @@ export async function executeToolCall(
     };
   }
 
+  if (name === "match_service") {
+    const userText = (args.user_text as string)?.trim() ?? "";
+    const matchResult = await matchServiceToSlug(tenantId, userText);
+    return { result: matchResult };
+  }
+
   if (name === "create_appointment") {
     const dateStr = args.date as string;
     const timeStr = args.time as string;
     const advanceDays = mergedConfig?.advance_booking_days ?? (configOverride?.advance_booking_days as number) ?? 30;
+    const todayStrVal = todayStr();
     const today = new Date();
-    const todayStr = localDateStr(today);
     const maxDate = new Date(today);
     maxDate.setDate(today.getDate() + advanceDays);
-    const maxDateStr = localDateStr(maxDate);
-    if (dateStr < todayStr) {
+    const maxDateStr = localDateStr(maxDate); // dayjs ile aynı timezone
+    if (dateStr < todayStrVal) {
       return {
         result: {
           ok: false,
@@ -132,10 +141,19 @@ export async function executeToolCall(
     const customerName = (args.customer_name as string) ||
       (state?.extracted as { customer_name?: string })?.customer_name || "";
     const serviceSlug =
-      (args.service_slug as string | undefined) ||
-      ((args.extra_data as Record<string, unknown> | undefined)?.service_slug as
-        | string
-        | undefined);
+      (args.service_slug as string | undefined)?.trim() ||
+      ((args.extra_data as Record<string, unknown> | undefined)?.service_slug as string | undefined)?.trim() ||
+      "";
+
+    if (!serviceSlug) {
+      return {
+        result: {
+          ok: false,
+          error:
+            "Hizmet seçilmeden randevu alınamaz. Önce match_service ile hizmeti eşleştirin veya müşteriye 'Hangi hizmet için randevu alalım?' diye sorun.",
+        },
+      };
+    }
     const staffId = (args.staff_id as string | undefined)?.trim() || undefined;
     const hasPackageDecision = typeof args.use_package === "boolean";
     const usePackage = args.use_package === true;
@@ -181,7 +199,8 @@ export async function executeToolCall(
     };
     let result: { ok: boolean; id?: string; error?: string; suggested_time?: string };
     try {
-      const reserveResult = await reserveAppointment({
+      const reserveResult = await withRetry(() =>
+        reserveAppointment({
         tenantId,
         customerPhone,
         date: dateStr,
@@ -189,7 +208,8 @@ export async function executeToolCall(
         staffId,
         serviceSlug,
         extraData,
-      });
+      })
+      );
       if (!reserveResult.ok) {
         result = {
           ok: false,

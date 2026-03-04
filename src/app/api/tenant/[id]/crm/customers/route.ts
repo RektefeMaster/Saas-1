@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { fuzzySearch } from "@/lib/fuse-search";
 
 export async function GET(
   request: NextRequest,
@@ -29,14 +30,14 @@ export async function GET(
     }
   }
 
-  let list = (data ?? []).filter((item) => {
-    if (!query) return true;
-    return (
-      item.customer_phone.toLowerCase().includes(query) ||
-      (item.customer_name ?? "").toLowerCase().includes(query) ||
-      (item.tags ?? []).join(" ").toLowerCase().includes(query)
-    );
-  });
+  let list = query
+    ? fuzzySearch({
+        list: data ?? [],
+        query,
+        keys: ["customer_phone", "customer_name", "tags"],
+        threshold: 0.4,
+      })
+    : (data ?? []);
 
   if (list.length === 0) {
     const { data: fromAppointments } = await supabase
@@ -69,10 +70,15 @@ export async function GET(
       }
     }
 
-    list = Array.from(fallbackMap.values()).filter((item) => {
-      if (!query) return true;
-      return item.customer_phone.toLowerCase().includes(query);
-    }) as unknown as typeof list;
+    const fallbackList = Array.from(fallbackMap.values());
+    list = (query
+      ? fuzzySearch({
+          list: fallbackList,
+          query,
+          keys: ["customer_phone"],
+          threshold: 0.4,
+        })
+      : fallbackList) as unknown as typeof list;
   }
 
   return NextResponse.json(list);

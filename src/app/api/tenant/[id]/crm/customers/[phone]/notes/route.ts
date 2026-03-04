@@ -2,9 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 import { logTenantEvent } from "@/services/eventLog.service";
+import { normalizePhoneE164, normalizePhoneDigits } from "@/lib/phone";
 
-function normalizePhone(input: string): string {
-  return input.replace(/\s+/g, "").trim();
+function normalizePhoneForLookup(input: string): string {
+  const e164 = normalizePhoneE164(decodeURIComponent(input || ""));
+  if (e164) return e164;
+  return normalizePhoneDigits(decodeURIComponent(input || "")) || input.replace(/\s+/g, "").trim();
 }
 
 export async function POST(
@@ -12,7 +15,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string; phone: string }> }
 ) {
   const { id: tenantId, phone } = await params;
-  const customerPhone = normalizePhone(phone);
+  const customerPhone = normalizePhoneForLookup(phone);
   const body = (await request.json().catch(() => ({}))) as {
     note?: string;
     created_by?: string;

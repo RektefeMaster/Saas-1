@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { normalizePhoneE164 } from "@/lib/phone";
 
 interface StaffRow {
   id: string;
@@ -23,26 +24,6 @@ function normalizeServiceSlugs(input: unknown): string[] {
       .map((value) => String(value || "").trim())
       .filter(Boolean)
   )];
-}
-
-function normalizePhoneE164(value: unknown): string | null {
-  const raw = String(value || "").trim();
-  if (!raw) return null;
-  const digits = raw.replace(/\D/g, "");
-  if (!digits) return null;
-  if (raw.startsWith("+")) {
-    return `+${digits}`;
-  }
-  if (digits.startsWith("90")) {
-    return `+${digits}`;
-  }
-  if (digits.startsWith("0")) {
-    return `+90${digits.slice(1)}`;
-  }
-  if (digits.length === 10) {
-    return `+90${digits}`;
-  }
-  return `+${digits}`;
 }
 
 export async function GET(

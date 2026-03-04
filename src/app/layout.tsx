@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import { Manrope, Space_Grotesk } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import { Toaster } from "sonner";
+import { ViewTransitions } from "next-view-transitions";
 import { ThemeProvider } from "@/lib/theme-context";
 import { LocaleProvider } from "@/lib/locale-context";
+import { PostHogProvider } from "@/app/providers/PostHogProvider";
 import "./globals.css";
 import { getDefaultAppUrl } from "@/lib/app-url";
 
@@ -59,9 +64,16 @@ export default function RootLayout({
       <body
         className={`${manrope.variable} ${spaceGrotesk.variable} antialiased`}
       >
-        <ThemeProvider>
-          <LocaleProvider>{children}</LocaleProvider>
-        </ThemeProvider>
+        <PostHogProvider>
+          <ThemeProvider>
+            <ViewTransitions>
+              <LocaleProvider>{children}</LocaleProvider>
+            </ViewTransitions>
+            <Toaster richColors position="top-right" />
+            <Analytics />
+            <SpeedInsights />
+          </ThemeProvider>
+        </PostHogProvider>
       </body>
     </html>
   );
