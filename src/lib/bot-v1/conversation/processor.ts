@@ -13,7 +13,7 @@ import {
   getCustomerLastActiveAppointment,
   cancelAppointment,
 } from "@/services/cancellation.service";
-import { submitReview, hasReview } from "@/services/review.service";
+import { submitReview, submitReviewSkipped, hasReview } from "@/services/review.service";
 import { isCustomerBlocked } from "@/services/blacklist.service";
 import {
   mergeConfig,
@@ -128,7 +128,7 @@ function isValidBotConfig(c: unknown): c is BotConfig {
 }
 
 function parseRating(text: string): number | null {
-  const t = text.trim().toLowerCase();
+  const t = text.trim().toLowerCase().replace(/\s*⭐\s*/g, " ").trim();
   const digitMatch = t.match(/^([1-5])\s*(yıldız)?\s*$/);
   if (digitMatch) return parseInt(digitMatch[1], 10);
   const words = t.replace(/\s*yıldız\s*/gi, "").split(/\s+/);
@@ -139,11 +139,48 @@ function parseRating(text: string): number | null {
   return null;
 }
 
+const REVIEW_SKIP_PHRASES = [
+  "gec",
+  "geç",
+  "atla",
+  "sonra",
+  "istemiyorum",
+  "pas",
+  "skip",
+  "hayır",
+  "vazgeçtim",
+  "yok",
+  "gerek yok",
+  "gerekmez",
+];
+
 async function tryHandleReview(
   tenantId: string,
   customerPhone: string,
   msg: string
 ): Promise<{ handled: boolean; reply?: string }> {
+  const trimmed = msg.trim().toLowerCase();
+  if (REVIEW_SKIP_PHRASES.includes(trimmed)) {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const { data: apt } = await supabase
+      .from("appointments")
+      .select("id")
+      .eq("tenant_id", tenantId)
+      .eq("customer_phone", customerPhone)
+      .lt("slot_start", oneHourAgo.toISOString())
+      .in("status", ["completed", "confirmed"])
+      .order("slot_start", { ascending: false })
+      .limit(1)
+      .single();
+    if (apt && !(await hasReview(apt.id))) {
+      await submitReviewSkipped(tenantId, apt.id, customerPhone);
+      await supabase
+        .from("appointments")
+        .update({ status: "completed" })
+        .eq("id", apt.id);
+    }
+    return { handled: true, reply: "Tamam, teşekkürler!" };
+  }
   const rating = parseRating(msg);
   if (rating == null || rating < 1 || rating > 5) return { handled: false };
   const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
@@ -704,12 +741,10 @@ export async function processMessage(
     }
 
     if (isGreetingOrSmallTalkOnly(effectiveMessage)) {
-      return {
-        reply:
-          tone === "siz"
-            ? `Merhaba, ${tenant.name} için randevu, müsaitlik ve fiyat bilgisinde yardımcı olabilirim. Hangi hizmeti düşünüyorsunuz?`
-            : `Merhaba, ${tenant.name} için randevu, müsaitlik ve fiyat bilgisinde yardımcı olabilirim. Hangi hizmeti düşünüyorsun?`,
-      };
+      const welcomeRaw = msgs.welcome;
+      const welcomeStr = Array.isArray(welcomeRaw) ? welcomeRaw[0] ?? "" : (welcomeRaw ?? "");
+      const welcomeText = welcomeStr.replace(/\{tenant_name\}/g, tenant.name);
+      return { reply: welcomeText };
     }
 
     if (isOutOfScopeMessage(effectiveMessage)) {

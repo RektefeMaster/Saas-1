@@ -42,7 +42,31 @@ export async function submitReview(
 }
 
 /**
- * Randevunun değerlendirmesi var mı kontrol eder.
+ * "Geç" / skip seçimini kaydeder (rating olmadan).
+ */
+export async function submitReviewSkipped(
+  tenantId: string,
+  appointmentId: string,
+  customerPhone: string
+): Promise<{ ok: boolean; error?: string }> {
+  try {
+    const { error } = await supabase.from("reviews").insert({
+      tenant_id: tenantId,
+      appointment_id: appointmentId,
+      customer_phone: customerPhone,
+      rating: null,
+      skipped: true,
+    });
+
+    return { ok: !error, error: error?.message };
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "Kaydedilemedi";
+    return { ok: false, error: msg };
+  }
+}
+
+/**
+ * Randevunun değerlendirmesi var mı kontrol eder (rating veya skipped).
  */
 export async function hasReview(appointmentId: string): Promise<boolean> {
   const { data, error } = await supabase
@@ -59,15 +83,16 @@ export async function hasReview(appointmentId: string): Promise<boolean> {
 export async function getTenantReviews(tenantId: string) {
   const { data: reviews, error } = await supabase
     .from("reviews")
-    .select("id, rating, comment, created_at, appointment_id")
+    .select("id, rating, comment, created_at, appointment_id, skipped")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: false });
 
   if (error) return { avgRating: 0, totalCount: 0, reviews: [] };
 
   const list = reviews ?? [];
-  const sum = list.reduce((s, r) => s + (r.rating || 0), 0);
-  const avgRating = list.length ? Math.round((sum / list.length) * 10) / 10 : 0;
+  const rated = list.filter((r) => r.rating != null && r.rating >= 1 && r.rating <= 5);
+  const sum = rated.reduce((s, r) => s + (r.rating || 0), 0);
+  const avgRating = rated.length ? Math.round((sum / rated.length) * 10) / 10 : 0;
 
   const aptIds = [...new Set(list.map((r) => r.appointment_id))];
   const { data: apts } = await supabase
@@ -76,10 +101,12 @@ export async function getTenantReviews(tenantId: string) {
     .in("id", aptIds);
   const aptMap = new Map((apts ?? []).map((a) => [a.id, a.slot_start]));
 
+  const ratedList = list.filter((r) => r.rating != null && r.rating >= 1 && r.rating <= 5);
   return {
     avgRating,
-    totalCount: list.length,
-    reviews: list.map((r) => ({
+    totalCount: ratedList.length,
+    skippedCount: list.filter((r) => r.skipped === true).length,
+    reviews: ratedList.map((r) => ({
       id: r.id,
       rating: r.rating,
       comment: r.comment,

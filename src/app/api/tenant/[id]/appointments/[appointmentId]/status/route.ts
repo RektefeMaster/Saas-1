@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { logTenantEvent } from "@/services/eventLog.service";
+import { markAppointmentNoShow } from "@/services/noShow.service";
 
 const VALID_STATUSES = ["pending", "confirmed", "completed", "cancelled", "no_show"] as const;
 
@@ -29,6 +30,15 @@ export async function PATCH(
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  if (body.status === "no_show") {
+    await markAppointmentNoShow({
+      appointmentId,
+      tenantId,
+      customerPhone: data.customer_phone,
+      source: "dashboard",
+    }).catch((e) => console.error("[status] no-show side effects error:", e));
+  }
 
   if (body.status === "completed") {
     const { data: existing } = await supabase

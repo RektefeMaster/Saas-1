@@ -18,7 +18,7 @@ const COPY = {
     title: "İşletme Paneli Girişi",
     subtitle:
       "Kullanıcı adın ve şifrenle giriş yap. Güvenlik gerektiriyorsa SMS doğrulama adımı otomatik başlar.",
-    username: "Kullanıcı adı (admin için e-posta)",
+    username: "Kullanıcı adı",
     password: "Şifre",
     rememberMe: "Beni hatırla",
     submit: "Giriş Yap",

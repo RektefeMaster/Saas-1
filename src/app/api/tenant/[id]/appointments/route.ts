@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { reserveAppointment } from "@/services/booking.service";
 import { logTenantEvent } from "@/services/eventLog.service";
+import { notifyNewAppointmentForMerchant } from "@/services/merchantNotification.service";
 
 export async function GET(
   request: NextRequest,
@@ -147,6 +148,31 @@ export async function POST(
       source: "dashboard_api",
     },
   });
+
+  try {
+    const slotDate = new Date(data.slot_start);
+    const date = slotDate.toLocaleDateString("en-CA", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const time = slotDate.toLocaleTimeString("en-GB", {
+      timeZone: "Europe/Istanbul",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    await notifyNewAppointmentForMerchant({
+      tenantId: id,
+      customerPhone,
+      date,
+      time,
+      source: "dashboard",
+    });
+  } catch (e) {
+    console.error("[appointments POST] merchant notify error:", e);
+  }
 
   return NextResponse.json(data);
 }

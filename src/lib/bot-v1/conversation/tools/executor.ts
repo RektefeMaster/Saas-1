@@ -10,32 +10,15 @@ import { formatDateTr, formatDateReadableTr } from "../helpers";
 import { localDateStr, formatSlotDateTimeTr } from "../context-builder";
 import type { ConversationState } from "../../../database.types";
 import type { MergedConfig } from "@/types/botConfig.types";
+import {
+  notifyNewAppointmentForMerchant,
+  notifyRescheduledAppointmentForMerchant,
+} from "@/services/merchantNotification.service";
 
 export interface ToolExecResult {
   result: Record<string, unknown>;
   sessionDeleted?: boolean;
   sessionUpdate?: Partial<ConversationState>;
-}
-
-async function notifyMerchant(
-  tenantId: string,
-  customerPhone: string,
-  date: string,
-  time: string
-): Promise<void> {
-  const { data: tenant } = await supabase
-    .from("tenants")
-    .select("name, contact_phone, config_override")
-    .eq("id", tenantId)
-    .single();
-  if (!tenant?.contact_phone) return;
-  const pref =
-    (tenant.config_override as Record<string, string>)?.reminder_preference ?? "both";
-  if (pref === "off" || pref === "customer_only") return;
-  await sendWhatsAppMessage({
-    to: tenant.contact_phone,
-    text: `Yeni randevu! ${customerPhone} müşterisi ${formatDateTr(date)} saat ${time}'e randevu aldı.`,
-  });
 }
 
 async function checkAndNotifyWaitlist(
@@ -81,6 +64,7 @@ export async function executeToolCall(
     const daily = await getDailyAvailability(tenantId, dateStr, {
       configOverride,
       serviceSlug,
+      customerPhone,
     });
     const availability = {
       available: daily.available,
@@ -174,9 +158,13 @@ export async function executeToolCall(
       result = { ok: false, error: "Bir hata oluştu." };
     }
     if (result.ok) {
-      notifyMerchant(tenantId, customerPhone, dateStr, timeStr).catch((e) =>
-        console.error("[ai] merchant notify error:", e)
-      );
+      notifyNewAppointmentForMerchant({
+        tenantId,
+        customerPhone,
+        date: dateStr,
+        time: timeStr,
+        source: "bot",
+      }).catch((e) => console.error("[ai] merchant notify error:", e));
       checkAndNotifyWaitlist(tenantId, dateStr, configOverride).catch((e) =>
         console.error("[ai] waitlist notify error:", e)
       );
@@ -188,7 +176,6 @@ export async function executeToolCall(
           time: timeStr,
           customer_name: customerName,
         },
-        sessionDeleted: true,
         sessionUpdate: {
           extracted: {
             ...(state?.extracted || {}),
@@ -318,11 +305,18 @@ export async function executeToolCall(
     }
     const [y, m, day] = parts;
     const todayStr = localDateStr(new Date());
-    for (let i = 0; i < 14; i++) {
+    const advanceDays =
+      mergedConfig?.advance_booking_days ??
+      (configOverride?.advance_booking_days as number) ??
+      14;
+    for (let i = 0; i < advanceDays; i++) {
       const d = new Date(y, m - 1, day + i);
       const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
       if (ds < todayStr) continue;
-      const daily = await getDailyAvailability(tenantId, ds, { configOverride });
+      const daily = await getDailyAvailability(tenantId, ds, {
+        configOverride,
+        customerPhone,
+      });
       const avail = {
         available: daily.available,
         booked: daily.booked,
@@ -342,7 +336,7 @@ export async function executeToolCall(
     return {
       result: {
         days: {},
-        message: "Önümüzdeki 2 hafta içinde müsait gün bulunamadı.",
+        message: `Önümüzdeki ${advanceDays} gün içinde müsait gün bulunamadı.`,
         closed_day_count: closedDays.length,
       },
     };
@@ -453,7 +447,13 @@ export async function executeToolCall(
       };
     }
 
-    notifyMerchant(tenantId, customerPhone, newDate, newTime).catch(() => {});
+    notifyRescheduledAppointmentForMerchant({
+      tenantId,
+      customerPhone,
+      newDate,
+      newTime,
+      source: "bot",
+    }).catch((e) => console.error("[ai] merchant reschedule notify error:", e));
     return {
       result: {
         ok: true,

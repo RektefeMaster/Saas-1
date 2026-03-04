@@ -5,6 +5,7 @@
 
 import { supabase } from "@/lib/supabase";
 import { sendCustomerNotification } from "@/lib/notify";
+import { notifyCancelledAppointmentForMerchant } from "@/services/merchantNotification.service";
 
 export type CancelledBy = "customer" | "tenant";
 
@@ -13,6 +14,8 @@ export interface CancelAppointmentParams {
   appointmentId: string;
   cancelledBy: CancelledBy;
   reason?: string;
+  /** İptal tetikleyen kaynak (esnaf bildirimi meta için). */
+  source?: "bot" | "dashboard" | "cron" | "manual";
 }
 
 /**
@@ -57,8 +60,24 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
     }
 
     const slotDate = new Date(apt.slot_start);
-    const dateStr = slotDate.toLocaleDateString("tr-TR");
-    const timeStr = slotDate.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+    const dateStr = slotDate.toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul" });
+    const timeStr = slotDate.toLocaleTimeString("tr-TR", {
+      hour: "2-digit",
+      minute: "2-digit",
+      timeZone: "Europe/Istanbul",
+    });
+    const dateIso = slotDate.toLocaleDateString("en-CA", {
+      timeZone: "Europe/Istanbul",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    });
+    const timeIso = slotDate.toLocaleTimeString("en-GB", {
+      timeZone: "Europe/Istanbul",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
 
     const { data: tenant } = await supabase
       .from("tenants")
@@ -70,6 +89,16 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
 
     const customerMessage = `${tenantName} randevunuz (${dateStr} ${timeStr}) iptal edildi. Başka bir saate almak ister misiniz?`;
     await sendCustomerNotification(apt.customer_phone, customerMessage);
+
+    await notifyCancelledAppointmentForMerchant({
+      tenantId,
+      customerPhone: apt.customer_phone,
+      date: dateIso,
+      time: timeIso,
+      cancelledBy,
+      reason: reason || null,
+      source: params.source ?? "bot",
+    }).catch((e) => console.error("[cancelAppointment] merchant notify error:", e));
 
     return { ok: true };
   } catch (err) {

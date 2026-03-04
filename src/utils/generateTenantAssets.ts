@@ -41,7 +41,7 @@ export function generateDirectWhatsAppLink(tenant: Tenant): string {
   const customGreeting = tenant.config_override?.messages?.whatsapp_greeting;
   const rawGreeting = customGreeting
     ? customGreeting.replace(/\{tenant_name\}/g, tenant.name)
-    : `Merhaba ${tenant.name}, randevu almak istiyorum`;
+    : `Merhaba ${tenant.name} ile görüşmek istiyorum`;
   const hasTenantName =
     normalizeForCompare(rawGreeting).includes(normalizeForCompare(tenant.name));
   const greeting = hasTenantName

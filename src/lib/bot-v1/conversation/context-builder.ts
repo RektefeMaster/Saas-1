@@ -96,7 +96,7 @@ export function buildSystemContext(
 
   const customerName = ext.customer_name as string | undefined;
   if (customerName) {
-    ctx += ` Müşterinin adı: ${customerName}. Tekrar sorma, bu bilgiyi kullan.`;
+    ctx += ` Konuşan kişinin (müşterinin) adı: ${customerName}. Tekrar sorma. Başka biri için randevu alırken (arkadaş, eş) o kişinin adını ayrıca sor ve create_appointment'ta customer_name olarak sadece o randevu için geç.`;
   }
 
   const lastDate = ext.last_availability_date as string | undefined;

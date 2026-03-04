@@ -35,7 +35,8 @@ export function isValidStep(step: unknown): step is Step {
 }
 
 export const DEFAULT_MESSAGES: TenantMessagesConfig = {
-  welcome: "Merhaba! {tenant_name} olarak nasıl yardımcı olabilirim?",
+  welcome:
+    "Merhaba! Ben {tenant_name} asistanıyım, size nasıl yardımcı olabilirim?",
   tone: "sen",
   personality: "Samimi, kısa ve doğal konuş",
 };

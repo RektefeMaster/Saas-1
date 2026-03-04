@@ -11,6 +11,30 @@ import { checkBlockedDate } from "@/services/blockedDates.service";
 const DEFAULT_WORKING_HOURS = { start: "09:00", end: "18:00" };
 const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5, 6];
 const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
+const DEFAULT_TZ_OFFSET = "+03:00";
+
+/** IANA timezone için UTC offset string döndürür (örn. "+03:00"). Verilen tarih için DST uyumlu. */
+function getTimezoneOffsetString(timezone: string, date: Date): string {
+  try {
+    const parts = new Intl.DateTimeFormat("en", {
+      timeZone: timezone,
+      timeZoneName: "longOffset",
+    }).formatToParts(date);
+    const tzPart = parts.find((p) => p.type === "timeZoneName")?.value;
+    if (tzPart?.startsWith("GMT")) {
+      const m = tzPart.match(/GMT([+-])(\d{1,2}):?(\d{2})?/);
+      if (m) {
+        const sign = m[1];
+        const h = (m[2] || "0").padStart(2, "0");
+        const min = (m[3] || "00").padStart(2, "0");
+        return `${sign}${h}:${min}`;
+      }
+    }
+  } catch {
+    // Geçersiz timezone
+  }
+  return DEFAULT_TZ_OFFSET;
+}
 const SAME_DAY_MIN_LEAD_MINUTES = Math.max(
   1,
   Number(process.env.SAME_DAY_MIN_LEAD_MINUTES || 1)
@@ -316,8 +340,31 @@ function findSuggestedTime(
 ): string | undefined {
   if (candidates.length === 0) return undefined;
   const requested = timeToMinutes(requestedTime);
-  const later = candidates.find((t) => timeToMinutes(t) > requested);
-  return later || candidates[0];
+  const sorted = [...candidates].sort(
+    (a, b) => timeToMinutes(a) - timeToMinutes(b)
+  );
+  // Önce istenen saatten sonraki en yakın zamanı dene
+  let bestAfter: string | undefined;
+  let bestAfterDiff = Number.POSITIVE_INFINITY;
+  for (const t of sorted) {
+    const diff = timeToMinutes(t) - requested;
+    if (diff > 0 && diff < bestAfterDiff) {
+      bestAfterDiff = diff;
+      bestAfter = t;
+    }
+  }
+  if (bestAfter) return bestAfter;
+  // Sonraki yoksa en yakın önceki zamanı bul
+  let bestBefore: string | undefined;
+  let bestBeforeDiff = Number.POSITIVE_INFINITY;
+  for (const t of sorted) {
+    const diff = requested - timeToMinutes(t);
+    if (diff > 0 && diff < bestBeforeDiff) {
+      bestBeforeDiff = diff;
+      bestBefore = t;
+    }
+  }
+  return bestBefore ?? sorted[0];
 }
 
 export async function getDailyAvailability(
@@ -500,12 +547,26 @@ export async function reserveAppointment(
       ...(input.extraData || {}),
       duration_minutes: availability.durationMinutes,
     };
+
+    const { data: tenantRow } = await supabase
+      .from("tenants")
+      .select("timezone")
+      .eq("id", input.tenantId)
+      .maybeSingle();
+    const tenantTimezone = (tenantRow?.timezone as string)?.trim() || APP_TIMEZONE;
+    const refDate = new Date(`${normalizedDate}T12:00:00`);
+    const tzOffset = getTimezoneOffsetString(tenantTimezone, refDate);
+
+    // slot_start veritabanında TIMESTAMPTZ; normalizedDate ve normalizedTime değerlerini
+    // tenant timezone'a göre yorumlayıp UTC ISO string olarak kaydediyoruz.
+    const localSlot = `${normalizedDate}T${normalizedTime}:00${tzOffset}`;
+    const slotStartIso = new Date(localSlot).toISOString();
     const { data, error } = await supabase
       .from("appointments")
       .insert({
         tenant_id: input.tenantId,
         customer_phone: input.customerPhone,
-        slot_start: `${normalizedDate}T${normalizedTime}:00`,
+        slot_start: slotStartIso,
         status: "confirmed",
         service_slug: input.serviceSlug || null,
         extra_data: extraData,

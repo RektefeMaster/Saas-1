@@ -244,6 +244,89 @@ export async function sendWhatsAppMessage({
   return result.ok;
 }
 
+export interface InteractiveListRow {
+  id: string;
+  title: string;
+  description?: string;
+}
+
+export interface InteractiveListSection {
+  title?: string;
+  rows: InteractiveListRow[];
+}
+
+export interface SendWhatsAppInteractiveListParams {
+  to: string;
+  bodyText: string;
+  buttonLabel: string;
+  sections: InteractiveListSection[];
+}
+
+export async function sendWhatsAppInteractiveList({
+  to,
+  bodyText,
+  buttonLabel,
+  sections,
+}: SendWhatsAppInteractiveListParams): Promise<WhatsAppSendResult> {
+  const { phoneId, token, source } = await resolveWhatsAppCredentials();
+  const normalizedTo = to.replace(/\D/g, "");
+  if (!phoneId || !token) {
+    console.error("[whatsapp] credentials missing - phoneId:", !!phoneId, "token:", !!token);
+    return {
+      ok: false,
+      status: 0,
+      errorMessage: "credentials_missing",
+      to: normalizedTo,
+      source,
+    };
+  }
+
+  const url = `${WHATSAPP_API}/${phoneId}/messages`;
+  const body = {
+    messaging_product: "whatsapp",
+    recipient_type: "individual",
+    to: normalizedTo,
+    type: "interactive",
+    interactive: {
+      type: "list",
+      body: { text: bodyText },
+      action: {
+        button: buttonLabel.slice(0, 20),
+        sections: sections.map((sec) => ({
+          ...(sec.title ? { title: sec.title.slice(0, 24) } : {}),
+          rows: sec.rows.map((r) => ({
+            id: r.id.slice(0, 200),
+            title: r.title.slice(0, 24),
+            ...(r.description ? { description: r.description.slice(0, 72) } : {}),
+          })),
+        })),
+      },
+    },
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const raw = await res.text();
+    console.error("[whatsapp] interactive list send error", res.status, "to", normalizedTo, raw);
+    return {
+      ok: false,
+      status: res.status,
+      errorMessage: raw,
+      to: normalizedTo,
+      source,
+    };
+  }
+  return { ok: true, status: res.status, to: normalizedTo, source };
+}
+
 export async function sendWhatsAppTemplateMessage({
   to,
   templateName,

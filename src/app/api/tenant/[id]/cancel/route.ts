@@ -36,6 +36,7 @@ export async function POST(
       appointmentId: appointment_id,
       cancelledBy: cancelled_by as "customer" | "tenant",
       reason,
+      source: "manual",
     });
 
     if (!result.ok) {

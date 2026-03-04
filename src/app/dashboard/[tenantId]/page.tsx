@@ -4,6 +4,12 @@ import { useEffect, useState, useCallback } from "react";
 import { motion, useScroll, useTransform } from "motion/react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Loader2, Clock, XCircle, MessageCircle, X, Calendar, AlertCircle, CheckCircle2 } from "lucide-react";
+import {
+  CommandCenterSection,
+  type CommandCenterSnapshot,
+  type CommandCenterAction,
+} from "./components/CommandCenterSection";
+import { MessageSettings } from "./components/MessageSettings";
 
 interface Appointment {
   id: string;
@@ -83,35 +89,6 @@ interface OpsAlert {
   message: string;
   status: "open" | "resolved";
   created_at: string;
-}
-
-interface CommandCenterAction {
-  id: string;
-  title: string;
-  description: string;
-  severity: "low" | "medium" | "high";
-  cta_label: string;
-  cta_endpoint: string;
-  estimated_impact_try: number;
-}
-
-interface CommandCenterSnapshot {
-  tenant_id: string;
-  generated_at: string;
-  blueprint_slug: string;
-  kpis: {
-    monthly_revenue_try: number;
-    monthly_appointments: number;
-    no_show_rate_pct: number;
-    cancellation_rate_pct: number;
-    fill_rate_pct: number;
-    avg_ticket_try: number;
-    at_risk_customers: number;
-    open_ops_alerts: number;
-    avg_rating: number;
-    north_star_ai_revenue_try: number;
-  };
-  actions: CommandCenterAction[];
 }
 
 const DAY_NAMES = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
@@ -705,134 +682,12 @@ export default function EsnafDashboard({
 
       <main className="mx-auto max-w-5xl px-4 py-6 sm:px-6 lg:px-8">
         <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6">
-          <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-6 flex items-center justify-between">
-            <div>
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                <span className="text-xl">🎯</span>
-                Operasyon Merkezi
-              </h2>
-              <p className="mt-1 text-sm text-slate-600">
-                Gelir ve operasyon aksiyonlarınızı buradan yönetin
-              </p>
-            </div>
-            {commandCenterLoading && (
-              <div className="flex items-center gap-2 text-xs text-slate-500">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Yenileniyor...
-              </div>
-            )}
-          </div>
-
-          {!commandCenter ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-slate-600" />
-              <p className="mt-3 text-sm text-slate-500">Operasyon verisi alınıyor...</p>
-            </div>
-          ) : (
-            <>
-              <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.1 }}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Aylık Ciro</p>
-                  <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    {commandCenter.kpis.monthly_revenue_try.toLocaleString("tr-TR")} ₺
-                  </p>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.15 }}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Doluluk</p>
-                  <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    %{commandCenter.kpis.fill_rate_pct.toFixed(1)}
-                  </p>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.2 }}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Gelmeme</p>
-                  <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    %{commandCenter.kpis.no_show_rate_pct.toFixed(1)}
-                  </p>
-                </motion.div>
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ delay: 0.25 }}
-                  className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Riskli Müşteri</p>
-                  <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-                    {commandCenter.kpis.at_risk_customers}
-                  </p>
-                </motion.div>
-              </div>
-
-              <div className="space-y-3">
-                {commandCenter.actions.length === 0 ? (
-                  <div className="rounded-xl bg-slate-50 border-2 border-slate-200 p-6 text-center">
-                    <p className="text-sm font-medium text-slate-600">Bugün için kritik aksiyon bulunmuyor</p>
-                    <p className="mt-1 text-xs text-slate-500">Her şey yolunda görünüyor! 🎉</p>
-                  </div>
-                ) : (
-                  commandCenter.actions.map((action, idx) => {
-                    const severityColors = {
-                      high: "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60",
-                      medium: "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60",
-                      low: "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60",
-                    };
-                    return (
-                      <motion.div
-                        key={action.id}
-                        initial={{ opacity: 0, x: -10 }}
-                        animate={{ opacity: 1, x: 0 }}
-                        transition={{ delay: idx * 0.1 }}
-                        className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border px-4 py-4 shadow-sm ${severityColors[action.severity]}`}
-                      >
-                        <div className="flex-1">
-                          <p className="text-sm font-semibold text-slate-900">{action.title}</p>
-                          <p className="mt-1 text-xs text-slate-600">{action.description}</p>
-                          {action.estimated_impact_try > 0 && (
-                            <p className="mt-2 inline-block rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
-                              💰 Tahmini etki: {action.estimated_impact_try.toLocaleString("tr-TR")} ₺
-                            </p>
-                          )}
-                        </div>
-                        <motion.button
-                          type="button"
-                          onClick={() => runCommandAction(action)}
-                          disabled={runningActionId === action.id}
-                          whileHover={{ scale: runningActionId === action.id ? 1 : 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
-                        >
-                          {runningActionId === action.id ? (
-                            <span className="flex items-center gap-2">
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                              Çalışıyor...
-                            </span>
-                          ) : (
-                            action.cta_label
-                          )}
-                        </motion.button>
-                      </motion.div>
-                    );
-                  })
-                )}
-              </div>
-            </>
-          )}
-          </section>
+          <CommandCenterSection
+            commandCenter={commandCenter}
+            loading={commandCenterLoading}
+            runningActionId={runningActionId}
+            onRunAction={runCommandAction}
+          />
         </ScrollReveal>
 
         <ScrollReveal variant="fadeUp" delay={0.08} as="section" className="mb-6">
@@ -999,68 +854,14 @@ export default function EsnafDashboard({
           </div>
         </motion.div>
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.1 }}
-          className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-purple-50/30 p-6 shadow-lg"
-        >
-          <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900">
-            <span className="text-xl">💬</span> Mesaj Ayarları
-          </h3>
-          <p className="mb-4 text-sm text-slate-600">
-            Müşterilere gönderilen karşılama ve WhatsApp mesajlarını özelleştirin.
-          </p>
-          <div className="space-y-4">
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                Karşılama mesajı
-              </label>
-              <input
-                type="text"
-                value={welcomeMsg}
-                onChange={(e) => setWelcomeMsg(e.target.value)}
-                placeholder="Merhaba! {tenant_name} olarak nasıl yardımcı olabilirim?"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
-              <p className="mt-1 text-xs text-slate-500">
-                Müşteri ilk yazdığında gönderilen mesaj. {"{tenant_name}"} yerine işletme adı yazılır.
-              </p>
-            </div>
-            <div>
-              <label className="mb-1 block text-sm font-medium text-slate-700">
-                WhatsApp link mesajı
-              </label>
-              <input
-                type="text"
-                value={whatsappGreeting}
-                onChange={(e) => setWhatsappGreeting(e.target.value)}
-                placeholder="Merhaba, {tenant_name} için randevu almak istiyorum"
-                className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20"
-              />
-              <p className="mt-1 text-xs text-slate-500">
-                Müşteri QR kod veya linke tıkladığında WhatsApp&apos;ta hazır görünen mesaj. {"{tenant_name}"} yerine işletme adı yazılır.
-              </p>
-            </div>
-            <motion.button
-              type="button"
-              onClick={handleSaveMessages}
-              disabled={messagesSaving}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
-              className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50"
-            >
-              {messagesSaving ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Kaydediliyor…
-                </span>
-              ) : (
-                "Mesajları Kaydet"
-              )}
-            </motion.button>
-          </div>
-        </motion.div>
+        <MessageSettings
+          welcomeMsg={welcomeMsg}
+          whatsappGreeting={whatsappGreeting}
+          onWelcomeChange={setWelcomeMsg}
+          onWhatsappGreetingChange={setWhatsappGreeting}
+          onSave={handleSaveMessages}
+          saving={messagesSaving}
+        />
 
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -1636,10 +1437,19 @@ export default function EsnafDashboard({
                     </div>
                     <div className="flex flex-wrap gap-2">
                       {grouped[date].map((apt) => {
-                        const time = new Date(apt.slot_start).toLocaleTimeString("tr-TR", {
+                        const start = new Date(apt.slot_start);
+                        const time = start.toLocaleTimeString("tr-TR", {
                           hour: "2-digit",
                           minute: "2-digit",
+                          timeZone: "Europe/Istanbul",
                         });
+                        const durationMinutes =
+                          (apt.extra_data as { duration_minutes?: number })?.duration_minutes ??
+                          null;
+                        const timeLabel =
+                          durationMinutes && durationMinutes > 0
+                            ? `${time} · ${durationMinutes} dk`
+                            : time;
                         const name = (apt.extra_data as { customer_name?: string })?.customer_name;
                         const statusColors = {
                           confirmed: "from-emerald-50 to-emerald-100 border-emerald-200 text-emerald-800",
@@ -1656,7 +1466,7 @@ export default function EsnafDashboard({
                           >
                             <Clock className="h-3.5 w-3.5 shrink-0" />
                             <div className="flex-1">
-                              <span className="font-semibold">{time}</span>
+                              <span className="font-semibold">{timeLabel}</span>
                               <span className="mx-1.5">–</span>
                               <span>{name || apt.customer_phone}</span>
                             </div>

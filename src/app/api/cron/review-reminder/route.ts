@@ -6,8 +6,23 @@
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendWhatsAppInteractiveList, sendWhatsAppMessage } from "@/lib/whatsapp";
 import { hasReview } from "@/services/review.service";
+
+const REVIEW_LIST_BODY =
+  "Merhaba! Bugünkü randevunuz nasıldı? Puanlamak ister misiniz? (Cevaplamak zorunda değilsiniz.)";
+const REVIEW_LIST_SECTIONS = [
+  {
+    rows: [
+      { id: "1", title: "1 ⭐" },
+      { id: "2", title: "2 ⭐" },
+      { id: "3", title: "3 ⭐" },
+      { id: "4", title: "4 ⭐" },
+      { id: "5", title: "5 ⭐" },
+      { id: "gec", title: "Geç" },
+    ],
+  },
+];
 
 const CRON_SECRET = process.env.CRON_SECRET?.trim() || "";
 
@@ -28,7 +43,7 @@ export async function GET(request: NextRequest) {
     .from("appointments")
     .select("id, tenant_id, customer_phone, slot_start")
     .lt("slot_start", oneHourAgo.toISOString())
-    .in("status", ["confirmed", "pending"]);
+    .in("status", ["completed", "confirmed"]);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -39,12 +54,20 @@ export async function GET(request: NextRequest) {
     const hasR = await hasReview(apt.id);
     if (hasR) continue;
 
-    const message = `Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐`;
-    const ok = await sendWhatsAppMessage({
+    const result = await sendWhatsAppInteractiveList({
       to: apt.customer_phone,
-      text: message,
+      bodyText: REVIEW_LIST_BODY,
+      buttonLabel: "Puan ver",
+      sections: REVIEW_LIST_SECTIONS,
     });
-
+    let ok = result.ok;
+    if (!ok) {
+      const fallback = await sendWhatsAppMessage({
+        to: apt.customer_phone,
+        text: "Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐",
+      });
+      if (fallback) ok = true;
+    }
     if (ok) {
       sent++;
       await supabase

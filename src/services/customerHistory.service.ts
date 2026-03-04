@@ -39,7 +39,9 @@ export async function getCustomerHistory(
     if (error) return [];
 
     return (data ?? []).map((a) => ({
-      date: new Date(a.slot_start).toLocaleDateString("tr-TR"),
+      date: new Date(a.slot_start).toLocaleDateString("tr-TR", {
+        timeZone: "Europe/Istanbul",
+      }),
       service: a.service_slug || null,
       status: a.status,
     }));

@@ -1,9 +1,27 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendCustomerNotification } from "@/lib/notify";
-import { sendWhatsAppTemplateMessage } from "@/lib/whatsapp";
-import { incrementNoShow } from "@/services/blacklist.service";
-import { createOpsAlert } from "@/services/opsAlert.service";
+import {
+  sendWhatsAppInteractiveList,
+  sendWhatsAppMessage,
+  sendWhatsAppTemplateMessage,
+} from "@/lib/whatsapp";
+import { markAppointmentNoShow } from "@/services/noShow.service";
+
+const REVIEW_LIST_BODY =
+  "Merhaba! Bugünkü randevunuz nasıldı? Puanlamak ister misiniz? (Cevaplamak zorunda değilsiniz.)";
+const REVIEW_LIST_SECTIONS = [
+  {
+    rows: [
+      { id: "1", title: "1 ⭐" },
+      { id: "2", title: "2 ⭐" },
+      { id: "3", title: "3 ⭐" },
+      { id: "4", title: "4 ⭐" },
+      { id: "5", title: "5 ⭐" },
+      { id: "gec", title: "Geç" },
+    ],
+  },
+];
 
 const CRON_SECRET = process.env.CRON_SECRET?.trim() || "";
 const REMINDER_TEMPLATE_NAME = process.env.WHATSAPP_REMINDER_TEMPLATE_NAME?.trim() || "";
@@ -83,8 +101,11 @@ export async function GET(request: NextRequest) {
     const timeStr = slotDate.toLocaleTimeString("tr-TR", {
       hour: "2-digit",
       minute: "2-digit",
+      timeZone: "Europe/Istanbul",
     });
-    const dateStr = slotDate.toLocaleDateString("tr-TR");
+    const dateStr = slotDate.toLocaleDateString("tr-TR", {
+      timeZone: "Europe/Istanbul",
+    });
     const tenantName = tenantMap.get(apt.tenant_id)?.name || "İşletme";
     const ok = await sendReminderWithBestChannel(
       apt.customer_phone,
@@ -114,18 +135,12 @@ export async function GET(request: NextRequest) {
       } else {
       noShowMarked = noShowApts.length;
       for (const apt of noShowApts) {
-        await incrementNoShow(apt.tenant_id, apt.customer_phone).catch((e) =>
-          console.error("[cron] blacklist increment error:", e)
-        );
-        await createOpsAlert({
+        await markAppointmentNoShow({
+          appointmentId: apt.id,
           tenantId: apt.tenant_id,
-          type: "no_show",
-          severity: "high",
           customerPhone: apt.customer_phone,
-          message: `${apt.customer_phone} müşterisi randevuya gelmedi (no-show).`,
-          meta: { appointment_id: apt.id, source: "cron/reminders" },
-          dedupeKey: `no_show:${apt.id}`,
-        }).catch((e) => console.error("[cron] ops alert error:", e));
+          source: "cron/reminders",
+        }).catch((e) => console.error("[cron] no-show side effects error:", e));
       }
       }
     }
@@ -151,11 +166,21 @@ export async function GET(request: NextRequest) {
       const reviewedIds = new Set((existingReviews || []).map((r) => r.appointment_id));
       for (const apt of reviewApts) {
         if (reviewedIds.has(apt.id)) continue;
-        const delivery = await sendCustomerNotification(
-          apt.customer_phone,
-          "Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐"
-        );
-        if (delivery.whatsapp || delivery.sms) reviewSent++;
+        const result = await sendWhatsAppInteractiveList({
+          to: apt.customer_phone,
+          bodyText: REVIEW_LIST_BODY,
+          buttonLabel: "Puan ver",
+          sections: REVIEW_LIST_SECTIONS,
+        });
+        if (result.ok) {
+          reviewSent++;
+        } else {
+          const delivery = await sendCustomerNotification(
+            apt.customer_phone,
+            "Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐"
+          );
+          if (delivery.whatsapp || delivery.sms) reviewSent++;
+        }
       }
     }
   } catch (e) {

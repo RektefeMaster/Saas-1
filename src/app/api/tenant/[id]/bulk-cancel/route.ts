@@ -50,7 +50,11 @@ export async function POST(
 
     for (const apt of appointments) {
       const d = new Date(apt.slot_start);
-      const timeStr = d.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
+      const timeStr = d.toLocaleTimeString("tr-TR", {
+        hour: "2-digit",
+        minute: "2-digit",
+        timeZone: "Europe/Istanbul",
+      });
       const delivery = await sendCustomerNotification(
         apt.customer_phone,
         `Merhaba, ${tenantName} ${date} tarihindeki saat ${timeStr} randevunuzu maalesef iptal etmek zorunda kaldı.${reasonText} En kısa sürede yeni randevu almak için bize yazabilirsiniz.`
