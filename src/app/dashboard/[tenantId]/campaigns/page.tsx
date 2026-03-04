@@ -3,12 +3,15 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import {
+  AlertTriangle,
   ArrowLeft,
   CheckCircle2,
   History,
   Loader2,
+  MessageCircle,
   Megaphone,
   Send,
+  Smartphone,
   Users,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
@@ -166,9 +169,9 @@ export default function CampaignsPage({
     setLoading(true);
     const tags = filterTags.length ? `?tags=${encodeURIComponent(filterTags.join(","))}` : "";
     fetch(`/api/tenant/${tenantId}/campaigns/recipients${tags}`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.error) throw new Error(data.error);
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok || data.error) throw new Error(data?.error || "Request failed");
         setError(null);
         setRecipientInfo({
           count: data.count ?? 0,
@@ -191,8 +194,9 @@ export default function CampaignsPage({
     setHistoryLoading(true);
     setHistoryError(null);
     fetch(`/api/tenant/${tenantId}/campaigns/history?limit=15`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((data) => {
+      .then((res) => res.json().then((data) => ({ ok: res.ok, data })))
+      .then(({ ok, data }) => {
+        if (!ok && data?.error) throw new Error(data.error);
         setHistory(Array.isArray(data) ? data : []);
       })
       .catch(() => {
@@ -225,7 +229,7 @@ export default function CampaignsPage({
 
   const toggleTag = (tag: string) => {
     setFilterTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+      prev.includes(tag) ? prev.filter((tagItem) => tagItem !== tag) : [...prev, tag]
     );
   };
 
@@ -310,15 +314,22 @@ export default function CampaignsPage({
         <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <Link
             href={tenantId ? `/dashboard/${tenantId}` : "/dashboard"}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="inline-flex items-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2 text-sm font-medium text-slate-600 transition hover:border-slate-300 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:border-slate-600 dark:hover:bg-slate-700"
           >
-            <ArrowLeft className="h-3.5 w-3.5" />
+            <ArrowLeft className="h-4 w-4" />
             {t.backToPanel}
           </Link>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-            {t.title}
-          </h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{t.subtitle}</p>
+          <div className="mt-5 flex items-start gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25">
+              <Megaphone className="h-6 w-6" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+                {t.title}
+              </h1>
+              <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">{t.subtitle}</p>
+            </div>
+          </div>
         </header>
 
         <form onSubmit={handleSubmitClick} className="space-y-6">
@@ -333,38 +344,80 @@ export default function CampaignsPage({
               </div>
             </div>
 
-            <div className="grid gap-4 sm:grid-cols-2">
-              <div>
-                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">{t.channel}</label>
-                <select
-                  value={channel}
-                  onChange={(e) => setChannel(e.target.value as "whatsapp" | "sms" | "both")}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  <option value="whatsapp">{t.channelWhatsApp}</option>
-                  <option value="sms">{t.channelSms}</option>
-                  <option value="both">{t.channelBoth}</option>
-                </select>
+            <div>
+              <label className="mb-3 block text-sm font-medium text-slate-700 dark:text-slate-300">{t.channel}</label>
+              <div className="grid grid-cols-3 gap-3">
+                {[
+                  { value: "whatsapp" as const, label: t.channelWhatsApp, icon: MessageCircle, color: "emerald" },
+                  { value: "sms" as const, label: t.channelSms, icon: Smartphone, color: "blue" },
+                  { value: "both" as const, label: t.channelBoth, icon: Send, color: "violet" },
+                ].map(({ value, label, icon: Icon, color }) => {
+                  const isActive = channel === value;
+                  const colorClasses = {
+                    emerald: isActive
+                      ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/20 dark:bg-emerald-950/30 dark:border-emerald-500"
+                      : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600",
+                    blue: isActive
+                      ? "border-blue-500 bg-blue-50 ring-2 ring-blue-500/20 dark:bg-blue-950/30 dark:border-blue-500"
+                      : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600",
+                    violet: isActive
+                      ? "border-violet-500 bg-violet-50 ring-2 ring-violet-500/20 dark:bg-violet-950/30 dark:border-violet-500"
+                      : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600",
+                  };
+                  return (
+                    <button
+                      key={value}
+                      type="button"
+                      onClick={() => setChannel(value)}
+                      className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-center transition-all duration-200 ${colorClasses[color]}`}
+                    >
+                      <Icon
+                        className={`h-6 w-6 shrink-0 ${isActive ? (value === "whatsapp" ? "text-[#25D366]" : value === "sms" ? "text-blue-600 dark:text-blue-400" : "text-violet-600 dark:text-violet-400") : "text-slate-500 dark:text-slate-400"}`}
+                      />
+                      <span className={`text-xs font-semibold ${isActive ? "text-slate-900 dark:text-slate-100" : "text-slate-600 dark:text-slate-400"}`}>
+                        {label}
+                      </span>
+                    </button>
+                  );
+                })}
               </div>
-              <div className="flex flex-col justify-end">
-                <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800/70 dark:text-slate-200">
-                  {loading ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      {t.loadingRecipients}
+            </div>
+
+            <div className="mt-5 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/80 px-5 py-4 dark:border-slate-700 dark:from-slate-800/50 dark:to-slate-900/50">
+              {loading ? (
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/80 dark:bg-slate-800/80">
+                    <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
+                  </div>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{t.loadingRecipients}</p>
+                </div>
+              ) : (
+                <div className="flex items-center justify-between gap-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
+                      <Users className="h-6 w-6" />
+                    </div>
+                    <div>
+                      <p className="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+                        {effectiveCount.toLocaleString()}
+                      </p>
+                      <p className="text-sm text-slate-600 dark:text-slate-400">
+                        {t.recipientCount}
+                        {customPhones.trim() && (
+                          <span className="ml-1 text-xs text-slate-500">
+                            • {locale === "tr" ? "özel liste" : "custom list"}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                  </div>
+                  {effectiveCount > 0 && (
+                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                      {locale === "tr" ? "Hazır" : "Ready"}
                     </span>
-                  ) : (
-                    <>
-                      {effectiveCount} {t.recipientCount}
-                      {customPhones.trim() && (
-                        <span className="ml-1 text-xs text-slate-500">
-                          ({locale === "tr" ? "özel liste" : "custom list"})
-                        </span>
-                      )}
-                    </>
                   )}
                 </div>
-              </div>
+              )}
             </div>
 
             <div className="mt-5">
@@ -403,9 +456,9 @@ export default function CampaignsPage({
                       key={tag}
                       type="button"
                       onClick={() => toggleTag(tag)}
-                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition ${
+                      className={`rounded-full px-3 py-1.5 text-xs font-medium transition-all duration-200 ${
                         filterTags.includes(tag)
-                          ? "bg-emerald-600 text-white dark:bg-emerald-500"
+                          ? "bg-emerald-600 text-white shadow-sm dark:bg-emerald-500"
                           : "bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300 dark:hover:bg-slate-600"
                       }`}
                     >
@@ -433,18 +486,33 @@ export default function CampaignsPage({
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <div className="mb-5 flex items-start gap-3">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                <Megaphone className="h-5 w-5" />
+            <div className="mb-4 flex items-start justify-between gap-3">
+              <div className="flex items-start gap-3">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-100 text-amber-700 dark:bg-amber-900/50 dark:text-amber-300">
+                  <Megaphone className="h-5 w-5" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t.campaignMessage}</h2>
+                  {(channel === "sms" || channel === "both") && (
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                      {smsCharCount} {t.charsSms.replace("{n}", String(smsSegments))}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div>
-                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t.campaignMessage}</h2>
-                {(channel === "sms" || channel === "both") && (
-                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                    {smsCharCount} {t.charsSms.replace("{n}", String(smsSegments))}
+              {(channel === "sms" || channel === "both") && smsCharCount > 0 && (
+                <div className="shrink-0">
+                  <div className="h-1.5 w-16 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+                    <div
+                      className="h-full rounded-full bg-blue-500 transition-all duration-300"
+                      style={{ width: `${Math.min(100, (smsCharCount / 480) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="mt-0.5 text-[10px] text-slate-500">
+                    {smsSegments} {locale === "tr" ? "SMS" : "SMS"}
                   </p>
-                )}
-              </div>
+                </div>
+              )}
             </div>
             <textarea
               value={messageText}
@@ -458,28 +526,39 @@ export default function CampaignsPage({
           </section>
 
           {error && (
-            <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
-              {error}
+            <div className="flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+              <AlertTriangle className="h-5 w-5 shrink-0 text-red-600 dark:text-red-400" />
+              <span>{error}</span>
             </div>
           )}
 
           {result && (
             <div className="space-y-2">
               <div
-                className={`flex items-center gap-3 rounded-xl border px-4 py-3 text-sm ${
+                className={`flex items-center gap-4 rounded-xl border px-5 py-4 text-sm transition-all ${
                   result.success_count > 0
-                    ? "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
+                    ? "border-emerald-200 bg-gradient-to-r from-emerald-50 to-emerald-50/50 text-emerald-800 dark:border-emerald-800 dark:from-emerald-950/40 dark:to-emerald-900/20 dark:text-emerald-200"
                     : "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-200"
                 }`}
               >
-                <CheckCircle2 className="h-5 w-5 shrink-0" />
-                <span>
-                  {t.resultSuccess.replace("{success}", String(result.success_count)).replace("{total}", String(result.recipient_count))}
-                </span>
+                <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${result.success_count > 0 ? "bg-emerald-200/80 dark:bg-emerald-800/50" : "bg-amber-200/80 dark:bg-amber-800/50"}`}>
+                  <CheckCircle2 className={`h-6 w-6 ${result.success_count > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`} />
+                </div>
+                <div>
+                  <p className="font-semibold">
+                    {t.resultSuccess.replace("{success}", String(result.success_count)).replace("{total}", String(result.recipient_count))}
+                  </p>
+                  {result.success_count > 0 && (
+                    <p className="mt-0.5 text-xs opacity-90">
+                      {locale === "tr" ? "Kampanya başarıyla gönderildi" : "Campaign sent successfully"}
+                    </p>
+                  )}
+                </div>
               </div>
               {result.success_count === 0 && result.last_error && (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
-                  {t.resultReason} {result.last_error}
+                <div className="flex items-start gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
+                  <span className="font-medium">{t.resultReason}</span>
+                  <span>{result.last_error}</span>
                 </div>
               )}
             </div>
@@ -489,7 +568,7 @@ export default function CampaignsPage({
             <button
               type="submit"
               disabled={sending || !messageText.trim() || effectiveCount === 0}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 hover:shadow-slate-900/30 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:shadow-emerald-500/25 dark:hover:bg-emerald-400 dark:hover:shadow-emerald-500/30"
             >
               {sending ? (
                 <>
@@ -507,12 +586,17 @@ export default function CampaignsPage({
         </form>
 
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="mb-5 flex items-start gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-              <History className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t.historyTitle}</h2>
+          <div className="mb-5 flex items-start justify-between gap-3">
+            <div className="flex items-start gap-3">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+                <History className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t.historyTitle}</h2>
+                <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                  {locale === "tr" ? "Son gönderilen kampanyalar" : "Recently sent campaigns"}
+                </p>
+              </div>
             </div>
           </div>
           {historyLoading ? (
@@ -524,24 +608,44 @@ export default function CampaignsPage({
               {historyError}
             </div>
           ) : history.length === 0 ? (
-            <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">{t.historyEmpty}</p>
+            <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-12 dark:border-slate-700">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
+                <Megaphone className="h-7 w-7 text-slate-400" />
+              </div>
+              <p className="mt-4 text-sm font-medium text-slate-600 dark:text-slate-300">{t.historyEmpty}</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                {locale === "tr" ? "İlk kampanyanızı gönderin" : "Send your first campaign"}
+              </p>
+            </div>
           ) : (
             <div className="space-y-3">
-              {history.map((item) => (
-                <div
-                  key={item.id}
-                  className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-700 dark:bg-slate-800/30"
-                >
-                  <p className="line-clamp-2 text-sm text-slate-800 dark:text-slate-200">{item.message_text}</p>
-                  <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">
-                    {t.historyItem
-                      .replace("{success}", String(item.success_count))
-                      .replace("{total}", String(item.recipient_count))
-                      .replace("{channel}", getChannelLabel(item.channel, t))
-                      .replace("{date}", formatDate(item.created_at, locale))}
-                  </p>
-                </div>
-              ))}
+              {history.map((item) => {
+                const chLabel = getChannelLabel(item.channel, t);
+                const channelBadge = {
+                  whatsapp: "bg-[#25D366]/15 text-[#25D366] dark:bg-[#25D366]/20",
+                  sms: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
+                  both: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
+                }[item.channel] || "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300";
+                return (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 dark:hover:border-slate-600 dark:hover:bg-slate-800/50"
+                  >
+                    <p className="line-clamp-2 text-sm text-slate-800 dark:text-slate-200">{item.message_text}</p>
+                    <div className="mt-3 flex flex-wrap items-center gap-2">
+                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${channelBadge}`}>
+                        {chLabel}
+                      </span>
+                      <span className="text-xs text-slate-500 dark:text-slate-400">
+                        {item.success_count}/{item.recipient_count} {t.recipientCount}
+                      </span>
+                      <span className="text-xs text-slate-400 dark:text-slate-500">
+                        • {formatDate(item.created_at, locale)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </section>
@@ -552,7 +656,7 @@ export default function CampaignsPage({
           type="button"
           onClick={handleSubmitClick}
           disabled={sending || !messageText.trim() || effectiveCount === 0}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/25 transition active:scale-[0.98] hover:bg-slate-700 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
         >
           {sending ? (
             <>
@@ -570,20 +674,27 @@ export default function CampaignsPage({
 
       {showConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={(e) => e.target === e.currentTarget && setShowConfirm(false)}
           role="dialog"
           aria-modal="true"
           aria-labelledby="confirm-title"
         >
           <div
-            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-xl dark:border-slate-700 dark:bg-slate-900"
+            className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-700 dark:bg-slate-900"
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 id="confirm-title" className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t.confirmTitle}</h3>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-              {t.confirmMessage.replace("{count}", String(effectiveCount))}
-            </p>
+            <div className="flex items-center gap-3">
+              <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-amber-100 dark:bg-amber-900/50">
+                <Megaphone className="h-6 w-6 text-amber-700 dark:text-amber-300" />
+              </div>
+              <div>
+                <h3 id="confirm-title" className="text-lg font-semibold text-slate-900 dark:text-slate-100">{t.confirmTitle}</h3>
+                <p className="mt-0.5 text-sm text-slate-600 dark:text-slate-300">
+                  {t.confirmMessage.replace("{count}", String(effectiveCount))}
+                </p>
+              </div>
+            </div>
             <div className="mt-6 flex gap-3">
               <button
                 type="button"
