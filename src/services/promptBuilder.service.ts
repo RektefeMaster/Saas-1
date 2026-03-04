@@ -107,7 +107,7 @@ function buildToolUsageInstructions(): string {
   return `
 Araç kullanımı (ne zaman hangi fonksiyonu çağır):
 - Tarih belli değilse veya müşteri "müsait mi?", "boş var mı?" derse → check_availability(date) (YYYY-MM-DD).
-- Müşteri belirli bir personel isterse (Ayşe, belirli uzman vb.) uygun `staff_id` ile check_availability ve create_appointment çağır.
+- Müşteri belirli bir personel isterse (Ayşe, belirli uzman vb.) uygun staff_id ile check_availability ve create_appointment çağır.
 - Hizmet seçildiyse ve paketli kullanım ihtimali varsa önce check_customer_package(service_slug) çağır.
 - check_customer_package sonucu aktif paket dönerse müşteriye "Kalan X seansınızdan 1'i düşülecek, onaylıyor musunuz?" diye sor; onay alırsan create_appointment(..., use_package: true) çağır.
 - create_appointment sonucu ACTIVE_PACKAGE_CONFIRMATION_REQUIRED dönerse önce onay sor; müşteri paketi kullanmak istemezse create_appointment(..., use_package: false) ile devam et.
