@@ -17,16 +17,23 @@ const DAY_NAMES: Record<number, string> = {
 };
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: tenantId } = await params;
+  const { searchParams } = new URL(request.url);
+  const staffId = searchParams.get("staff_id");
 
-  const { data, error } = await supabase
+  let query = supabase
     .from("availability_slots")
-    .select("id, day_of_week, start_time, end_time")
-    .eq("tenant_id", tenantId)
-    .order("day_of_week");
+    .select("id, staff_id, day_of_week, start_time, end_time")
+    .eq("tenant_id", tenantId);
+  if (staffId) {
+    query = query.eq("staff_id", staffId);
+  } else {
+    query = query.is("staff_id", null);
+  }
+  const { data, error } = await query.order("day_of_week");
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -45,6 +52,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: tenantId } = await params;
+  const { searchParams } = new URL(request.url);
+  const staffId = searchParams.get("staff_id");
   const body = await request.json();
   const { slots } = body;
 
@@ -78,15 +87,22 @@ export async function PUT(
     .filter((s: { day_of_week: number }) => s.day_of_week >= 0 && s.day_of_week <= 6)
     .map((s: { day_of_week: number; start_time: string; end_time: string }) => ({
       tenant_id: tenantId,
+      staff_id: staffId || null,
       day_of_week: s.day_of_week,
       start_time: s.start_time,
       end_time: s.end_time,
     }));
 
-  const { error: delError } = await supabase
+  let deleteQuery = supabase
     .from("availability_slots")
     .delete()
     .eq("tenant_id", tenantId);
+  if (staffId) {
+    deleteQuery = deleteQuery.eq("staff_id", staffId);
+  } else {
+    deleteQuery = deleteQuery.is("staff_id", null);
+  }
+  const { error: delError } = await deleteQuery;
 
   if (delError) {
     return NextResponse.json({ error: delError.message }, { status: 500 });
@@ -102,11 +118,16 @@ export async function PUT(
     }
   }
 
-  const { data: updated } = await supabase
+  let updatedQuery = supabase
     .from("availability_slots")
-    .select("id, day_of_week, start_time, end_time")
-    .eq("tenant_id", tenantId)
-    .order("day_of_week");
+    .select("id, staff_id, day_of_week, start_time, end_time")
+    .eq("tenant_id", tenantId);
+  if (staffId) {
+    updatedQuery = updatedQuery.eq("staff_id", staffId);
+  } else {
+    updatedQuery = updatedQuery.is("staff_id", null);
+  }
+  const { data: updated } = await updatedQuery.order("day_of_week");
 
   return NextResponse.json(
     (updated || []).map((s) => ({

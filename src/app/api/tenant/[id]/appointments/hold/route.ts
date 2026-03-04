@@ -11,6 +11,7 @@ export async function POST(
       customer_phone?: string;
       date?: string;
       time?: string;
+      staff_id?: string | null;
       service_slug?: string | null;
       hold_ttl_seconds?: number;
     };
@@ -31,6 +32,7 @@ export async function POST(
       customerPhone,
       date,
       time,
+      staffId: body.staff_id || null,
       serviceSlug: body.service_slug || null,
       holdOnly: true,
       holdTtlSeconds:

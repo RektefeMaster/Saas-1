@@ -17,7 +17,7 @@ function getBrowserAuthCookies() {
       const parsed = parse(document.cookie);
       return Object.entries(parsed).map(([name, value]) => ({ name, value: value ?? "" }));
     },
-    setAll: (cookies: { name: string; value: string; options?: { maxAge?: number; path?: string; sameSite?: "lax" | "strict" | "none"; [k: string]: unknown } }[]) => {
+    setAll: (cookies: { name: string; value: string; options?: { maxAge?: number; path?: string; sameSite?: boolean | "lax" | "strict" | "none"; [k: string]: unknown } }[]) => {
       if (typeof document === "undefined") return;
       const remember = getRememberMe();
       for (const { name, value, options = {} } of cookies) {

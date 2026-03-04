@@ -15,8 +15,11 @@ import {
   ShieldCheck,
   Sparkles,
   Workflow,
+  Menu,
+  X,
 } from "lucide-react";
 import { motion } from "motion/react";
+import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { ThemeLocaleSwitch } from "@/components/ui";
@@ -209,6 +212,7 @@ const COPY = {
 export default function Home() {
   const { locale } = useLocale();
   const t = COPY[locale];
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -253,8 +257,59 @@ export default function Home() {
               {t.nav.login}
             </Link>
           </nav>
-          <ThemeLocaleSwitch compact />
+          <div className="flex items-center gap-2">
+            <ThemeLocaleSwitch compact />
+            <button
+              type="button"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 md:hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              aria-label="Toggle menu"
+            >
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+            </button>
+          </div>
         </div>
+        {mobileMenuOpen && (
+          <div className="border-t border-slate-200 bg-white px-4 py-3 md:hidden dark:border-slate-800 dark:bg-slate-900">
+            <div className="mobile-card-stack">
+              <a
+                href="#solutions"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              >
+                {t.nav.solutions}
+              </a>
+              <a
+                href="#flow"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              >
+                {t.nav.flow}
+              </a>
+              <a
+                href="#impact"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              >
+                {t.nav.impact}
+              </a>
+              <Link
+                href="/isletmeler"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              >
+                {t.nav.businesses}
+              </Link>
+              <Link
+                href="/dashboard/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white dark:bg-emerald-500 dark:text-slate-950"
+              >
+                {t.nav.login}
+              </Link>
+            </div>
+          </div>
+        )}
       </header>
 
       <main>

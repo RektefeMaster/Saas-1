@@ -261,7 +261,8 @@ export async function checkAvailability(
   tenantId: string,
   dateStr: string,
   configOverride?: Record<string, unknown>,
-  serviceSlug?: string
+  serviceSlug?: string,
+  staffId?: string
 ): Promise<{
   available: string[];
   booked: string[];
@@ -271,6 +272,7 @@ export async function checkAvailability(
 }> {
   const daily = await getDailyAvailability(tenantId, dateStr, {
     configOverride,
+    staffId,
     serviceSlug,
   });
   return {
@@ -290,7 +292,8 @@ export async function createAppointment(
   dateStr: string,
   timeStr: string,
   extraData?: Record<string, unknown>,
-  serviceSlug?: string | null
+  serviceSlug?: string | null,
+  staffId?: string | null
 ): Promise<{ ok: boolean; id?: string; error?: string; suggested_time?: string }> {
   try {
     const result = await reserveAppointment({
@@ -298,6 +301,7 @@ export async function createAppointment(
       customerPhone,
       date: dateStr,
       time: timeStr,
+      staffId: staffId || null,
       serviceSlug,
       extraData,
     });

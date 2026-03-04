@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "motion/react";
 import { Loader2 } from "lucide-react";
 
 interface MessageSettingsProps {
@@ -21,12 +20,7 @@ export function MessageSettings({
   saving,
 }: MessageSettingsProps) {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ delay: 0.1 }}
-      className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-purple-50/30 p-6 shadow-lg"
-    >
+    <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-purple-50/30 p-6 shadow-lg">
       <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900">
         <span className="text-xl">💬</span> Mesaj Ayarları
       </h3>
@@ -64,13 +58,11 @@ export function MessageSettings({
             Müşteri QR kod veya linke tıkladığında WhatsApp&apos;ta hazır görünen mesaj. {"{tenant_name}"} yerine işletme adı yazılır.
           </p>
         </div>
-        <motion.button
+        <button
           type="button"
           onClick={onSave}
           disabled={saving}
-          whileHover={{ scale: 1.02 }}
-          whileTap={{ scale: 0.98 }}
-          className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50"
+          className="w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 sm:w-auto"
         >
           {saving ? (
             <span className="flex items-center gap-2">
@@ -80,8 +72,8 @@ export function MessageSettings({
           ) : (
             "Mesajları Kaydet"
           )}
-        </motion.button>
+        </button>
       </div>
-    </motion.div>
+    </div>
   );
 }

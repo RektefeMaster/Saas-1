@@ -18,6 +18,7 @@ export default function NewBusinessTypePage() {
   const [slug, setSlug] = useState("");
   const [flowType, setFlowType] = useState<string>("appointment");
   const [botConfigJson, setBotConfigJson] = useState("");
+  const [featureFlagsJson, setFeatureFlagsJson] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,11 +27,21 @@ export default function NewBusinessTypePage() {
     setLoading(true);
     setError(null);
     let bot_config: Record<string, unknown> | undefined;
+    let feature_flags: Record<string, unknown> | undefined;
     if (botConfigJson.trim()) {
       try {
         bot_config = JSON.parse(botConfigJson) as Record<string, unknown>;
       } catch {
         setError("Bot config geçerli bir JSON olmalı.");
+        setLoading(false);
+        return;
+      }
+    }
+    if (featureFlagsJson.trim()) {
+      try {
+        feature_flags = JSON.parse(featureFlagsJson) as Record<string, unknown>;
+      } catch {
+        setError("Feature flags geçerli bir JSON olmalı.");
         setLoading(false);
         return;
       }
@@ -45,6 +56,7 @@ export default function NewBusinessTypePage() {
           flow_type: flowType,
           config: {},
           ...(bot_config ? { bot_config } : {}),
+          ...(feature_flags ? { feature_flags } : {}),
         }),
       });
       const data = await res.json();
@@ -58,7 +70,7 @@ export default function NewBusinessTypePage() {
   };
 
   return (
-    <div className="p-8">
+    <div className="p-4 pb-24 sm:p-6 lg:p-8">
       <Link
         href="/admin/business-types"
         className="mb-6 inline-flex items-center gap-2 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
@@ -68,14 +80,16 @@ export default function NewBusinessTypePage() {
         </svg>
         İşletme tipleri listesine dön
       </Link>
-      <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">Yeni İşletme Tipi</h1>
+      <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+        Yeni İşletme Tipi
+      </h1>
       <p className="mt-1.5 text-slate-600 dark:text-slate-400">
         Sektör kategorisi tanımlayın
       </p>
 
           <form
             onSubmit={handleSubmit}
-            className="mt-8 max-w-lg rounded-2xl border border-slate-200 bg-white p-8 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+            className="mt-6 max-w-lg rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:mt-8 sm:p-6 lg:p-8"
           >
             {error && (
               <div className="mb-6 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900 dark:bg-red-950/50 dark:text-red-400">
@@ -143,18 +157,33 @@ export default function NewBusinessTypePage() {
                   Config-driven bot için JSON. Boş bırakılırsa eski config kullanılır.
                 </p>
               </div>
+              <div>
+                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Feature flags (opsiyonel, JSON)
+                </label>
+                <textarea
+                  value={featureFlagsJson}
+                  onChange={(e) => setFeatureFlagsJson(e.target.value)}
+                  placeholder='{\"crm_extended_profile\": true, \"staff_preference\": true, \"packages\": true, \"variable_duration\": false, \"combo_services\": true}'
+                  rows={5}
+                  className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-mono text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
+                />
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                  İşletme tipine bağlı özellik görünürlüğünü kontrol eder.
+                </p>
+              </div>
             </div>
-            <div className="mt-8 flex gap-3">
+            <div className="mt-6 flex flex-col gap-2 sm:mt-8 sm:flex-row sm:gap-3">
               <button
                 type="submit"
                 disabled={loading}
-                className="rounded-xl bg-emerald-600 px-6 py-3 font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                className="w-full rounded-xl bg-emerald-600 px-6 py-3 text-center font-medium text-white transition hover:bg-emerald-700 disabled:opacity-50 sm:w-auto"
               >
                 {loading ? "Oluşturuluyor..." : "Oluştur"}
               </button>
               <Link
                 href="/admin/business-types"
-                className="rounded-xl border border-slate-300 px-6 py-3 font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                className="w-full rounded-xl border border-slate-300 px-6 py-3 text-center font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800 sm:w-auto"
               >
                 İptal
               </Link>

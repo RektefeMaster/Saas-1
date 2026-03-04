@@ -6,6 +6,7 @@ import {
   releaseBookingSlotLock,
   setBookingSlotHold,
 } from "@/lib/redis";
+import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 import { checkBlockedDate } from "@/services/blockedDates.service";
 
 const DEFAULT_WORKING_HOURS = { start: "09:00", end: "18:00" };
@@ -70,6 +71,7 @@ export interface ReserveAppointmentInput {
   customerPhone: string;
   date: string;
   time: string;
+  staffId?: string | null;
   serviceSlug?: string | null;
   extraData?: Record<string, unknown>;
   holdOnly?: boolean;
@@ -164,7 +166,8 @@ function normalizePhone(phone: string): string {
 async function getTenantScheduleContext(
   tenantId: string,
   date: string,
-  configOverride?: Record<string, unknown>
+  configOverride?: Record<string, unknown>,
+  staffId?: string | null
 ): Promise<TenantScheduleContext> {
   const normalizedDate = normalizeDateString(date);
   if (!normalizedDate) {
@@ -196,7 +199,7 @@ async function getTenantScheduleContext(
   const dayOfWeek = getDayOfWeek(normalizedDate);
   const { data: slots } = await supabase
     .from("availability_slots")
-    .select("day_of_week, start_time, end_time")
+    .select("day_of_week, start_time, end_time, staff_id")
     .eq("tenant_id", tenantId);
 
   if (!slots || slots.length === 0) {
@@ -225,7 +228,19 @@ async function getTenantScheduleContext(
     };
   }
 
-  const daySlot = slots.find((s) => s.day_of_week === dayOfWeek);
+  const rows = slots as Array<{
+    day_of_week: number;
+    start_time: string;
+    end_time: string;
+    staff_id?: string | null;
+  }>;
+
+  const scoped =
+    staffId && rows.some((row) => row.staff_id === staffId)
+      ? rows.filter((row) => row.staff_id === staffId)
+      : rows.filter((row) => row.staff_id == null);
+  const fallbackRows = scoped.length > 0 ? scoped : rows;
+  const daySlot = fallbackRows.find((s) => s.day_of_week === dayOfWeek);
   if (!daySlot) {
     return {
       configOverride: override,
@@ -271,16 +286,22 @@ async function getServiceDurationMinutes(
 async function getBookedIntervalsForDate(
   tenantId: string,
   date: string,
-  fallbackDurationMinutes: number
+  fallbackDurationMinutes: number,
+  staffId?: string | null
 ): Promise<{ intervals: TimeInterval[]; starts: string[] }> {
   const window = getUtcSearchWindowForDate(date);
-  const { data: appointments } = await supabase
+  let appointmentsQuery = supabase
     .from("appointments")
-    .select("slot_start, service_slug, extra_data")
+    .select("slot_start, service_slug, extra_data, staff_id")
     .eq("tenant_id", tenantId)
     .gte("slot_start", window.from)
     .lt("slot_start", window.to)
     .neq("status", "cancelled");
+  if (staffId) {
+    appointmentsQuery = appointmentsQuery.eq("staff_id", staffId);
+  }
+
+  const { data: appointments } = await appointmentsQuery;
 
   const rows = appointments || [];
   const slugs = [
@@ -330,6 +351,130 @@ async function getBookedIntervalsForDate(
   return { intervals, starts };
 }
 
+async function getEligibleStaffIds(
+  tenantId: string,
+  serviceSlug?: string | null
+): Promise<string[]> {
+  const staffResult = await supabase
+    .from("staff")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("active", true);
+
+  const staffRows = (staffResult.data || []) as Array<{ id: string }>;
+  const activeStaffIds = staffRows.map((row) => row.id);
+  if (activeStaffIds.length === 0) return [];
+
+  const normalizedServiceSlug = serviceSlug?.trim();
+  if (!normalizedServiceSlug) return activeStaffIds;
+
+  const mappingResult = await supabase
+    .from("staff_services")
+    .select("staff_id")
+    .eq("tenant_id", tenantId)
+    .eq("service_slug", normalizedServiceSlug)
+    .in("staff_id", activeStaffIds);
+
+  if (!mappingResult.error) {
+    const mapped = new Set(
+      (mappingResult.data || []).map((row) => String(row.staff_id))
+    );
+    if (mapped.size === 0) return [];
+    return activeStaffIds.filter((staffId) => mapped.has(staffId));
+  }
+
+  const missingTable = extractMissingSchemaTable(mappingResult.error);
+  if (missingTable === "staff_services") {
+    // staff-service mapping yoksa tüm aktif personeli aday kabul et.
+    return activeStaffIds;
+  }
+
+  return activeStaffIds;
+}
+
+async function getStaffLoadForDate(
+  tenantId: string,
+  date: string,
+  staffIds: string[]
+): Promise<Map<string, number>> {
+  const counts = new Map<string, number>();
+  if (staffIds.length === 0) return counts;
+
+  const window = getUtcSearchWindowForDate(date);
+  const result = await supabase
+    .from("appointments")
+    .select("staff_id, slot_start, status")
+    .eq("tenant_id", tenantId)
+    .in("staff_id", staffIds)
+    .gte("slot_start", window.from)
+    .lt("slot_start", window.to)
+    .neq("status", "cancelled");
+
+  for (const row of result.data || []) {
+    if (!row.staff_id) continue;
+    const slot = new Date(row.slot_start);
+    if (Number.isNaN(slot.getTime())) continue;
+    if (localDateStr(slot) !== date) continue;
+    counts.set(row.staff_id, (counts.get(row.staff_id) || 0) + 1);
+  }
+
+  return counts;
+}
+
+async function findStaffForRequestedSlot(
+  tenantId: string,
+  date: string,
+  requestedTime: string,
+  options?: {
+    serviceSlug?: string | null;
+    customerPhone?: string;
+    configOverride?: Record<string, unknown>;
+  }
+): Promise<{
+  staffId: string | null;
+  availableTimes: string[];
+  hadEligibleStaff: boolean;
+}> {
+  const eligibleStaffIds = await getEligibleStaffIds(tenantId, options?.serviceSlug);
+  if (eligibleStaffIds.length === 0) {
+    return { staffId: null, availableTimes: [], hadEligibleStaff: false };
+  }
+
+  const loadByStaff = await getStaffLoadForDate(tenantId, date, eligibleStaffIds);
+  const orderedStaffIds = [...eligibleStaffIds].sort((a, b) => {
+    const loadA = loadByStaff.get(a) || 0;
+    const loadB = loadByStaff.get(b) || 0;
+    if (loadA !== loadB) return loadA - loadB;
+    return a.localeCompare(b);
+  });
+
+  const aggregate = new Set<string>();
+  for (const staffId of orderedStaffIds) {
+    const daily = await getDailyAvailability(tenantId, date, {
+      serviceSlug: options?.serviceSlug,
+      customerPhone: options?.customerPhone,
+      configOverride: options?.configOverride,
+      staffId,
+    });
+    for (const slot of daily.available) {
+      aggregate.add(slot);
+    }
+    if (daily.available.includes(requestedTime)) {
+      return {
+        staffId,
+        availableTimes: [...aggregate],
+        hadEligibleStaff: true,
+      };
+    }
+  }
+
+  return {
+    staffId: null,
+    availableTimes: [...aggregate],
+    hadEligibleStaff: true,
+  };
+}
+
 function mergeIntervals(base: TimeInterval[], extra: TimeInterval[]): TimeInterval[] {
   return [...base, ...extra].sort((a, b) => a.start - b.start);
 }
@@ -371,6 +516,7 @@ export async function getDailyAvailability(
   tenantId: string,
   date: string,
   options?: {
+    staffId?: string | null;
     serviceSlug?: string | null;
     customerPhone?: string;
     configOverride?: Record<string, unknown>;
@@ -403,7 +549,8 @@ export async function getDailyAvailability(
   const schedule = await getTenantScheduleContext(
     tenantId,
     normalizedDate,
-    options?.configOverride
+    options?.configOverride,
+    options?.staffId
   );
   if (schedule.noSchedule) {
     return {
@@ -435,13 +582,19 @@ export async function getDailyAvailability(
   const { intervals: appointmentIntervals, starts } = await getBookedIntervalsForDate(
     tenantId,
     normalizedDate,
-    schedule.baseSlotMinutes
+    schedule.baseSlotMinutes,
+    options?.staffId
   );
 
   const holds = await getBookingHoldsForDate(tenantId, normalizedDate);
   const ownPhone = options?.customerPhone ? normalizePhone(options.customerPhone) : "";
   const holdIntervals: TimeInterval[] = [];
   for (const hold of holds) {
+    const holdStaffId =
+      typeof (hold as { staff_id?: unknown }).staff_id === "string"
+        ? ((hold as { staff_id: string }).staff_id || "").trim()
+        : "";
+    if (options?.staffId && holdStaffId && holdStaffId !== options.staffId) continue;
     const holdPhone = normalizePhone(hold.customer_phone);
     if (ownPhone && holdPhone === ownPhone) continue;
     const start = timeToMinutes(hold.time);
@@ -507,7 +660,33 @@ export async function reserveAppointment(
   }
 
   try {
+    let resolvedStaffId =
+      typeof input.staffId === "string" && input.staffId.trim() ? input.staffId.trim() : null;
+
+    if (!resolvedStaffId) {
+      const staffMatch = await findStaffForRequestedSlot(
+        input.tenantId,
+        normalizedDate,
+        normalizedTime,
+        {
+          serviceSlug: input.serviceSlug,
+          customerPhone: input.customerPhone,
+        }
+      );
+
+      if (!resolvedStaffId && staffMatch.hadEligibleStaff && !staffMatch.staffId) {
+        return {
+          ok: false,
+          error: "SLOT_TAKEN",
+          suggested_time: findSuggestedTime(normalizedTime, staffMatch.availableTimes),
+        };
+      }
+
+      resolvedStaffId = staffMatch.staffId;
+    }
+
     const availability = await getDailyAvailability(input.tenantId, normalizedDate, {
+      staffId: resolvedStaffId,
       serviceSlug: input.serviceSlug,
       customerPhone: input.customerPhone,
     });
@@ -531,6 +710,7 @@ export async function reserveAppointment(
           tenant_id: input.tenantId,
           date: normalizedDate,
           time: normalizedTime,
+          staff_id: resolvedStaffId || null,
           customer_phone: input.customerPhone,
           duration_minutes: availability.durationMinutes,
         },
@@ -565,6 +745,7 @@ export async function reserveAppointment(
       .from("appointments")
       .insert({
         tenant_id: input.tenantId,
+        staff_id: resolvedStaffId || null,
         customer_phone: input.customerPhone,
         slot_start: slotStartIso,
         status: "confirmed",

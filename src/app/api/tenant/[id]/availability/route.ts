@@ -14,6 +14,7 @@ export async function GET(
   const dateStr = searchParams.get("date");
   const serviceSlug = searchParams.get("service_slug");
   const customerPhone = searchParams.get("customer_phone");
+  const staffId = searchParams.get("staff_id");
 
   if (!dateStr || !/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
     return NextResponse.json(
@@ -28,6 +29,7 @@ export async function GET(
   }
 
   const daily = await getDailyAvailability(tenantId, dateStr, {
+    staffId: staffId || undefined,
     serviceSlug: serviceSlug || undefined,
     customerPhone: customerPhone || undefined,
   });

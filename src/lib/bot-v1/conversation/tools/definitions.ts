@@ -14,8 +14,26 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             type: "string",
             description: "Opsiyonel hizmet slug; süreye göre müsaitlik hesaplanır.",
           },
+          staff_id: {
+            type: "string",
+            description: "Opsiyonel personel ID; belirli personel için müsaitlik bakar.",
+          },
         },
         required: ["date"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_customer_package",
+      description: "Müşterinin seçilen hizmet için aktif paketi olup olmadığını kontrol et.",
+      parameters: {
+        type: "object",
+        properties: {
+          service_slug: { type: "string", description: "Hizmet slug" },
+        },
+        required: ["service_slug"],
       },
     },
   },
@@ -31,6 +49,11 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
           time: { type: "string", description: "HH:MM" },
           customer_name: { type: "string", description: "Müşterinin adı soyadı" },
           service_slug: { type: "string", description: "Opsiyonel hizmet slug" },
+          staff_id: { type: "string", description: "Opsiyonel personel ID" },
+          use_package: {
+            type: "boolean",
+            description: "Aktif paketten 1 seans düşülerek randevu alınacaksa true gönder.",
+          },
           extra_data: { type: "object", description: "Opsiyonel ek veri" },
         },
         required: ["date", "time", "customer_name"],

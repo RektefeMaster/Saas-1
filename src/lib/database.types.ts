@@ -33,6 +33,8 @@ export interface BusinessType {
   config: BusinessTypeConfig;
   /** Config-driven bot (persona, mesajlar, alanlar). Null/undefined ise eski config kullanılır. */
   bot_config?: Record<string, unknown> | null;
+  /** Business-type level feature visibility flags. */
+  feature_flags?: Record<string, boolean> | null;
   created_at: string;
   updated_at: string;
 }

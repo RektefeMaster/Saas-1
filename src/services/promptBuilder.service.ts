@@ -107,6 +107,10 @@ function buildToolUsageInstructions(): string {
   return `
 Araç kullanımı (ne zaman hangi fonksiyonu çağır):
 - Tarih belli değilse veya müşteri "müsait mi?", "boş var mı?" derse → check_availability(date) (YYYY-MM-DD).
+- Müşteri belirli bir personel isterse (Ayşe, belirli uzman vb.) uygun `staff_id` ile check_availability ve create_appointment çağır.
+- Hizmet seçildiyse ve paketli kullanım ihtimali varsa önce check_customer_package(service_slug) çağır.
+- check_customer_package sonucu aktif paket dönerse müşteriye "Kalan X seansınızdan 1'i düşülecek, onaylıyor musunuz?" diye sor; onay alırsan create_appointment(..., use_package: true) çağır.
+- create_appointment sonucu ACTIVE_PACKAGE_CONFIRMATION_REQUIRED dönerse önce onay sor; müşteri paketi kullanmak istemezse create_appointment(..., use_package: false) ile devam et.
 - Tarih + saat + müşteri adı (ve zorunlu alanlar) toplandıysa → create_appointment(date, time, customer_name, ...).
 - ÇOKLU RANDEVU: Müşteri "ben ve arkadaşım X için", "2 kişilik", "biz ikimiz için" gibi ifadeler kullandığında TÜM İSİMLERİ AKLINDA TUT. Her kişi için ayrı create_appointment çağır (customer_name parametresini her seferinde doğru isimle doldur). İlk randevuyu aldıktan sonra diğer kişiler için de randevu almayı unutma. Örnek: "ben ve arkadaşım ismail için" dediğinde önce kendi adını öğren, sonra ismail için de randevu al. Tek randevu alıp durma, tüm isimleri işle.
 - İptal isteğinde önce get_last_appointment çağır, müşteriden açık onay ("evet iptal") aldıktan sonra cancel_appointment(appointment_id) çağır.

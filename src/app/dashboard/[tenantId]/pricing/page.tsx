@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 
 interface ServiceItem {
@@ -19,6 +19,13 @@ interface ServiceItem {
 interface TenantBasic {
   contact_phone?: string | null;
 }
+
+type ServiceUpdatePayload = Partial<
+  Pick<
+    ServiceItem,
+    "name" | "slug" | "description" | "price" | "duration_minutes" | "is_active" | "price_visible" | "display_order"
+  >
+>;
 
 export default function PricingPage({
   params,
@@ -42,25 +49,32 @@ export default function PricingPage({
     params.then((p) => setTenantId(p.tenantId));
   }, [params]);
 
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-
-  const refresh = async () => {
+  const refresh = useCallback(async (includeTenant = false) => {
     if (!tenantId) return;
     setLoading(true);
-    const [servicesRes, tenantRes] = await Promise.all([
-      fetch(`${baseUrl}/api/tenant/${tenantId}/services`),
-      fetch(`${baseUrl}/api/tenant/${tenantId}`),
-    ]);
-    const servicesData = (await servicesRes.json().catch(() => [])) as ServiceItem[];
-    const tenantData = (await tenantRes.json().catch(() => null)) as TenantBasic | null;
-    setServices(Array.isArray(servicesData) ? servicesData : []);
-    setTenant(tenantData);
-    setLoading(false);
-  };
+    try {
+      const [servicesRes, tenantRes] = await Promise.all([
+        fetch(`/api/tenant/${tenantId}/services`, { cache: "no-store" }),
+        includeTenant
+          ? fetch(`/api/tenant/${tenantId}`, { cache: "no-store" })
+          : Promise.resolve(null),
+      ]);
+
+      const servicesData = (await servicesRes.json().catch(() => [])) as ServiceItem[];
+      setServices(Array.isArray(servicesData) ? servicesData : []);
+
+      if (tenantRes) {
+        const tenantData = (await tenantRes.json().catch(() => null)) as TenantBasic | null;
+        setTenant(tenantData);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [tenantId]);
 
   useEffect(() => {
-    refresh();
-  }, [tenantId]);
+    void refresh(true);
+  }, [refresh]);
 
   const sortedServices = useMemo(
     () =>
@@ -75,23 +89,30 @@ export default function PricingPage({
     e.preventDefault();
     if (!tenantId || !newService.name.trim()) return;
     setSaving(true);
-    const res = await fetch(`${baseUrl}/api/tenant/${tenantId}/services`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        name: newService.name.trim(),
-        description: newService.description.trim() || null,
-        duration_minutes: newService.duration_minutes,
-        price:
-          newService.price.trim() && !Number.isNaN(Number(newService.price))
-            ? Number(newService.price)
-            : null,
-        price_visible: newService.price_visible,
-        is_active: true,
-        display_order: services.length,
-      }),
-    });
-    if (res.ok) {
+    try {
+      const res = await fetch(`/api/tenant/${tenantId}/services`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: newService.name.trim(),
+          description: newService.description.trim() || null,
+          duration_minutes: newService.duration_minutes,
+          price:
+            newService.price.trim() && !Number.isNaN(Number(newService.price))
+              ? Number(newService.price)
+              : null,
+          price_visible: newService.price_visible,
+          is_active: true,
+          display_order: services.length,
+        }),
+      });
+      if (!res.ok) return;
+      const created = (await res.json().catch(() => null)) as ServiceItem | null;
+      if (created?.id) {
+        setServices((prev) => [...prev, created]);
+      } else {
+        await refresh();
+      }
       setNewService({
         name: "",
         description: "",
@@ -99,31 +120,54 @@ export default function PricingPage({
         price: "",
         price_visible: true,
       });
-      await refresh();
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
-  const updateService = async (serviceId: string, payload: Record<string, unknown>) => {
+  const updateService = async (serviceId: string, payload: ServiceUpdatePayload) => {
     if (!tenantId) return;
-    await fetch(`${baseUrl}/api/tenant/${tenantId}/services/${serviceId}`, {
+    const prevServices = services;
+    setServices((prev) =>
+      prev.map((item) => (item.id === serviceId ? { ...item, ...payload } : item))
+    );
+
+    const res = await fetch(`/api/tenant/${tenantId}/services/${serviceId}`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    await refresh();
+
+    if (!res.ok) {
+      setServices(prevServices);
+      await refresh();
+      return;
+    }
+
+    const updated = (await res.json().catch(() => null)) as ServiceItem | null;
+    if (updated?.id) {
+      setServices((prev) =>
+        prev.map((item) => (item.id === serviceId ? { ...item, ...updated } : item))
+      );
+    }
   };
 
   const deleteService = async (serviceId: string) => {
     if (!tenantId) return;
-    await fetch(`${baseUrl}/api/tenant/${tenantId}/services/${serviceId}`, {
+    const prevServices = services;
+    setServices((prev) => prev.filter((item) => item.id !== serviceId));
+
+    const res = await fetch(`/api/tenant/${tenantId}/services/${serviceId}`, {
       method: "DELETE",
     });
-    await refresh();
+
+    if (!res.ok) {
+      setServices(prevServices);
+    }
   };
 
   return (
-    <div className="p-6 sm:p-8 lg:p-10">
+    <div className="p-4 pb-24 sm:p-6 lg:p-10">
       <header className="mb-8">
         <Link
           href={`/dashboard/${tenantId}`}
@@ -193,36 +237,47 @@ export default function PricingPage({
         ) : sortedServices.length === 0 ? (
           <div className="p-8 text-center text-slate-500">Henüz hizmet tanımlı değil.</div>
         ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[840px]">
-              <thead>
-                <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-800/60">
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Hizmet</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Süre</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Fiyat</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Görünürlük</th>
-                  <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Durum</th>
-                  <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">İşlem</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {sortedServices.map((service) => (
-                  <tr key={service.id}>
-                    <td className="px-4 py-3">
-                      <div className="font-medium text-slate-900 dark:text-slate-100">{service.name}</div>
-                      <div className="text-xs text-slate-500">{service.description || "Açıklama yok"}</div>
-                    </td>
-                    <td className="px-4 py-3">
+          <>
+            <div className="space-y-3 p-4 lg:hidden">
+              {sortedServices.map((service) => (
+                <article
+                  key={service.id}
+                  className="rounded-xl border border-slate-200 bg-slate-50/70 p-3 dark:border-slate-700 dark:bg-slate-800/40"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                        {service.name}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-500">
+                        {service.description || "Açıklama yok"}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => deleteService(service.id)}
+                      className="rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700"
+                    >
+                      Sil
+                    </button>
+                  </div>
+
+                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                    <label className="text-xs font-medium text-slate-600">
+                      Süre (dk)
                       <input
                         type="number"
                         min={5}
                         step={5}
                         defaultValue={service.duration_minutes}
-                        onBlur={(e) => updateService(service.id, { duration_minutes: Number(e.target.value) || 30 })}
-                        className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                        onBlur={(e) =>
+                          updateService(service.id, { duration_minutes: Number(e.target.value) || 30 })
+                        }
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
                       />
-                    </td>
-                    <td className="px-4 py-3">
+                    </label>
+                    <label className="text-xs font-medium text-slate-600">
+                      Fiyat (TL)
                       <input
                         type="number"
                         step={0.01}
@@ -234,49 +289,124 @@ export default function PricingPage({
                           })
                         }
                         placeholder="Yok"
-                        className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                        className="mt-1 w-full rounded-lg border border-slate-200 px-2.5 py-2 text-sm"
                       />
-                    </td>
-                    <td className="px-4 py-3">
-                      <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                        <input
-                          type="checkbox"
-                          checked={service.price_visible}
-                          onChange={(e) => updateService(service.id, { price_visible: e.target.checked })}
-                        />
-                        Fiyatı göster
-                      </label>
-                      {!service.price_visible && (
-                        <div className="mt-1 text-xs text-slate-500">
-                          Fallback: Fiyat için arayın {tenant?.contact_phone ? `(${tenant.contact_phone})` : ""}
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-4 py-3">
-                      <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
-                        <input
-                          type="checkbox"
-                          checked={service.is_active}
-                          onChange={(e) => updateService(service.id, { is_active: e.target.checked })}
-                        />
-                        Aktif
-                      </label>
-                    </td>
-                    <td className="px-4 py-3 text-right">
-                      <button
-                        type="button"
-                        onClick={() => deleteService(service.id)}
-                        className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-50"
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                        Sil
-                      </button>
-                    </td>
+                    </label>
+                  </div>
+
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={service.price_visible}
+                        onChange={(e) => updateService(service.id, { price_visible: e.target.checked })}
+                      />
+                      Fiyatı göster
+                    </label>
+                    <label className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-2.5 py-1.5 text-xs text-slate-700">
+                      <input
+                        type="checkbox"
+                        checked={service.is_active}
+                        onChange={(e) => updateService(service.id, { is_active: e.target.checked })}
+                      />
+                      Aktif
+                    </label>
+                  </div>
+
+                  {!service.price_visible && (
+                    <p className="mt-2 text-xs text-slate-500">
+                      Fallback: Fiyat için arayın {tenant?.contact_phone ? `(${tenant.contact_phone})` : ""}
+                    </p>
+                  )}
+                </article>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto lg:block">
+              <table className="w-full min-w-[840px]">
+                <thead>
+                  <tr className="border-b border-slate-200 bg-slate-50/80 dark:border-slate-800 dark:bg-slate-800/60">
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Hizmet</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Süre</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Fiyat</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Görünürlük</th>
+                    <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Durum</th>
+                    <th className="px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-slate-500">İşlem</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+                </thead>
+                <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
+                  {sortedServices.map((service) => (
+                    <tr key={service.id}>
+                      <td className="px-4 py-3">
+                        <div className="font-medium text-slate-900 dark:text-slate-100">{service.name}</div>
+                        <div className="text-xs text-slate-500">{service.description || "Açıklama yok"}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          min={5}
+                          step={5}
+                          defaultValue={service.duration_minutes}
+                          onBlur={(e) => updateService(service.id, { duration_minutes: Number(e.target.value) || 30 })}
+                          className="w-20 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <input
+                          type="number"
+                          step={0.01}
+                          min={0}
+                          defaultValue={service.price ?? ""}
+                          onBlur={(e) =>
+                            updateService(service.id, {
+                              price: e.target.value === "" ? null : Number(e.target.value),
+                            })
+                          }
+                          placeholder="Yok"
+                          className="w-28 rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
+                        />
+                      </td>
+                      <td className="px-4 py-3">
+                        <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={service.price_visible}
+                            onChange={(e) => updateService(service.id, { price_visible: e.target.checked })}
+                          />
+                          Fiyatı göster
+                        </label>
+                        {!service.price_visible && (
+                          <div className="mt-1 text-xs text-slate-500">
+                            Fallback: Fiyat için arayın {tenant?.contact_phone ? `(${tenant.contact_phone})` : ""}
+                          </div>
+                        )}
+                      </td>
+                      <td className="px-4 py-3">
+                        <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={service.is_active}
+                            onChange={(e) => updateService(service.id, { is_active: e.target.checked })}
+                          />
+                          Aktif
+                        </label>
+                      </td>
+                      <td className="px-4 py-3 text-right">
+                        <button
+                          type="button"
+                          onClick={() => deleteService(service.id)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-medium text-red-700 transition hover:bg-red-50"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          Sil
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
       </section>
     </div>

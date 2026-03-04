@@ -101,8 +101,6 @@ export default function TenantSettingsPage({
   const [fallbackLabel, setFallbackLabel] = useState("Fiyat için arayın");
   const [fallbackPhone, setFallbackPhone] = useState("");
 
-  const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
-
   useEffect(() => {
     params.then((p) => setTenantId(p.tenantId));
   }, [params]);
@@ -111,7 +109,7 @@ export default function TenantSettingsPage({
     const load = async () => {
       if (!tenantId) return;
       setLoading(true);
-      const res = await fetch(`${baseUrl}/api/tenant/${tenantId}`);
+      const res = await fetch(`/api/tenant/${tenantId}`);
       const data = (await res.json().catch(() => null)) as TenantData | null;
       if (data) {
         setContactPhone(data.contact_phone || "");
@@ -134,13 +132,13 @@ export default function TenantSettingsPage({
       setLoading(false);
     };
     load();
-  }, [baseUrl, locale, tenantId]);
+  }, [locale, tenantId]);
 
   const save = async () => {
     if (!tenantId) return;
     setSaving(true);
     setSaved(false);
-    await fetch(`${baseUrl}/api/tenant/${tenantId}/settings`, {
+    await fetch(`/api/tenant/${tenantId}/settings`, {
       method: "PATCH",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -167,7 +165,7 @@ export default function TenantSettingsPage({
 
   if (loading) {
     return (
-      <div className="p-6 sm:p-8 lg:p-10">
+      <div className="p-4 pb-24 sm:p-6 lg:p-10">
         <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
           {t.loading}
         </div>
@@ -176,7 +174,7 @@ export default function TenantSettingsPage({
   }
 
   return (
-    <div className="space-y-6 p-6 sm:p-8 lg:p-10">
+    <div className="space-y-6 p-4 pb-24 sm:p-6 lg:p-10">
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <Link
           href={`/dashboard/${tenantId}`}
@@ -317,7 +315,7 @@ export default function TenantSettingsPage({
         </div>
       </section>
 
-      <div className="flex flex-wrap items-center gap-3">
+      <div className="hidden flex-wrap items-center gap-3 sm:flex">
         <button
           type="button"
           onClick={save}
@@ -333,6 +331,27 @@ export default function TenantSettingsPage({
             {t.saved}
           </span>
         )}
+      </div>
+
+      {saved && (
+        <div className="sm:hidden">
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+            <CheckCircle2 className="h-4 w-4" />
+            {t.saved}
+          </span>
+        </div>
+      )}
+
+      <div className="fixed inset-x-3 bottom-[calc(5.1rem+env(safe-area-inset-bottom))] z-30 sm:hidden">
+        <button
+          type="button"
+          onClick={save}
+          disabled={saving}
+          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 disabled:opacity-60 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+        >
+          <Save className="h-4 w-4" />
+          {saving ? t.saving : t.save}
+        </button>
       </div>
     </div>
   );

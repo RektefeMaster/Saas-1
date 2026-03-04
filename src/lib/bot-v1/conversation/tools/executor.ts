@@ -14,6 +14,10 @@ import {
   notifyNewAppointmentForMerchant,
   notifyRescheduledAppointmentForMerchant,
 } from "@/services/merchantNotification.service";
+import {
+  checkCustomerPackage,
+  consumeCustomerPackageSession,
+} from "@/services/package.service";
 
 export interface ToolExecResult {
   result: Record<string, unknown>;
@@ -61,8 +65,10 @@ export async function executeToolCall(
   if (name === "check_availability") {
     const dateStr = args.date as string;
     const serviceSlug = (args.service_slug as string | undefined) || undefined;
+    const staffId = (args.staff_id as string | undefined)?.trim() || undefined;
     const daily = await getDailyAvailability(tenantId, dateStr, {
       configOverride,
+      staffId,
       serviceSlug,
       customerPhone,
     });
@@ -130,9 +136,48 @@ export async function executeToolCall(
       ((args.extra_data as Record<string, unknown> | undefined)?.service_slug as
         | string
         | undefined);
+    const staffId = (args.staff_id as string | undefined)?.trim() || undefined;
+    const hasPackageDecision = typeof args.use_package === "boolean";
+    const usePackage = args.use_package === true;
+    const availablePackage =
+      serviceSlug ? await checkCustomerPackage(tenantId, customerPhone, serviceSlug) : null;
+
+    if (serviceSlug && availablePackage && !hasPackageDecision) {
+      return {
+        result: {
+          ok: false,
+          error: "ACTIVE_PACKAGE_CONFIRMATION_REQUIRED",
+          package_name: availablePackage.packageName,
+          remaining_sessions: availablePackage.remainingSessions,
+        },
+      };
+    }
+
+    if (usePackage && serviceSlug && !availablePackage) {
+      return {
+        result: {
+          ok: false,
+          error: "Bu hizmet için aktif paket bulunamadı veya seans hakkı kalmadı.",
+        },
+      };
+    }
+
+    const packageCandidate = usePackage ? availablePackage : null;
+
     const extraData = {
       ...(args.extra_data as Record<string, unknown> || {}),
       ...(customerName ? { customer_name: customerName } : {}),
+      ...(staffId ? { preferred_staff_id: staffId } : {}),
+      ...(usePackage && packageCandidate
+        ? {
+            package_usage: {
+              customer_package_id: packageCandidate.customerPackageId,
+              package_id: packageCandidate.packageId,
+              package_name: packageCandidate.packageName,
+              used_session: 1,
+            },
+          }
+        : {}),
     };
     let result: { ok: boolean; id?: string; error?: string; suggested_time?: string };
     try {
@@ -141,6 +186,7 @@ export async function executeToolCall(
         customerPhone,
         date: dateStr,
         time: timeStr,
+        staffId,
         serviceSlug,
         extraData,
       });
@@ -158,6 +204,31 @@ export async function executeToolCall(
       result = { ok: false, error: "Bir hata oluştu." };
     }
     if (result.ok) {
+      let packageUsageResult:
+        | {
+            used: boolean;
+            remainingSessions?: number;
+            status?: string;
+            error?: string;
+          }
+        | undefined;
+
+      if (usePackage && packageCandidate) {
+        const consumed = await consumeCustomerPackageSession(
+          packageCandidate.customerPackageId
+        );
+        packageUsageResult = consumed.ok
+          ? {
+              used: true,
+              remainingSessions: consumed.remainingSessions,
+              status: consumed.status,
+            }
+          : {
+              used: false,
+              error: consumed.error || "PACKAGE_CONSUME_FAILED",
+            };
+      }
+
       notifyNewAppointmentForMerchant({
         tenantId,
         customerPhone,
@@ -175,6 +246,14 @@ export async function executeToolCall(
           date_readable: formatDateReadableTr(dateStr, timeStr),
           time: timeStr,
           customer_name: customerName,
+          ...(packageUsageResult
+            ? {
+                package_used: packageUsageResult.used,
+                package_remaining_sessions: packageUsageResult.remainingSessions,
+                package_status: packageUsageResult.status,
+                package_error: packageUsageResult.error,
+              }
+            : {}),
         },
         sessionUpdate: {
           extracted: {
@@ -189,6 +268,49 @@ export async function executeToolCall(
         ok: false,
         error: result.error,
         suggested_time: result.suggested_time,
+      },
+    };
+  }
+
+  if (name === "check_customer_package") {
+    const serviceSlug = (args.service_slug as string | undefined)?.trim();
+    if (!serviceSlug) {
+      return {
+        result: {
+          ok: false,
+          has_package: false,
+          error: "service_slug gerekli",
+        },
+      };
+    }
+
+    const customerPackage = await checkCustomerPackage(
+      tenantId,
+      customerPhone,
+      serviceSlug
+    );
+
+    if (!customerPackage) {
+      return {
+        result: {
+          ok: true,
+          has_package: false,
+          service_slug: serviceSlug,
+        },
+      };
+    }
+
+    return {
+      result: {
+        ok: true,
+        has_package: true,
+        service_slug: customerPackage.serviceSlug,
+        package_id: customerPackage.packageId,
+        customer_package_id: customerPackage.customerPackageId,
+        package_name: customerPackage.packageName,
+        remaining_sessions: customerPackage.remainingSessions,
+        total_sessions: customerPackage.totalSessions,
+        expires_at: customerPackage.expiresAt,
       },
     };
   }

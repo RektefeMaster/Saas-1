@@ -40,12 +40,12 @@ export default async function DashboardPage() {
 
   if (!tenant) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-slate-50">
-        <div className="max-w-md rounded-2xl bg-white p-8 text-center shadow-md">
-          <h2 className="text-lg font-semibold text-slate-800">
+      <div className="flex min-h-screen items-center justify-center bg-slate-50 px-4 dark:bg-slate-950">
+        <div className="max-w-md rounded-2xl bg-white p-6 text-center shadow-md dark:bg-slate-900 sm:p-8">
+          <h2 className="text-lg font-semibold text-slate-800 dark:text-slate-100">
             İşletme Bulunamadı
           </h2>
-          <p className="mt-2 text-sm text-slate-500">
+          <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
             Hesabınıza bağlı bir işletme bulunamadı. Lütfen yönetici ile
             iletişime geçin.
           </p>

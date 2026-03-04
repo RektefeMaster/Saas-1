@@ -19,6 +19,7 @@ interface CrmCustomer {
   customer_name: string | null;
   tags: string[];
   notes_summary: string | null;
+  metadata?: Record<string, unknown> | null;
   last_visit_at: string | null;
   total_visits: number;
 }
@@ -38,6 +39,12 @@ interface CrmReminder {
   remind_at: string;
   channel: "panel" | "whatsapp" | "both";
   status: "pending" | "sent" | "cancelled";
+}
+
+interface TenantFeaturesResponse {
+  feature_flags?: {
+    crm_extended_profile?: boolean;
+  };
 }
 
 type ReminderFilter = "all" | "pending" | "sent" | "cancelled";
@@ -61,6 +68,9 @@ const COPY = {
     addNote: "Not Ekle",
     addTag: "Etiket Ekle",
     summary: "Kısa müşteri özeti",
+    extendedProfile: "Genişletilmiş Profil (JSON)",
+    extendedProfileHint:
+      "Alerji, cilt tipi, renk geçmişi gibi alanları JSON olarak kaydedin.",
     customerName: "Müşteri adı",
     lastVisit: "Son ziyaret",
     visits: "ziyaret",
@@ -100,6 +110,9 @@ const COPY = {
     addNote: "Add Note",
     addTag: "Add Tag",
     summary: "Short customer summary",
+    extendedProfile: "Extended Profile (JSON)",
+    extendedProfileHint:
+      "Store allergy, skin type, color history and similar fields as JSON.",
     customerName: "Customer name",
     lastVisit: "Last visit",
     visits: "visits",
@@ -145,7 +158,9 @@ export default function CrmPage({
   const t = COPY[locale];
 
   const [tenantId, setTenantId] = useState("");
+  const [crmExtendedProfileEnabled, setCrmExtendedProfileEnabled] = useState(false);
   const [search, setSearch] = useState("");
+  const [searchQuery, setSearchQuery] = useState("");
   const [customers, setCustomers] = useState<CrmCustomer[]>([]);
   const [customersLoading, setCustomersLoading] = useState(false);
   const [selectedPhone, setSelectedPhone] = useState("");
@@ -165,6 +180,7 @@ export default function CrmPage({
     customer_name: "",
     notes_summary: "",
   });
+  const [metadataJson, setMetadataJson] = useState("{}");
   const [reminderForm, setReminderForm] = useState({
     title: "",
     note: "",
@@ -175,6 +191,30 @@ export default function CrmPage({
   useEffect(() => {
     params.then((p) => setTenantId(p.tenantId));
   }, [params]);
+
+  useEffect(() => {
+    if (!tenantId) {
+      setCrmExtendedProfileEnabled(false);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/tenant/${tenantId}/features`, { signal: controller.signal, cache: "no-store" })
+      .then((res) => res.json())
+      .then((payload: TenantFeaturesResponse) => {
+        setCrmExtendedProfileEnabled(Boolean(payload?.feature_flags?.crm_extended_profile));
+      })
+      .catch(() => {
+        setCrmExtendedProfileEnabled(false);
+      });
+    return () => controller.abort();
+  }, [tenantId]);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setSearchQuery(search.trim());
+    }, 260);
+    return () => window.clearTimeout(timer);
+  }, [search]);
 
   const clearMessageLater = useCallback(() => {
     window.setTimeout(() => {
@@ -187,7 +227,7 @@ export default function CrmPage({
     if (!tenantId) return;
     setCustomersLoading(true);
     const res = await fetch(
-      `/api/tenant/${tenantId}/crm/customers?q=${encodeURIComponent(search.trim())}`
+      `/api/tenant/${tenantId}/crm/customers?q=${encodeURIComponent(searchQuery)}`
     );
     const data = (await res.json().catch(() => [])) as CrmCustomer[] | { error?: string };
     if (!res.ok) {
@@ -204,7 +244,7 @@ export default function CrmPage({
       setSelectedPhone(list[0]?.customer_phone || "");
     }
     setCustomersLoading(false);
-  }, [clearMessageLater, search, selectedPhone, tenantId]);
+  }, [clearMessageLater, searchQuery, selectedPhone, tenantId]);
 
   const loadCustomerDetail = useCallback(
     async (phone: string) => {
@@ -230,6 +270,9 @@ export default function CrmPage({
         customer_name: customer?.customer_name || "",
         notes_summary: customer?.notes_summary || "",
       });
+      const metadata =
+        customer?.metadata && typeof customer.metadata === "object" ? customer.metadata : {};
+      setMetadataJson(JSON.stringify(metadata, null, 2));
       setNotes(Array.isArray(payload.notes) ? payload.notes : []);
       setDetailLoading(false);
     },
@@ -268,6 +311,25 @@ export default function CrmPage({
 
   const saveCustomerProfile = async () => {
     if (!tenantId || !selectedPhone) return;
+    let metadataPayload: Record<string, unknown> | undefined;
+    if (crmExtendedProfileEnabled) {
+      try {
+        const parsed = JSON.parse(metadataJson || "{}");
+        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+          throw new Error("invalid_metadata");
+        }
+        metadataPayload = parsed as Record<string, unknown>;
+      } catch {
+        setError(
+          locale === "tr"
+            ? "Genişletilmiş profil alanı geçerli bir JSON olmalı."
+            : "Extended profile field must be valid JSON."
+        );
+        clearMessageLater();
+        return;
+      }
+    }
+
     setBusy(true);
     const res = await fetch(`/api/tenant/${tenantId}/crm/customers/${encodeURIComponent(selectedPhone)}`, {
       method: "PATCH",
@@ -275,6 +337,7 @@ export default function CrmPage({
       body: JSON.stringify({
         customer_name: profileForm.customer_name.trim() || null,
         notes_summary: profileForm.notes_summary.trim() || null,
+        ...(crmExtendedProfileEnabled ? { metadata: metadataPayload || {} } : {}),
       }),
     });
     const payload = (await res.json().catch(() => ({}))) as { error?: string };
@@ -397,7 +460,7 @@ export default function CrmPage({
   );
 
   return (
-    <div className="space-y-6 p-6 sm:p-8 lg:p-10">
+    <div className="space-y-6 p-4 pb-24 sm:p-6 lg:p-10">
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -515,6 +578,22 @@ export default function CrmPage({
                         className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
                       />
                     </label>
+                    {crmExtendedProfileEnabled && (
+                      <label>
+                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                          {t.extendedProfile}
+                        </span>
+                        <textarea
+                          rows={8}
+                          value={metadataJson}
+                          onChange={(e) => setMetadataJson(e.target.value)}
+                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        />
+                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                          {t.extendedProfileHint}
+                        </p>
+                      </label>
+                    )}
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         {t.lastVisit}: {formatDate(selectedCustomer?.last_visit_at || null, locale)}
@@ -770,4 +849,3 @@ export default function CrmPage({
     </div>
   );
 }
-

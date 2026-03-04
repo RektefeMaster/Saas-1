@@ -8,8 +8,10 @@ import {
   ChevronDown,
   LayoutDashboard,
   ListChecks,
+  Package,
   KanbanSquare,
   Users,
+  UserRound,
   Settings,
   MessageCircle,
   QrCode,
@@ -24,7 +26,19 @@ import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
 import { useLocale } from "@/lib/locale-context";
 import { ThemeLocaleSwitch } from "@/components/ui";
 
-type NavKey = "overview" | "pricing" | "workflow" | "crm" | "settings";
+type NavKey =
+  | "overview"
+  | "pricing"
+  | "packages"
+  | "workflow"
+  | "crm"
+  | "staff"
+  | "settings";
+
+interface DashboardFeatureFlags {
+  packages?: boolean;
+  staff_preference?: boolean;
+}
 
 const COPY = {
   tr: {
@@ -33,8 +47,10 @@ const COPY = {
     nav: {
       overview: "Özet",
       pricing: "Fiyat Listesi",
+      packages: "Paket & Seans",
       workflow: "İş Akışı",
       crm: "Müşteri Defteri",
+      staff: "Personel",
       settings: "Ayarlar",
     },
     whatsappLink: "WhatsApp Linki",
@@ -49,8 +65,10 @@ const COPY = {
     nav: {
       overview: "Overview",
       pricing: "Pricing",
+      packages: "Packages",
       workflow: "Workflow",
       crm: "Customer Book",
+      staff: "Staff",
       settings: "Settings",
     },
     whatsappLink: "WhatsApp Link",
@@ -127,6 +145,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   const [tenantName, setTenantName] = useState<string | null>(null);
   const [moduleVisibility, setModuleVisibility] = useState<Record<string, boolean> | null>(null);
   const [moduleOrder, setModuleOrder] = useState<string[] | null>(null);
+  const [featureFlags, setFeatureFlags] = useState<DashboardFeatureFlags | null>(null);
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -141,11 +160,16 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     setTenantId(id);
     if (!id) {
       setTenantName(null);
+      setFeatureFlags(null);
       return;
     }
-    fetch(`/api/tenant/${id}`)
-      .then((r) => r.json())
-      .then((data) => {
+    Promise.all([
+      fetch(`/api/tenant/${id}`).then((r) => r.json()),
+      fetch(`/api/tenant/${id}/features`)
+        .then((r) => r.json())
+        .catch(() => null),
+    ])
+      .then(([data, featureData]) => {
         setTenantName(data?.name ?? null);
         const uiPrefs =
           (data?.ui_preferences as Record<string, unknown> | undefined) ||
@@ -153,11 +177,13 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           {};
         setModuleVisibility((uiPrefs.moduleVisibility as Record<string, boolean>) || null);
         setModuleOrder(Array.isArray(uiPrefs.moduleOrder) ? (uiPrefs.moduleOrder as string[]) : null);
+        setFeatureFlags((featureData?.feature_flags as DashboardFeatureFlags | undefined) || null);
       })
       .catch(() => {
         setTenantName(null);
         setModuleVisibility(null);
         setModuleOrder(null);
+        setFeatureFlags(null);
       });
   }, [pathname, isLogin]);
 
@@ -167,19 +193,17 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
   }, [isLogin]);
 
-  if (isLogin) return <>{children}</>;
-
-  const isTenantPage = !!tenantId;
   const appBaseUrl = getAppBaseUrl();
-
   const baseNav = useMemo(
     () =>
       (tenantId
         ? [
             { key: "overview" as NavKey, href: `/dashboard/${tenantId}`, label: t.nav.overview, icon: LayoutDashboard },
             { key: "pricing" as NavKey, href: `/dashboard/${tenantId}/pricing`, label: t.nav.pricing, icon: ListChecks },
+            { key: "packages" as NavKey, href: `/dashboard/${tenantId}/packages`, label: t.nav.packages, icon: Package },
             { key: "workflow" as NavKey, href: `/dashboard/${tenantId}/workflow`, label: t.nav.workflow, icon: KanbanSquare },
             { key: "crm" as NavKey, href: `/dashboard/${tenantId}/crm`, label: t.nav.crm, icon: Users },
+            { key: "staff" as NavKey, href: `/dashboard/${tenantId}/staff`, label: t.nav.staff, icon: UserRound },
             { key: "settings" as NavKey, href: `/dashboard/${tenantId}/settings`, label: t.nav.settings, icon: Settings },
           ]
         : []),
@@ -188,15 +212,24 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
   const navItems = useMemo(() => {
     let visible = baseNav;
+    if (featureFlags?.packages !== true) {
+      visible = visible.filter((item) => item.key !== "packages");
+    }
+    if (featureFlags?.staff_preference !== true) {
+      visible = visible.filter((item) => item.key !== "staff");
+    }
     if (moduleVisibility) {
-      visible = baseNav.filter((item) => moduleVisibility[item.key] !== false);
+      visible = visible.filter((item) => moduleVisibility[item.key] !== false);
     }
     if (!moduleOrder || moduleOrder.length === 0) return visible;
     const rank = new Map(moduleOrder.map((key, index) => [key, index]));
     return [...visible].sort((a, b) => (rank.get(a.key) ?? 999) - (rank.get(b.key) ?? 999));
-  }, [baseNav, moduleOrder, moduleVisibility]);
+  }, [baseNav, featureFlags, moduleOrder, moduleVisibility]);
 
   const mobileNavItems = navItems.slice(0, 5);
+  const isTenantPage = !!tenantId;
+
+  if (isLogin) return <>{children}</>;
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -311,6 +344,9 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                 <QrCode className="h-4 w-4" />
                 {t.qrDownload}
               </a>
+              <div className="pt-1 lg:hidden">
+                <ThemeLocaleSwitch compact />
+              </div>
             </div>
           </aside>
 

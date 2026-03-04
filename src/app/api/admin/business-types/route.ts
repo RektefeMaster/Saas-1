@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
     );
   }
   const body = await request.json();
-  const { name, slug, flow_type, config, bot_config } = body;
+  const { name, slug, flow_type, config, bot_config, feature_flags } = body;
   if (!name || !slug || !flow_type) {
     return NextResponse.json({ error: "name, slug, flow_type gerekli" }, { status: 400 });
   }
@@ -42,6 +42,9 @@ export async function POST(request: NextRequest) {
   };
   if (bot_config != null && typeof bot_config === "object") {
     insertPayload.bot_config = bot_config;
+  }
+  if (feature_flags != null && typeof feature_flags === "object") {
+    insertPayload.feature_flags = feature_flags;
   }
   const { data, error } = await supabase
     .from("business_types")

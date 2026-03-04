@@ -38,13 +38,17 @@ export async function PATCH(
   }
   const { id } = await params;
   const body = await request.json();
-  const { name, slug, flow_type, config, bot_config } = body;
+  const { name, slug, flow_type, config, bot_config, feature_flags } = body;
   const updatePayload: Record<string, unknown> = {};
   if (name !== undefined) updatePayload.name = name;
   if (slug !== undefined) updatePayload.slug = slug;
   if (flow_type !== undefined) updatePayload.flow_type = flow_type;
   if (config !== undefined) updatePayload.config = config;
   if (bot_config !== undefined) updatePayload.bot_config = bot_config === null ? null : bot_config;
+  if (feature_flags !== undefined) {
+    updatePayload.feature_flags =
+      feature_flags === null ? {} : feature_flags;
+  }
   if (Object.keys(updatePayload).length === 0) {
     return NextResponse.json({ error: "Güncellenecek alan yok" }, { status: 400 });
   }

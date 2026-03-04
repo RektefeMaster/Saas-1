@@ -4,6 +4,9 @@ import { reserveAppointment } from "@/services/booking.service";
 import { logTenantEvent } from "@/services/eventLog.service";
 import { notifyNewAppointmentForMerchant } from "@/services/merchantNotification.service";
 
+const APPOINTMENT_LIST_COLUMNS =
+  "id,customer_phone,slot_start,status,service_slug,staff_id,extra_data";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -15,7 +18,7 @@ export async function GET(
 
   let query = supabase
     .from("appointments")
-    .select("*")
+    .select(APPOINTMENT_LIST_COLUMNS)
     .eq("tenant_id", id)
     .neq("status", "cancelled")
     .order("slot_start", { ascending: true });
@@ -44,6 +47,7 @@ export async function POST(
   const body = (await request.json().catch(() => ({}))) as {
     customer_phone?: string;
     slot_start?: string;
+    staff_id?: string | null;
     service_slug?: string | null;
     extra_data?: Record<string, unknown>;
   };
@@ -78,6 +82,7 @@ export async function POST(
     customerPhone,
     date,
     time,
+    staffId: body.staff_id || null,
     serviceSlug: serviceSlug || null,
     extraData,
   });

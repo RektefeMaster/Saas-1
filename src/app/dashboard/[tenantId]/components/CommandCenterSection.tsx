@@ -1,6 +1,5 @@
 "use client";
 
-import { motion } from "motion/react";
 import { Loader2 } from "lucide-react";
 
 export interface CommandCenterAction {
@@ -73,50 +72,30 @@ export function CommandCenterSection({
       ) : (
         <>
           <div className="mb-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-            >
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Aylık Ciro</p>
               <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {commandCenter.kpis.monthly_revenue_try.toLocaleString("tr-TR")} ₺
               </p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-            >
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Doluluk</p>
               <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 %{commandCenter.kpis.fill_rate_pct.toFixed(1)}
               </p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-            >
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Gelmeme</p>
               <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 %{commandCenter.kpis.no_show_rate_pct.toFixed(1)}
               </p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-            >
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Riskli Müşteri</p>
               <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {commandCenter.kpis.at_risk_customers}
               </p>
-            </motion.div>
+            </div>
           </div>
 
           <div className="space-y-3">
@@ -126,18 +105,15 @@ export function CommandCenterSection({
                 <p className="mt-1 text-xs text-slate-500">Her şey yolunda görünüyor! 🎉</p>
               </div>
             ) : (
-              commandCenter.actions.map((action, idx) => {
+              commandCenter.actions.map((action) => {
                 const severityColors = {
                   high: "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60",
                   medium: "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60",
                   low: "border-slate-300 bg-slate-50 dark:border-slate-700 dark:bg-slate-800/60",
                 };
                 return (
-                  <motion.div
+                  <div
                     key={action.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.1 }}
                     className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border px-4 py-4 shadow-sm ${severityColors[action.severity]}`}
                   >
                     <div className="flex-1">
@@ -149,12 +125,10 @@ export function CommandCenterSection({
                         </p>
                       )}
                     </div>
-                    <motion.button
+                    <button
                       type="button"
                       onClick={() => onRunAction(action)}
                       disabled={runningActionId === action.id}
-                      whileHover={{ scale: runningActionId === action.id ? 1 : 1.05 }}
-                      whileTap={{ scale: 0.95 }}
                       className="rounded-xl bg-slate-900 px-4 py-2.5 text-xs font-semibold text-white shadow-sm transition hover:bg-slate-700 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
                     >
                       {runningActionId === action.id ? (
@@ -165,8 +139,8 @@ export function CommandCenterSection({
                       ) : (
                         action.cta_label
                       )}
-                    </motion.button>
-                  </motion.div>
+                    </button>
+                  </div>
                 );
               })
             )}

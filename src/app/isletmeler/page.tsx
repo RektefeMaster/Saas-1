@@ -53,14 +53,14 @@ const TenantCard = memo(function TenantCard({
           <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
             <Store className="h-5 w-5" />
           </span>
-          <div>
-            <p className="text-base font-semibold text-slate-900 dark:text-slate-100">{tenant.name}</p>
-            <p className="mt-0.5 font-mono text-xs text-slate-500 dark:text-slate-400">
+          <div className="min-w-0">
+            <p className="truncate text-base font-semibold text-slate-900 dark:text-slate-100">{tenant.name}</p>
+            <p className="mt-0.5 truncate font-mono text-xs text-slate-500 dark:text-slate-400">
               {tenant.tenant_code}
             </p>
           </div>
         </div>
-        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+        <span className="shrink-0 whitespace-nowrap rounded-full bg-emerald-100 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
           {badge}
         </span>
       </div>
@@ -132,19 +132,20 @@ export default function IsletmelerPage() {
             <Link
               href="/"
               className="inline-flex items-center gap-1 rounded-xl border border-slate-200 bg-white px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              aria-label={t.back}
             >
               <ArrowLeft className="h-3.5 w-3.5" />
-              {t.back}
+              <span className="hidden sm:inline">{t.back}</span>
             </Link>
             <ThemeLocaleSwitch compact />
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto w-full max-w-5xl px-4 py-10 sm:px-6">
+      <main className="relative z-10 mx-auto w-full max-w-5xl px-4 py-8 sm:px-6 sm:py-10">
         <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
           <div>
-            <h1 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
               {t.title}
             </h1>
             <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">{t.desc}</p>

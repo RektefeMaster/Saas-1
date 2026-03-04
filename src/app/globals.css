@@ -75,6 +75,7 @@ body {
 
 html {
   scroll-behavior: smooth;
+  -webkit-tap-highlight-color: transparent;
 }
 
 ::selection {
@@ -179,4 +180,28 @@ a:focus-visible {
 
 .scrollbar-thin::-webkit-scrollbar-thumb:hover {
   background: var(--muted-foreground);
+}
+
+/* Mobile ergonomics */
+.mobile-safe-pb {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+}
+
+.mobile-card-stack {
+  display: grid;
+  gap: 0.75rem;
+}
+
+@media (max-width: 640px) {
+  input,
+  select,
+  textarea {
+    font-size: 16px !important;
+  }
+
+  button,
+  a[role="button"],
+  .tap-target {
+    min-height: 42px;
+  }
 }

@@ -253,19 +253,19 @@ export default function NewTenantWizardPage() {
         ← İşletmeler listesine dön
       </Link>
 
-      <section className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-cyan-50/60 to-emerald-50/70 p-6 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-cyan-950/20 dark:to-emerald-950/20 sm:p-7">
+      <section className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-cyan-50/60 to-emerald-50/70 p-5 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-cyan-950/20 dark:to-emerald-950/20 sm:p-7">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
           Yeni İşletme Sihirbazı
         </h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 sm:text-base">{progress}</p>
-        <div className="mt-4 grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible lg:grid-cols-6">
           {STEP_TITLES.map((title, index) => {
             const isActive = index === step;
             const isDone = index < step;
             return (
               <div
                 key={title}
-                className={`rounded-xl border px-3 py-2 text-xs ${
+                className={`w-[10.5rem] shrink-0 rounded-xl border px-3 py-2 text-xs sm:w-auto sm:shrink ${
                   isActive
                     ? "border-cyan-300 bg-cyan-50 text-cyan-900 dark:border-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-200"
                     : isDone
@@ -281,7 +281,7 @@ export default function NewTenantWizardPage() {
         </div>
       </section>
 
-      <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
         {error && (
           <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300">
             {error}
@@ -743,7 +743,7 @@ export default function NewTenantWizardPage() {
           </div>
         )}
 
-        <div className="mt-8 flex items-center justify-between">
+        <div className="sticky bottom-[calc(4.9rem+env(safe-area-inset-bottom))] mt-8 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg shadow-slate-900/5 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
           <button
             type="button"
             onClick={prevStep}

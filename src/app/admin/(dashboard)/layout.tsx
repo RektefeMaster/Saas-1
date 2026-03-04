@@ -125,6 +125,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
     () => navItems.find((item) => isItemActive(pathname, item.href))?.label || t.management,
     [navItems, pathname, t.management]
   );
+  const mobileNavItems = navItems.slice(0, 5);
 
   return (
     <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -250,9 +251,34 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
           </div>
         </header>
 
-        <main className="px-4 pb-10 pt-6 sm:px-6 lg:px-8">
+        <main className="px-4 pb-[calc(6rem+env(safe-area-inset-bottom))] pt-6 sm:px-6 lg:px-8 lg:pb-10">
           <div className="mx-auto w-full max-w-[1600px]">{children}</div>
         </main>
+
+        {mobileNavItems.length > 0 && (
+          <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/98 px-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1 backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-900/95">
+            <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}>
+              {mobileNavItems.map((item) => {
+                const active = isItemActive(pathname, item.href);
+                const Icon = item.icon;
+                return (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    className={`flex min-w-0 flex-col items-center justify-center rounded-xl px-1 py-2 text-[10px] font-semibold transition ${
+                      active
+                        ? "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100"
+                        : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    <Icon className={`mb-1 h-4 w-4 ${active ? "text-slate-700 dark:text-slate-100" : ""}`} />
+                    <span className="truncate">{item.label}</span>
+                  </Link>
+                );
+              })}
+            </div>
+          </nav>
+        )}
       </div>
     </div>
   );

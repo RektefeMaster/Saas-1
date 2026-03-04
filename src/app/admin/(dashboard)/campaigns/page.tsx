@@ -128,7 +128,7 @@ export default function CampaignsPage() {
       </div>
 
       <form onSubmit={handleSend} className="space-y-6">
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
             <Users className="h-4 w-4" />
             İşletme ve Alıcılar
@@ -226,7 +226,7 @@ export default function CampaignsPage() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
           <h2 className="mb-4 flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
             <Megaphone className="h-4 w-4" />
             Mesaj
@@ -263,11 +263,31 @@ export default function CampaignsPage() {
           </div>
         )}
 
-        <div className="flex justify-end">
+        <div className="hidden sm:flex sm:justify-end">
           <button
             type="submit"
             disabled={sending || !tenantId || !messageText.trim()}
             className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-600"
+          >
+            {sending ? (
+              <>
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Gönderiliyor…
+              </>
+            ) : (
+              <>
+                <Send className="h-4 w-4" />
+                Gönder
+              </>
+            )}
+          </button>
+        </div>
+
+        <div className="fixed inset-x-3 bottom-[calc(4.9rem+env(safe-area-inset-bottom))] z-30 sm:hidden">
+          <button
+            type="submit"
+            disabled={sending || !tenantId || !messageText.trim()}
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-600"
           >
             {sending ? (
               <>
