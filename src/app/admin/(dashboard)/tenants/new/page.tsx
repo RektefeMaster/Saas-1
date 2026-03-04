@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isValidUsername } from "@/lib/username-auth";
@@ -58,6 +58,7 @@ export default function NewTenantWizardPage() {
   const [tenantCode, setTenantCode] = useState("");
   const [businessTypeId, setBusinessTypeId] = useState("");
   const [status, setStatus] = useState<"active" | "inactive" | "suspended">("active");
+  const [campaignEnabled, setCampaignEnabled] = useState(true);
 
   const [ownerUsername, setOwnerUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -114,11 +115,6 @@ export default function NewTenantWizardPage() {
 
   const isLastStep = step === STEP_TITLES.length - 1;
 
-  const progress = useMemo(
-    () => `${step + 1}/${STEP_TITLES.length} • ${STEP_TITLES[step]}`,
-    [step]
-  );
-
   const validateStep = (): boolean => {
     if (step === 0) {
       if (!name.trim() || !tenantCode.trim() || !businessTypeId) {
@@ -171,6 +167,7 @@ export default function NewTenantWizardPage() {
       tenant_code: tenantCode.trim().toUpperCase(),
       business_type_id: businessTypeId,
       status,
+      campaign_enabled: campaignEnabled,
       owner_username: ownerUsername.trim().toLowerCase(),
       password,
       owner_phone_e164: ownerPhone.trim() || null,
@@ -248,47 +245,65 @@ export default function NewTenantWizardPage() {
     <div className="space-y-6">
       <Link
         href="/admin/tenants"
-        className="inline-flex items-center gap-2 rounded-xl border border-slate-300 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
       >
         ← İşletmeler listesine dön
       </Link>
 
-      <section className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-cyan-50/60 to-emerald-50/70 p-5 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-cyan-950/20 dark:to-emerald-950/20 sm:p-7">
+      <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-cyan-50/50 to-emerald-50/60 p-6 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-cyan-950/20 dark:to-emerald-950/20 sm:p-8">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-          Yeni İşletme Sihirbazı
+          Yeni İşletme Oluştur
         </h1>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 sm:text-base">{progress}</p>
-        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible lg:grid-cols-6">
+        <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
+          Adım adım rehberle işletmenizi dakikalar içinde sisteme ekleyin.
+        </p>
+        <div className="mt-5">
+          <div className="mb-2 flex justify-between text-xs font-medium text-slate-500 dark:text-slate-400">
+            <span>İlerleme</span>
+            <span>{step + 1} / {STEP_TITLES.length}</span>
+          </div>
+          <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
+            <div
+              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all duration-300"
+              style={{ width: `${((step + 1) / STEP_TITLES.length) * 100}%` }}
+            />
+          </div>
+        </div>
+        <div className="mt-5 flex gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-3 sm:overflow-visible lg:grid-cols-6">
           {STEP_TITLES.map((title, index) => {
             const isActive = index === step;
             const isDone = index < step;
             return (
-              <div
+              <button
                 key={title}
-                className={`w-[10.5rem] shrink-0 rounded-xl border px-3 py-2 text-xs sm:w-auto sm:shrink ${
+                type="button"
+                onClick={() => setStep(index)}
+                className={`w-[10.5rem] shrink-0 rounded-xl border px-3 py-2.5 text-left text-xs transition sm:w-auto sm:shrink ${
                   isActive
-                    ? "border-cyan-300 bg-cyan-50 text-cyan-900 dark:border-cyan-700 dark:bg-cyan-950/40 dark:text-cyan-200"
+                    ? "border-cyan-400 bg-cyan-50 text-cyan-900 shadow-sm dark:border-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-100"
                     : isDone
-                      ? "border-emerald-300 bg-emerald-50 text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
-                      : "border-slate-200 bg-white text-slate-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
+                      ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
+                      : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
                 }`}
               >
-                <p className="font-semibold">{isDone ? "Tamam" : `Adım ${index + 1}`}</p>
+                <p className="font-semibold">{isDone ? "✓ Tamam" : `Adım ${index + 1}`}</p>
                 <p className="mt-0.5 truncate">{title}</p>
-              </div>
+              </button>
             );
           })}
         </div>
       </section>
 
-      <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
+      <form onSubmit={submit} className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-7">
         {error && (
-          <div className="mb-4 rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/70 dark:bg-red-950/30 dark:text-red-300">
+          <div className="mb-5 flex items-center gap-3 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-red-200 text-red-700 dark:bg-red-900/50">!</span>
             {error}
           </div>
         )}
         {success && (
-          <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/70 dark:bg-emerald-950/30 dark:text-emerald-300">
+          <div className="mb-5 flex items-center gap-3 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700 dark:border-emerald-900/50 dark:bg-emerald-950/30 dark:text-emerald-300">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-emerald-200 text-emerald-700 dark:bg-emerald-900/50">✓</span>
             {success}
           </div>
         )}
@@ -303,7 +318,7 @@ export default function NewTenantWizardPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Örn: Mehmet Berber Salonu"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm transition focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-600 dark:bg-slate-900 dark:focus:border-cyan-400"
                 required
               />
               <p className="mt-1 text-xs text-slate-500">Müşterilere görünen resmi işletme adı</p>
@@ -354,6 +369,36 @@ export default function NewTenantWizardPage() {
                 <option value="inactive">Pasif (geçici kapalı)</option>
                 <option value="suspended">Askıda</option>
               </select>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 dark:border-slate-700 dark:bg-slate-800/50">
+              <label className="flex cursor-pointer items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium text-slate-700 dark:text-slate-200">Kampanya gönderimi</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Aktifse işletme müşterilerine kampanya mesajı gönderebilir
+                  </p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm font-medium text-slate-600 dark:text-slate-300">
+                    {campaignEnabled ? "Aktif" : "Kısıtlı"}
+                  </span>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={campaignEnabled}
+                    onClick={() => setCampaignEnabled((c) => !c)}
+                    className={`relative inline-flex h-7 w-12 shrink-0 items-center rounded-full transition-colors ${
+                      campaignEnabled ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"
+                    }`}
+                  >
+                    <span
+                      className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+                        campaignEnabled ? "translate-x-5" : "translate-x-1"
+                      }`}
+                    />
+                  </button>
+                </div>
+              </label>
             </div>
           </div>
         )}
@@ -743,30 +788,30 @@ export default function NewTenantWizardPage() {
           </div>
         )}
 
-        <div className="sticky bottom-[calc(4.9rem+env(safe-area-inset-bottom))] mt-8 flex items-center justify-between rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-lg shadow-slate-900/5 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
+        <div className="sticky bottom-[calc(4.9rem+env(safe-area-inset-bottom))] mt-8 flex items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white/95 p-4 shadow-lg shadow-slate-900/5 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95 sm:static sm:border-0 sm:bg-transparent sm:p-0 sm:shadow-none">
           <button
             type="button"
             onClick={prevStep}
             disabled={step === 0 || loading}
-            className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700 disabled:opacity-50 dark:border-slate-700 dark:text-slate-200"
+            className="rounded-xl border border-slate-300 px-5 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 disabled:opacity-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
           >
-            Geri
+            ← Geri
           </button>
           {!isLastStep ? (
             <button
               type="button"
               onClick={nextStep}
-              className="rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+              className="rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
-              İleri
+              İleri →
             </button>
           ) : (
             <button
               type="submit"
               disabled={loading}
-              className="rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white disabled:opacity-50 hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+              className="rounded-xl bg-emerald-600 px-6 py-2.5 text-sm font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
-              {loading ? "Oluşturuluyor..." : "İşletmeyi Oluştur"}
+              {loading ? "Oluşturuluyor…" : "İşletmeyi Oluştur"}
             </button>
           )}
         </div>

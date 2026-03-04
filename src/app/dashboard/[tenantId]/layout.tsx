@@ -1,8 +1,10 @@
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { createClient } from "@/lib/supabase/server";
 import { supabase as adminSupabase } from "@/lib/supabase";
 import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
 import { loginEmailToUsernameDisplay, normalizeUsername } from "@/lib/username-auth";
+import { getAdminCookieName, verifyAdminToken } from "@/lib/admin-auth";
 
 export default async function DashboardTenantLayout({
   children,
@@ -22,6 +24,14 @@ export default async function DashboardTenantLayout({
   if (!tenantId) {
     redirect("/dashboard");
   }
+
+  const cookieStore = await cookies();
+  const adminToken = cookieStore.get(getAdminCookieName())?.value;
+  const isAdmin = adminToken ? await verifyAdminToken(adminToken) : false;
+  if (isAdmin) {
+    return <>{children}</>;
+  }
+
   const supabase = await createClient();
   const {
     data: { user },

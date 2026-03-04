@@ -40,6 +40,7 @@ interface StatusColumnConfig {
   columnClass: string;
   badgeClass: string;
   emptyClass: string;
+  emptyMessage: string;
 }
 
 interface StatusActionConfig {
@@ -58,6 +59,7 @@ const STATUS_CONFIG: Record<AppointmentStatus, StatusColumnConfig> = {
     columnClass: "border-amber-200 bg-amber-50/80 dark:border-amber-800 dark:bg-amber-950/20",
     badgeClass: "bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200",
     emptyClass: "border-amber-200/80 text-amber-700 dark:border-amber-800/80 dark:text-amber-300",
+    emptyMessage: "Yeni bekleyen randevu yok",
   },
   confirmed: {
     title: "Onaylı",
@@ -66,6 +68,7 @@ const STATUS_CONFIG: Record<AppointmentStatus, StatusColumnConfig> = {
     columnClass: "border-cyan-200 bg-cyan-50/70 dark:border-cyan-800 dark:bg-cyan-950/20",
     badgeClass: "bg-cyan-100 text-cyan-900 dark:bg-cyan-900/50 dark:text-cyan-200",
     emptyClass: "border-cyan-200/80 text-cyan-700 dark:border-cyan-800/80 dark:text-cyan-300",
+    emptyMessage: "Onaylı randevu yok",
   },
   completed: {
     title: "Tamamlandı",
@@ -74,6 +77,7 @@ const STATUS_CONFIG: Record<AppointmentStatus, StatusColumnConfig> = {
     columnClass: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/20",
     badgeClass: "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200",
     emptyClass: "border-emerald-200/80 text-emerald-700 dark:border-emerald-800/80 dark:text-emerald-300",
+    emptyMessage: "Bütün müşterileriniz ile ilgilendiniz!",
   },
   cancelled: {
     title: "İptal",
@@ -82,6 +86,7 @@ const STATUS_CONFIG: Record<AppointmentStatus, StatusColumnConfig> = {
     columnClass: "border-rose-200 bg-rose-50/70 dark:border-rose-800 dark:bg-rose-950/20",
     badgeClass: "bg-rose-100 text-rose-900 dark:bg-rose-900/50 dark:text-rose-200",
     emptyClass: "border-rose-200/80 text-rose-700 dark:border-rose-800/80 dark:text-rose-300",
+    emptyMessage: "İptal edilen randevu yok",
   },
   no_show: {
     title: "Gelmedi",
@@ -90,6 +95,7 @@ const STATUS_CONFIG: Record<AppointmentStatus, StatusColumnConfig> = {
     columnClass: "border-orange-200 bg-orange-50/70 dark:border-orange-800 dark:bg-orange-950/20",
     badgeClass: "bg-orange-100 text-orange-900 dark:bg-orange-900/50 dark:text-orange-200",
     emptyClass: "border-orange-200/80 text-orange-700 dark:border-orange-800/80 dark:text-orange-300",
+    emptyMessage: "Gelmedi kaydı yok",
   },
 };
 
@@ -359,8 +365,7 @@ export default function WorkflowPage({
                   İş Akışı Merkezi
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-                  Tüm randevu sürecini tek tahtada yönet. Mobil, tablet ve bilgisayarda aynı düzenle çalışır;
-                  sütunlar ve kart davranışı değişmez.
+                  Günlük randevularınızı tek ekranda takip edin, tek tıkla durum güncelleyin.
                 </p>
               </div>
             </div>
@@ -539,7 +544,7 @@ export default function WorkflowPage({
                       <div
                         className={`mt-1 rounded-xl border border-dashed px-3 py-8 text-center text-xs ${meta.emptyClass}`}
                       >
-                        Bu sütunda kayıt yok
+                        {meta.emptyMessage}
                       </div>
                     ) : (
                       <div className="space-y-3">

@@ -83,16 +83,17 @@ export async function DELETE(
     return NextResponse.json({ error: "İşletme tipi bulunamadı" }, { status: 404 });
   }
 
-  const { count: tenantCount } = await supabase
+  const { data: tenantsUsing } = await supabase
     .from("tenants")
-    .select("*", { count: "exact", head: true })
+    .select("id")
     .eq("business_type_id", id)
     .is("deleted_at", null);
-  if (tenantCount && tenantCount > 0) {
+  const count = tenantsUsing?.length ?? 0;
+  if (count > 0) {
     return NextResponse.json(
       {
-        error: `Bu işletme tipi ${tenantCount} işletme tarafından kullanılıyor. Önce bu işletmelerin tipini değiştirin veya silin.`,
-        tenant_count: tenantCount,
+        error: `Bu işletme tipi ${count} işletme tarafından kullanılıyor. Önce bu işletmelerin tipini değiştirin veya silin.`,
+        tenant_count: count,
       },
       { status: 409 }
     );

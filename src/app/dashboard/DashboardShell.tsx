@@ -23,7 +23,6 @@ import {
 } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase-client";
-import { getAppBaseUrl } from "@/lib/app-url";
 import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
 import { useLocale } from "@/lib/locale-context";
 import { ThemeLocaleSwitch } from "@/components/ui";
@@ -31,6 +30,11 @@ import { fetcher } from "@/lib/swr-fetcher";
 
 const QRCodeModal = dynamic(
   () => import("@/components/ui/QRCodeModal").then((m) => ({ default: m.QRCodeModal })),
+  { ssr: false, loading: () => null }
+);
+
+const WhatsAppLinkModal = dynamic(
+  () => import("@/components/ui/WhatsAppLinkModal").then((m) => ({ default: m.WhatsAppLinkModal })),
   { ssr: false, loading: () => null }
 );
 
@@ -154,7 +158,9 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
   const [tenantId, setTenantId] = useState<string | null>(null);
   const [showQRModal, setShowQRModal] = useState(false);
+  const [showLinkModal, setShowLinkModal] = useState(false);
   const closeQRModal = useCallback(() => setShowQRModal(false), []);
+  const closeLinkModal = useCallback(() => setShowLinkModal(false), []);
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -203,7 +209,6 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
   }, [isLogin]);
 
-  const appBaseUrl = getAppBaseUrl();
   const baseNav = useMemo(
     () =>
       (tenantId
@@ -336,19 +341,18 @@ export default function DashboardShell({ children }: { children: React.ReactNode
             </div>
 
             <div className="mt-4 space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
-              <a
-                href={`${appBaseUrl}/api/tenant/${tenantId}/link`}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+              <button
+                type="button"
+                onClick={() => setShowLinkModal(true)}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <MessageCircle className="h-4 w-4" />
                 {t.whatsappLink}
-              </a>
+              </button>
               <button
                 type="button"
                 onClick={() => setShowQRModal(true)}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <QrCode className="h-4 w-4" />
                 {t.qrCode}
@@ -364,12 +368,20 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           </main>
 
           {tenantId && (
-            <QRCodeModal
-              tenantId={tenantId}
-              tenantCode={tenantCode ?? undefined}
-              isOpen={showQRModal}
-              onClose={closeQRModal}
-            />
+            <>
+              <QRCodeModal
+                tenantId={tenantId}
+                tenantCode={tenantCode ?? undefined}
+                isOpen={showQRModal}
+                onClose={closeQRModal}
+              />
+              <WhatsAppLinkModal
+                tenantId={tenantId}
+                tenantCode={tenantCode ?? undefined}
+                isOpen={showLinkModal}
+                onClose={closeLinkModal}
+              />
+            </>
           )}
 
           {mobileNavItems.length > 0 && (

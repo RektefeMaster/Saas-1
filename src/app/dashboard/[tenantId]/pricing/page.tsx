@@ -174,64 +174,77 @@ export default function PricingPage({
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Panele Dön
+          Panele dön
         </Link>
-        <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-          Fiyat Listesi
-        </h1>
-        <p className="mt-2 text-slate-600 dark:text-slate-400">
-          Hizmet ve fiyatlarınızı yönetin. Fiyat görünmeyen hizmetler müşteriye samimi bir dille
-          “fiyat için arayın” fallback mesajıyla sunulur.
+        <h1 className="mt-4 text-xl font-semibold text-slate-900 dark:text-slate-100">Fiyat Listesi</h1>
+        <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
+          Hizmetlerinizi ve fiyatlarınızı ekleyin, düzenleyin.
         </p>
       </header>
 
-      <section className="mb-8 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">Yeni hizmet</h2>
-        <form onSubmit={createService} className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-          <input
-            value={newService.name}
-            onChange={(e) => setNewService((s) => ({ ...s, name: e.target.value }))}
-            placeholder="Hizmet adı"
-            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300/30"
-            required
-          />
-          <input
-            value={newService.description}
-            onChange={(e) => setNewService((s) => ({ ...s, description: e.target.value }))}
-            placeholder="Açıklama (opsiyonel)"
-            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300/30"
-          />
-          <input
-            type="number"
-            min={5}
-            step={5}
-            value={newService.duration_minutes}
-            onChange={(e) =>
-              setNewService((s) => ({ ...s, duration_minutes: Number(e.target.value) || 30 }))
-            }
-            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300/30"
-          />
-          <input
-            type="number"
-            step={0.01}
-            min={0}
-            value={newService.price}
-            onChange={(e) => setNewService((s) => ({ ...s, price: e.target.value }))}
-            placeholder="Fiyat (TL)"
-            className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-300/30"
-          />
-          <button
-            type="submit"
-            disabled={saving}
-            className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
-          >
-            <Plus className="h-4 w-4" />
-            {saving ? "Ekleniyor..." : "Hizmet Ekle"}
-          </button>
+      <section className="mb-6 rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
+        <h2 className="mb-3 text-sm font-semibold text-slate-900 dark:text-slate-100">Yeni hizmet ekle</h2>
+        <form onSubmit={createService} className="space-y-4">
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Hizmet adı</label>
+              <input
+                value={newService.name}
+                onChange={(e) => setNewService((s) => ({ ...s, name: e.target.value }))}
+                placeholder="Örn: Saç kesimi"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                required
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Süre (dk)</label>
+              <input
+                type="number"
+                min={5}
+                step={5}
+                value={newService.duration_minutes}
+                onChange={(e) =>
+                  setNewService((s) => ({ ...s, duration_minutes: Number(e.target.value) || 30 }))
+                }
+                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+            <div>
+              <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Fiyat (TL)</label>
+              <input
+                type="number"
+                step={0.01}
+                min={0}
+                value={newService.price}
+                onChange={(e) => setNewService((s) => ({ ...s, price: e.target.value }))}
+                placeholder="Boş bırakılabilir"
+                className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              />
+            </div>
+            <div className="flex items-end">
+              <button
+                type="submit"
+                disabled={saving}
+                className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+              >
+                <Plus className="h-4 w-4" />
+                {saving ? "Ekleniyor…" : "Ekle"}
+              </button>
+            </div>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">Açıklama (isteğe bağlı)</label>
+            <input
+              value={newService.description}
+              onChange={(e) => setNewService((s) => ({ ...s, description: e.target.value }))}
+              placeholder="Kısa açıklama"
+              className="w-full rounded-lg border border-slate-200 px-3 py-2.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            />
+          </div>
         </form>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <section className="rounded-lg border border-slate-200 bg-white dark:border-slate-700 dark:bg-slate-900">
         {loading ? (
           <div className="p-8 text-center text-slate-500">Yükleniyor...</div>
         ) : sortedServices.length === 0 ? (

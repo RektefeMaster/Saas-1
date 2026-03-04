@@ -7,13 +7,17 @@ import {
   Bell,
   Calendar,
   CheckCircle2,
+  Copy,
+  ExternalLink,
+  MessageCircle,
   MessageSquare,
+  QrCode,
   Save,
   SlidersHorizontal,
   Store,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
-import { LottieAnimation } from "@/components/ui";
+import { LottieAnimation, QRCodeModal } from "@/components/ui";
 
 interface TenantData {
   id: string;
@@ -101,6 +105,13 @@ const COPY = {
     fallbackLabelHint: "Örn: Fiyat için arayın",
     fallbackPhone: "Aranacak telefon",
     fallbackPhoneHint: "Aranacak numara (boş bırakılırsa iletişim telefonu kullanılır)",
+
+    whatsappTitle: "WhatsApp Bağlantısı",
+    whatsappDesc: "Müşterilerinizin size ulaşması için link ve QR kod.",
+    copyLink: "Linki kopyala",
+    copied: "Kopyalandı",
+    openWhatsApp: "WhatsApp'ta aç",
+    showQR: "QR kod göster",
   },
   en: {
     title: "Settings",
@@ -155,6 +166,13 @@ const COPY = {
     fallbackLabelHint: "E.g.: Call for price",
     fallbackPhone: "Fallback phone",
     fallbackPhoneHint: "Phone to call (empty = use contact phone)",
+
+    whatsappTitle: "WhatsApp Link",
+    whatsappDesc: "Link and QR code for customers to reach you.",
+    copyLink: "Copy link",
+    copied: "Copied",
+    openWhatsApp: "Open in WhatsApp",
+    showQR: "Show QR code",
   },
 } as const;
 
@@ -170,13 +188,13 @@ function SectionCard({
   children: React.ReactNode;
 }) {
   return (
-    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-      <div className="mb-5 flex items-start gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-          <Icon className="h-5 w-5" />
+    <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+      <div className="mb-4 flex items-start gap-3">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <Icon className="h-4 w-4" />
         </div>
         <div>
-          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+          <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{desc}</p>
         </div>
       </div>
@@ -259,6 +277,9 @@ export default function TenantSettingsPage({
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const [whatsappLink, setWhatsappLink] = useState<string | null>(null);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
 
   // İletişim
   const [contactPhone, setContactPhone] = useState("");
@@ -286,6 +307,14 @@ export default function TenantSettingsPage({
   useEffect(() => {
     params.then((p) => setTenantId(p.tenantId));
   }, [params]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/tenant/${tenantId}/link`)
+      .then((r) => r.json())
+      .then((data) => setWhatsappLink(data?.whatsapp_url || null))
+      .catch(() => setWhatsappLink(null));
+  }, [tenantId]);
 
   useEffect(() => {
     const load = async () => {
@@ -404,19 +433,66 @@ export default function TenantSettingsPage({
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       <div className="mx-auto max-w-3xl space-y-6 p-4 pb-28 sm:p-6 lg:p-10">
-        <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <header className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
           <Link
             href={`/dashboard/${tenantId}`}
-            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
           >
             <ArrowLeft className="h-3.5 w-3.5" />
             {t.backToPanel}
           </Link>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-            {t.title}
-          </h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 sm:text-base">{t.subtitle}</p>
+          <h1 className="mt-4 text-xl font-semibold text-slate-900 dark:text-slate-100">{t.title}</h1>
+          <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">{t.subtitle}</p>
         </header>
+
+        <SectionCard icon={MessageCircle} title={t.whatsappTitle} desc={t.whatsappDesc}>
+          <div className="space-y-3">
+            {whatsappLink ? (
+              <>
+                <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2.5 dark:border-slate-700 dark:bg-slate-800/50">
+                  <p className="break-all text-sm font-medium text-slate-800 dark:text-slate-200">
+                    {whatsappLink}
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={async () => {
+                      try {
+                        await navigator.clipboard.writeText(whatsappLink);
+                        setLinkCopied(true);
+                        setTimeout(() => setLinkCopied(false), 2000);
+                      } catch {}
+                    }}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    <Copy className="h-4 w-4" />
+                    {linkCopied ? t.copied : t.copyLink}
+                  </button>
+                  <a
+                    href={whatsappLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                  >
+                    <ExternalLink className="h-4 w-4" />
+                    {t.openWhatsApp}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => setShowQRModal(true)}
+                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                  >
+                    <QrCode className="h-4 w-4" />
+                    {t.showQR}
+                  </button>
+                </div>
+              </>
+            ) : (
+              <p className="text-sm text-slate-500 dark:text-slate-400">Link yükleniyor…</p>
+            )}
+          </div>
+        </SectionCard>
 
         <SectionCard icon={Store} title={t.contactTitle} desc={t.contactDesc}>
           <div className="grid gap-4 sm:grid-cols-2">
@@ -590,7 +666,7 @@ export default function TenantSettingsPage({
             type="button"
             onClick={save}
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
           >
             <Save className="h-4 w-4" />
             {saving ? t.saving : t.save}
@@ -615,12 +691,20 @@ export default function TenantSettingsPage({
           type="button"
           onClick={save}
           disabled={saving}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 disabled:opacity-60 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
         >
           <Save className="h-4 w-4" />
           {saving ? t.saving : t.save}
         </button>
       </div>
+
+      {tenantId && (
+        <QRCodeModal
+          tenantId={tenantId}
+          isOpen={showQRModal}
+          onClose={() => setShowQRModal(false)}
+        />
+      )}
     </div>
   );
 }

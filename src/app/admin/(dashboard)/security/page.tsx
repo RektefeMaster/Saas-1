@@ -19,24 +19,16 @@ export default function AdminSecurityPage() {
 
   return (
     <div className="space-y-6">
-      <section className="rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-emerald-50/70 to-cyan-50 p-6 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-emerald-950/20 dark:to-cyan-950/20 sm:p-7">
-        <p className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
-          <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
-          Güvenlik Durumu
-        </p>
-        <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-          Güvenlik ve Oturumlar
-        </h1>
-        <p className="mt-2 text-sm text-slate-600 dark:text-slate-400 sm:text-base">
-          Admin panel 2FA, Twilio Verify ve bilgi SMS yapılandırmalarını tek noktadan kontrol edin.
-        </p>
-      </section>
+      <header>
+        <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Güvenlik</h1>
+        <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">2FA, Twilio Verify, bilgi SMS</p>
+      </header>
 
-      <section className="grid gap-4 lg:grid-cols-3">
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <section className="grid gap-3 lg:grid-cols-3">
+        <article className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 SMS 2FA
               </p>
               <p
@@ -60,10 +52,10 @@ export default function AdminSecurityPage() {
           </p>
         </article>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <article className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 Twilio Verify
               </p>
               <p
@@ -95,10 +87,10 @@ export default function AdminSecurityPage() {
           )}
         </article>
 
-        <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+        <article className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
           <div className="flex items-start justify-between gap-3">
             <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 Bilgi SMS
               </p>
               <p
@@ -120,10 +112,10 @@ export default function AdminSecurityPage() {
         </article>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-6">
-        <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Kontrol Listesi</h2>
+      <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+        <h2 className="text-sm font-semibold text-slate-900 dark:text-slate-100">Kontrol Listesi</h2>
         <p className="mt-1 text-sm text-slate-500 dark:text-slate-400">
-          Production geçişinden önce aşağıdaki maddeleri doğrulayın.
+          Canlıya geçmeden önce doğrulayın.
         </p>
         <ul className="mt-4 space-y-2.5 text-sm">
           <li className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2.5 text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-300">

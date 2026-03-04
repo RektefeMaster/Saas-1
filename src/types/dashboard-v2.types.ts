@@ -72,6 +72,7 @@ export interface AdminTenantWizardPayload {
   tenant_code: string;
   business_type_id: string;
   status?: "active" | "inactive" | "suspended";
+  campaign_enabled?: boolean;
   owner_username: string;
   password: string;
   email?: string;

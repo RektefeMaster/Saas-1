@@ -138,8 +138,13 @@ export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const sms2faEnabled = isSms2faEnabledFlag();
 
-  // Dashboard koruması (Supabase Auth)
+  // Dashboard koruması (Supabase Auth) — admin oturumu varsa tüm dashboard'a erişebilir
   if (pathname.startsWith("/dashboard")) {
+    const adminAuth = await isAdminAuthenticated(request);
+    if (adminAuth) {
+      return NextResponse.next();
+    }
+
     const isDashboardLogin = pathname === "/dashboard/login";
     const isDashboardVerify = pathname === "/dashboard/login/verify";
     const { supabase, getResponse } = createMiddlewareSupabase(request);

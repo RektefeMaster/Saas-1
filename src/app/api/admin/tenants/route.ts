@@ -260,6 +260,7 @@ export async function POST(request: NextRequest) {
       tenant_code: code,
       config_override: mergedConfig,
       status: body.status || "active",
+      campaign_enabled: body.campaign_enabled !== false,
       user_id: userId,
       owner_username: ownerUsername || null,
       owner_phone_e164: body.owner_phone_e164?.trim() || null,
@@ -275,6 +276,7 @@ export async function POST(request: NextRequest) {
       "security_config",
       "ui_preferences",
       "contact_phone",
+      "campaign_enabled",
       "working_hours_text",
     ]);
     let tenant: Record<string, unknown> | null = null;

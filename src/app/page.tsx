@@ -10,6 +10,7 @@ import {
   CheckCircle2,
   CircleGauge,
   Globe,
+  MessageCircle,
   MessageSquareText,
   Rocket,
   ShieldCheck,
@@ -22,7 +23,7 @@ import { motion } from "motion/react";
 import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { ThemeLocaleSwitch } from "@/components/ui";
+import { ContactModal, ThemeLocaleSwitch } from "@/components/ui";
 
 const COPY = {
   tr: {
@@ -31,6 +32,7 @@ const COPY = {
       flow: "Akış",
       impact: "Etki",
       businesses: "İşletmeler",
+      contact: "İletişim",
       login: "Giriş",
     },
     hero: {
@@ -115,6 +117,7 @@ const COPY = {
       secondary: "Canlı İşletmeler",
     },
     footer: "Ahi AI · İşletmeler için yapay zeka destekli yazılım platformu",
+    copyright: "© 2025 Ahi AI. Tüm hakları saklıdır.",
   },
   en: {
     nav: {
@@ -122,6 +125,7 @@ const COPY = {
       flow: "Flow",
       impact: "Impact",
       businesses: "Businesses",
+      contact: "Contact",
       login: "Login",
     },
     hero: {
@@ -206,6 +210,7 @@ const COPY = {
       secondary: "Live Businesses",
     },
     footer: "Ahi AI · AI-powered software platform for businesses",
+    copyright: "© 2025 Ahi AI. All rights reserved.",
   },
 } as const;
 
@@ -213,6 +218,7 @@ export default function Home() {
   const { locale } = useLocale();
   const t = COPY[locale];
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
@@ -250,6 +256,13 @@ export default function Home() {
             <Link href="/isletmeler" className="transition hover:text-slate-900 dark:hover:text-white">
               {t.nav.businesses}
             </Link>
+            <button
+              type="button"
+              onClick={() => setShowContactModal(true)}
+              className="transition hover:text-slate-900 dark:hover:text-white"
+            >
+              {t.nav.contact}
+            </button>
             <Link
               href="/dashboard/login"
               className="rounded-xl bg-slate-900 px-3.5 py-2 text-white transition hover:bg-slate-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
@@ -300,6 +313,16 @@ export default function Home() {
               >
                 {t.nav.businesses}
               </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowContactModal(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              >
+                {t.nav.contact}
+              </button>
               <Link
                 href="/dashboard/login"
                 onClick={() => setMobileMenuOpen(false)}
@@ -451,7 +474,7 @@ export default function Home() {
               <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/80 sm:text-base">
                 {t.cta.text}
               </p>
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Link
                   href="/dashboard/login"
                   className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
@@ -466,15 +489,36 @@ export default function Home() {
                   <Globe className="h-4 w-4" />
                   {t.cta.secondary}
                 </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowContactModal(true)}
+                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+                >
+                  <MessageCircle className="h-4 w-4" />
+                  {t.nav.contact}
+                </button>
               </div>
             </div>
           </ScrollReveal>
         </section>
       </main>
 
-      <footer className="border-t border-slate-200/80 px-4 py-6 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        {t.footer}
+      <footer className="border-t border-slate-200/80 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+        <p>{t.footer}</p>
+        <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <span>{t.copyright}</span>
+          <span className="hidden sm:inline">·</span>
+          <button
+            type="button"
+            onClick={() => setShowContactModal(true)}
+            className="font-medium text-cyan-600 hover:text-cyan-700 hover:underline dark:text-cyan-400 dark:hover:text-cyan-300"
+          >
+            {t.nav.contact}
+          </button>
+        </p>
       </footer>
+
+      <ContactModal isOpen={showContactModal} onClose={() => setShowContactModal(false)} />
     </div>
   );
 }
