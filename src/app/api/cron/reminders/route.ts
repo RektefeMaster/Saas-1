@@ -3,7 +3,6 @@ import { supabase } from "@/lib/supabase";
 import { sendCustomerNotification } from "@/lib/notify";
 import {
   sendWhatsAppInteractiveList,
-  sendWhatsAppMessage,
   sendWhatsAppTemplateMessage,
 } from "@/lib/whatsapp";
 import { markAppointmentNoShow } from "@/services/noShow.service";
@@ -122,7 +121,7 @@ export async function GET(request: NextRequest) {
     const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000).toISOString();
     const { data: noShowApts } = await supabase
       .from("appointments")
-      .select("id, tenant_id, customer_phone")
+      .select("id, tenant_id, customer_phone, staff_id")
       .eq("status", "confirmed")
       .lt("slot_start", twoHoursAgo);
     if (noShowApts && noShowApts.length > 0) {
@@ -133,30 +132,31 @@ export async function GET(request: NextRequest) {
       if (noShowUpdateError) {
         console.error("[cron] no-show update error:", noShowUpdateError.message);
       } else {
-      noShowMarked = noShowApts.length;
-      for (const apt of noShowApts) {
-        await markAppointmentNoShow({
-          appointmentId: apt.id,
-          tenantId: apt.tenant_id,
-          customerPhone: apt.customer_phone,
-          source: "cron/reminders",
-        }).catch((e) => console.error("[cron] no-show side effects error:", e));
-      }
+        noShowMarked = noShowApts.length;
+        for (const apt of noShowApts) {
+          await markAppointmentNoShow({
+            appointmentId: apt.id,
+            tenantId: apt.tenant_id,
+            customerPhone: apt.customer_phone,
+            staffId: (apt.staff_id as string | null | undefined) || null,
+            source: "cron/reminders",
+          }).catch((e) => console.error("[cron] no-show side effects error:", e));
+        }
       }
     }
   } catch (e) {
     console.error("[cron] no-show error:", e);
   }
 
-  // Review reminder: 1 saat geçmiş, completed/confirmed, review'u olmayan randevular
+  // Review reminder: 30 dk geçmiş, completed/confirmed, review'u olmayan randevular
   let reviewSent = 0;
   try {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
     const { data: reviewApts } = await supabase
       .from("appointments")
-      .select("id, tenant_id, customer_phone")
+      .select("id, tenant_id, customer_phone, extra_data")
       .in("status", ["completed", "confirmed"])
-      .lt("slot_start", oneHourAgo)
+      .lt("slot_start", thirtyMinutesAgo)
       .gte("slot_start", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
     if (reviewApts) {
       const { data: existingReviews } = await supabase
@@ -166,6 +166,12 @@ export async function GET(request: NextRequest) {
       const reviewedIds = new Set((existingReviews || []).map((r) => r.appointment_id));
       for (const apt of reviewApts) {
         if (reviewedIds.has(apt.id)) continue;
+        const extra =
+          apt.extra_data && typeof apt.extra_data === "object"
+            ? (apt.extra_data as Record<string, unknown>)
+            : {};
+        if (typeof extra.review_reminder_sent_at === "string") continue;
+
         const result = await sendWhatsAppInteractiveList({
           to: apt.customer_phone,
           bodyText: REVIEW_LIST_BODY,
@@ -174,12 +180,34 @@ export async function GET(request: NextRequest) {
         });
         if (result.ok) {
           reviewSent++;
+          await supabase
+            .from("appointments")
+            .update({
+              status: "completed",
+              extra_data: {
+                ...extra,
+                review_reminder_sent_at: new Date().toISOString(),
+              },
+            })
+            .eq("id", apt.id);
         } else {
           const delivery = await sendCustomerNotification(
             apt.customer_phone,
             "Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐"
           );
-          if (delivery.whatsapp || delivery.sms) reviewSent++;
+          if (delivery.whatsapp || delivery.sms) {
+            reviewSent++;
+            await supabase
+              .from("appointments")
+              .update({
+                status: "completed",
+                extra_data: {
+                  ...extra,
+                  review_reminder_sent_at: new Date().toISOString(),
+                },
+              })
+              .eq("id", apt.id);
+          }
         }
       }
     }

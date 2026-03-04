@@ -26,7 +26,7 @@ export async function PATCH(
     })
     .eq("id", appointmentId)
     .eq("tenant_id", tenantId)
-    .select("id, tenant_id, customer_phone, slot_start, status, service_slug, extra_data, updated_at")
+    .select("id, tenant_id, customer_phone, staff_id, slot_start, status, service_slug, extra_data, updated_at")
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -36,6 +36,7 @@ export async function PATCH(
       appointmentId,
       tenantId,
       customerPhone: data.customer_phone,
+      staffId: (data.staff_id as string | null | undefined) || null,
       source: "dashboard",
     }).catch((e) => console.error("[status] no-show side effects error:", e));
   }

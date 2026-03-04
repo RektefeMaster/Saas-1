@@ -98,21 +98,28 @@ export function buildBotPersona(
 ): string {
   return fillTemplate(config.bot_persona, {
     tenant_name: tenantName,
+    işletme_adınız: tenantName,
   });
 }
 
 /**
  * Mesaj şablonunu key ile alıp placeholder'ları doldurur.
  * Key yoksa boş string döner.
+ * tenantName verilirse {tenant_name} ve {işletme_adınız} otomatik doldurulur.
  */
 export function buildMessage(
   config: MergedConfig,
   messageKey: keyof BotMessages,
-  vars: Record<string, string>
+  vars: Record<string, string>,
+  tenantName?: string
 ): string {
   const template = config.messages[messageKey];
   if (typeof template !== "string") return "";
-  return fillTemplate(template, vars);
+  const fullVars =
+    tenantName != null
+      ? { ...vars, tenant_name: tenantName, işletme_adınız: tenantName }
+      : vars;
+  return fillTemplate(template, fullVars);
 }
 
 /**

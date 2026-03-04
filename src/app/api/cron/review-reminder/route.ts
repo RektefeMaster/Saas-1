@@ -1,12 +1,13 @@
 /**
  * Değerlendirme hatırlatma cron
- * Randevu saati geçtikten ~1 saat sonra müşteriye değerlendirme mesajı gönderir
- * vercel.json: her gün 10:00 (UTC)
+ * Randevu saati geçtikten ~30 dakika sonra müşteriye değerlendirme mesajı gönderir.
+ * WhatsApp interaktif liste önceliklidir; başarısız olursa düz mesaj fallback uygulanır.
  */
 
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { sendWhatsAppInteractiveList, sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendWhatsAppInteractiveList } from "@/lib/whatsapp";
+import { sendCustomerNotification } from "@/lib/notify";
 import { hasReview } from "@/services/review.service";
 
 const REVIEW_LIST_BODY =
@@ -37,12 +38,14 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date();
-  const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
+  const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
+  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
 
   const { data: appointments, error } = await supabase
     .from("appointments")
-    .select("id, tenant_id, customer_phone, slot_start")
-    .lt("slot_start", oneHourAgo.toISOString())
+    .select("id, tenant_id, customer_phone, slot_start, extra_data")
+    .lt("slot_start", thirtyMinutesAgo.toISOString())
+    .gte("slot_start", last24h.toISOString())
     .in("status", ["completed", "confirmed"]);
 
   if (error) {
@@ -50,9 +53,23 @@ export async function GET(request: NextRequest) {
   }
 
   let sent = 0;
+  let skipped = 0;
+  let alreadyReviewed = 0;
   for (const apt of appointments ?? []) {
+    const extra =
+      apt.extra_data && typeof apt.extra_data === "object"
+        ? (apt.extra_data as Record<string, unknown>)
+        : {};
+    if (typeof extra.review_reminder_sent_at === "string") {
+      skipped++;
+      continue;
+    }
+
     const hasR = await hasReview(apt.id);
-    if (hasR) continue;
+    if (hasR) {
+      alreadyReviewed++;
+      continue;
+    }
 
     const result = await sendWhatsAppInteractiveList({
       to: apt.customer_phone,
@@ -62,17 +79,23 @@ export async function GET(request: NextRequest) {
     });
     let ok = result.ok;
     if (!ok) {
-      const fallback = await sendWhatsAppMessage({
-        to: apt.customer_phone,
-        text: "Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐",
-      });
-      if (fallback) ok = true;
+      const fallback = await sendCustomerNotification(
+        apt.customer_phone,
+        "Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐"
+      );
+      if (fallback.whatsapp || fallback.sms) ok = true;
     }
     if (ok) {
       sent++;
       await supabase
         .from("appointments")
-        .update({ status: "completed" })
+        .update({
+          status: "completed",
+          extra_data: {
+            ...extra,
+            review_reminder_sent_at: new Date().toISOString(),
+          },
+        })
         .eq("id", apt.id);
     }
   }
@@ -81,5 +104,7 @@ export async function GET(request: NextRequest) {
     ok: true,
     total: appointments?.length ?? 0,
     sent,
+    skipped,
+    alreadyReviewed,
   });
 }

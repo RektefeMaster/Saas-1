@@ -12,6 +12,7 @@ export interface MarkNoShowParams {
   appointmentId: string;
   tenantId: string;
   customerPhone: string;
+  staffId?: string | null;
   source: NoShowSource;
 }
 
@@ -19,10 +20,10 @@ export interface MarkNoShowParams {
  * Randevu no-show olarak işaretlendiğinde tüm yan etkileri uygular:
  * - incrementNoShow (blacklist)
  * - createOpsAlert
- * - notifyNoShowForMerchant (WhatsApp)
+ * - notifyNoShowForMerchant (WhatsApp/SMS)
  */
 export async function markAppointmentNoShow(params: MarkNoShowParams): Promise<void> {
-  const { appointmentId, tenantId, customerPhone, source } = params;
+  const { appointmentId, tenantId, customerPhone, staffId, source } = params;
 
   await incrementNoShow(tenantId, customerPhone).catch((e) =>
     console.error(`[noShow] blacklist increment error (${source}):`, e)
@@ -42,6 +43,7 @@ export async function markAppointmentNoShow(params: MarkNoShowParams): Promise<v
   await notifyNoShowForMerchant({
     tenantId,
     customerPhone,
+    staffId: staffId || null,
     source: notifySource,
   }).catch((e) => console.error(`[noShow] merchant notify error (${source}):`, e));
 }

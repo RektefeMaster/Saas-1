@@ -1,25 +1,89 @@
 import { supabase } from "@/lib/supabase";
-import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { sendCustomerNotification } from "@/lib/notify";
 import { createOpsAlert } from "@/services/opsAlert.service";
+import { extractMissingSchemaColumn, extractMissingSchemaTable } from "@/lib/postgrest-schema";
 
 type AppointmentSource = "bot" | "dashboard" | "cron" | "manual";
 
-async function getTenantNotifyPhone(tenantId: string): Promise<{
-  phone: string | null;
+interface NotifyTarget {
+  phone: string;
+  kind: "business" | "staff";
+  staffId?: string;
+}
+
+async function getTenantNotifyTargets(
+  tenantId: string,
+  staffId?: string | null
+): Promise<{
+  targets: NotifyTarget[];
   name: string;
 }> {
-  const { data } = await supabase
+  const { data: tenant } = await supabase
     .from("tenants")
     .select("name, owner_phone_e164, contact_phone")
     .eq("id", tenantId)
     .single();
-  if (!data) {
-    return { phone: null, name: "İşletme" };
+
+  const tenantName = tenant?.name || "İşletme";
+  const owner = (tenant?.owner_phone_e164 || "").trim();
+  const contact = (tenant?.contact_phone || "").trim();
+  const businessPhone = owner || contact;
+  const targets: NotifyTarget[] = [];
+
+  if (businessPhone) {
+    targets.push({ phone: businessPhone, kind: "business" });
   }
-  const owner = (data.owner_phone_e164 || "").trim();
-  const contact = (data.contact_phone || "").trim();
-  const phone = owner || contact || null;
-  return { phone, name: data.name || "İşletme" };
+
+  const scopedStaffId = (staffId || "").trim();
+  if (scopedStaffId) {
+    const staffRes = await supabase
+      .from("staff")
+      .select("id, phone_e164, active")
+      .eq("tenant_id", tenantId)
+      .eq("id", scopedStaffId)
+      .eq("active", true)
+      .maybeSingle();
+
+    const missingTable = extractMissingSchemaTable(staffRes.error);
+    const missingColumn = extractMissingSchemaColumn(staffRes.error);
+    const missingPhoneColumn =
+      missingColumn?.table === "staff" && missingColumn.column === "phone_e164";
+
+    if (!staffRes.error || missingPhoneColumn || missingTable === "staff") {
+      const staff = staffRes.data;
+      const staffPhone = (staff?.phone_e164 || "").trim();
+      if (staffPhone) {
+        targets.push({
+          phone: staffPhone,
+          kind: "staff",
+          staffId: staff.id,
+        });
+      }
+    } else {
+      console.error("[merchant notify] staff lookup error:", staffRes.error.message);
+    }
+  }
+
+  const deduped = Array.from(new Map(targets.map((target) => [target.phone, target])).values());
+  return { targets: deduped, name: tenantName };
+}
+
+async function notifyTargets(
+  tenantId: string,
+  text: string,
+  staffId?: string | null
+): Promise<void> {
+  const { targets } = await getTenantNotifyTargets(tenantId, staffId);
+  for (const target of targets) {
+    const delivery = await sendCustomerNotification(target.phone, text);
+    if (!delivery.whatsapp && !delivery.sms) {
+      console.warn("[merchant notify] delivery failed", {
+        tenantId,
+        to: target.phone,
+        kind: target.kind,
+      });
+    }
+  }
 }
 
 /** date: YYYY-MM-DD, time: HH:mm (Türkiye yerel). Çıktı: "DD.MM.YYYY HH:mm" */
@@ -51,18 +115,17 @@ export async function notifyNewAppointmentForMerchant(params: {
   customerPhone: string;
   date: string;
   time: string;
+  staffId?: string | null;
   source: AppointmentSource;
 }): Promise<void> {
-  const { tenantId, customerPhone, date, time, source } = params;
-  const { phone, name } = await getTenantNotifyPhone(tenantId);
+  const { tenantId, customerPhone, date, time, source, staffId } = params;
+  const { name } = await getTenantNotifyTargets(tenantId, staffId);
   const dt = formatDateTimeTr(date, time);
   const text = `Yeni randevu! ${customerPhone} müşterisi ${dt} için ${name} işletmesinde randevu aldı.`;
 
-  if (phone) {
-    await sendWhatsAppMessage({ to: phone, text }).catch((e) =>
-      console.error("[merchant notify] new appointment whatsapp error:", e)
-    );
-  }
+  await notifyTargets(tenantId, text, staffId).catch((e) =>
+    console.error("[merchant notify] new appointment notify error:", e)
+  );
 
   await createOpsAlert({
     tenantId,
@@ -79,21 +142,19 @@ export async function notifyCancelledAppointmentForMerchant(params: {
   customerPhone: string;
   date: string;
   time: string;
+  staffId?: string | null;
   cancelledBy: "customer" | "tenant";
   reason?: string | null;
   source: AppointmentSource;
 }): Promise<void> {
-  const { tenantId, customerPhone, date, time, cancelledBy, reason, source } = params;
-  const { phone } = await getTenantNotifyPhone(tenantId);
+  const { tenantId, customerPhone, date, time, staffId, cancelledBy, reason, source } = params;
   const dt = formatDateTimeTr(date, time);
   const who = cancelledBy === "customer" ? "Müşteri" : "İşletme";
   const text = `Randevu iptal edildi. ${who}: ${customerPhone} - ${dt}${reason ? ` (Neden: ${reason})` : ""}.`;
 
-  if (phone) {
-    await sendWhatsAppMessage({ to: phone, text }).catch((e) =>
-      console.error("[merchant notify] cancel whatsapp error:", e)
-    );
-  }
+  await notifyTargets(tenantId, text, staffId).catch((e) =>
+    console.error("[merchant notify] cancel notify error:", e)
+  );
 
   await createOpsAlert({
     tenantId,
@@ -110,18 +171,16 @@ export async function notifyRescheduledAppointmentForMerchant(params: {
   customerPhone: string;
   newDate: string;
   newTime: string;
+  staffId?: string | null;
   source: AppointmentSource;
 }): Promise<void> {
-  const { tenantId, customerPhone, newDate, newTime, source } = params;
-  const { phone } = await getTenantNotifyPhone(tenantId);
+  const { tenantId, customerPhone, newDate, newTime, staffId, source } = params;
   const dt = formatDateTimeTr(newDate, newTime);
   const text = `Randevu saati değişti. ${customerPhone} müşterisi için yeni saat: ${dt}.`;
 
-  if (phone) {
-    await sendWhatsAppMessage({ to: phone, text }).catch((e) =>
-      console.error("[merchant notify] reschedule whatsapp error:", e)
-    );
-  }
+  await notifyTargets(tenantId, text, staffId).catch((e) =>
+    console.error("[merchant notify] reschedule notify error:", e)
+  );
 
   await createOpsAlert({
     tenantId,
@@ -136,18 +195,21 @@ export async function notifyRescheduledAppointmentForMerchant(params: {
 export async function notifyNoShowForMerchant(params: {
   tenantId: string;
   customerPhone: string;
+  staffId?: string | null;
   source: AppointmentSource;
 }): Promise<void> {
-  const { tenantId, customerPhone, source } = params;
-  const { phone } = await getTenantNotifyPhone(tenantId);
-  if (!phone) return;
+  const { tenantId, customerPhone, staffId, source } = params;
   const text = `No-show uyarısı: ${customerPhone} müşterisi randevuya gelmedi.`;
 
-  await sendWhatsAppMessage({ to: phone, text }).catch((e) =>
-    console.error("[merchant notify] no_show whatsapp error:", e)
+  await notifyTargets(tenantId, text, staffId).catch((e) =>
+    console.error("[merchant notify] no_show notify error:", e)
   );
 
   // ops_alert no-show cron'da zaten oluşturuluyor; burada tekrar etmiyoruz.
-  console.info("[merchant notify] no_show notification sent", { tenantId, customerPhone, source });
+  console.info("[merchant notify] no_show notification sent", {
+    tenantId,
+    customerPhone,
+    source,
+    staffId: staffId || null,
+  });
 }
-

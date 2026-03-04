@@ -6,6 +6,7 @@ interface StaffRow {
   id: string;
   tenant_id: string;
   name: string;
+  phone_e164: string | null;
   active: boolean;
   created_at: string;
 }
@@ -24,6 +25,26 @@ function normalizeServiceSlugs(input: unknown): string[] {
   )];
 }
 
+function normalizePhoneE164(value: unknown): string | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (raw.startsWith("+")) {
+    return `+${digits}`;
+  }
+  if (digits.startsWith("90")) {
+    return `+${digits}`;
+  }
+  if (digits.startsWith("0")) {
+    return `+90${digits.slice(1)}`;
+  }
+  if (digits.length === 10) {
+    return `+90${digits}`;
+  }
+  return `+${digits}`;
+}
+
 export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -32,7 +53,7 @@ export async function GET(
 
   const staffResult = await supabase
     .from("staff")
-    .select("id, tenant_id, name, active, created_at")
+    .select("id, tenant_id, name, phone_e164, active, created_at")
     .eq("tenant_id", tenantId)
     .order("created_at", { ascending: true });
 
@@ -88,6 +109,7 @@ export async function POST(
   const { id: tenantId } = await params;
   const body = (await request.json().catch(() => ({}))) as {
     name?: string;
+    phone_e164?: string | null;
     active?: boolean;
     service_slugs?: string[];
   };
@@ -102,9 +124,10 @@ export async function POST(
     .insert({
       tenant_id: tenantId,
       name,
+      phone_e164: normalizePhoneE164(body.phone_e164),
       active: body.active !== false,
     })
-    .select("id, tenant_id, name, active, created_at")
+    .select("id, tenant_id, name, phone_e164, active, created_at")
     .single();
 
   if (insertResult.error || !insertResult.data) {

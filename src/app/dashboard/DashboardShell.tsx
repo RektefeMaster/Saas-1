@@ -30,6 +30,7 @@ type NavKey =
   | "overview"
   | "pricing"
   | "packages"
+  | "campaigns"
   | "workflow"
   | "crm"
   | "staff"
@@ -48,6 +49,7 @@ const COPY = {
       overview: "Özet",
       pricing: "Fiyat Listesi",
       packages: "Paket & Seans",
+      campaigns: "Kampanyalar",
       workflow: "İş Akışı",
       crm: "Müşteri Defteri",
       staff: "Personel",
@@ -66,6 +68,7 @@ const COPY = {
       overview: "Overview",
       pricing: "Pricing",
       packages: "Packages",
+      campaigns: "Campaigns",
       workflow: "Workflow",
       crm: "Customer Book",
       staff: "Staff",
@@ -203,6 +206,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
             { key: "packages" as NavKey, href: `/dashboard/${tenantId}/packages`, label: t.nav.packages, icon: Package },
             { key: "workflow" as NavKey, href: `/dashboard/${tenantId}/workflow`, label: t.nav.workflow, icon: KanbanSquare },
             { key: "crm" as NavKey, href: `/dashboard/${tenantId}/crm`, label: t.nav.crm, icon: Users },
+            { key: "campaigns" as NavKey, href: `/dashboard/${tenantId}/campaigns`, label: t.nav.campaigns, icon: MessageCircle },
             { key: "staff" as NavKey, href: `/dashboard/${tenantId}/staff`, label: t.nav.staff, icon: UserRound },
             { key: "settings" as NavKey, href: `/dashboard/${tenantId}/settings`, label: t.nav.settings, icon: Settings },
           ]

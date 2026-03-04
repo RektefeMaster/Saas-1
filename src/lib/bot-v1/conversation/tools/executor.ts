@@ -234,6 +234,7 @@ export async function executeToolCall(
         customerPhone,
         date: dateStr,
         time: timeStr,
+        staffId: staffId || null,
         source: "bot",
       }).catch((e) => console.error("[ai] merchant notify error:", e));
       checkAndNotifyWaitlist(tenantId, dateStr, configOverride).catch((e) =>
@@ -569,11 +570,23 @@ export async function executeToolCall(
       };
     }
 
+    let rescheduledStaffId: string | null = null;
+    if (createRes.id) {
+      const { data: rescheduledApt } = await supabase
+        .from("appointments")
+        .select("staff_id")
+        .eq("id", createRes.id)
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      rescheduledStaffId = (rescheduledApt?.staff_id as string | null | undefined) || null;
+    }
+
     notifyRescheduledAppointmentForMerchant({
       tenantId,
       customerPhone,
       newDate,
       newTime,
+      staffId: rescheduledStaffId,
       source: "bot",
     }).catch((e) => console.error("[ai] merchant reschedule notify error:", e));
     return {

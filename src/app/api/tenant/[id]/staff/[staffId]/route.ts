@@ -11,6 +11,18 @@ function normalizeServiceSlugs(input: unknown): string[] {
   )];
 }
 
+function normalizePhoneE164(value: unknown): string | null {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return null;
+  if (raw.startsWith("+")) return `+${digits}`;
+  if (digits.startsWith("90")) return `+${digits}`;
+  if (digits.startsWith("0")) return `+90${digits.slice(1)}`;
+  if (digits.length === 10) return `+90${digits}`;
+  return `+${digits}`;
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; staffId: string }> }
@@ -18,12 +30,14 @@ export async function PATCH(
   const { id: tenantId, staffId } = await params;
   const body = (await request.json().catch(() => ({}))) as {
     name?: string;
+    phone_e164?: string | null;
     active?: boolean;
     service_slugs?: string[];
   };
 
   const payload: Record<string, unknown> = {};
   if (body.name !== undefined) payload.name = String(body.name || "").trim();
+  if (body.phone_e164 !== undefined) payload.phone_e164 = normalizePhoneE164(body.phone_e164);
   if (body.active !== undefined) payload.active = Boolean(body.active);
 
   if (Object.keys(payload).length > 0) {
@@ -32,7 +46,7 @@ export async function PATCH(
       .update(payload)
       .eq("tenant_id", tenantId)
       .eq("id", staffId)
-      .select("id, tenant_id, name, active, created_at")
+      .select("id, tenant_id, name, phone_e164, active, created_at")
       .maybeSingle();
 
     if (updateResult.error) {
@@ -85,7 +99,7 @@ export async function PATCH(
 
   const readResult = await supabase
     .from("staff")
-    .select("id, tenant_id, name, active, created_at")
+    .select("id, tenant_id, name, phone_e164, active, created_at")
     .eq("tenant_id", tenantId)
     .eq("id", staffId)
     .maybeSingle();

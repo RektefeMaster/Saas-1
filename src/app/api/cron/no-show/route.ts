@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
 
   const { data: appointments, error } = await supabase
     .from("appointments")
-    .select("id, tenant_id, customer_phone")
+    .select("id, tenant_id, customer_phone, staff_id")
     .eq("status", "confirmed")
     .lt("slot_start", twoHoursAgo);
 
@@ -48,6 +48,7 @@ export async function GET(request: NextRequest) {
       appointmentId: apt.id,
       tenantId: apt.tenant_id,
       customerPhone: apt.customer_phone,
+      staffId: (apt.staff_id as string | null | undefined) || null,
       source: "cron/no-show",
     }).catch((e) => console.error("[cron/no-show] no-show side effects error:", e));
   }

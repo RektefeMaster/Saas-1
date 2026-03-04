@@ -8,9 +8,11 @@ import {
   Calendar,
   CheckCircle2,
   MessageSquare,
+  Pencil,
   Save,
   SlidersHorizontal,
   Store,
+  X,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 
@@ -57,7 +59,7 @@ const COPY = {
     contactTitle: "İletişim ve Çalışma Saati",
     contactDesc: "Müşterilerin sizinle iletişime geçebileceği bilgiler.",
     contactPhone: "İletişim telefonu",
-    contactPhoneHint: "Müşteri yönlendirme ve fallback mesajlarında kullanılır",
+    contactPhoneHint: "Müşteri yönlendirme ve yedek mesajlarında kullanılır",
     workingHours: "Çalışma saatleri metni",
     workingHoursHint: "Örn: Hafta içi 09:00-18:00, Cumartesi 10:00-14:00",
 
@@ -82,10 +84,13 @@ const COPY = {
     // Mesajlar
     messagesTitle: "Mesaj Şablonları",
     messagesDesc: "Müşterilere gönderilen otomatik mesajları özelleştirin.",
+    messagesEdit: "Düzenle",
+    messagesCancelEdit: "İptal",
+    messagesEmpty: "Boş",
     welcomeMsg: "Karşılama mesajı",
-    welcomeMsgHint: "Müşteri ilk yazdığında gönderilir. {tenant_name} = işletme adı",
+    welcomeMsgHint: "Müşteri ilk yazdığında gönderilir. {işletme_adınız} yazarsanız işletme adınız otomatik eklenir",
     whatsappGreeting: "WhatsApp link mesajı",
-    whatsappGreetingHint: "QR/link tıklandığında hazır görünen mesaj",
+    whatsappGreetingHint: "QR/link tıklandığında hazır görünen mesaj. {işletme_adınız} yazarsanız işletme adınız otomatik eklenir",
     openingMessage: "Açılış mesajı",
     openingMessageHint: "Bot konuşma başında sorduğu ilk soru",
     confirmationMsg: "Onay mesajı",
@@ -94,11 +99,11 @@ const COPY = {
     reminderMsgHint: "Randevudan 24 saat önce gönderilen mesaj",
 
     // Fiyat
-    pricingTitle: "Fiyat Fallback",
+    pricingTitle: "Fiyat Belirtilmemiş Hizmetler",
     pricingDesc: "Fiyatı belirtilmemiş hizmetler için gösterilecek bilgi.",
-    fallbackLabel: "Fallback etiketi",
+    fallbackLabel: "Gösterilecek metin",
     fallbackLabelHint: "Örn: Fiyat için arayın",
-    fallbackPhone: "Fallback telefonu",
+    fallbackPhone: "Aranacak telefon",
     fallbackPhoneHint: "Aranacak numara (boş bırakılırsa iletişim telefonu kullanılır)",
   },
   en: {
@@ -137,10 +142,13 @@ const COPY = {
 
     messagesTitle: "Message Templates",
     messagesDesc: "Customize automatic messages sent to customers.",
+    messagesEdit: "Edit",
+    messagesCancelEdit: "Cancel",
+    messagesEmpty: "Empty",
     welcomeMsg: "Welcome message",
-    welcomeMsgHint: "Sent when customer first writes. {tenant_name} = business name",
+    welcomeMsgHint: "Sent when customer first writes. {your business name} will be replaced with your business name",
     whatsappGreeting: "WhatsApp link message",
-    whatsappGreetingHint: "Pre-filled message when QR/link is clicked",
+    whatsappGreetingHint: "Pre-filled message when QR/link is clicked. {your business name} will be replaced",
     openingMessage: "Opening message",
     openingMessageHint: "First question the bot asks when conversation starts",
     confirmationMsg: "Confirmation message",
@@ -156,6 +164,29 @@ const COPY = {
     fallbackPhoneHint: "Phone to call (empty = use contact phone)",
   },
 } as const;
+
+function MessageReadOnlyItem({
+  label,
+  value,
+  hint,
+  emptyText,
+}: {
+  label: string;
+  value: string;
+  hint: string;
+  emptyText: string;
+}) {
+  const display = value.trim() || emptyText;
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3 dark:border-slate-700 dark:bg-slate-800/30">
+      <p className="mb-0.5 text-xs font-medium text-slate-500 dark:text-slate-400">{label}</p>
+      <p className={`whitespace-pre-wrap text-sm ${!value.trim() ? "italic text-slate-400 dark:text-slate-500" : "text-slate-800 dark:text-slate-200"}`}>
+        {display}
+      </p>
+      <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">{hint}</p>
+    </div>
+  );
+}
 
 export default function TenantSettingsPage({
   params,
@@ -194,6 +225,16 @@ export default function TenantSettingsPage({
   // Fiyat
   const [fallbackLabel, setFallbackLabel] = useState(locale === "tr" ? "Fiyat için arayın" : "Call for price");
   const [fallbackPhone, setFallbackPhone] = useState("");
+
+  // Mesaj şablonları: düzenleme modu
+  const [messagesEditMode, setMessagesEditMode] = useState(false);
+  const [messagesSnapshot, setMessagesSnapshot] = useState<{
+    welcomeMsg: string;
+    whatsappGreeting: string;
+    openingMessage: string;
+    confirmationMsg: string;
+    reminderMsg: string;
+  } | null>(null);
 
   useEffect(() => {
     params.then((p) => setTenantId(p.tenantId));
@@ -280,6 +321,8 @@ export default function TenantSettingsPage({
       });
       if (res.ok) {
         setSaved(true);
+        setMessagesEditMode(false);
+        setMessagesSnapshot(null);
         setTimeout(() => setSaved(false), 2400);
       } else {
         setSaveError(t.saveError);
@@ -491,45 +534,96 @@ export default function TenantSettingsPage({
 
         <SectionCard icon={MessageSquare} title={t.messagesTitle} desc={t.messagesDesc}>
           <div className="space-y-4">
-            <InputField
-              label={t.welcomeMsg}
-              hint={t.welcomeMsgHint}
-              value={welcomeMsg}
-              onChange={setWelcomeMsg}
-              type="textarea"
-              placeholder="Merhaba! Ben {tenant_name} asistanıyım, size nasıl yardımcı olabilirim?"
-            />
-            <InputField
-              label={t.whatsappGreeting}
-              hint={t.whatsappGreetingHint}
-              value={whatsappGreeting}
-              onChange={setWhatsappGreeting}
-              placeholder="Merhaba {tenant_name} ile görüşmek istiyorum"
-            />
-            <InputField
-              label={t.openingMessage}
-              hint={t.openingMessageHint}
-              value={openingMessage}
-              onChange={setOpeningMessage}
-              type="textarea"
-              placeholder="Merhaba! Ne zaman randevu almak istiyorsunuz?"
-            />
-            <InputField
-              label={t.confirmationMsg}
-              hint={t.confirmationMsgHint}
-              value={confirmationMsg}
-              onChange={setConfirmationMsg}
-              type="textarea"
-              placeholder="Randevunuz onaylandı. Teşekkür ederiz!"
-            />
-            <InputField
-              label={t.reminderMsg}
-              hint={t.reminderMsgHint}
-              value={reminderMsg}
-              onChange={setReminderMsg}
-              type="textarea"
-              placeholder="Yarın saat X'te randevunuz var. Lütfen unutmayın."
-            />
+            {messagesEditMode ? (
+              <>
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (messagesSnapshot) {
+                        setWelcomeMsg(messagesSnapshot.welcomeMsg);
+                        setWhatsappGreeting(messagesSnapshot.whatsappGreeting);
+                        setOpeningMessage(messagesSnapshot.openingMessage);
+                        setConfirmationMsg(messagesSnapshot.confirmationMsg);
+                        setReminderMsg(messagesSnapshot.reminderMsg);
+                        setMessagesSnapshot(null);
+                      }
+                      setMessagesEditMode(false);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-medium text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+                  >
+                    <X className="h-3.5 w-3.5" />
+                    {t.messagesCancelEdit}
+                  </button>
+                </div>
+                <InputField
+                  label={t.welcomeMsg}
+                  hint={t.welcomeMsgHint}
+                  value={welcomeMsg}
+                  onChange={setWelcomeMsg}
+                  type="textarea"
+                  placeholder="Merhaba! Ben {işletme_adınız} asistanıyım, size nasıl yardımcı olabilirim?"
+                />
+                <InputField
+                  label={t.whatsappGreeting}
+                  hint={t.whatsappGreetingHint}
+                  value={whatsappGreeting}
+                  onChange={setWhatsappGreeting}
+                  placeholder="Merhaba {işletme_adınız} ile görüşmek istiyorum"
+                />
+                <InputField
+                  label={t.openingMessage}
+                  hint={t.openingMessageHint}
+                  value={openingMessage}
+                  onChange={setOpeningMessage}
+                  type="textarea"
+                  placeholder="Merhaba! Ne zaman randevu almak istiyorsunuz?"
+                />
+                <InputField
+                  label={t.confirmationMsg}
+                  hint={t.confirmationMsgHint}
+                  value={confirmationMsg}
+                  onChange={setConfirmationMsg}
+                  type="textarea"
+                  placeholder="Randevunuz onaylandı. Teşekkür ederiz!"
+                />
+                <InputField
+                  label={t.reminderMsg}
+                  hint={t.reminderMsgHint}
+                  value={reminderMsg}
+                  onChange={setReminderMsg}
+                  type="textarea"
+                  placeholder="Yarın saat X'te randevunuz var. Lütfen unutmayın."
+                />
+              </>
+            ) : (
+              <>
+                <div className="flex justify-end">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMessagesSnapshot({
+                        welcomeMsg,
+                        whatsappGreeting,
+                        openingMessage,
+                        confirmationMsg,
+                        reminderMsg,
+                      });
+                      setMessagesEditMode(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-100 px-3 py-1.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                    {t.messagesEdit}
+                  </button>
+                </div>
+                <MessageReadOnlyItem label={t.welcomeMsg} value={welcomeMsg} hint={t.welcomeMsgHint} emptyText={t.messagesEmpty} />
+                <MessageReadOnlyItem label={t.whatsappGreeting} value={whatsappGreeting} hint={t.whatsappGreetingHint} emptyText={t.messagesEmpty} />
+                <MessageReadOnlyItem label={t.openingMessage} value={openingMessage} hint={t.openingMessageHint} emptyText={t.messagesEmpty} />
+                <MessageReadOnlyItem label={t.confirmationMsg} value={confirmationMsg} hint={t.confirmationMsgHint} emptyText={t.messagesEmpty} />
+                <MessageReadOnlyItem label={t.reminderMsg} value={reminderMsg} hint={t.reminderMsgHint} emptyText={t.messagesEmpty} />
+              </>
+            )}
           </div>
         </SectionCard>
 

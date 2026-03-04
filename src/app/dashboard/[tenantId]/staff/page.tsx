@@ -13,6 +13,7 @@ interface FeatureResponse {
 interface StaffItem {
   id: string;
   name: string;
+  phone_e164: string | null;
   active: boolean;
   service_slugs: string[];
   created_at: string;
@@ -26,6 +27,7 @@ interface ServiceItem {
 
 interface StaffDraft {
   name: string;
+  phone_e164: string;
   active: boolean;
   service_slugs: string[];
 }
@@ -48,6 +50,7 @@ export default function StaffPage({
   const [drafts, setDrafts] = useState<Record<string, StaffDraft>>({});
   const [newStaff, setNewStaff] = useState({
     name: "",
+    phone_e164: "",
     service_slugs: [] as string[],
   });
 
@@ -94,6 +97,7 @@ export default function StaffPage({
       staffList.reduce<Record<string, StaffDraft>>((acc, row) => {
         acc[row.id] = {
           name: row.name,
+          phone_e164: row.phone_e164 || "",
           active: row.active,
           service_slugs: Array.isArray(row.service_slugs) ? row.service_slugs : [],
         };
@@ -137,6 +141,7 @@ export default function StaffPage({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: newStaff.name.trim(),
+        phone_e164: newStaff.phone_e164.trim() || null,
         active: true,
         service_slugs: newStaff.service_slugs,
       }),
@@ -151,7 +156,7 @@ export default function StaffPage({
 
     setSaving(false);
     setInfo("Personel eklendi.");
-    setNewStaff({ name: "", service_slugs: [] });
+    setNewStaff({ name: "", phone_e164: "", service_slugs: [] });
     await loadData();
   };
 
@@ -169,6 +174,7 @@ export default function StaffPage({
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name: draft.name,
+        phone_e164: draft.phone_e164.trim() || null,
         active: draft.active,
         service_slugs: draft.service_slugs,
       }),
@@ -249,6 +255,12 @@ export default function StaffPage({
                 className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
                 required
               />
+              <input
+                value={newStaff.phone_e164}
+                onChange={(e) => setNewStaff((s) => ({ ...s, phone_e164: e.target.value }))}
+                placeholder="Telefon (+90555...)"
+                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
+              />
               <button
                 type="submit"
                 disabled={saving}
@@ -299,6 +311,7 @@ export default function StaffPage({
                 {staff.map((row) => {
                   const draft = drafts[row.id] || {
                     name: row.name,
+                    phone_e164: row.phone_e164 || "",
                     active: row.active,
                     service_slugs: row.service_slugs || [],
                   };
@@ -307,7 +320,7 @@ export default function StaffPage({
                       key={row.id}
                       className="rounded-xl border border-slate-200 p-3 dark:border-slate-800"
                     >
-                      <div className="grid gap-3 md:grid-cols-[1fr_auto_auto] md:items-center">
+                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-center">
                         <input
                           value={draft.name}
                           onChange={(e) =>
@@ -316,6 +329,17 @@ export default function StaffPage({
                               [row.id]: { ...draft, name: e.target.value },
                             }))
                           }
+                          className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
+                        />
+                        <input
+                          value={draft.phone_e164}
+                          onChange={(e) =>
+                            setDrafts((prev) => ({
+                              ...prev,
+                              [row.id]: { ...draft, phone_e164: e.target.value },
+                            }))
+                          }
+                          placeholder="+90555..."
                           className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
                         />
                         <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">

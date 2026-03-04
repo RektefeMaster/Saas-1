@@ -173,6 +173,7 @@ export async function POST(
       customerPhone,
       date,
       time,
+      staffId: (data.staff_id as string | null | undefined) || body.staff_id || null,
       source: "dashboard",
     });
   } catch (e) {

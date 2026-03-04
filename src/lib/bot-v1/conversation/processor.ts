@@ -161,13 +161,13 @@ async function tryHandleReview(
 ): Promise<{ handled: boolean; reply?: string }> {
   const trimmed = msg.trim().toLowerCase();
   if (REVIEW_SKIP_PHRASES.includes(trimmed)) {
-    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
     const { data: apt } = await supabase
       .from("appointments")
       .select("id")
       .eq("tenant_id", tenantId)
       .eq("customer_phone", customerPhone)
-      .lt("slot_start", oneHourAgo.toISOString())
+      .lt("slot_start", thirtyMinutesAgo.toISOString())
       .in("status", ["completed", "confirmed"])
       .order("slot_start", { ascending: false })
       .limit(1)
@@ -183,14 +183,14 @@ async function tryHandleReview(
   }
   const rating = parseRating(msg);
   if (rating == null || rating < 1 || rating > 5) return { handled: false };
-  const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
 
   const { data: apt } = await supabase
     .from("appointments")
     .select("id")
     .eq("tenant_id", tenantId)
     .eq("customer_phone", customerPhone)
-    .lt("slot_start", oneHourAgo.toISOString())
+    .lt("slot_start", thirtyMinutesAgo.toISOString())
     .in("status", ["completed", "confirmed"])
     .order("slot_start", { ascending: false })
     .limit(1)
@@ -412,10 +412,15 @@ export async function processMessage(
       };
       await setSession(tenantId, customerPhone, pausedState);
       if (mergedConfig) {
-        const msg = buildConfigMessage(mergedConfig, "human_escalation", {
-          contact_phone: tenant.contact_phone?.trim() ?? "",
-          working_hours: tenant.working_hours_text?.trim() ?? "",
-        });
+        const msg = buildConfigMessage(
+          mergedConfig,
+          "human_escalation",
+          {
+            contact_phone: tenant.contact_phone?.trim() ?? "",
+            working_hours: tenant.working_hours_text?.trim() ?? "",
+          },
+          tenant.name
+        );
         if (msg) return { reply: msg };
       }
       return { reply: buildHumanEscalationMessage(tenant, tone) };
@@ -747,7 +752,9 @@ export async function processMessage(
     if (isGreetingOrSmallTalkOnly(effectiveMessage)) {
       const welcomeRaw = msgs.welcome;
       const welcomeStr = Array.isArray(welcomeRaw) ? welcomeRaw[0] ?? "" : (welcomeRaw ?? "");
-      const welcomeText = welcomeStr.replace(/\{tenant_name\}/g, tenant.name);
+      const welcomeText = welcomeStr
+        .replace(/\{tenant_name\}/g, tenant.name)
+        .replace(/\{işletme_adınız\}/g, tenant.name);
       return { reply: welcomeText };
     }
 
@@ -912,8 +919,13 @@ export async function processMessage(
         );
       } catch {
         if (mergedConfig) {
-          const errMsg = buildConfigMessage(mergedConfig, "system_error", {});
-          if (errMsg) return { reply: errMsg };
+        const errMsg = buildConfigMessage(
+          mergedConfig,
+          "system_error",
+          {},
+          tenant.name
+        );
+        if (errMsg) return { reply: errMsg };
         }
         return { reply: getProcessErrorReply(tone) };
       }
@@ -1080,12 +1092,19 @@ export async function processMessage(
         const parts: string[] = [];
         if (confirmationResults.length > 0) {
           const combined = confirmationResults
-            .map((v) => buildConfigMessage(mergedConfig, "confirmation", v))
+            .map((v) =>
+              buildConfigMessage(mergedConfig, "confirmation", v, tenant.name)
+            )
             .filter(Boolean);
           if (combined.length) parts.push(combined.join("\n\n"));
         }
         if (templateReply) {
-          const msg = buildConfigMessage(mergedConfig, templateReply.key, templateReply.vars);
+          const msg = buildConfigMessage(
+            mergedConfig,
+            templateReply.key,
+            templateReply.vars,
+            tenant.name
+          );
           if (msg) parts.push(msg);
         }
         if (parts.length) {
@@ -1098,7 +1117,12 @@ export async function processMessage(
 
     if (!finalReply) {
       if (mergedConfig) {
-        const errMsg = buildConfigMessage(mergedConfig, "system_error", {});
+        const errMsg = buildConfigMessage(
+          mergedConfig,
+          "system_error",
+          {},
+          tenant.name
+        );
         if (errMsg) finalReply = errMsg;
       }
       if (!finalReply) finalReply = getProcessErrorReply(tone);
@@ -1116,10 +1140,15 @@ export async function processMessage(
     // ── Check for human escalation tag ──
     if (finalReply.includes(HUMAN_ESCALATION_TAG)) {
       if (mergedConfig) {
-        const msg = buildConfigMessage(mergedConfig, "human_escalation", {
-          contact_phone: tenant.contact_phone?.trim() ?? "",
-          working_hours: tenant.working_hours_text?.trim() ?? "",
-        });
+        const msg = buildConfigMessage(
+          mergedConfig,
+          "human_escalation",
+          {
+            contact_phone: tenant.contact_phone?.trim() ?? "",
+            working_hours: tenant.working_hours_text?.trim() ?? "",
+          },
+          tenant.name
+        );
         if (msg) return { reply: msg, metrics };
       }
       return { reply: buildHumanEscalationMessage(tenant, tone), metrics };

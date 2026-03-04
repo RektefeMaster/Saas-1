@@ -35,7 +35,7 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
 
     const { data: apt, error: fetchErr } = await supabase
       .from("appointments")
-      .select("id, tenant_id, customer_phone, slot_start")
+      .select("id, tenant_id, customer_phone, slot_start, staff_id")
       .eq("id", appointmentId)
       .eq("tenant_id", tenantId)
       .single();
@@ -95,6 +95,7 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
       customerPhone: apt.customer_phone,
       date: dateIso,
       time: timeIso,
+      staffId: (apt.staff_id as string | null | undefined) || null,
       cancelledBy,
       reason: reason || null,
       source: params.source ?? "bot",
