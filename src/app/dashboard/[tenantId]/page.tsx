@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import useSWR from "swr";
 import { MotionConfig, motion, useScroll, useTransform } from "motion/react";
-import { LazyBarChart } from "@/components/charts/LazyBarChart";
+import { ChartBar } from "@/components/charts/ChartBar";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Loader2, Clock, XCircle, MessageCircle, X, Calendar, AlertCircle, CheckCircle2, Check, XOctagon, UserX } from "lucide-react";
 import {
@@ -1276,7 +1276,7 @@ export default function EsnafDashboard({
               <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
                 Son 7 günün randevu dağılımı
               </p>
-              <LazyBarChart
+              <ChartBar
                 data={weekDates.slice(0, 7).map((dateStr) => {
                   const d = new Date(dateStr + "T12:00:00");
                   return {
@@ -1284,11 +1284,10 @@ export default function EsnafDashboard({
                     Randevu: grouped[dateStr]?.length ?? 0,
                   };
                 })}
-                index="gün"
-                categories={["Randevu"]}
-                colors={["emerald"]}
-                showLegend={false}
-                valueFormatter={(v) => v.toString()}
+                xKey="gün"
+                bars="Randevu"
+                colors="emerald"
+                height={280}
               />
             </section>
           </ScrollReveal>

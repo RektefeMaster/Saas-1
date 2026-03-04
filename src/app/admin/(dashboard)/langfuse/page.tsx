@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { LazyBarChart } from "@/components/charts/LazyBarChart";
+import { ChartBar } from "@/components/charts/ChartBar";
 import {
   Brain,
   Coins,
@@ -259,12 +259,18 @@ export default function AdminLangfusePage() {
             Maliyet, token ve çağrı sayıları
           </p>
           <div className="mt-2">
-            <LazyBarChart
+            <ChartBar
               data={chartData}
-              index="tarih"
-              categories={["maliyet", "token", "çağrı"]}
+              xKey="tarih"
+              bars={["maliyet", "token", "çağrı"]}
               colors={["amber", "violet", "emerald"]}
-              valueFormatter={(v) => (typeof v === "number" && v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v))}
+              barLabels={{ maliyet: "Maliyet ($)", token: "Token", çağrı: "Çağrı" }}
+              valueFormatter={(v) =>
+                v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v < 1 ? v.toFixed(4) : String(Math.round(v))
+              }
+              showLegend
+              normalize
+              height={320}
             />
           </div>
         </div>

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { LazyBarChart } from "@/components/charts/LazyBarChart";
+import { ChartBar } from "@/components/charts/ChartBar";
 import {
   ArrowUpRight,
   Building2,
@@ -212,7 +212,7 @@ export default function AdminPage() {
           <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
             Platform metrikleri
           </p>
-          <LazyBarChart
+          <ChartBar
             data={[
               { name: "İşletme", value: normalizedStats.tenants },
               { name: "Bugün Randevu", value: normalizedStats.appointmentsToday },
@@ -220,11 +220,10 @@ export default function AdminPage() {
               { name: "Kampanya", value: normalizedStats.campaignMessages ?? 0 },
               { name: "CRM Müşteri", value: normalizedStats.crmCustomers ?? 0 },
             ]}
-            index="name"
-            categories={["value"]}
-            colors={["emerald"]}
-            showLegend={false}
-            valueFormatter={(v) => v.toString()}
+            xKey="name"
+            bars="value"
+            colors="emerald"
+            height={300}
           />
         </section>
       )}

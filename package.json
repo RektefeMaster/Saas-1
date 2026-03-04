@@ -57,6 +57,7 @@
     "react-hook-form": "^7.71.2",
     "react-intersection-observer": "^10.0.3",
     "react-resizable-panels": "^4.7.1",
+    "recharts": "^3.7.0",
     "resend": "^6.9.3",
     "slugify": "^1.6.6",
     "sonner": "^2.0.7",
