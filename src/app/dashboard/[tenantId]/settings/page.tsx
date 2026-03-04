@@ -597,7 +597,7 @@ export default function TenantSettingsPage({
           </button>
           {saved && (
             <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-              <CheckCircle2 className="h-4 w-4" />
+              <LottieAnimation src="success" width={20} height={20} loop={false} />
               {t.saved}
             </span>
           )}

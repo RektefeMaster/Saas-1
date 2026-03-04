@@ -719,7 +719,11 @@ export default function CampaignsPage({
                 }`}
               >
                 <div className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-xl ${result.success_count > 0 ? "bg-emerald-200/80 dark:bg-emerald-800/50" : "bg-amber-200/80 dark:bg-amber-800/50"}`}>
-                  <CheckCircle2 className={`h-6 w-6 ${result.success_count > 0 ? "text-emerald-700 dark:text-emerald-300" : "text-amber-700 dark:text-amber-300"}`} />
+                  {result.success_count > 0 ? (
+                    <LottieAnimation src="success" width={48} height={48} loop={false} />
+                  ) : (
+                    <CheckCircle2 className="h-6 w-6 text-amber-700 dark:text-amber-300" />
+                  )}
                 </div>
                 <div>
                   <p className="font-semibold">

@@ -6,6 +6,7 @@ import { useEffect, useState } from "react";
 const LOTTIE_PRESETS = {
   loading: "/animations/loading.json",
   empty: "/animations/empty.json",
+  success: "/animations/success.json",
 } as const;
 
 interface LottieAnimationProps {
