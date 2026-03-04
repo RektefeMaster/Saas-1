@@ -6,7 +6,7 @@ import {
   getAdminCookieOpts,
   isAdminPasswordValid,
 } from "@/lib/admin-auth";
-import { setOtpChallenge } from "@/lib/redis";
+import { checkAdminLoginRateLimit, resetAdminLoginRateLimit, setOtpChallenge } from "@/lib/redis";
 import {
   ADMIN_OTP_COOKIE,
   OTP_TTL_SECONDS,
@@ -26,8 +26,27 @@ function getHiddenIdentifier(): string {
     .toLowerCase();
 }
 
+function getClientIdentifier(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
+  const ip = forwarded?.split(",")[0]?.trim() || realIp || "unknown";
+  return ip.replace(/[^a-zA-Z0-9.:-]/g, "_");
+}
+
 export async function POST(request: NextRequest) {
   try {
+    const clientId = getClientIdentifier(request);
+    const rateLimit = await checkAdminLoginRateLimit(clientId);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: "Çok fazla giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin.",
+          retry_after: rateLimit.retryAfterSeconds,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = (await request.json().catch(() => ({}))) as {
       identifier?: string;
       password?: string;
@@ -48,6 +67,8 @@ export async function POST(request: NextRequest) {
       await new Promise((r) => setTimeout(r, 2000));
       return NextResponse.json({ error: "Geçersiz kullanıcı adı veya şifre" }, { status: 401 });
     }
+
+    await resetAdminLoginRateLimit(clientId);
 
     const sms2faEnabled = isSms2faEnabledFlag();
     if (!sms2faEnabled) {

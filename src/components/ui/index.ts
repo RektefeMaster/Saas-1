@@ -7,4 +7,5 @@ export { Badge } from "./Badge";
 export type { BadgeVariant } from "./Badge";
 export { ThemeLocaleSwitch } from "./ThemeLocaleSwitch";
 export { QRCodeModal } from "./QRCodeModal";
+export { ContactModal } from "./ContactModal";
 export { LottieAnimation } from "./LottieAnimation";

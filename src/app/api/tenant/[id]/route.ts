@@ -20,6 +20,7 @@ export async function GET(
     "owner_phone_e164",
     "contact_phone",
     "working_hours_text",
+    "campaign_enabled",
   ];
   const missingColumns = new Set<string>();
   let selectColumns = [...requestedColumns];
@@ -53,6 +54,8 @@ export async function GET(
   for (const column of missingColumns) {
     if (column === "security_config" || column === "ui_preferences") {
       data[column] = {};
+    } else if (column === "campaign_enabled") {
+      data[column] = true;
     } else {
       data[column] = null;
     }

@@ -1,6 +1,7 @@
 import { Redis } from "@upstash/redis";
 import { createCipheriv, randomBytes } from "crypto";
 import type { ConversationState } from "./database.types";
+import { isSupabaseConfigured, supabase } from "./supabase";
 
 function normalizeSecretValue(value: string | undefined): string | undefined {
   if (!value) return undefined;
@@ -174,18 +175,41 @@ export function hasRedis(): boolean {
   return redis !== null;
 }
 
+function phoneDigits(customerPhone: string): string {
+  return customerPhone.replace(/\D/g, "");
+}
+
 export async function getTenantIdByPhone(customerPhone: string): Promise<string | null> {
-  const key = PHONE_TENANT_PREFIX + customerPhone.replace(/\D/g, "");
+  const digits = phoneDigits(customerPhone);
+  if (!digits) return null;
+  const key = PHONE_TENANT_PREFIX + digits;
+
   if (redis) {
     try {
-      return await redis.get<string>(key);
+      const val = await redis.get<string>(key);
+      if (val) return val;
     } catch (err) {
       logRedisFallback("getTenantIdByPhone", err);
     }
   }
+
   const mem = phoneTenantStore.get(key);
   if (mem && mem.expiry > Date.now()) return mem.value;
   phoneTenantStore.delete(key);
+
+  if (isSupabaseConfigured()) {
+    try {
+      const { data } = await supabase
+        .from("phone_tenant_mappings")
+        .select("tenant_id")
+        .eq("customer_phone_digits", digits)
+        .single();
+      if (data?.tenant_id) return data.tenant_id;
+    } catch {
+      // Tablo yoksa veya hata varsa sessizce devam et
+    }
+  }
+
   return null;
 }
 
@@ -193,32 +217,63 @@ export async function setPhoneTenantMapping(
   customerPhone: string,
   tenantId: string
 ): Promise<void> {
-  const key = PHONE_TENANT_PREFIX + customerPhone.replace(/\D/g, "");
+  const digits = phoneDigits(customerPhone);
+  if (!digits) return;
+  const key = PHONE_TENANT_PREFIX + digits;
+
   if (redis) {
     try {
       await redis.set(key, tenantId, { ex: PHONE_TENANT_TTL_SECONDS });
-      return;
     } catch (err) {
       logRedisFallback("setPhoneTenantMapping", err);
     }
   }
+
   phoneTenantStore.set(key, {
     value: tenantId,
     expiry: Date.now() + PHONE_TENANT_TTL_SECONDS * 1000,
   });
+
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase.from("phone_tenant_mappings").upsert(
+        {
+          customer_phone_digits: digits,
+          tenant_id: tenantId,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "customer_phone_digits" }
+      );
+    } catch {
+      // Tablo yoksa veya hata varsa sessizce devam et
+    }
+  }
 }
 
 export async function clearPhoneTenantMapping(customerPhone: string): Promise<void> {
-  const key = PHONE_TENANT_PREFIX + customerPhone.replace(/\D/g, "");
+  const digits = phoneDigits(customerPhone);
+  if (!digits) return;
+  const key = PHONE_TENANT_PREFIX + digits;
+
   if (redis) {
     try {
       await redis.del(key);
-      return;
     } catch (err) {
       logRedisFallback("clearPhoneTenantMapping", err);
     }
   }
   phoneTenantStore.delete(key);
+
+  if (isSupabaseConfigured()) {
+    try {
+      await supabase
+        .from("phone_tenant_mappings")
+        .delete()
+        .eq("customer_phone_digits", digits);
+    } catch {
+      // Tablo yoksa veya hata varsa sessizce devam et
+    }
+  }
 }
 
 /**
@@ -963,4 +1018,58 @@ export async function getBookingHoldsForDate(
     holds.push(entry.value);
   }
   return holds;
+}
+
+// --- Admin login rate limiting (brute-force koruması) ---
+const ADMIN_LOGIN_PREFIX = "ahi-ai:admin:login:";
+const ADMIN_LOGIN_MAX_ATTEMPTS = 5;
+const ADMIN_LOGIN_WINDOW_SECONDS = 60 * 15; // 15 dakika
+
+const adminLoginMemory = new Map<string, { count: number; expiry: number }>();
+
+export async function checkAdminLoginRateLimit(identifier: string): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
+  const key = `${ADMIN_LOGIN_PREFIX}${identifier}`;
+  if (redis) {
+    try {
+      const count = await redis.incr(key);
+      if (count === 1) await redis.expire(key, ADMIN_LOGIN_WINDOW_SECONDS);
+      if (count > ADMIN_LOGIN_MAX_ATTEMPTS) {
+        const ttl = await redis.ttl(key);
+        return { allowed: false, retryAfterSeconds: Math.max(1, ttl) };
+      }
+      return { allowed: true };
+    } catch (err) {
+      logRedisFallback("checkAdminLoginRateLimit", err);
+    }
+  }
+  const now = Date.now();
+  const mem = adminLoginMemory.get(key);
+  if (!mem || mem.expiry < now) {
+    adminLoginMemory.set(key, {
+      count: 1,
+      expiry: now + ADMIN_LOGIN_WINDOW_SECONDS * 1000,
+    });
+    return { allowed: true };
+  }
+  mem.count += 1;
+  if (mem.count > ADMIN_LOGIN_MAX_ATTEMPTS) {
+    return {
+      allowed: false,
+      retryAfterSeconds: Math.max(1, Math.floor((mem.expiry - now) / 1000)),
+    };
+  }
+  return { allowed: true };
+}
+
+export async function resetAdminLoginRateLimit(identifier: string): Promise<void> {
+  const key = `${ADMIN_LOGIN_PREFIX}${identifier}`;
+  if (redis) {
+    try {
+      await redis.del(key);
+      return;
+    } catch (err) {
+      logRedisFallback("resetAdminLoginRateLimit", err);
+    }
+  }
+  adminLoginMemory.delete(key);
 }

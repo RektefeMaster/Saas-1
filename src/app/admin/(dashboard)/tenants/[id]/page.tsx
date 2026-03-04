@@ -11,6 +11,7 @@ import {
   QrCode,
   Trash2,
   UserRoundCog,
+  Loader2,
 } from "lucide-react";
 
 interface Tenant {
@@ -18,6 +19,7 @@ interface Tenant {
   name: string;
   tenant_code: string;
   status: string;
+  campaign_enabled?: boolean;
   business_types: { name: string } | null;
 }
 
@@ -38,6 +40,8 @@ export default function TenantDetailPage() {
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
   const [copied, setCopied] = useState<string | null>(null);
+  const [campaignEnabled, setCampaignEnabled] = useState<boolean>(true);
+  const [savingCampaign, setSavingCampaign] = useState(false);
   const baseUrl = typeof window !== "undefined" ? window.location.origin : "";
 
   useEffect(() => {
@@ -46,12 +50,35 @@ export default function TenantDetailPage() {
       fetch(`/api/tenant/${id}/assets`).then((response) => response.json()),
     ])
       .then(([tenantData, assetsData]) => {
-        if (!tenantData.error) setTenant(tenantData);
+        if (!tenantData.error) {
+          setTenant(tenantData);
+          setCampaignEnabled(tenantData.campaign_enabled !== false);
+        }
         if (!assetsData.error) setAssets(assetsData);
       })
       .catch(() => {})
       .finally(() => setLoading(false));
   }, [id]);
+
+  const handleCampaignToggle = async () => {
+    if (!tenant) return;
+    setSavingCampaign(true);
+    try {
+      const res = await fetch(`/api/admin/tenants/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ campaign_enabled: !campaignEnabled }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) throw new Error(data.error || "Kaydedilemedi");
+      setCampaignEnabled(!campaignEnabled);
+      setTenant((prev) => (prev ? { ...prev, campaign_enabled: !campaignEnabled } : null));
+    } catch (err) {
+      setDeleteError(err instanceof Error ? err.message : "Kampanya ayarı güncellenemedi");
+    } finally {
+      setSavingCampaign(false);
+    }
+  };
 
   const copyToClipboard = (text: string, key: string) => {
     navigator.clipboard.writeText(text);
@@ -123,13 +150,42 @@ export default function TenantDetailPage() {
           </div>
 
           <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-1">
-            <Link
-              href={`/admin/campaigns?tenant_id=${tenant.id}`}
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-2.5 text-sm font-semibold text-cyan-800 transition hover:bg-cyan-100 dark:border-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-200 dark:hover:bg-cyan-900/50"
-            >
-              <Megaphone className="h-4 w-4" />
-              Kampanya Gönder
-            </Link>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3 dark:border-slate-700 dark:bg-slate-800/50">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Kampanya Gönderimi</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {campaignEnabled ? "İşletme kampanya gönderebilir" : "Kısıtlı — iletişime geçin mesajı gösterilir"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={handleCampaignToggle}
+                  disabled={savingCampaign}
+                  className={`relative inline-flex h-8 w-12 shrink-0 items-center rounded-full transition-colors ${
+                    campaignEnabled ? "bg-emerald-500" : "bg-slate-300 dark:bg-slate-600"
+                  }`}
+                >
+                  <span
+                    className={`inline-block h-6 w-6 transform rounded-full bg-white shadow transition-transform ${
+                      campaignEnabled ? "translate-x-5" : "translate-x-1"
+                    }`}
+                  />
+                  {savingCampaign && (
+                    <span className="absolute inset-0 flex items-center justify-center">
+                      <Loader2 className="h-4 w-4 animate-spin text-white" />
+                    </span>
+                  )}
+                </button>
+              </div>
+              <Link
+                href={`/admin/campaigns?tenant_id=${tenant.id}`}
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-2.5 text-sm font-semibold text-cyan-800 transition hover:bg-cyan-100 dark:border-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-200 dark:hover:bg-cyan-900/50"
+              >
+                <Megaphone className="h-4 w-4" />
+                Kampanya Gönder
+              </Link>
+            </div>
             <a
               href={`${baseUrl}/dashboard/${tenant.id}`}
               target="_blank"

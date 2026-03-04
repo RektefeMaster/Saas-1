@@ -9,7 +9,7 @@ import { createClient } from "@/lib/supabase-client";
 import { setRememberMeCookie } from "@/lib/remember-me";
 import { useLocale } from "@/lib/locale-context";
 import { isValidUsername, usernameToLoginEmail } from "@/lib/username-auth";
-import { Button, ThemeLocaleSwitch } from "@/components/ui";
+import { Button, ContactModal, ThemeLocaleSwitch } from "@/components/ui";
 
 const ADMIN_LOGIN_EMAIL = "nuronuro458@gmail.com";
 
@@ -24,6 +24,7 @@ const COPY = {
     submit: "Giriş Yap",
     submitting: "Giriş yapılıyor...",
     contact: "Hesabın yok mu? Kurulum için",
+    contactBtn: "İletişim",
     back: "Ana sayfaya dön",
   },
   en: {
@@ -35,7 +36,8 @@ const COPY = {
     rememberMe: "Remember me",
     submit: "Sign In",
     submitting: "Signing in...",
-    contact: "Need an account? For onboarding call",
+    contact: "Need an account? For onboarding",
+    contactBtn: "Contact us",
     back: "Back to home",
   },
 } as const;
@@ -95,6 +97,7 @@ export default function DashboardLoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showContactModal, setShowContactModal] = useState(false);
 
   const featureItems = useMemo(
     () =>
@@ -378,10 +381,16 @@ export default function DashboardLoginPage() {
 
           <p className="mt-5 text-center text-sm text-slate-500 dark:text-slate-400">
             {t.contact}{" "}
-            <a href="tel:05060550239" className="font-semibold text-cyan-700 hover:text-cyan-800 dark:text-cyan-300">
-              0506 055 02 39
-            </a>
+            <button
+              type="button"
+              onClick={() => setShowContactModal(true)}
+              className="font-semibold text-cyan-700 hover:text-cyan-800 hover:underline dark:text-cyan-300 dark:hover:text-cyan-200"
+            >
+              {t.contactBtn}
+            </button>
           </p>
+
+          <ContactModal isOpen={showContactModal} onClose={() => setShowContactModal(false)} />
 
           <div className="mt-4 text-center">
             <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">

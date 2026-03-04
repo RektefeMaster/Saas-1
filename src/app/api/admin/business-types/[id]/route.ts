@@ -61,3 +61,47 @@ export async function PATCH(
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data);
 }
+
+export async function DELETE(
+  _request: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  if (!isSupabaseConfigured()) {
+    return NextResponse.json(
+      { error: "Veritabanı yapılandırılmamış" },
+      { status: 503 }
+    );
+  }
+  const { id } = await params;
+
+  const { data: existing } = await supabase
+    .from("business_types")
+    .select("id, name, slug")
+    .eq("id", id)
+    .single();
+  if (!existing) {
+    return NextResponse.json({ error: "İşletme tipi bulunamadı" }, { status: 404 });
+  }
+
+  const { count: tenantCount } = await supabase
+    .from("tenants")
+    .select("*", { count: "exact", head: true })
+    .eq("business_type_id", id)
+    .is("deleted_at", null);
+  if (tenantCount && tenantCount > 0) {
+    return NextResponse.json(
+      {
+        error: `Bu işletme tipi ${tenantCount} işletme tarafından kullanılıyor. Önce bu işletmelerin tipini değiştirin veya silin.`,
+        tenant_count: tenantCount,
+      },
+      { status: 409 }
+    );
+  }
+
+  const { error } = await supabase.from("business_types").delete().eq("id", id);
+  if (error) {
+    console.error("[business-types DELETE]", error);
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+  return NextResponse.json({ success: true, deleted_id: id });
+}

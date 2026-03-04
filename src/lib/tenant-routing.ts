@@ -8,6 +8,7 @@ export type RoutingReason =
   | "marker"
   | "name"
   | "session"
+  | "customer_history"
   | "nlp"
   | "default"
   | "none";
@@ -232,14 +233,22 @@ async function getTenantSummaryByCode(tenantCode: string): Promise<TenantSummary
   return data;
 }
 
+function phoneDigitsOnly(phone: string): string {
+  return phone.replace(/\D/g, "");
+}
+
 async function getRecentCustomerTenantIds(
   customerPhone: string,
   limit = 12
 ): Promise<string[]> {
+  const digits = phoneDigitsOnly(customerPhone);
+  const candidates = [customerPhone];
+  if (digits && digits !== customerPhone) candidates.push(digits);
+
   const { data, error } = await supabase
     .from("appointments")
     .select("tenant_id, updated_at")
-    .eq("customer_phone", customerPhone)
+    .in("customer_phone", candidates)
     .order("updated_at", { ascending: false })
     .limit(120);
   if (error || !data || data.length === 0) return [];
@@ -361,6 +370,23 @@ export async function resolveTenantRouting(input: RoutingInput): Promise<Routing
       intentDomain: detectIntentDomain(normalizedMessage),
       tenantCode,
     };
+  }
+
+  if (!previousTenantId) {
+    const historyIds = await getRecentCustomerTenantIds(customerPhone, 1);
+    if (historyIds.length > 0) {
+      const byHistory = await getTenantSummaryById(historyIds[0]);
+      if (byHistory) {
+        return {
+          tenantId: byHistory.id,
+          tenantName: byHistory.name,
+          reason: "customer_history",
+          normalizedMessage,
+          intentDomain: detectIntentDomain(normalizedMessage),
+          tenantCode,
+        };
+      }
+    }
   }
 
   const intentDomain = detectIntentDomain(normalizedMessage);

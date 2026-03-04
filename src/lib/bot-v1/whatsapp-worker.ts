@@ -274,7 +274,8 @@ export async function processWhatsAppInboundEvent(
 
     const previousTenantId = await getTenantIdByPhone(customerPhone);
     let tenantId: string | null = null;
-    let routingReason: "marker" | "name" | "session" | "nlp" | "default" | "none" = "none";
+    let routingReason: "marker" | "name" | "session" | "customer_history" | "nlp" | "default" | "none" =
+      "none";
     let tenantCode: string | null = null;
     let intentDomain: "haircare" | "carcare" | null = null;
 
@@ -304,7 +305,7 @@ export async function processWhatsAppInboundEvent(
       await sendWhatsAppMessage({
         to: customerPhone,
         text:
-          "Mesajını aldım ama işletmeyi eşleştiremedim. Lütfen işletme adıyla tekrar yaz.",
+          "Mesajınızı aldım. Hangi işletme için randevu almak istediğinizi anlayamadım. Lütfen işletme adını yazın (örn: Kuaför Ahmet).",
       });
       await logBotMessageAudit({
         traceId,

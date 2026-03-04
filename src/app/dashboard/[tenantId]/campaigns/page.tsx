@@ -46,6 +46,8 @@ interface CampaignRecord {
 
 const COPY = {
   tr: {
+    contactUsMessage: "Kampanya göndermek için bizimle iletişime geçin.",
+    contactUsSubtext: "Kampanya özelliği şu an için hesabınızda aktif değildir. Etkinleştirmek için destek ekibimizle iletişime geçebilirsiniz.",
     title: "Kampanyalar",
     subtitle: "Müşterilerinize toplu WhatsApp veya SMS kampanya mesajı gönderin.",
     backToPanel: "Panele Dön",
@@ -101,6 +103,8 @@ const COPY = {
     closeRecipients: "Kapat",
   },
   en: {
+    contactUsMessage: "Contact us to send campaigns.",
+    contactUsSubtext: "The campaign feature is not currently active on your account. Please contact our support team to enable it.",
     title: "Campaigns",
     subtitle: "Send bulk WhatsApp or SMS campaign messages to your customers.",
     backToPanel: "Back to Panel",
@@ -157,7 +161,7 @@ const COPY = {
   },
 } as const;
 
-function getChannelLabel(channel: string, t: (typeof COPY)["tr"]): string {
+function getChannelLabel(channel: string, t: (typeof COPY)["tr"] | (typeof COPY)["en"]): string {
   if (channel === "whatsapp") return t.channelWhatsAppShort;
   if (channel === "sms") return t.channelSmsShort;
   if (channel === "both") return t.channelBothShort;
@@ -211,10 +215,25 @@ export default function CampaignsPage({
   const [extraPhones, setExtraPhones] = useState<string[]>([]);
   const [addPhoneInput, setAddPhoneInput] = useState("");
   const [showRecipientsModal, setShowRecipientsModal] = useState(false);
+  const [campaignEnabled, setCampaignEnabled] = useState<boolean | null>(null);
 
   useEffect(() => {
     params.then((p) => setTenantId(p.tenantId));
   }, [params]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    fetch(`/api/tenant/${tenantId}`)
+      .then((r) => r.json())
+      .then((data) => {
+        if (!data.error) {
+          setCampaignEnabled((data as { campaign_enabled?: boolean }).campaign_enabled !== false);
+        } else {
+          setCampaignEnabled(true);
+        }
+      })
+      .catch(() => setCampaignEnabled(true));
+  }, [tenantId]);
 
   const loadRecipients = useCallback(() => {
     if (!tenantId) return;
@@ -234,7 +253,7 @@ export default function CampaignsPage({
             phone: String(r.phone || "").trim(),
             name: r.name || r.customer_name,
             tags: r.tags,
-          })).filter((r) => r.phone),
+          })).filter((r: { phone: string }) => r.phone),
         });
       })
       .catch(() => {
@@ -500,6 +519,27 @@ export default function CampaignsPage({
           </div>
         </header>
 
+        {campaignEnabled === null && (
+          <div className="flex items-center justify-center rounded-2xl border border-slate-200 bg-white py-16 dark:border-slate-800 dark:bg-slate-900">
+            <LottieAnimation src="loading" width={64} height={64} />
+          </div>
+        )}
+
+        {campaignEnabled === false && (
+          <div className="rounded-2xl border-2 border-amber-200 bg-amber-50 p-8 text-center dark:border-amber-800 dark:bg-amber-950/40">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-amber-100 dark:bg-amber-900/50">
+              <Megaphone className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+            </div>
+            <h2 className="mt-4 text-xl font-semibold text-amber-900 dark:text-amber-100">
+              {t.contactUsMessage}
+            </h2>
+            <p className="mt-2 text-sm text-amber-800 dark:text-amber-200">
+              {t.contactUsSubtext}
+            </p>
+          </div>
+        )}
+
+        {campaignEnabled !== false && (
         <form onSubmit={handleSubmitClick} className="space-y-6">
           <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-5 flex items-start gap-3">
@@ -516,12 +556,12 @@ export default function CampaignsPage({
               <label className="mb-3 block text-sm font-medium text-slate-700 dark:text-slate-300">{t.channel}</label>
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { value: "whatsapp" as const, label: t.channelWhatsApp, icon: MessageCircle, color: "emerald" },
-                  { value: "sms" as const, label: t.channelSms, icon: Smartphone, color: "blue" },
-                  { value: "both" as const, label: t.channelBoth, icon: Send, color: "violet" },
+                  { value: "whatsapp" as const, label: t.channelWhatsApp, icon: MessageCircle, color: "emerald" as const },
+                  { value: "sms" as const, label: t.channelSms, icon: Smartphone, color: "blue" as const },
+                  { value: "both" as const, label: t.channelBoth, icon: Send, color: "violet" as const },
                 ].map(({ value, label, icon: Icon, color }) => {
                   const isActive = channel === value;
-                  const colorClasses = {
+                  const colorClasses: Record<"emerald" | "blue" | "violet", string> = {
                     emerald: isActive
                       ? "border-emerald-500 bg-emerald-50 ring-2 ring-emerald-500/20 dark:bg-emerald-950/30 dark:border-emerald-500"
                       : "border-slate-200 hover:border-slate-300 dark:border-slate-700 dark:hover:border-slate-600",
@@ -765,7 +805,9 @@ export default function CampaignsPage({
             </button>
           </div>
         </form>
+        )}
 
+        {campaignEnabled !== false && (
         <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <div className="mb-5 flex items-start justify-between gap-3">
             <div className="flex items-start gap-3">
@@ -800,11 +842,12 @@ export default function CampaignsPage({
             <div className="space-y-3">
               {history.map((item) => {
                 const chLabel = getChannelLabel(item.channel, t);
-                const channelBadge = {
+                const channelBadges: Record<string, string> = {
                   whatsapp: "bg-[#25D366]/15 text-[#25D366] dark:bg-[#25D366]/20",
                   sms: "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300",
                   both: "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300",
-                }[item.channel] || "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300";
+                };
+                const channelBadge = channelBadges[item.channel] || "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300";
                 return (
                   <div
                     key={item.id}
@@ -858,8 +901,9 @@ export default function CampaignsPage({
             </div>
           )}
         </section>
-      </div>
+        )}
 
+        {campaignEnabled !== false && (
       <div className="fixed inset-x-3 bottom-[calc(5.1rem+env(safe-area-inset-bottom))] z-30 flex flex-col gap-2 sm:hidden">
         <button
           type="button"
@@ -880,6 +924,7 @@ export default function CampaignsPage({
           )}
         </button>
       </div>
+        )}
 
       {showRecipientsModal && (
         <div
@@ -1028,6 +1073,7 @@ export default function CampaignsPage({
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

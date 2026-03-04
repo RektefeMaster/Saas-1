@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
 import { sendCustomerNotification } from "@/lib/notify";
 import { sendInfoSms, isInfoSmsEnabled } from "@/lib/sms";
 import {
@@ -44,15 +45,38 @@ export async function POST(
       return NextResponse.json({ error: "Mesaj metni zorunludur" }, { status: 400 });
     }
 
-    const { data: tenant } = await supabase
+    let tenant: { id: string; campaign_enabled?: boolean } | null = null;
+    const tenantRes = await supabase
       .from("tenants")
-      .select("id")
+      .select("id, campaign_enabled")
       .eq("id", tenantId)
       .is("deleted_at", null)
       .single();
 
+    if (tenantRes.error) {
+      const missing = extractMissingSchemaColumn(tenantRes.error);
+      if (missing?.table === "tenants" && missing.column === "campaign_enabled") {
+        const fallback = await supabase
+          .from("tenants")
+          .select("id")
+          .eq("id", tenantId)
+          .is("deleted_at", null)
+          .single();
+        if (!fallback.error && fallback.data) tenant = fallback.data as { id: string };
+      }
+    } else {
+      tenant = tenantRes.data as { id: string; campaign_enabled?: boolean };
+    }
+
     if (!tenant) {
       return NextResponse.json({ error: "İşletme bulunamadı" }, { status: 404 });
+    }
+
+    if (tenant.campaign_enabled === false) {
+      return NextResponse.json(
+        { error: "Kampanya göndermek için bizimle iletişime geçin." },
+        { status: 403 }
+      );
     }
 
     if (channel === "sms" && !isInfoSmsEnabled()) {

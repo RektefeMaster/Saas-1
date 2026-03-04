@@ -31,6 +31,7 @@ export async function PATCH(
     owner_phone_e164,
     security_config,
     ui_preferences,
+    campaign_enabled,
   } = body;
   const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (name !== undefined) updates.name = name;
@@ -41,6 +42,7 @@ export async function PATCH(
   if (owner_phone_e164 !== undefined) updates.owner_phone_e164 = owner_phone_e164;
   if (security_config !== undefined) updates.security_config = security_config;
   if (ui_preferences !== undefined) updates.ui_preferences = ui_preferences;
+  if (campaign_enabled !== undefined) updates.campaign_enabled = Boolean(campaign_enabled);
 
   const patchPayload = { ...updates };
   let data: Record<string, unknown> | null = null;

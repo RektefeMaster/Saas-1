@@ -6,7 +6,7 @@ import {
   getAdminCookieOpts,
   isAdminPasswordValid,
 } from "@/lib/admin-auth";
-import { setOtpChallenge } from "@/lib/redis";
+import { checkAdminLoginRateLimit, resetAdminLoginRateLimit, setOtpChallenge } from "@/lib/redis";
 import {
   ADMIN_OTP_COOKIE,
   OTP_TTL_SECONDS,
@@ -18,24 +18,36 @@ import { getTwilioVerifyStatus, sendSmsVerification } from "@/lib/twilio";
 const DEFAULT_ADMIN_EMAIL = "nuronuro458@gmail.com";
 
 function getAdminEmail(): string {
-  const email = (
+  return (
     process.env.ADMIN_EMAIL ||
     process.env.ADMIN_HIDDEN_LOGIN_IDENTIFIER ||
     DEFAULT_ADMIN_EMAIL
   )
     .trim()
     .toLowerCase();
-  
-  // Debug için log
-  if (process.env.NODE_ENV === "development") {
-    console.log("Admin email configured:", email);
-  }
-  
-  return email;
+}
+
+function getClientIdentifier(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
+  const ip = forwarded?.split(",")[0]?.trim() || realIp || "unknown";
+  return ip.replace(/[^a-zA-Z0-9.:-]/g, "_");
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const identifier = getClientIdentifier(request);
+    const rateLimit = await checkAdminLoginRateLimit(identifier);
+    if (!rateLimit.allowed) {
+      return NextResponse.json(
+        {
+          error: "Çok fazla giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin.",
+          retry_after: rateLimit.retryAfterSeconds,
+        },
+        { status: 429 }
+      );
+    }
+
     const body = (await request.json().catch(() => ({}))) as {
       email?: string;
       password?: string;
@@ -49,13 +61,6 @@ export async function POST(request: NextRequest) {
 
     const adminEmail = getAdminEmail();
     
-    // Debug için log (production'da kaldırılabilir)
-    console.log("Admin login attempt:", {
-      providedEmail: email,
-      expectedEmail: adminEmail,
-      match: email === adminEmail,
-    });
-    
     // E-posta kontrolü - sadece admin e-postası kabul edilir
     // Normalize edilmiş e-posta karşılaştırması
     const normalizedEmail = email.replace(/\s+/g, "").toLowerCase();
@@ -63,9 +68,8 @@ export async function POST(request: NextRequest) {
     
     if (normalizedEmail !== normalizedAdminEmail) {
       await new Promise((r) => setTimeout(r, 600));
-      // Production'da güvenlik için e-posta göstermeyelim, sadece hata mesajı
-      return NextResponse.json({ 
-        error: "Geçersiz e-posta veya şifre. Lütfen admin e-posta adresini ve şifresini kontrol edin." 
+      return NextResponse.json({
+        error: "Geçersiz e-posta veya şifre. Lütfen admin e-posta adresini ve şifresini kontrol edin.",
       }, { status: 401 });
     }
 
@@ -73,6 +77,8 @@ export async function POST(request: NextRequest) {
       await new Promise((r) => setTimeout(r, 2000));
       return NextResponse.json({ error: "Geçersiz e-posta veya şifre" }, { status: 401 });
     }
+
+    await resetAdminLoginRateLimit(identifier);
 
     const sms2faEnabled = isSms2faEnabledFlag();
     if (!sms2faEnabled) {
