@@ -2,17 +2,41 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { ArrowLeft, CheckCircle2, Palette, Phone, Save, SlidersHorizontal } from "lucide-react";
+import {
+  ArrowLeft,
+  Bell,
+  Calendar,
+  CheckCircle2,
+  MessageSquare,
+  Save,
+  SlidersHorizontal,
+  Store,
+} from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 
 interface TenantData {
   id: string;
+  name?: string;
   contact_phone?: string | null;
   working_hours_text?: string | null;
-  ui_preferences?: Record<string, unknown>;
   config_override?: {
-    ui_preferences?: Record<string, unknown>;
-    pricing_preferences?: Record<string, unknown>;
+    reminder_preference?: "off" | "customer_only" | "merchant_only" | "both";
+    messages?: {
+      welcome?: string;
+      whatsapp_greeting?: string;
+      opening_message?: string;
+      confirmation?: string;
+      reminder_24h?: string;
+      [key: string]: unknown;
+    };
+    opening_message?: string;
+    slot_duration_minutes?: number;
+    advance_booking_days?: number;
+    cancellation_hours?: number;
+    pricing_preferences?: {
+      fallbackLabel?: string;
+      fallbackPhone?: string;
+    };
     [key: string]: unknown;
   };
 }
@@ -20,57 +44,116 @@ interface TenantData {
 const COPY = {
   tr: {
     title: "Ayarlar",
-    subtitle: "Panel görünümü, iletişim ve fiyat fallback kurallarını tek yerden yönetin.",
-    contactTitle: "İletişim ve Çalışma Saati",
-    customizationTitle: "Panel Kişiselleştirme",
-    pricingTitle: "Fiyat Fallback",
-    save: "Ayarları Kaydet",
+    subtitle: "İşletme bilgileri, randevu kuralları, mesajlar ve fiyatlandırma ayarlarını yönetin.",
+    backToPanel: "Panele Dön",
+    save: "Kaydet",
     saving: "Kaydediliyor...",
     saved: "Değişiklikler kaydedildi",
+    saveError: "Kaydedilemedi. Lütfen tekrar deneyin.",
     loading: "Ayarlar yükleniyor...",
-    fields: {
-      contactPhone: "İletişim telefonu",
-      hours: "Çalışma saatleri metni",
-      preset: "Tema preset",
-      primary: "Birincil renk",
-      accent: "Vurgu rengi",
-      fallbackLabel: "Fallback etiketi",
-      fallbackPhone: "Fallback telefonu",
-    },
-    modules: {
-      overview: "Özet",
-      pricing: "Fiyat Listesi",
-      workflow: "İş Akışı",
-      crm: "Müşteri Defteri",
-      settings: "Ayarlar",
-    },
+    loadError: "Ayarlar yüklenemedi.",
+
+    // İletişim
+    contactTitle: "İletişim ve Çalışma Saati",
+    contactDesc: "Müşterilerin sizinle iletişime geçebileceği bilgiler.",
+    contactPhone: "İletişim telefonu",
+    contactPhoneHint: "Müşteri yönlendirme ve fallback mesajlarında kullanılır",
+    workingHours: "Çalışma saatleri metni",
+    workingHoursHint: "Örn: Hafta içi 09:00-18:00, Cumartesi 10:00-14:00",
+
+    // Randevu
+    schedulingTitle: "Randevu Ayarları",
+    schedulingDesc: "Randevu slot süresi, ileri rezervasyon ve iptal kuralları.",
+    slotDuration: "Slot süresi (dakika)",
+    slotDurationHint: "Her randevu için ayrılan süre (varsayılan: 30)",
+    advanceBooking: "İleri rezervasyon (gün)",
+    advanceBookingHint: "Kaç gün önceden randevu alınabilir (varsayılan: 30)",
+    cancellationHours: "İptal süresi (saat)",
+    cancellationHoursHint: "Randevudan kaç saat önce iptal edilebilir (varsayılan: 2)",
+
+    // Hatırlatma
+    reminderTitle: "Hatırlatma Ayarları",
+    reminderDesc: "Randevu öncesi hatırlatma mesajlarını kim alacak?",
+    reminderOff: "Kapalı",
+    reminderCustomer: "Sadece müşteri",
+    reminderMerchant: "Sadece siz",
+    reminderBoth: "Her ikisi",
+
+    // Mesajlar
+    messagesTitle: "Mesaj Şablonları",
+    messagesDesc: "Müşterilere gönderilen otomatik mesajları özelleştirin.",
+    welcomeMsg: "Karşılama mesajı",
+    welcomeMsgHint: "Müşteri ilk yazdığında gönderilir. {tenant_name} = işletme adı",
+    whatsappGreeting: "WhatsApp link mesajı",
+    whatsappGreetingHint: "QR/link tıklandığında hazır görünen mesaj",
+    openingMessage: "Açılış mesajı",
+    openingMessageHint: "Bot konuşma başında sorduğu ilk soru",
+    confirmationMsg: "Onay mesajı",
+    confirmationMsgHint: "Randevu onaylandığında müşteriye giden mesaj",
+    reminderMsg: "Hatırlatma mesajı",
+    reminderMsgHint: "Randevudan 24 saat önce gönderilen mesaj",
+
+    // Fiyat
+    pricingTitle: "Fiyat Fallback",
+    pricingDesc: "Fiyatı belirtilmemiş hizmetler için gösterilecek bilgi.",
+    fallbackLabel: "Fallback etiketi",
+    fallbackLabelHint: "Örn: Fiyat için arayın",
+    fallbackPhone: "Fallback telefonu",
+    fallbackPhoneHint: "Aranacak numara (boş bırakılırsa iletişim telefonu kullanılır)",
   },
   en: {
     title: "Settings",
-    subtitle: "Manage panel appearance, contact fields, and pricing fallback rules in one place.",
-    contactTitle: "Contact and Working Hours",
-    customizationTitle: "Panel Customization",
-    pricingTitle: "Pricing Fallback",
-    save: "Save Settings",
+    subtitle: "Manage business info, appointment rules, messages, and pricing.",
+    backToPanel: "Back to Panel",
+    save: "Save",
     saving: "Saving...",
     saved: "Changes saved",
+    saveError: "Failed to save. Please try again.",
     loading: "Loading settings...",
-    fields: {
-      contactPhone: "Contact phone",
-      hours: "Working hours text",
-      preset: "Theme preset",
-      primary: "Primary color",
-      accent: "Accent color",
-      fallbackLabel: "Fallback label",
-      fallbackPhone: "Fallback phone",
-    },
-    modules: {
-      overview: "Overview",
-      pricing: "Pricing",
-      workflow: "Workflow",
-      crm: "Customer Book",
-      settings: "Settings",
-    },
+    loadError: "Failed to load settings.",
+
+    contactTitle: "Contact and Working Hours",
+    contactDesc: "Information for customers to reach you.",
+    contactPhone: "Contact phone",
+    contactPhoneHint: "Used in customer routing and fallback messages",
+    workingHours: "Working hours text",
+    workingHoursHint: "E.g.: Mon-Fri 09:00-18:00, Sat 10:00-14:00",
+
+    schedulingTitle: "Appointment Settings",
+    schedulingDesc: "Slot duration, advance booking, and cancellation rules.",
+    slotDuration: "Slot duration (minutes)",
+    slotDurationHint: "Time allocated per appointment (default: 30)",
+    advanceBooking: "Advance booking (days)",
+    advanceBookingHint: "How many days ahead can appointments be made (default: 30)",
+    cancellationHours: "Cancellation window (hours)",
+    cancellationHoursHint: "Hours before appointment when cancellation is allowed (default: 2)",
+
+    reminderTitle: "Reminder Settings",
+    reminderDesc: "Who receives appointment reminder messages?",
+    reminderOff: "Off",
+    reminderCustomer: "Customer only",
+    reminderMerchant: "You only",
+    reminderBoth: "Both",
+
+    messagesTitle: "Message Templates",
+    messagesDesc: "Customize automatic messages sent to customers.",
+    welcomeMsg: "Welcome message",
+    welcomeMsgHint: "Sent when customer first writes. {tenant_name} = business name",
+    whatsappGreeting: "WhatsApp link message",
+    whatsappGreetingHint: "Pre-filled message when QR/link is clicked",
+    openingMessage: "Opening message",
+    openingMessageHint: "First question the bot asks when conversation starts",
+    confirmationMsg: "Confirmation message",
+    confirmationMsgHint: "Message sent to customer when appointment is confirmed",
+    reminderMsg: "Reminder message",
+    reminderMsgHint: "Message sent 24 hours before appointment",
+
+    pricingTitle: "Pricing Fallback",
+    pricingDesc: "What to show for services without a price.",
+    fallbackLabel: "Fallback label",
+    fallbackLabelHint: "E.g.: Call for price",
+    fallbackPhone: "Fallback phone",
+    fallbackPhoneHint: "Phone to call (empty = use contact phone)",
   },
 } as const;
 
@@ -86,19 +169,30 @@ export default function TenantSettingsPage({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // İletişim
   const [contactPhone, setContactPhone] = useState("");
   const [workingHoursText, setWorkingHoursText] = useState("");
-  const [themePreset, setThemePreset] = useState("classic");
-  const [primaryColor, setPrimaryColor] = useState("#0f172a");
-  const [accentColor, setAccentColor] = useState("#06b6d4");
-  const [moduleVisibility, setModuleVisibility] = useState({
-    overview: true,
-    pricing: true,
-    workflow: true,
-    crm: true,
-    settings: true,
-  });
-  const [fallbackLabel, setFallbackLabel] = useState("Fiyat için arayın");
+
+  // Randevu
+  const [slotDuration, setSlotDuration] = useState(30);
+  const [advanceBookingDays, setAdvanceBookingDays] = useState(30);
+  const [cancellationHours, setCancellationHours] = useState(2);
+
+  // Hatırlatma
+  const [reminderPref, setReminderPref] = useState<"off" | "customer_only" | "merchant_only" | "both">("customer_only");
+
+  // Mesajlar
+  const [welcomeMsg, setWelcomeMsg] = useState("");
+  const [whatsappGreeting, setWhatsappGreeting] = useState("");
+  const [openingMessage, setOpeningMessage] = useState("");
+  const [confirmationMsg, setConfirmationMsg] = useState("");
+  const [reminderMsg, setReminderMsg] = useState("");
+
+  // Fiyat
+  const [fallbackLabel, setFallbackLabel] = useState(locale === "tr" ? "Fiyat için arayın" : "Call for price");
   const [fallbackPhone, setFallbackPhone] = useState("");
 
   useEffect(() => {
@@ -109,245 +203,386 @@ export default function TenantSettingsPage({
     const load = async () => {
       if (!tenantId) return;
       setLoading(true);
-      const res = await fetch(`/api/tenant/${tenantId}`);
-      const data = (await res.json().catch(() => null)) as TenantData | null;
-      if (data) {
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}`, { cache: "no-store" });
+        const data = (await res.json().catch(() => null)) as TenantData | null;
+        if (!res.ok || !data || "error" in data) {
+          setLoadError(t.loadError);
+          return;
+        }
+        setLoadError(null);
         setContactPhone(data.contact_phone || "");
         setWorkingHoursText(data.working_hours_text || "");
-        const uiPrefs = (data.ui_preferences || data.config_override?.ui_preferences || {}) as Record<
-          string,
-          unknown
-        >;
-        const pricingPrefs = (data.config_override?.pricing_preferences || {}) as Record<string, unknown>;
-        setThemePreset((uiPrefs.themePreset as string) || "classic");
-        setPrimaryColor((uiPrefs.primaryColor as string) || "#0f172a");
-        setAccentColor((uiPrefs.accentColor as string) || "#06b6d4");
-        const incomingVisibility = uiPrefs.moduleVisibility as Record<string, boolean> | undefined;
-        if (incomingVisibility) {
-          setModuleVisibility((prev) => ({ ...prev, ...incomingVisibility }));
+
+        const co = data.config_override || {};
+        const msgs = (co.messages || {}) as Record<string, string>;
+        const pricing = (co.pricing_preferences || {}) as Record<string, string>;
+
+        if (typeof co.slot_duration_minutes === "number") setSlotDuration(Math.max(5, Math.min(120, co.slot_duration_minutes)));
+        if (typeof co.advance_booking_days === "number") setAdvanceBookingDays(Math.max(1, Math.min(365, co.advance_booking_days)));
+        if (typeof co.cancellation_hours === "number") setCancellationHours(Math.max(0, Math.min(72, co.cancellation_hours)));
+
+        const pref = co.reminder_preference;
+        if (pref && ["off", "customer_only", "merchant_only", "both"].includes(pref)) {
+          setReminderPref(pref);
         }
-        setFallbackLabel((pricingPrefs.fallbackLabel as string) || (locale === "tr" ? "Fiyat için arayın" : "Call for price"));
-        setFallbackPhone((pricingPrefs.fallbackPhone as string) || data.contact_phone || "");
+
+        setWelcomeMsg(msgs.welcome || "");
+        setWhatsappGreeting(msgs.whatsapp_greeting || "");
+        setOpeningMessage((co.opening_message as string) || msgs.opening_message || "");
+        setConfirmationMsg(msgs.confirmation || "");
+        setReminderMsg(msgs.reminder_24h || "");
+
+        setFallbackLabel(pricing.fallbackLabel || (locale === "tr" ? "Fiyat için arayın" : "Call for price"));
+        setFallbackPhone(pricing.fallbackPhone || data.contact_phone || "");
+      } catch {
+        setLoadError(t.loadError);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     };
     load();
-  }, [locale, tenantId]);
+  }, [locale, tenantId, t.loadError]);
 
   const save = async () => {
     if (!tenantId) return;
     setSaving(true);
     setSaved(false);
-    await fetch(`/api/tenant/${tenantId}/settings`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contact_phone: contactPhone,
-        working_hours_text: workingHoursText,
-        ui_preferences: {
-          themePreset,
-          primaryColor,
-          accentColor,
-          moduleVisibility,
-          moduleOrder: ["overview", "pricing", "workflow", "crm", "settings"],
-        },
-        pricing_preferences: {
-          fallbackMode: "show_call",
-          fallbackLabel,
-          fallbackPhone,
-        },
-      }),
-    });
-    setSaving(false);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2400);
+    setSaveError(null);
+    try {
+      const slot = Math.max(5, Math.min(120, slotDuration));
+      const advance = Math.max(1, Math.min(365, advanceBookingDays));
+      const cancel = Math.max(0, Math.min(72, cancellationHours));
+
+      const res = await fetch(`/api/tenant/${tenantId}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          contact_phone: contactPhone.trim() || null,
+          working_hours_text: workingHoursText.trim() || null,
+          reminder_preference: reminderPref,
+          opening_message: openingMessage.trim() || undefined,
+          slot_duration_minutes: slot,
+          advance_booking_days: advance,
+          cancellation_hours: cancel,
+          messages: {
+            welcome: welcomeMsg.trim() || undefined,
+            whatsapp_greeting: whatsappGreeting.trim() || undefined,
+            confirmation: confirmationMsg.trim() || undefined,
+            reminder_24h: reminderMsg.trim() || undefined,
+          },
+          pricing_preferences: {
+            fallbackMode: "show_call",
+            fallbackLabel: fallbackLabel.trim() || undefined,
+            fallbackPhone: fallbackPhone.trim() || undefined,
+          },
+        }),
+      });
+      if (res.ok) {
+        setSaved(true);
+        setTimeout(() => setSaved(false), 2400);
+      } else {
+        setSaveError(t.saveError);
+      }
+    } catch {
+      setSaveError(t.saveError);
+    } finally {
+      setSaving(false);
+    }
   };
 
-  if (loading) {
+  if (loading || loadError) {
     return (
-      <div className="p-4 pb-24 sm:p-6 lg:p-10">
-        <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-          {t.loading}
+      <div className="min-h-screen bg-slate-50 p-4 pb-24 dark:bg-slate-950 sm:p-6 lg:p-10">
+        <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          <p className={loadError ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}>
+            {loadError ?? t.loading}
+          </p>
+          {loadError && tenantId && (
+            <Link
+              href={`/dashboard/${tenantId}`}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300"
+            >
+              <ArrowLeft className="h-3.5 w-3.5" />
+              {t.backToPanel}
+            </Link>
+          )}
         </div>
       </div>
     );
   }
 
+  const SectionCard = ({
+    icon: Icon,
+    title,
+    desc,
+    children,
+  }: {
+    icon: React.ElementType;
+    title: string;
+    desc: string;
+    children: React.ReactNode;
+  }) => (
+    <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <div className="mb-5 flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+          <Icon className="h-5 w-5" />
+        </div>
+        <div>
+          <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
+          <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{desc}</p>
+        </div>
+      </div>
+      {children}
+    </section>
+  );
+
+  const InputField = <T extends string | number>({
+    label,
+    hint,
+    value,
+    onChange,
+    type = "text",
+    min,
+    max,
+    step,
+    placeholder,
+  }: {
+    label: string;
+    hint?: string;
+    value: T;
+    onChange: (v: T) => void;
+    type?: "text" | "number" | "textarea";
+    min?: number;
+    max?: number;
+    step?: number;
+    placeholder?: string;
+  }) => (
+    <label className="block">
+      <span className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">{label}</span>
+      {type === "textarea" ? (
+        <textarea
+          value={value}
+          onChange={(e) => onChange(e.target.value as T)}
+          placeholder={placeholder}
+          rows={3}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        />
+      ) : (
+        <input
+          type={type}
+          value={value}
+          onChange={(e) =>
+            onChange(
+              (type === "number" ? Number(e.target.value) || 0 : e.target.value) as T
+            )
+          }
+          min={min}
+          max={max}
+          step={step}
+          placeholder={placeholder}
+          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+        />
+      )}
+      {hint && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p>}
+    </label>
+  );
+
   return (
-    <div className="space-y-6 p-4 pb-24 sm:p-6 lg:p-10">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <Link
-          href={`/dashboard/${tenantId}`}
-          className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-        >
-          <ArrowLeft className="h-3.5 w-3.5" />
-          {locale === "tr" ? "Panele Dön" : "Back to Panel"}
-        </Link>
-        <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-          {t.title}
-        </h1>
-        <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300 sm:text-base">
-          {t.subtitle}
-        </p>
-      </header>
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
+      <div className="mx-auto max-w-3xl space-y-6 p-4 pb-28 sm:p-6 lg:p-10">
+        <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <Link
+            href={`/dashboard/${tenantId}`}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+          >
+            <ArrowLeft className="h-3.5 w-3.5" />
+            {t.backToPanel}
+          </Link>
+          <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
+            {t.title}
+          </h1>
+          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 sm:text-base">{t.subtitle}</p>
+        </header>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="mb-4 inline-flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-          <Phone className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-          {t.contactTitle}
-        </h2>
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {t.fields.contactPhone}
-            </span>
-            <input
+        <SectionCard icon={Store} title={t.contactTitle} desc={t.contactDesc}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <InputField
+              label={t.contactPhone}
+              hint={t.contactPhoneHint}
               value={contactPhone}
-              onChange={(e) => setContactPhone(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              onChange={setContactPhone}
+              placeholder="+90 5XX XXX XX XX"
             />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {t.fields.hours}
-            </span>
-            <input
+            <InputField
+              label={t.workingHours}
+              hint={t.workingHoursHint}
               value={workingHoursText}
-              onChange={(e) => setWorkingHoursText(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              onChange={setWorkingHoursText}
+              placeholder="Hafta içi 09:00-18:00"
             />
-          </label>
-        </div>
-      </section>
+          </div>
+        </SectionCard>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="mb-4 inline-flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-          <Palette className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-          {t.customizationTitle}
-        </h2>
-        <div className="grid gap-3 md:grid-cols-3">
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {t.fields.preset}
-            </span>
-            <select
-              value={themePreset}
-              onChange={(e) => setThemePreset(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            >
-              <option value="classic">Classic</option>
-              <option value="modern">Modern</option>
-              <option value="midnight">Midnight</option>
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {t.fields.primary}
-            </span>
-            <input
-              type="color"
-              value={primaryColor}
-              onChange={(e) => setPrimaryColor(e.target.value)}
-              className="h-[42px] w-full rounded-xl border border-slate-200 bg-white px-1.5 dark:border-slate-700 dark:bg-slate-800"
+        <SectionCard icon={Calendar} title={t.schedulingTitle} desc={t.schedulingDesc}>
+          <div className="grid gap-4 sm:grid-cols-3">
+            <InputField
+              label={t.slotDuration}
+              hint={t.slotDurationHint}
+              type="number"
+              value={slotDuration}
+              onChange={setSlotDuration}
+              min={5}
+              max={120}
+              step={5}
             />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {t.fields.accent}
-            </span>
-            <input
-              type="color"
-              value={accentColor}
-              onChange={(e) => setAccentColor(e.target.value)}
-              className="h-[42px] w-full rounded-xl border border-slate-200 bg-white px-1.5 dark:border-slate-700 dark:bg-slate-800"
+            <InputField
+              label={t.advanceBooking}
+              hint={t.advanceBookingHint}
+              type="number"
+              value={advanceBookingDays}
+              onChange={setAdvanceBookingDays}
+              min={1}
+              max={365}
             />
-          </label>
-        </div>
+            <InputField
+              label={t.cancellationHours}
+              hint={t.cancellationHoursHint}
+              type="number"
+              value={cancellationHours}
+              onChange={setCancellationHours}
+              min={0}
+              max={72}
+            />
+          </div>
+        </SectionCard>
 
-        <div className="mt-4 grid gap-2 md:grid-cols-3">
-          {(Object.keys(moduleVisibility) as Array<keyof typeof moduleVisibility>).map((key) => (
-            <label
-              key={key}
-              className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
-            >
-              <input
-                type="checkbox"
-                checked={moduleVisibility[key]}
-                onChange={(e) =>
-                  setModuleVisibility((prev) => ({
-                    ...prev,
-                    [key]: e.target.checked,
-                  }))
-                }
-              />
-              {t.modules[key]}
-            </label>
-          ))}
-        </div>
-      </section>
+        <SectionCard icon={Bell} title={t.reminderTitle} desc={t.reminderDesc}>
+          <div className="flex flex-wrap gap-2">
+            {(
+              [
+                { value: "off" as const, label: t.reminderOff },
+                { value: "customer_only" as const, label: t.reminderCustomer },
+                { value: "merchant_only" as const, label: t.reminderMerchant },
+                { value: "both" as const, label: t.reminderBoth },
+              ] as const
+            ).map((opt) => (
+              <label
+                key={opt.value}
+                className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
+                  reminderPref === opt.value
+                    ? "border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-500 dark:text-slate-950"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="reminder"
+                  value={opt.value}
+                  checked={reminderPref === opt.value}
+                  onChange={() => setReminderPref(opt.value)}
+                  className="sr-only"
+                />
+                {opt.label}
+              </label>
+            ))}
+          </div>
+        </SectionCard>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <h2 className="mb-4 inline-flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-          <SlidersHorizontal className="h-4 w-4 text-slate-600 dark:text-slate-300" />
-          {t.pricingTitle}
-        </h2>
-        <div className="grid gap-3 md:grid-cols-2">
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {t.fields.fallbackLabel}
-            </span>
-            <input
+        <SectionCard icon={MessageSquare} title={t.messagesTitle} desc={t.messagesDesc}>
+          <div className="space-y-4">
+            <InputField
+              label={t.welcomeMsg}
+              hint={t.welcomeMsgHint}
+              value={welcomeMsg}
+              onChange={setWelcomeMsg}
+              type="textarea"
+              placeholder="Merhaba! Ben {tenant_name} asistanıyım, size nasıl yardımcı olabilirim?"
+            />
+            <InputField
+              label={t.whatsappGreeting}
+              hint={t.whatsappGreetingHint}
+              value={whatsappGreeting}
+              onChange={setWhatsappGreeting}
+              placeholder="Merhaba {tenant_name} ile görüşmek istiyorum"
+            />
+            <InputField
+              label={t.openingMessage}
+              hint={t.openingMessageHint}
+              value={openingMessage}
+              onChange={setOpeningMessage}
+              type="textarea"
+              placeholder="Merhaba! Ne zaman randevu almak istiyorsunuz?"
+            />
+            <InputField
+              label={t.confirmationMsg}
+              hint={t.confirmationMsgHint}
+              value={confirmationMsg}
+              onChange={setConfirmationMsg}
+              type="textarea"
+              placeholder="Randevunuz onaylandı. Teşekkür ederiz!"
+            />
+            <InputField
+              label={t.reminderMsg}
+              hint={t.reminderMsgHint}
+              value={reminderMsg}
+              onChange={setReminderMsg}
+              type="textarea"
+              placeholder="Yarın saat X'te randevunuz var. Lütfen unutmayın."
+            />
+          </div>
+        </SectionCard>
+
+        <SectionCard icon={SlidersHorizontal} title={t.pricingTitle} desc={t.pricingDesc}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <InputField
+              label={t.fallbackLabel}
+              hint={t.fallbackLabelHint}
               value={fallbackLabel}
-              onChange={(e) => setFallbackLabel(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              onChange={setFallbackLabel}
+              placeholder="Fiyat için arayın"
             />
-          </label>
-          <label className="block">
-            <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-              {t.fields.fallbackPhone}
-            </span>
-            <input
+            <InputField
+              label={t.fallbackPhone}
+              hint={t.fallbackPhoneHint}
               value={fallbackPhone}
-              onChange={(e) => setFallbackPhone(e.target.value)}
-              className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+              onChange={setFallbackPhone}
+              placeholder="+90 5XX XXX XX XX"
             />
-          </label>
-        </div>
-      </section>
+          </div>
+        </SectionCard>
 
-      <div className="hidden flex-wrap items-center gap-3 sm:flex">
-        <button
-          type="button"
-          onClick={save}
-          disabled={saving}
-          className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
-        >
-          <Save className="h-4 w-4" />
-          {saving ? t.saving : t.save}
-        </button>
-        {saved && (
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 className="h-4 w-4" />
-            {t.saved}
-          </span>
-        )}
+        <div className="flex flex-wrap items-center gap-3 pt-2">
+          <button
+            type="button"
+            onClick={save}
+            disabled={saving}
+            className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+          >
+            <Save className="h-4 w-4" />
+            {saving ? t.saving : t.save}
+          </button>
+          {saved && (
+            <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
+              <CheckCircle2 className="h-4 w-4" />
+              {t.saved}
+            </span>
+          )}
+          {saveError && (
+            <span className="text-sm font-medium text-red-600 dark:text-red-400">{saveError}</span>
+          )}
+        </div>
       </div>
 
-      {saved && (
-        <div className="sm:hidden">
-          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-emerald-700 dark:text-emerald-300">
-            <CheckCircle2 className="h-4 w-4" />
-            {t.saved}
-          </span>
-        </div>
-      )}
-
-      <div className="fixed inset-x-3 bottom-[calc(5.1rem+env(safe-area-inset-bottom))] z-30 sm:hidden">
+      <div className="fixed inset-x-3 bottom-[calc(5.1rem+env(safe-area-inset-bottom))] z-30 flex flex-col gap-2 sm:hidden">
+        {saveError && (
+          <p className="text-center text-xs font-medium text-red-600 dark:text-red-400">{saveError}</p>
+        )}
         <button
           type="button"
           onClick={save}
           disabled={saving}
-          className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 disabled:opacity-60 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 disabled:opacity-60 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
         >
           <Save className="h-4 w-4" />
           {saving ? t.saving : t.save}
