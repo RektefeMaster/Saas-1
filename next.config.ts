@@ -23,9 +23,9 @@ const nextConfig: NextConfig = {
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
-  // Experimental optimizasyonlar
+  // Experimental optimizasyonlar - tree-shaking ile bundle küçültme
   experimental: {
-    optimizePackageImports: ["lucide-react", "@supabase/supabase-js"],
+    optimizePackageImports: ["lucide-react", "@supabase/supabase-js", "motion"],
   },
   async headers() {
     return [

@@ -13,6 +13,7 @@ import {
   Store,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
+import { LottieAnimation } from "@/components/ui";
 
 interface TenantData {
   id: string;
@@ -382,6 +383,7 @@ export default function TenantSettingsPage({
     return (
       <div className="min-h-screen bg-slate-50 p-4 pb-24 dark:bg-slate-950 sm:p-6 lg:p-10">
         <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+          {!loadError && <LottieAnimation src="loading" width={80} height={80} />}
           <p className={loadError ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}>
             {loadError ?? t.loading}
           </p>

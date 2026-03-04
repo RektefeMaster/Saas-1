@@ -6,3 +6,5 @@ export type { InputProps } from "./Input";
 export { Badge } from "./Badge";
 export type { BadgeVariant } from "./Badge";
 export { ThemeLocaleSwitch } from "./ThemeLocaleSwitch";
+export { QRCodeModal } from "./QRCodeModal";
+export { LottieAnimation } from "./LottieAnimation";

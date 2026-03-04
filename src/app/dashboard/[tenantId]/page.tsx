@@ -1,7 +1,9 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import useSWR from "swr";
 import { MotionConfig, motion, useScroll, useTransform } from "motion/react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import { Loader2, Clock, XCircle, MessageCircle, X, Calendar, AlertCircle, CheckCircle2, Check, XOctagon, UserX } from "lucide-react";
@@ -11,6 +13,13 @@ import {
   type CommandCenterAction,
 } from "./components/CommandCenterSection";
 import { MessageSettings } from "./components/MessageSettings";
+import { LottieAnimation } from "@/components/ui";
+import { fetcher } from "@/lib/swr-fetcher";
+
+const QRCodeModal = dynamic(
+  () => import("@/components/ui/QRCodeModal").then((m) => ({ default: m.QRCodeModal })),
+  { ssr: false, loading: () => null }
+);
 
 interface Appointment {
   id: string;
@@ -189,6 +198,7 @@ export default function EsnafDashboard({
   const [botSettingsError, setBotSettingsError] = useState("");
   const [showSettingsPanel, setShowSettingsPanel] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
+  const [showQRModal, setShowQRModal] = useState(false);
   const [commandCenter, setCommandCenter] = useState<CommandCenterSnapshot | null>(null);
   const [commandCenterLoading, setCommandCenterLoading] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
@@ -229,18 +239,15 @@ export default function EsnafDashboard({
 
   const tenantId = resolvedParams?.tenantId;
 
-  useEffect(() => {
-    if (!tenantId) return;
+  const { data: tenantFromSWR } = useSWR<Tenant>(
+    tenantId ? `/api/tenant/${tenantId}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 15000 }
+  );
 
-    const fetchTenant = async () => {
-      const res = await fetch(`/api/tenant/${tenantId}`);
-      if (res.ok) {
-        const data = await res.json();
-        setTenant(data);
-      }
-    };
-    fetchTenant();
-  }, [tenantId]);
+  useEffect(() => {
+    if (tenantFromSWR) setTenant(tenantFromSWR);
+  }, [tenantFromSWR]);
 
   useEffect(() => {
     if (!tenantId) return;
@@ -541,28 +548,31 @@ export default function EsnafDashboard({
     };
   }, [tenantId, fetchCommandCenter]);
 
-  const runCommandAction = async (action: CommandCenterAction) => {
-    if (!tenantId) return;
-    setRunningActionId(action.id);
-    try {
-      if (action.id === "reactivation" || action.id === "slot_fill" || action.id === "no_show_mitigation") {
-        await fetch(`/api/tenant/${tenantId}/automation/reactivation`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ mode: "queue", limit: 20, days: 45 }),
-        });
-      } else if (action.id === "reputation_recovery") {
-        await fetch(`/api/tenant/${tenantId}/reputation/summary`);
-      } else {
-        await fetch(action.cta_endpoint);
+  const runCommandAction = useCallback(
+    async (action: CommandCenterAction) => {
+      if (!tenantId) return;
+      setRunningActionId(action.id);
+      try {
+        if (action.id === "reactivation" || action.id === "slot_fill" || action.id === "no_show_mitigation") {
+          await fetch(`/api/tenant/${tenantId}/automation/reactivation`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "queue", limit: 20, days: 45 }),
+          });
+        } else if (action.id === "reputation_recovery") {
+          await fetch(`/api/tenant/${tenantId}/reputation/summary`);
+        } else {
+          await fetch(action.cta_endpoint);
+        }
+        await Promise.all([fetchCommandCenter(), fetchOpsAlerts()]);
+      } finally {
+        setRunningActionId(null);
       }
-      await Promise.all([fetchCommandCenter(), fetchOpsAlerts()]);
-    } finally {
-      setRunningActionId(null);
-    }
-  };
+    },
+    [tenantId, fetchCommandCenter, fetchOpsAlerts]
+  );
 
-  const handleResolveAlert = async (alertId: string) => {
+  const handleResolveAlert = useCallback(async (alertId: string) => {
     if (!tenantId) return;
     setResolvingAlertId(alertId);
     try {
@@ -580,7 +590,7 @@ export default function EsnafDashboard({
     } finally {
       setResolvingAlertId(null);
     }
-  };
+  }, [tenantId]);
 
   const fetchAvailability = useCallback(
     async (dateStr: string) => {
@@ -632,35 +642,38 @@ export default function EsnafDashboard({
     if (res.ok) setBlockedDates((prev) => prev.filter((b) => b.id !== blockId));
   };
 
-  const updateAppointmentStatus = async (appointmentId: string, status: string) => {
-    if (!tenantId) return;
-    if (status === "cancelled" && !confirm("Bu randevuyu iptal etmek istiyor musunuz?")) return;
-    if (status === "no_show" && !confirm("Müşteri gelmedi olarak işaretlensin mi?")) return;
-    setUpdatingAptId(appointmentId);
-    try {
-      const res = await fetch(`/api/tenant/${tenantId}/appointments/${appointmentId}/status`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status }),
-      });
-      if (res.ok) {
-        setAppointments((prev) =>
-          prev.map((a) => (a.id === appointmentId ? { ...a, status } : a))
-        );
-        if (selectedDate) fetchAvailability(selectedDate);
+  const updateAppointmentStatus = useCallback(
+    async (appointmentId: string, status: string) => {
+      if (!tenantId) return;
+      if (status === "cancelled" && !confirm("Bu randevuyu iptal etmek istiyor musunuz?")) return;
+      if (status === "no_show" && !confirm("Müşteri gelmedi olarak işaretlensin mi?")) return;
+      setUpdatingAptId(appointmentId);
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/appointments/${appointmentId}/status`, {
+          method: "PATCH",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ status }),
+        });
+        if (res.ok) {
+          setAppointments((prev) =>
+            prev.map((a) => (a.id === appointmentId ? { ...a, status } : a))
+          );
+          if (selectedDate) fetchAvailability(selectedDate);
+        }
+      } finally {
+        setUpdatingAptId(null);
       }
-    } finally {
-      setUpdatingAptId(null);
-    }
-  };
+    },
+    [tenantId, selectedDate, fetchAvailability]
+  );
 
-  const handleSlotClick = (dateStr: string, timeStr: string) => {
+  const handleSlotClick = useCallback((dateStr: string, timeStr: string) => {
     setAddDate(dateStr);
     setAddTime(timeStr);
     setAddPhone("");
     setAddStaffId("");
     setShowAdd(true);
-  };
+  }, []);
 
   const handleAddAppointment = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -773,17 +786,15 @@ export default function EsnafDashboard({
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp Bağlantısı
               </motion.a>
-              <motion.a
-                href={`/api/tenant/${tenantId}/qr?format=png`}
-                download={`${tenant?.tenant_code || "qr"}-qr.png`}
-                target="_blank"
-                rel="noreferrer"
+              <motion.button
+                type="button"
+                onClick={() => setShowQRModal(true)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:w-auto"
               >
                 <span className="text-base">📷</span> QR Kod
-              </motion.a>
+              </motion.button>
               <motion.button
                 type="button"
                 onClick={() => {
@@ -1361,7 +1372,7 @@ export default function EsnafDashboard({
             </h3>
             {availabilityLoading ? (
               <div className="py-12 text-center">
-                <Loader2 className="mx-auto h-8 w-8 animate-spin text-emerald-600" />
+                <LottieAnimation src="loading" width={80} height={80} className="mx-auto" />
                 <p className="mt-3 text-sm text-slate-500">Müsaitlik kontrol ediliyor...</p>
               </div>
             ) : availability?.blocked ? (
@@ -1598,12 +1609,12 @@ export default function EsnafDashboard({
           </div>
           {loading ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-emerald-600" />
+              <LottieAnimation src="loading" width={96} height={96} />
               <p className="mt-3 text-sm text-slate-500">Randevular yükleniyor...</p>
             </div>
           ) : sortedDates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12">
-              <Calendar className="h-12 w-12 text-slate-300" />
+              <LottieAnimation src="empty" width={80} height={80} />
               <p className="mt-4 text-sm font-medium text-slate-600">Henüz randevu yok</p>
               <p className="mt-1 text-xs text-slate-500">Yeni randevu eklemek için yukarıdaki butonu kullanın</p>
             </div>
@@ -1869,6 +1880,15 @@ export default function EsnafDashboard({
           </ScrollReveal>
         )}
       </main>
+
+      {tenantId && (
+        <QRCodeModal
+          tenantId={tenantId}
+          tenantCode={tenant?.tenant_code}
+          isOpen={showQRModal}
+          onClose={() => setShowQRModal(false)}
+        />
+      )}
     </div>
     </MotionConfig>
   );

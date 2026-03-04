@@ -10,15 +10,28 @@ import {
   Loader2,
   MessageCircle,
   Megaphone,
+  Plus,
+  RotateCw,
   Send,
   Smartphone,
+  Trash2,
+  UserMinus,
   Users,
+  X,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
+import { LottieAnimation } from "@/components/ui";
+
+interface RecipientItem {
+  phone: string;
+  name?: string;
+  tags?: string[];
+}
 
 interface RecipientInfo {
   count: number;
   all_tags: string[];
+  recipients: RecipientItem[];
 }
 
 interface CampaignRecord {
@@ -73,6 +86,19 @@ const COPY = {
     channelSmsShort: "SMS",
     channelBothShort: "WhatsApp+SMS",
     recipientsLoadError: "Alıcılar yüklenemedi.",
+    resend: "Tekrar Gönder",
+    resending: "Gönderiliyor...",
+    delete: "Sil",
+    deleting: "Siliniyor...",
+    confirmDelete: "Bu kampanyayı silmek istediğinize emin misiniz?",
+    confirmResend: "Bu kampanyayı aynı alıcılara tekrar göndermek istiyor musunuz?",
+    viewRecipients: "Alıcıları Gör / Düzenle",
+    addRecipient: "Numara ekle",
+    addRecipientPlaceholder: "+90 5XX XXX XX XX",
+    removeRecipient: "Çıkar",
+    recipientListTitle: "Kampanya Alıcıları",
+    recipientListEmpty: "Alıcı yok.",
+    closeRecipients: "Kapat",
   },
   en: {
     title: "Campaigns",
@@ -115,6 +141,19 @@ const COPY = {
     channelSmsShort: "SMS",
     channelBothShort: "WhatsApp+SMS",
     recipientsLoadError: "Failed to load recipients.",
+    resend: "Resend",
+    resending: "Sending...",
+    delete: "Delete",
+    deleting: "Deleting...",
+    confirmDelete: "Are you sure you want to delete this campaign?",
+    confirmResend: "Do you want to resend this campaign to the same recipients?",
+    viewRecipients: "View / Edit Recipients",
+    addRecipient: "Add number",
+    addRecipientPlaceholder: "+1 XXX XXX XXXX",
+    removeRecipient: "Remove",
+    recipientListTitle: "Campaign Recipients",
+    recipientListEmpty: "No recipients.",
+    closeRecipients: "Close",
   },
 } as const;
 
@@ -123,6 +162,13 @@ function getChannelLabel(channel: string, t: (typeof COPY)["tr"]): string {
   if (channel === "sms") return t.channelSmsShort;
   if (channel === "both") return t.channelBothShort;
   return channel;
+}
+
+function normalizePhoneForCompare(phone: string): string {
+  let d = (phone || "").replace(/\D/g, "");
+  if (d.startsWith("0")) d = "90" + d.slice(1);
+  else if (!d.startsWith("90")) d = "90" + d;
+  return d.slice(-12) || phone;
 }
 
 function formatDate(iso: string, locale: string): string {
@@ -159,6 +205,12 @@ export default function CampaignsPage({
   const [history, setHistory] = useState<CampaignRecord[]>([]);
   const [historyLoading, setHistoryLoading] = useState(false);
   const [historyError, setHistoryError] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [resendingId, setResendingId] = useState<string | null>(null);
+  const [excludedPhones, setExcludedPhones] = useState<Set<string>>(new Set());
+  const [extraPhones, setExtraPhones] = useState<string[]>([]);
+  const [addPhoneInput, setAddPhoneInput] = useState("");
+  const [showRecipientsModal, setShowRecipientsModal] = useState(false);
 
   useEffect(() => {
     params.then((p) => setTenantId(p.tenantId));
@@ -173,9 +225,16 @@ export default function CampaignsPage({
       .then(({ ok, data }) => {
         if (!ok || data.error) throw new Error(data?.error || "Request failed");
         setError(null);
+        setExcludedPhones(new Set());
+        setExtraPhones([]);
         setRecipientInfo({
           count: data.count ?? 0,
           all_tags: data.all_tags ?? [],
+          recipients: (data.recipients ?? []).map((r: { phone: string; name?: string; customer_name?: string; tags?: string[] }) => ({
+            phone: String(r.phone || "").trim(),
+            name: r.name || r.customer_name,
+            tags: r.tags,
+          })).filter((r) => r.phone),
         });
       })
       .catch(() => {
@@ -211,21 +270,29 @@ export default function CampaignsPage({
   }, [loadHistory]);
 
   useEffect(() => {
-    if (!showConfirm) return;
+    if (!showConfirm && !showRecipientsModal) return;
     const onEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setShowConfirm(false);
+      if (e.key === "Escape") {
+        if (showRecipientsModal) setShowRecipientsModal(false);
+        else setShowConfirm(false);
+      }
     };
     document.addEventListener("keydown", onEscape);
-    document.body.style.overflow = "hidden";
+    document.body.style.overflow = showConfirm || showRecipientsModal ? "hidden" : "";
     return () => {
       document.removeEventListener("keydown", onEscape);
       document.body.style.overflow = "";
     };
-  }, [showConfirm]);
+  }, [showConfirm, showRecipientsModal]);
 
-  const effectiveCount = customPhones.trim()
-    ? customPhones.split(/[\n,;]+/).map((p) => p.trim()).filter(Boolean).length
-    : (recipientInfo?.count ?? 0);
+  const baseRecipientsFromApi = recipientInfo?.recipients ?? [];
+  const effectiveRecipients: { phone: string; name?: string }[] = customPhones.trim()
+    ? customPhones.split(/[\n,;]+/).map((p) => p.trim()).filter(Boolean).map((p) => ({ phone: p }))
+    : [
+        ...baseRecipientsFromApi.filter((r) => !excludedPhones.has(normalizePhoneForCompare(r.phone))).map((r) => ({ phone: r.phone, name: r.name })),
+        ...extraPhones.filter((p) => p.trim()).map((p) => ({ phone: p })),
+      ];
+  const effectiveCount = effectiveRecipients.length;
 
   const toggleTag = (tag: string) => {
     setFilterTags((prev) =>
@@ -240,6 +307,48 @@ export default function CampaignsPage({
   };
 
   const clearTags = () => setFilterTags([]);
+
+  const excludeRecipient = (phone: string) => {
+    setExcludedPhones((prev) => new Set(prev).add(normalizePhoneForCompare(phone)));
+  };
+
+  const includeRecipient = (phone: string) => {
+    setExcludedPhones((prev) => {
+      const next = new Set(prev);
+      next.delete(normalizePhoneForCompare(phone));
+      return next;
+    });
+  };
+
+  const addRecipient = () => {
+    const p = addPhoneInput.trim();
+    if (!p) return;
+    if (customPhones.trim()) {
+      addToCustomPhones(p);
+    } else {
+      if (extraPhones.includes(p)) return;
+      setExtraPhones((prev) => [...prev, p]);
+    }
+    setAddPhoneInput("");
+  };
+
+  const removeExtraRecipient = (phone: string) => {
+    setExtraPhones((prev) => prev.filter((x) => x !== phone));
+  };
+
+  const removeFromCustomPhones = (phone: string) => {
+    const list = customPhones.split(/[\n,;]+/).map((p) => p.trim()).filter(Boolean);
+    setCustomPhones(list.filter((p) => p !== phone).join("\n"));
+  };
+
+  const addToCustomPhones = (phone: string) => {
+    const list = customPhones.split(/[\n,;]+/).map((p) => p.trim()).filter(Boolean);
+    if (phone.trim() && !list.includes(phone.trim())) {
+      setCustomPhones([...list, phone.trim()].join("\n"));
+    }
+  };
+
+  const isExcluded = (phone: string) => excludedPhones.has(normalizePhoneForCompare(phone));
 
   const smsCharCount = messageText.length;
   const smsSegments = Math.ceil(smsCharCount / 160) || 0;
@@ -265,7 +374,9 @@ export default function CampaignsPage({
 
     const phones = customPhones.trim()
       ? customPhones.split(/[\n,;]+/).map((p) => p.trim()).filter(Boolean)
-      : [];
+      : excludedPhones.size > 0 || extraPhones.length > 0
+        ? effectiveRecipients.map((r) => r.phone)
+        : [];
 
     setSending(true);
     setError(null);
@@ -278,7 +389,7 @@ export default function CampaignsPage({
           message_text: messageText.trim(),
           channel,
           recipient_phones: phones.length > 0 ? phones : undefined,
-          filter_tags: filterTags.length > 0 ? filterTags : undefined,
+          filter_tags: phones.length === 0 && filterTags.length > 0 ? filterTags : undefined,
         }),
       });
 
@@ -305,6 +416,63 @@ export default function CampaignsPage({
       setError(t.errorConnection);
     } finally {
       setSending(false);
+    }
+  };
+
+  const handleDelete = async (item: CampaignRecord) => {
+    if (!tenantId || !window.confirm(t.confirmDelete)) return;
+    setDeletingId(item.id);
+    setError(null);
+    try {
+      const res = await fetch(`/api/tenant/${tenantId}/campaigns/history/${item.id}`, { method: "DELETE" });
+      const data = (await res.json().catch(() => ({}))) as { error?: string };
+      if (!res.ok) {
+        setError(data.error || (locale === "tr" ? "Silinemedi" : "Delete failed"));
+        return;
+      }
+      setHistory((prev) => prev.filter((h) => h.id !== item.id));
+    } catch {
+      setError(t.errorConnection);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleResend = async (item: CampaignRecord) => {
+    if (!tenantId || !window.confirm(t.confirmResend)) return;
+    setResendingId(item.id);
+    setError(null);
+    setResult(null);
+    try {
+      const res = await fetch(`/api/tenant/${tenantId}/campaigns/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          message_text: item.message_text,
+          channel: item.channel as "whatsapp" | "sms" | "both",
+          filter_tags: (item.filter_tags || []).length > 0 ? item.filter_tags : undefined,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        success_count?: number;
+        recipient_count?: number;
+        error?: string;
+        last_error?: string;
+      };
+      if (!res.ok) {
+        setError(data.error || t.errorSend);
+        return;
+      }
+      setResult({
+        success_count: data.success_count ?? 0,
+        recipient_count: data.recipient_count ?? 0,
+        ...(data.last_error ? { last_error: data.last_error } : {}),
+      });
+      loadHistory();
+    } catch {
+      setError(t.errorConnection);
+    } finally {
+      setResendingId(null);
     }
   };
 
@@ -386,9 +554,7 @@ export default function CampaignsPage({
             <div className="mt-5 rounded-xl border border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100/80 px-5 py-4 dark:border-slate-700 dark:from-slate-800/50 dark:to-slate-900/50">
               {loading ? (
                 <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-white/80 dark:bg-slate-800/80">
-                    <Loader2 className="h-6 w-6 animate-spin text-slate-500" />
-                  </div>
+                  <LottieAnimation src="loading" width={48} height={48} />
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{t.loadingRecipients}</p>
                 </div>
               ) : (
@@ -411,11 +577,22 @@ export default function CampaignsPage({
                       </p>
                     </div>
                   </div>
-                  {effectiveCount > 0 && (
-                    <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
-                      {locale === "tr" ? "Hazır" : "Ready"}
-                    </span>
-                  )}
+                  <div className="flex items-center gap-2">
+                    {effectiveCount > 0 && (
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
+                        {locale === "tr" ? "Hazır" : "Ready"}
+                      </span>
+                    )}
+                    {effectiveCount > 0 && (
+                      <button
+                        type="button"
+                        onClick={() => setShowRecipientsModal(true)}
+                        className="rounded-lg px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700"
+                      >
+                        {t.viewRecipients}
+                      </button>
+                    )}
+                  </div>
                 </div>
               )}
             </div>
@@ -600,8 +777,8 @@ export default function CampaignsPage({
             </div>
           </div>
           {historyLoading ? (
-            <div className="flex items-center justify-center py-8 text-slate-500">
-              <Loader2 className="h-6 w-6 animate-spin" />
+            <div className="flex flex-col items-center justify-center py-8">
+              <LottieAnimation src="loading" width={64} height={64} />
             </div>
           ) : historyError ? (
             <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/40 dark:text-red-300">
@@ -609,9 +786,7 @@ export default function CampaignsPage({
             </div>
           ) : history.length === 0 ? (
             <div className="flex flex-col items-center justify-center rounded-xl border-2 border-dashed border-slate-200 py-12 dark:border-slate-700">
-              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-slate-100 dark:bg-slate-800">
-                <Megaphone className="h-7 w-7 text-slate-400" />
-              </div>
+              <LottieAnimation src="empty" width={80} height={80} />
               <p className="mt-4 text-sm font-medium text-slate-600 dark:text-slate-300">{t.historyEmpty}</p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 {locale === "tr" ? "İlk kampanyanızı gönderin" : "Send your first campaign"}
@@ -632,16 +807,46 @@ export default function CampaignsPage({
                     className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 transition-colors hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800/30 dark:hover:border-slate-600 dark:hover:bg-slate-800/50"
                   >
                     <p className="line-clamp-2 text-sm text-slate-800 dark:text-slate-200">{item.message_text}</p>
-                    <div className="mt-3 flex flex-wrap items-center gap-2">
-                      <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${channelBadge}`}>
-                        {chLabel}
-                      </span>
-                      <span className="text-xs text-slate-500 dark:text-slate-400">
-                        {item.success_count}/{item.recipient_count} {t.recipientCount}
-                      </span>
-                      <span className="text-xs text-slate-400 dark:text-slate-500">
-                        • {formatDate(item.created_at, locale)}
-                      </span>
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className={`rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${channelBadge}`}>
+                          {chLabel}
+                        </span>
+                        <span className="text-xs text-slate-500 dark:text-slate-400">
+                          {item.success_count}/{item.recipient_count} {t.recipientCount}
+                        </span>
+                        <span className="text-xs text-slate-400 dark:text-slate-500">
+                          • {formatDate(item.created_at, locale)}
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => handleResend(item)}
+                          disabled={!!resendingId || !!deletingId}
+                          title={t.resend}
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-slate-700 dark:hover:text-slate-200"
+                        >
+                          {resendingId === item.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RotateCw className="h-4 w-4" />
+                          )}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => handleDelete(item)}
+                          disabled={!!resendingId || !!deletingId}
+                          title={t.delete}
+                          className="rounded-lg p-2 text-slate-500 transition hover:bg-red-100 hover:text-red-600 disabled:opacity-50 dark:text-slate-400 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                        >
+                          {deletingId === item.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-4 w-4" />
+                          )}
+                        </button>
+                      </div>
                     </div>
                   </div>
                 );
@@ -671,6 +876,103 @@ export default function CampaignsPage({
           )}
         </button>
       </div>
+
+      {showRecipientsModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          onClick={(e) => e.target === e.currentTarget && setShowRecipientsModal(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="recipients-modal-title"
+        >
+          <div
+            className="flex max-h-[85vh] w-full max-w-md flex-col overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 dark:bg-emerald-900/50">
+                  <Users className="h-5 w-5 text-emerald-700 dark:text-emerald-300" />
+                </div>
+                <div>
+                  <h2 id="recipients-modal-title" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+                    {t.recipientListTitle}
+                  </h2>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    {effectiveCount} {t.recipientCount}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowRecipientsModal(false)}
+                className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+                aria-label={t.closeRecipients}
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4">
+              <div className="flex gap-2">
+                <input
+                  type="tel"
+                  value={addPhoneInput}
+                  onChange={(e) => setAddPhoneInput(e.target.value)}
+                  onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addRecipient())}
+                  placeholder={t.addRecipientPlaceholder}
+                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                />
+                <button
+                  type="button"
+                  onClick={addRecipient}
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                >
+                  <Plus className="h-4 w-4" />
+                  {t.addRecipient}
+                </button>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto rounded-xl border border-slate-200 dark:border-slate-700">
+                {effectiveRecipients.length === 0 ? (
+                  <p className="py-8 text-center text-sm text-slate-500 dark:text-slate-400">{t.recipientListEmpty}</p>
+                ) : (
+                  <ul className="divide-y divide-slate-200 dark:divide-slate-700">
+                    {effectiveRecipients.map(({ phone, name }) => {
+                      const handleRemove = customPhones.trim()
+                        ? () => removeFromCustomPhones(phone)
+                        : baseRecipientsFromApi.some((r) => normalizePhoneForCompare(r.phone) === normalizePhoneForCompare(phone))
+                          ? () => excludeRecipient(phone)
+                          : () => removeExtraRecipient(phone);
+                      return (
+                        <li
+                          key={phone}
+                          className="flex items-center justify-between gap-2 px-4 py-2.5 text-sm"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <span className="font-medium text-slate-800 dark:text-slate-200">{phone}</span>
+                            {name && (
+                              <span className="ml-2 text-slate-500 dark:text-slate-400">{name}</span>
+                            )}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={handleRemove}
+                            className="shrink-0 rounded-lg p-1.5 text-slate-500 transition hover:bg-red-100 hover:text-red-600 dark:hover:bg-red-900/30 dark:hover:text-red-400"
+                            title={t.removeRecipient}
+                          >
+                            <UserMinus className="h-4 w-4" />
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showConfirm && (
         <div

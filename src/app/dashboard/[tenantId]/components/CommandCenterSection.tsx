@@ -1,5 +1,6 @@
 "use client";
 
+import { memo } from "react";
 import { Loader2 } from "lucide-react";
 
 export interface CommandCenterAction {
@@ -38,7 +39,7 @@ interface CommandCenterSectionProps {
   onRunAction: (action: CommandCenterAction) => void;
 }
 
-export function CommandCenterSection({
+export const CommandCenterSection = memo(function CommandCenterSection({
   commandCenter,
   loading,
   runningActionId,
@@ -149,4 +150,4 @@ export function CommandCenterSection({
       )}
     </section>
   );
-}
+});

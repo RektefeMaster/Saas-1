@@ -1,8 +1,10 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import useSWR from "swr";
 import {
   Calendar,
   ChevronDown,
@@ -25,6 +27,12 @@ import { getAppBaseUrl } from "@/lib/app-url";
 import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
 import { useLocale } from "@/lib/locale-context";
 import { ThemeLocaleSwitch } from "@/components/ui";
+import { fetcher } from "@/lib/swr-fetcher";
+
+const QRCodeModal = dynamic(
+  () => import("@/components/ui/QRCodeModal").then((m) => ({ default: m.QRCodeModal })),
+  { ssr: false, loading: () => null }
+);
 
 type NavKey =
   | "overview"
@@ -56,7 +64,7 @@ const COPY = {
       settings: "Ayarlar",
     },
     whatsappLink: "WhatsApp Linki",
-    qrDownload: "QR Kod İndir",
+    qrCode: "QR Kod",
     logout: "Çıkış Yap",
     section: "Panel",
     quick: "Hızlı Erişim",
@@ -75,14 +83,14 @@ const COPY = {
       settings: "Settings",
     },
     whatsappLink: "WhatsApp Link",
-    qrDownload: "Download QR",
+    qrCode: "QR Code",
     logout: "Sign Out",
     section: "Operations",
     quick: "Quick Access",
   },
 } as const;
 
-function UserMenu({
+const UserMenu = React.memo(function UserMenu({
   user,
   logoutLabel,
 }: {
@@ -136,7 +144,7 @@ function UserMenu({
       )}
     </div>
   );
-}
+});
 
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -145,10 +153,8 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   const isLogin = pathname === "/dashboard/login" || pathname.startsWith("/dashboard/login/");
 
   const [tenantId, setTenantId] = useState<string | null>(null);
-  const [tenantName, setTenantName] = useState<string | null>(null);
-  const [moduleVisibility, setModuleVisibility] = useState<Record<string, boolean> | null>(null);
-  const [moduleOrder, setModuleOrder] = useState<string[] | null>(null);
-  const [featureFlags, setFeatureFlags] = useState<DashboardFeatureFlags | null>(null);
+  const [showQRModal, setShowQRModal] = useState(false);
+  const closeQRModal = useCallback(() => setShowQRModal(false), []);
   const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
@@ -156,39 +162,40 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     setMobileOpen(false);
   }, [pathname]);
 
+  const parts = pathname.split("/").filter(Boolean);
+  const extractedTenantId = parts[1] && parts[0] === "dashboard" ? parts[1] : null;
+
   useEffect(() => {
     if (isLogin) return;
-    const parts = pathname.split("/").filter(Boolean);
-    const id = parts[1] && parts[0] === "dashboard" ? parts[1] : null;
-    setTenantId(id);
-    if (!id) {
-      setTenantName(null);
-      setFeatureFlags(null);
-      return;
-    }
-    Promise.all([
-      fetch(`/api/tenant/${id}`).then((r) => r.json()),
-      fetch(`/api/tenant/${id}/features`)
-        .then((r) => r.json())
-        .catch(() => null),
-    ])
-      .then(([data, featureData]) => {
-        setTenantName(data?.name ?? null);
-        const uiPrefs =
-          (data?.ui_preferences as Record<string, unknown> | undefined) ||
-          (data?.config_override?.ui_preferences as Record<string, unknown> | undefined) ||
-          {};
-        setModuleVisibility((uiPrefs.moduleVisibility as Record<string, boolean>) || null);
-        setModuleOrder(Array.isArray(uiPrefs.moduleOrder) ? (uiPrefs.moduleOrder as string[]) : null);
-        setFeatureFlags((featureData?.feature_flags as DashboardFeatureFlags | undefined) || null);
-      })
-      .catch(() => {
-        setTenantName(null);
-        setModuleVisibility(null);
-        setModuleOrder(null);
-        setFeatureFlags(null);
-      });
-  }, [pathname, isLogin]);
+    setTenantId(extractedTenantId);
+  }, [pathname, isLogin, extractedTenantId]);
+
+  const { data: tenantData } = useSWR<{
+    name?: string;
+    tenant_code?: string;
+    ui_preferences?: Record<string, unknown>;
+    config_override?: { ui_preferences?: Record<string, unknown> };
+  }>(
+    extractedTenantId && !isLogin ? `/api/tenant/${extractedTenantId}` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 30000 }
+  );
+
+  const { data: featureData } = useSWR<{ feature_flags?: DashboardFeatureFlags }>(
+    extractedTenantId && !isLogin ? `/api/tenant/${extractedTenantId}/features` : null,
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 30000 }
+  );
+
+  const tenantName = tenantData?.name ?? null;
+  const tenantCode = tenantData?.tenant_code ?? null;
+  const uiPrefs =
+    (tenantData?.ui_preferences as Record<string, unknown> | undefined) ||
+    (tenantData?.config_override?.ui_preferences as Record<string, unknown> | undefined) ||
+    {};
+  const moduleVisibility = (uiPrefs.moduleVisibility as Record<string, boolean>) || null;
+  const moduleOrder = Array.isArray(uiPrefs.moduleOrder) ? (uiPrefs.moduleOrder as string[]) : null;
+  const featureFlags = (featureData?.feature_flags as DashboardFeatureFlags | undefined) || null;
 
   useEffect(() => {
     if (isLogin) return;
@@ -338,16 +345,14 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                 <MessageCircle className="h-4 w-4" />
                 {t.whatsappLink}
               </a>
-              <a
-                href={`${appBaseUrl}/api/tenant/${tenantId}/qr?format=png`}
-                download
-                target="_blank"
-                rel="noreferrer"
+              <button
+                type="button"
+                onClick={() => setShowQRModal(true)}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <QrCode className="h-4 w-4" />
-                {t.qrDownload}
-              </a>
+                {t.qrCode}
+              </button>
               <div className="pt-1 lg:hidden">
                 <ThemeLocaleSwitch compact />
               </div>
@@ -357,6 +362,15 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           <main className="min-h-[calc(100vh-4rem)] pb-[calc(5.6rem+env(safe-area-inset-bottom))] lg:ml-72 lg:pb-0">
             {children}
           </main>
+
+          {tenantId && (
+            <QRCodeModal
+              tenantId={tenantId}
+              tenantCode={tenantCode ?? undefined}
+              isOpen={showQRModal}
+              onClose={closeQRModal}
+            />
+          )}
 
           {mobileNavItems.length > 0 && (
             <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/98 px-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
