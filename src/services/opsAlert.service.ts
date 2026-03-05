@@ -28,6 +28,30 @@ export interface CreateOpsAlertInput {
   dedupeKey?: string;
 }
 
+const INTERNAL_OPS_ALERT_SOURCES = new Set([
+  "admin_conversations_takeover",
+  "admin_conversations_resume",
+]);
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  return value as Record<string, unknown>;
+}
+
+export function isInternalOpsAlert(alert: Pick<OpsAlert, "type" | "message" | "meta">): boolean {
+  if (alert.type !== "system") return false;
+
+  const meta = asRecord(alert.meta);
+  const source = typeof meta?.source === "string" ? meta.source : "";
+  const stage = typeof meta?.stage === "string" ? meta.stage : "";
+  const visibility = typeof meta?.visibility === "string" ? meta.visibility : "";
+
+  if (visibility.toLowerCase() === "internal") return true;
+  if (source && INTERNAL_OPS_ALERT_SOURCES.has(source)) return true;
+  if (source === "whatsapp_worker" && stage === "admin_takeover_bypass") return true;
+  return /admin takeover/i.test(alert.message || "");
+}
+
 export async function createOpsAlert(input: CreateOpsAlertInput): Promise<void> {
   const payload = {
     tenant_id: input.tenantId,
@@ -53,16 +77,19 @@ export async function listOpsAlerts(
   status: OpsAlertStatus = "open",
   limit = 20
 ): Promise<OpsAlert[]> {
+  const safeLimit = Math.min(100, Math.max(1, limit));
+  const fetchLimit = Math.min(100, safeLimit * 3);
   const { data, error } = await supabase
     .from("ops_alerts")
     .select("*")
     .eq("tenant_id", tenantId)
     .eq("status", status)
     .order("created_at", { ascending: false })
-    .limit(Math.min(100, Math.max(1, limit)));
+    .limit(fetchLimit);
 
   if (error) throw new Error(error.message);
-  return (data || []) as OpsAlert[];
+  const alerts = (data || []) as OpsAlert[];
+  return alerts.filter((alert) => !isInternalOpsAlert(alert)).slice(0, safeLimit);
 }
 
 export async function resolveOpsAlert(

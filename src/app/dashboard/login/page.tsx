@@ -102,8 +102,8 @@ export default function DashboardLoginPage() {
   const featureItems = useMemo(
     () =>
       locale === "tr"
-        ? ["Canlı takvim ve kapasite yönetimi", "Müşteri Defteri notları ve hatırlatma akışları", "Operasyon uyarıları ve raporlama"]
-        : ["Live calendar and capacity control", "CRM notes and reminder flows", "Operations alerts and reporting"],
+        ? ["Canlı takvim ve kapasite yönetimi", "Müşteri Defteri notları ve hatırlatma akışları", "Canlı bildirimler ve raporlama"]
+        : ["Live calendar and capacity control", "CRM notes and reminder flows", "Live alerts and reporting"],
     [locale]
   );
 

@@ -478,10 +478,11 @@ export async function processWhatsAppInboundEvent(
         type: "system",
         severity: "medium",
         customerPhone,
-        message: `${customerPhone} yeni mesaj gonderdi (admin takeover aktif).`,
+        message: "Müşteri yeni mesaj gönderdi (canlı destek görüşmesi açık).",
         meta: {
           source: "whatsapp_worker",
           stage: "admin_takeover_bypass",
+          visibility: "internal",
           trace_id: traceId,
         },
         dedupeKey: `admin_takeover_inbound:${tenantId}:${digitsOnly(customerPhone)}:${takeoverBucket}`,

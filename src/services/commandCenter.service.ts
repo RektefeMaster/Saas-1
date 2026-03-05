@@ -6,6 +6,7 @@ import type {
   CommandCenterSnapshot,
 } from "@/types/master-crm.types";
 import { detectBlueprintSlug } from "@/services/blueprint.service";
+import { isInternalOpsAlert } from "@/services/opsAlert.service";
 
 interface AtRiskCustomer {
   customer_phone: string;
@@ -248,7 +249,7 @@ export async function getCommandCenterSnapshot(
         .lte("created_at", now.toISOString()),
       supabase
         .from("ops_alerts")
-        .select("id")
+        .select("id, type, message, meta")
         .eq("tenant_id", tenantId)
         .eq("status", "open"),
       listAtRiskCustomers(tenantId, 45, 100),
@@ -280,7 +281,11 @@ export async function getCommandCenterSnapshot(
 
   let openOpsAlerts = 0;
   if (!alertsRes.error) {
-    openOpsAlerts = (alertsRes.data || []).length;
+    openOpsAlerts = (alertsRes.data || []).filter((alert) => !isInternalOpsAlert({
+      type: alert.type || "system",
+      message: alert.message || "",
+      meta: (alert.meta as Record<string, unknown>) || {},
+    })).length;
   } else if (extractMissingSchemaTable(alertsRes.error) !== "ops_alerts") {
     throw new Error(alertsRes.error.message);
   }
@@ -376,10 +381,10 @@ export async function getCommandCenterSnapshot(
   if (openOpsAlerts > 0) {
     actions.push({
       id: "ops_alerts",
-      title: "Operasyon uyarilari",
-      description: `${openOpsAlerts} acik operasyon uyarisi var.`,
+      title: "Onemli bildirimler",
+      description: `${openOpsAlerts} acik bildirim var.`,
       severity: openOpsAlerts > 3 ? "high" : "medium",
-      cta_label: "Uyarilari kapat",
+      cta_label: "Bildirimleri gor",
       cta_endpoint: `/api/tenant/${tenantId}/ops-alerts`,
       estimated_impact_try: 0,
     });

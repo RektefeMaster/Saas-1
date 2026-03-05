@@ -70,7 +70,7 @@ export async function POST(
     );
     if (missingTable === "ops_alerts") {
       return NextResponse.json(
-        { error: "Operasyon uyarı modülü hazır değil. İlgili migration uygulanmalı." },
+        { error: "Bildirim modülü hazır değil. Gerekli migration uygulanmalı." },
         { status: 503 }
       );
     }

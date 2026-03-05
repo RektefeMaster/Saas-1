@@ -51,10 +51,10 @@ export const CommandCenterSection = memo(function CommandCenterSection({
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
             <span className="text-xl">🎯</span>
-            Operasyon Merkezi
+            Kontrol Merkezi
           </h2>
           <p className="mt-1 text-sm text-slate-600">
-            Gelir ve operasyon aksiyonlarınızı buradan yönetin
+            Gelir ve günlük aksiyonları buradan yönetin
           </p>
         </div>
         {loading && (
@@ -68,7 +68,7 @@ export const CommandCenterSection = memo(function CommandCenterSection({
       {!commandCenter ? (
         <div className="flex flex-col items-center justify-center py-12">
           <Loader2 className="h-8 w-8 animate-spin text-slate-600" />
-          <p className="mt-3 text-sm text-slate-500">Operasyon verisi alınıyor...</p>
+          <p className="mt-3 text-sm text-slate-500">Panel verisi alınıyor...</p>
         </div>
       ) : (
         <>

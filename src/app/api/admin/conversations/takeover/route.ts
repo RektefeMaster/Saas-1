@@ -65,7 +65,7 @@ export async function POST(request: NextRequest) {
     tenantId,
     customerPhone: phoneDigits,
     direction: "system",
-    messageText: note || "Admin takeover activated",
+    messageText: note || "Destek ekibi konuşmayı devraldı",
     messageType: "system",
     stage: "admin_takeover_started",
     metadata: {
@@ -80,9 +80,10 @@ export async function POST(request: NextRequest) {
     type: "system",
     severity: "high",
     customerPhone: phoneDigits,
-    message: `${phoneDigits} icin admin takeover baslatildi.`,
+    message: "Destek ekibi bu konuşmayı manuel olarak devraldı.",
     meta: {
       source: "admin_conversations_takeover",
+      visibility: "internal",
       actor,
       note: note || null,
     },

@@ -24,7 +24,7 @@ export async function POST(request: NextRequest) {
   const notifyCustomer = body.notify_customer === true;
   const notifyText =
     (body.notify_text || "").trim() ||
-    "Insan destek gorusmesi tamamlandi. Bot asistan tekrar devrede.";
+    "Canli destek gorusmesi tamamlandi. Bot asistan tekrar devrede.";
 
   if (!tenantId || !phoneDigits) {
     return NextResponse.json(
@@ -42,7 +42,7 @@ export async function POST(request: NextRequest) {
   }
   if (state.step !== "PAUSED_FOR_HUMAN" || !isAdminTakeoverReason(state.pause_reason)) {
     return NextResponse.json(
-      { error: "Sohbet admin takeover modunda degil" },
+      { error: "Sohbet canli destek modunda degil" },
       { status: 409 }
     );
   }
@@ -60,7 +60,7 @@ export async function POST(request: NextRequest) {
     tenantId,
     customerPhone: phoneDigits,
     direction: "system",
-    messageText: note || "Admin takeover resumed",
+    messageText: note || "Konusma bot akisina geri alindi",
     messageType: "system",
     stage: "admin_takeover_resumed",
     metadata: {
@@ -109,9 +109,10 @@ export async function POST(request: NextRequest) {
     type: "system",
     severity: "low",
     customerPhone: phoneDigits,
-    message: `${phoneDigits} icin admin takeover sonlandirildi.`,
+    message: "Destek ekibi konuşmayı bot akışına geri aldı.",
     meta: {
       source: "admin_conversations_resume",
+      visibility: "internal",
       actor,
       note: note || null,
     },

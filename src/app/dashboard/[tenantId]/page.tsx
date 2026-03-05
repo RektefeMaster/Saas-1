@@ -876,12 +876,12 @@ export default function EsnafDashboard({
             <div>
               <h2 className="flex items-center gap-2 text-lg font-semibold text-red-900">
                 <AlertCircle className="h-5 w-5" />
-                Operasyon Uyarıları
+                Önemli Bildirimler
               </h2>
               <p className="mt-1 text-xs text-slate-600">
                 {opsAlerts.length > 0
-                  ? `${opsAlerts.length} açık uyarı`
-                  : "Açık uyarı yok"}
+                  ? `${opsAlerts.length} açık bildirim`
+                  : "Açık bildirim yok"}
               </p>
             </div>
             {opsAlertsLoading && (
@@ -894,8 +894,8 @@ export default function EsnafDashboard({
           {opsAlerts.length === 0 ? (
             <div className="rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-200 p-6 text-center">
               <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600" />
-              <p className="mt-3 text-sm font-medium text-emerald-800">Açık operasyon uyarısı yok</p>
-              <p className="mt-1 text-xs text-emerald-700">Her şey yolunda görünüyor! ✅</p>
+              <p className="mt-3 text-sm font-medium text-emerald-800">Açık bildirim yok</p>
+              <p className="mt-1 text-xs text-emerald-700">Şu an takip edilmesi gereken bir konu görünmüyor.</p>
             </div>
           ) : (
             <div className="space-y-3">
