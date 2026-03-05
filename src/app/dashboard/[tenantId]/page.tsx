@@ -7,7 +7,22 @@ import useSWR from "swr";
 import { MotionConfig, motion, useScroll, useTransform } from "motion/react";
 import { ChartBar } from "@/components/charts/ChartBar";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { Loader2, Clock, XCircle, MessageCircle, X, Calendar, AlertCircle, CheckCircle2, Check, XOctagon, UserX } from "lucide-react";
+import {
+  Loader2,
+  Clock,
+  XCircle,
+  MessageCircle,
+  X,
+  Calendar,
+  AlertCircle,
+  CheckCircle2,
+  Check,
+  XOctagon,
+  UserX,
+  BarChart3,
+  CalendarDays,
+  Settings2,
+} from "lucide-react";
 import {
   CommandCenterSection,
   type CommandCenterSnapshot,
@@ -15,6 +30,7 @@ import {
 } from "./components/CommandCenterSection";
 import { MessageSettings } from "./components/MessageSettings";
 import { LottieAnimationLazy } from "@/components/ui/LottieAnimationLazy";
+import { WhatsAppLinkModal } from "@/components/ui/WhatsAppLinkModal";
 import { fetcher } from "@/lib/swr-fetcher";
 import { group, sort } from "radash";
 
@@ -115,6 +131,8 @@ interface OpsAlert {
   created_at: string;
 }
 
+type DashboardView = "overview" | "appointments" | "settings";
+
 const DAY_NAMES = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
 const APPOINTMENTS_POLL_MS = 10000;
 const OPS_ALERTS_POLL_MS = 30000;
@@ -194,7 +212,8 @@ export default function EsnafDashboard({
   const [botSettingsSaving, setBotSettingsSaving] = useState(false);
   const [botSettingsMessage, setBotSettingsMessage] = useState("");
   const [botSettingsError, setBotSettingsError] = useState("");
-  const [showSettingsPanel, setShowSettingsPanel] = useState(false);
+  const [activeView, setActiveView] = useState<DashboardView>("overview");
+  const [showWhatsAppModal, setShowWhatsAppModal] = useState(false);
   const [codeCopied, setCodeCopied] = useState(false);
   const [showQRModal, setShowQRModal] = useState(false);
   const [commandCenter, setCommandCenter] = useState<CommandCenterSnapshot | null>(null);
@@ -666,6 +685,7 @@ export default function EsnafDashboard({
   );
 
   const handleSlotClick = useCallback((dateStr: string, timeStr: string) => {
+    setActiveView("appointments");
     setAddDate(dateStr);
     setAddTime(timeStr);
     setAddPhone("");
@@ -735,6 +755,15 @@ export default function EsnafDashboard({
   const sortedDates = useMemo(() => Object.keys(grouped).sort(), [grouped]);
   const weekDates = useMemo(() => getWeekDates(weekAnchor), [weekAnchor]);
   const todayIso = new Date().toISOString().slice(0, 10);
+  const nextAppointment = useMemo(() => {
+    const now = Date.now();
+    return appointments
+      .filter((apt) => {
+        if (apt.status !== "pending" && apt.status !== "confirmed") return false;
+        return new Date(apt.slot_start).getTime() >= now;
+      })
+      .sort((a, b) => new Date(a.slot_start).getTime() - new Date(b.slot_start).getTime())[0] || null;
+  }, [appointments]);
   const todayCount = grouped[todayIso]?.length ?? 0;
   const weekCount = useMemo(
     () => sortedDates.reduce((acc, d) => acc + (grouped[d]?.length ?? 0), 0),
@@ -773,17 +802,16 @@ export default function EsnafDashboard({
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <motion.a
-                href={`/api/tenant/${tenantId}/link`}
-                target="_blank"
-                rel="noreferrer"
+              <motion.button
+                type="button"
+                onClick={() => setShowWhatsAppModal(true)}
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 sm:w-auto"
               >
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp Bağlantısı
-              </motion.a>
+              </motion.button>
               <motion.button
                 type="button"
                 onClick={() => setShowQRModal(true)}
@@ -796,6 +824,7 @@ export default function EsnafDashboard({
               <motion.button
                 type="button"
                 onClick={() => {
+                  setActiveView("appointments");
                   setAddDate("");
                   setAddTime("");
                   setAddPhone("");
@@ -861,6 +890,93 @@ export default function EsnafDashboard({
       </motion.header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:pb-8">
+        <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                <button
+                  type="button"
+                  onClick={() => setActiveView("overview")}
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                    activeView === "overview"
+                      ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <BarChart3 className="h-4 w-4" />
+                  Genel Bakış
+                  {opsAlerts.length > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
+                        activeView === "overview"
+                          ? "bg-white/20 text-white"
+                          : "bg-red-100 text-red-700"
+                      }`}
+                    >
+                      {opsAlerts.length}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveView("appointments")}
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                    activeView === "appointments"
+                      ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Randevular
+                  {weekCount > 0 && (
+                    <span
+                      className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
+                        activeView === "appointments"
+                          ? "bg-white/20 text-white"
+                          : "bg-emerald-100 text-emerald-700"
+                      }`}
+                    >
+                      {weekCount}
+                    </span>
+                  )}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setActiveView("settings")}
+                  className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                    activeView === "settings"
+                      ? "border-slate-900 bg-slate-900 text-white shadow-sm"
+                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100"
+                  }`}
+                >
+                  <Settings2 className="h-4 w-4" />
+                  Ayarlar
+                </button>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Sıradaki Randevu
+                </p>
+                {nextAppointment ? (
+                  <p className="mt-1 font-semibold text-slate-800">
+                    {new Date(nextAppointment.slot_start).toLocaleString("tr-TR", {
+                      day: "numeric",
+                      month: "short",
+                      hour: "2-digit",
+                      minute: "2-digit",
+                    })}{" "}
+                    · {nextAppointment.customer_phone}
+                  </p>
+                ) : (
+                  <p className="mt-1 font-medium text-slate-600">Planlanmış yaklaşan randevu yok.</p>
+                )}
+              </div>
+            </div>
+          </section>
+        </ScrollReveal>
+
+        {activeView === "overview" && (
+          <>
         <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6">
           <CommandCenterSection
             commandCenter={commandCenter}
@@ -962,35 +1078,15 @@ export default function EsnafDashboard({
           )}
         </section>
         </ScrollReveal>
+        </>
+        )}
 
-        <ScrollReveal variant="fadeUp" delay={0.12} className="mb-6">
-        <div>
-          <motion.button
-            type="button"
-            onClick={() => setShowSettingsPanel((v) => !v)}
-            whileHover={{ scale: 1.01 }}
-            whileTap={{ scale: 0.99 }}
-            className="flex w-full items-center justify-between rounded-2xl border-2 border-slate-200 bg-gradient-to-r from-white to-slate-50 px-6 py-5 text-left shadow-md transition hover:border-slate-300 hover:shadow-lg"
-          >
-            <span className="flex items-center gap-3 text-lg font-semibold text-slate-900">
-              <span className="text-2xl">⚙️</span> Ayarlar ve Yapılandırma
-            </span>
-            <motion.span
-              animate={{ rotate: showSettingsPanel ? 180 : 0 }}
-              className="text-sm font-medium text-slate-600"
-            >
-              {showSettingsPanel ? "Gizle ▲" : "Göster ▼"}
-            </motion.span>
-          </motion.button>
-        </div>
-        </ScrollReveal>
-
-        {showSettingsPanel && (
+        {activeView === "settings" && (
         <motion.div
           initial={{ opacity: 0, height: 0 }}
           animate={{ opacity: 1, height: "auto" }}
           exit={{ opacity: 0, height: 0 }}
-          className="mb-8 mt-4 space-y-6"
+          className="mb-8 space-y-6"
         >
         <motion.div
           initial={{ opacity: 0, y: 10 }}
@@ -1267,7 +1363,7 @@ export default function EsnafDashboard({
         )}
 
         {/* Haftalık randevu grafiği */}
-        {appointments.length > 0 && (
+        {activeView === "overview" && appointments.length > 0 && (
           <ScrollReveal variant="fadeUp" delay={0.02} as="section" className="mb-6">
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
               <h3 className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -1293,6 +1389,8 @@ export default function EsnafDashboard({
           </ScrollReveal>
         )}
 
+        {activeView === "appointments" && (
+          <>
         {/* Haftalık takvim */}
         <ScrollReveal variant="fadeUp" delay={0.05} as="section" className="mb-6">
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
@@ -1883,8 +1981,10 @@ export default function EsnafDashboard({
           )}
         </section>
         </ScrollReveal>
+          </>
+        )}
 
-        {reviews && (
+        {activeView === "overview" && reviews && (
           <ScrollReveal variant="scale" delay={0} as="section" className="mt-6">
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
             <h3 className="mb-3 font-semibold text-slate-900">⭐ Değerlendirmeler</h3>
@@ -1905,6 +2005,15 @@ export default function EsnafDashboard({
           </ScrollReveal>
         )}
       </main>
+
+      {tenantId && (
+        <WhatsAppLinkModal
+          tenantId={tenantId}
+          tenantCode={tenant?.tenant_code}
+          isOpen={showWhatsAppModal}
+          onClose={() => setShowWhatsAppModal(false)}
+        />
+      )}
 
       {tenantId && (
         <QRCodeModal
