@@ -403,16 +403,16 @@ export default function TenantDetailPage() {
 
       <section className="grid gap-4 md:grid-cols-3">
         <a
-          href={`${baseUrl}/t/${tenant.id}`}
+          href={assets?.whatsapp_link || `${baseUrl}/t/${tenant.id}`}
           target="_blank"
           rel="noreferrer"
           className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm transition hover:shadow-md dark:border-slate-800 dark:bg-slate-900"
         >
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            Public Link
+            WhatsApp Link
           </p>
-          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">İşletme giriş URL’i</p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">`/t/{tenant.id}`</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Doğrudan WhatsApp URL’i</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">wa.me üzerinden direkt sohbet açılır</p>
         </a>
         <a
           href={`${baseUrl}/api/tenant/${tenant.id}/qr`}

@@ -5,7 +5,7 @@
 
 import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { generateWhatsAppLink } from "@/utils/generateTenantAssets";
+import { generateDirectWhatsAppLink } from "@/utils/generateTenantAssets";
 
 // Cache için revalidation süresi (60 saniye)
 export const revalidate = 60;
@@ -42,7 +42,7 @@ export async function GET() {
         id: t.id,
         name: t.name,
         tenant_code: t.tenant_code,
-        whatsapp_link: generateWhatsAppLink({
+        whatsapp_link: generateDirectWhatsAppLink({
           id: t.id,
           name: t.name,
           tenant_code: t.tenant_code,

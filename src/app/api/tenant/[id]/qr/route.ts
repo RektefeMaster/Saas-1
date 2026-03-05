@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import QRCode from "qrcode";
 import { supabase } from "@/lib/supabase";
-import { generateWhatsAppLink, generateQRCode } from "@/utils/generateTenantAssets";
+import { generateDirectWhatsAppLink, generateQRCode } from "@/utils/generateTenantAssets";
 
 // QR kodlar değişmediği için uzun cache süresi
 export const revalidate = 3600;
@@ -32,7 +32,7 @@ export async function GET(
   const format = request.nextUrl.searchParams.get("format") || "png";
 
   if (format === "svg") {
-    const link = generateWhatsAppLink(tenantData);
+    const link = generateDirectWhatsAppLink(tenantData);
     const svg = await QRCode.toString(link, { type: "svg" });
     const response = new NextResponse(svg, {
       headers: { 
