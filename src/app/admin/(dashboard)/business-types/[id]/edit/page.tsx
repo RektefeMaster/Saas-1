@@ -139,7 +139,7 @@ export default function EditBusinessTypePage() {
       <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
         İşletme Tipini Düzenle
       </h1>
-      <p className="mt-1.5 text-slate-600 dark:text-slate-400">{name || "Yükleniyor..."}</p>
+      <p className="mt-1.5 text-slate-600 dark:text-slate-400">{name || "Yükleniyor…"}</p>
 
       <form
         onSubmit={handleSubmit}

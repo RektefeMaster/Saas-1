@@ -1,4 +1,5 @@
 import { supabase } from "../../supabase";
+import { getCrmCustomer } from "@/services/crmCustomer.service";
 import type { ConversationState } from "../../database.types";
 import { localDateStr } from "./context-builder";
 import { APP_TIMEZONE, MAX_CHAT_HISTORY_TURNS } from "./constants";
@@ -92,6 +93,9 @@ export async function getKnownCustomerName(
 ): Promise<string | null> {
   const fromState = (state?.extracted as { customer_name?: string } | undefined)?.customer_name;
   if (fromState && fromState.trim()) return fromState.trim();
+
+  const crm = await getCrmCustomer(tenantId, customerPhone);
+  if (crm?.customer_name?.trim()) return crm.customer_name.trim();
 
   const { data } = await supabase
     .from("appointments")

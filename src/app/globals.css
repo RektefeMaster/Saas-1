@@ -216,3 +216,7 @@ a:focus-visible {
 .recharts-yAxis .recharts-text {
   fill: currentColor;
 }
+
+.recharts-tooltip-wrapper {
+  outline: none;
+}

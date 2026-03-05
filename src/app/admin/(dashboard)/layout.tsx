@@ -46,7 +46,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/admin/campaigns", label: "Kampanyalar", icon: Megaphone },
   { href: "/admin/security", label: "Güvenlik", icon: ShieldCheck },
   { href: "/admin/conversations", label: "Konuşmalar", icon: MessageSquareWarning },
-  { href: "/admin/tools", label: "Araçlar", icon: Wrench },
+  { href: "/admin/tools", label: "Sistem Araçları", icon: Wrench },
   { href: "/admin/time-machine", label: "Time Machine", icon: History },
   { href: "/admin/langfuse", label: "LLM Gözlemi", icon: BarChart3 },
 ];

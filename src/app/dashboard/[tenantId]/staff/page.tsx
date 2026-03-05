@@ -223,7 +223,7 @@ export default function StaffPage({
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
         >
           <ArrowLeft className="h-3.5 w-3.5" />
-          Panele Dön
+          Panele dön
         </Link>
         <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
           Personel Yönetimi
@@ -303,7 +303,7 @@ export default function StaffPage({
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">Personel Listesi</h2>
             {loading ? (
-              <p className="text-sm text-slate-500 dark:text-slate-300">Yükleniyor...</p>
+              <p className="text-sm text-slate-500 dark:text-slate-300">Yükleniyor…</p>
             ) : staff.length === 0 ? (
               <p className="text-sm text-slate-500 dark:text-slate-300">Henüz personel yok.</p>
             ) : (

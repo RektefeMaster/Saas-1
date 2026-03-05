@@ -9,11 +9,13 @@ import {
   CheckCircle2,
   Copy,
   ExternalLink,
+  MapPin,
   MessageCircle,
   MessageSquare,
   QrCode,
   Save,
   SlidersHorizontal,
+  Star,
   Store,
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
@@ -66,6 +68,17 @@ const COPY = {
     contactPhoneHint: "Müşteri bilgilendirme ve acil durum mesajlarında kullanılır",
     workingHours: "Çalışma saatleri metni",
     workingHoursHint: "Örn: Hafta içi 09:00-18:00, Cumartesi 10:00-14:00",
+    address: "Adres",
+    addressHint: "Müşterilere gösterilecek adres",
+    mapsUrl: "Google Maps linki",
+    mapsUrlHint: "Opsiyonel, harita yönlendirmesi için",
+
+    // Puanlama
+    reviewTitle: "Randevu sonrası puanlama",
+    reviewDesc: "Randevudan sonra müşteriye puanlama talebi gönderilsin mi?",
+    reviewEnabled: "Puanlama talebi gönder",
+    reviewDelayHours: "Kaç saat sonra gönderilsin",
+    reviewDelayHint: "Randevu bitiminden sonra (varsayılan: 2)",
 
     // Randevu
     schedulingTitle: "Randevu Ayarları",
@@ -131,6 +144,16 @@ const COPY = {
     contactPhoneHint: "Used in customer routing and fallback messages",
     workingHours: "Working hours text",
     workingHoursHint: "E.g.: Mon-Fri 09:00-18:00, Sat 10:00-14:00",
+    address: "Address",
+    addressHint: "Address shown to customers",
+    mapsUrl: "Google Maps link",
+    mapsUrlHint: "Optional, for map directions",
+
+    reviewTitle: "Post-appointment rating",
+    reviewDesc: "Send rating request to customers after appointment?",
+    reviewEnabled: "Send rating request",
+    reviewDelayHours: "Hours after appointment",
+    reviewDelayHint: "After appointment ends (default: 2)",
 
     schedulingTitle: "Appointment Settings",
     schedulingDesc: "Slot duration, advance booking, and cancellation rules.",
@@ -285,6 +308,12 @@ export default function TenantSettingsPage({
   // İletişim
   const [contactPhone, setContactPhone] = useState("");
   const [workingHoursText, setWorkingHoursText] = useState("");
+  const [address, setAddress] = useState("");
+  const [mapsUrl, setMapsUrl] = useState("");
+
+  // Puanlama
+  const [reviewEnabled, setReviewEnabled] = useState(false);
+  const [reviewDelayHours, setReviewDelayHours] = useState(2);
 
   // Randevu
   const [slotDuration, setSlotDuration] = useState(30);
@@ -331,6 +360,14 @@ export default function TenantSettingsPage({
         setLoadError(null);
         setContactPhone(data.contact_phone || "");
         setWorkingHoursText(data.working_hours_text || "");
+        setAddress((data.config_override?.address as string) || "");
+        setMapsUrl((data.config_override?.maps_url as string) || "");
+        setReviewEnabled((data.config_override?.review_request_enabled as boolean) ?? false);
+        setReviewDelayHours(
+          typeof data.config_override?.review_request_delay_hours === "number"
+            ? Math.max(0, Math.min(24, data.config_override.review_request_delay_hours))
+            : 2
+        );
 
         const co = data.config_override || {};
         const msgs = (co.messages || {}) as Record<string, string>;
@@ -378,6 +415,10 @@ export default function TenantSettingsPage({
         body: JSON.stringify({
           contact_phone: contactPhone.trim() || null,
           working_hours_text: workingHoursText.trim() || null,
+          address: address.trim() || undefined,
+          maps_url: mapsUrl.trim() || undefined,
+          review_request_enabled: reviewEnabled,
+          review_request_delay_hours: reviewDelayHours,
           reminder_preference: reminderPref,
           opening_message: openingMessage.trim() || undefined,
           slot_duration_minutes: slot,
@@ -496,21 +537,65 @@ export default function TenantSettingsPage({
         </SectionCard>
 
         <SectionCard icon={Store} title={t.contactTitle} desc={t.contactDesc}>
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="space-y-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <InputField
+                label={t.contactPhone}
+                hint={t.contactPhoneHint}
+                value={contactPhone}
+                onChange={setContactPhone}
+                placeholder="+90 5XX XXX XX XX"
+              />
+              <InputField
+                label={t.workingHours}
+                hint={t.workingHoursHint}
+                value={workingHoursText}
+                onChange={setWorkingHoursText}
+                placeholder="Hafta içi 09:00-18:00"
+              />
+            </div>
             <InputField
-              label={t.contactPhone}
-              hint={t.contactPhoneHint}
-              value={contactPhone}
-              onChange={setContactPhone}
-              placeholder="+90 5XX XXX XX XX"
+              label={t.address}
+              hint={t.addressHint}
+              value={address}
+              onChange={setAddress}
+              type="textarea"
+              placeholder="Örn: Atatürk Cad. No:1, Kadıköy"
             />
             <InputField
-              label={t.workingHours}
-              hint={t.workingHoursHint}
-              value={workingHoursText}
-              onChange={setWorkingHoursText}
-              placeholder="Hafta içi 09:00-18:00"
+              label={t.mapsUrl}
+              hint={t.mapsUrlHint}
+              value={mapsUrl}
+              onChange={setMapsUrl}
+              placeholder="https://maps.google.com/..."
             />
+          </div>
+        </SectionCard>
+
+        <SectionCard icon={Star} title={t.reviewTitle} desc={t.reviewDesc}>
+          <div className="space-y-4">
+            <label className="flex cursor-pointer items-center gap-3">
+              <input
+                type="checkbox"
+                checked={reviewEnabled}
+                onChange={(e) => setReviewEnabled(e.target.checked)}
+                className="h-4 w-4 rounded border-slate-300"
+              />
+              <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                {t.reviewEnabled}
+              </span>
+            </label>
+            {reviewEnabled && (
+              <InputField
+                label={t.reviewDelayHours}
+                hint={t.reviewDelayHint}
+                type="number"
+                value={reviewDelayHours}
+                onChange={setReviewDelayHours}
+                min={0}
+                max={24}
+              />
+            )}
           </div>
         </SectionCard>
 

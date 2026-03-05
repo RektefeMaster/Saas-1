@@ -512,7 +512,7 @@ export default function CrmPage({
             {customersLoading ? (
               <div className="flex items-center justify-center rounded-lg border border-slate-200 px-3 py-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-300">
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Yükleniyor...
+                Yükleniyor…
               </div>
             ) : customers.length === 0 ? (
               <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
@@ -569,7 +569,7 @@ export default function CrmPage({
                 {detailLoading ? (
                   <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Yükleniyor...
+                    Yükleniyor…
                   </div>
                 ) : (
                   <div className="grid gap-3">
@@ -809,7 +809,7 @@ export default function CrmPage({
         {remindersLoading ? (
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Yükleniyor...
+            Yükleniyor…
           </div>
         ) : reminders.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">{t.noReminder}</p>

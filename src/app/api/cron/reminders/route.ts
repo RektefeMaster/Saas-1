@@ -1,49 +1,18 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { sendCustomerNotification } from "@/lib/notify";
-import {
-  sendWhatsAppInteractiveList,
-  sendWhatsAppTemplateMessage,
-} from "@/lib/whatsapp";
 import { markAppointmentNoShow } from "@/services/noShow.service";
 
-const REVIEW_LIST_BODY =
-  "Merhaba! Bugünkü randevunuz nasıldı? Puanlamak ister misiniz? (Cevaplamak zorunda değilsiniz.)";
-const REVIEW_LIST_SECTIONS = [
-  {
-    rows: [
-      { id: "1", title: "1 ⭐" },
-      { id: "2", title: "2 ⭐" },
-      { id: "3", title: "3 ⭐" },
-      { id: "4", title: "4 ⭐" },
-      { id: "5", title: "5 ⭐" },
-      { id: "gec", title: "Geç" },
-    ],
-  },
-];
-
 const CRON_SECRET = process.env.CRON_SECRET?.trim() || "";
-const REMINDER_TEMPLATE_NAME = process.env.WHATSAPP_REMINDER_TEMPLATE_NAME?.trim() || "";
-const TEMPLATE_LANG = process.env.WHATSAPP_TEMPLATE_LANG?.trim() || "tr";
 
-async function sendReminderWithBestChannel(
+async function sendReminder2h(
   to: string,
   tenantName: string,
   dateText: string,
   timeText: string
 ): Promise<boolean> {
-  if (REMINDER_TEMPLATE_NAME) {
-    const ok = await sendWhatsAppTemplateMessage({
-      to,
-      templateName: REMINDER_TEMPLATE_NAME,
-      languageCode: TEMPLATE_LANG,
-      bodyParams: [tenantName, dateText, timeText],
-    });
-    if (ok) return true;
-  }
-
-  const fallbackText = `Merhaba, ${dateText} günü ${timeText}'da ${tenantName} için randevunuz var. Lütfen unutmayın!`;
-  const delivery = await sendCustomerNotification(to, fallbackText);
+  const text = `Merhaba, 2 saat sonra ${dateText} günü ${timeText}'da ${tenantName} için randevunuz var. Lütfen unutmayın! İptal etmek isterseniz "iptal" yazabilirsiniz.`;
+  const delivery = await sendCustomerNotification(to, text);
   return delivery.whatsapp || delivery.sms;
 }
 
@@ -58,17 +27,14 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date();
-  const tomorrowStart = new Date(now);
-  tomorrowStart.setDate(tomorrowStart.getDate() + 1);
-  tomorrowStart.setHours(0, 0, 0, 0);
-  const tomorrowEnd = new Date(tomorrowStart);
-  tomorrowEnd.setHours(23, 59, 59, 999);
+  const windowStart = new Date(now.getTime() + (2 * 60 - 15) * 60 * 1000);
+  const windowEnd = new Date(now.getTime() + (2 * 60 + 15) * 60 * 1000);
 
   const { data: appointments, error } = await supabase
     .from("appointments")
-    .select("id, tenant_id, customer_phone, slot_start")
-    .gte("slot_start", tomorrowStart.toISOString())
-    .lte("slot_start", tomorrowEnd.toISOString())
+    .select("id, tenant_id, customer_phone, slot_start, extra_data")
+    .gte("slot_start", windowStart.toISOString())
+    .lte("slot_start", windowEnd.toISOString())
     .eq("status", "confirmed");
 
   if (error) {
@@ -79,40 +45,49 @@ export async function GET(request: NextRequest) {
   const tenantIds = [...new Set((appointments || []).map((a) => a.tenant_id))];
   const { data: tenants } = await supabase
     .from("tenants")
-    .select("id, name, config_override")
+    .select("id, name, timezone, config_override")
     .in("id", tenantIds);
 
+  const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
   const tenantMap = new Map(
     (tenants || []).map((t) => [
       t.id,
       {
         name: t.name,
+        timezone: (t.timezone as string)?.trim() || APP_TIMEZONE,
         reminder_preference: (t.config_override as Record<string, string>)?.reminder_preference ?? "customer_only",
       },
     ])
   );
 
   for (const apt of appointments || []) {
+    const extra = (apt.extra_data as Record<string, unknown>) || {};
+    if (typeof extra.reminder_2h_sent_at === "string") continue;
+
     const pref = tenantMap.get(apt.tenant_id)?.reminder_preference ?? "customer_only";
     if (pref === "off" || pref === "merchant_only") continue;
 
+    const tz = tenantMap.get(apt.tenant_id)?.timezone ?? APP_TIMEZONE;
     const slotDate = new Date(apt.slot_start);
     const timeStr = slotDate.toLocaleTimeString("tr-TR", {
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: "Europe/Istanbul",
+      timeZone: tz,
     });
     const dateStr = slotDate.toLocaleDateString("tr-TR", {
-      timeZone: "Europe/Istanbul",
+      timeZone: tz,
     });
     const tenantName = tenantMap.get(apt.tenant_id)?.name || "İşletme";
-    const ok = await sendReminderWithBestChannel(
-      apt.customer_phone,
-      tenantName,
-      dateStr,
-      timeStr
-    );
-    if (ok) sent++;
+    const ok = await sendReminder2h(apt.customer_phone, tenantName, dateStr, timeStr);
+    if (ok) {
+      sent++;
+      await supabase
+        .from("appointments")
+        .update({
+          extra_data: { ...extra, reminder_2h_sent_at: new Date().toISOString() },
+        })
+        .eq("id", apt.id);
+    }
   }
 
   // No-show: 2+ saat geçmiş confirmed randevuları no_show yap
@@ -148,72 +123,8 @@ export async function GET(request: NextRequest) {
     console.error("[cron] no-show error:", e);
   }
 
-  // Review reminder: 30 dk geçmiş, completed/confirmed, review'u olmayan randevular
-  let reviewSent = 0;
-  try {
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    const { data: reviewApts } = await supabase
-      .from("appointments")
-      .select("id, tenant_id, customer_phone, extra_data")
-      .in("status", ["completed", "confirmed"])
-      .lt("slot_start", thirtyMinutesAgo)
-      .gte("slot_start", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString());
-    if (reviewApts) {
-      const { data: existingReviews } = await supabase
-        .from("reviews")
-        .select("appointment_id")
-        .in("appointment_id", reviewApts.map((a) => a.id));
-      const reviewedIds = new Set((existingReviews || []).map((r) => r.appointment_id));
-      for (const apt of reviewApts) {
-        if (reviewedIds.has(apt.id)) continue;
-        const extra =
-          apt.extra_data && typeof apt.extra_data === "object"
-            ? (apt.extra_data as Record<string, unknown>)
-            : {};
-        if (typeof extra.review_reminder_sent_at === "string") continue;
-
-        const result = await sendWhatsAppInteractiveList({
-          to: apt.customer_phone,
-          bodyText: REVIEW_LIST_BODY,
-          buttonLabel: "Puan ver",
-          sections: REVIEW_LIST_SECTIONS,
-        });
-        if (result.ok) {
-          reviewSent++;
-          await supabase
-            .from("appointments")
-            .update({
-              status: "completed",
-              extra_data: {
-                ...extra,
-                review_reminder_sent_at: new Date().toISOString(),
-              },
-            })
-            .eq("id", apt.id);
-        } else {
-          const delivery = await sendCustomerNotification(
-            apt.customer_phone,
-            "Merhaba! Bugünkü randevunuz nasıldı? 1-5 arası puan verir misiniz? ⭐"
-          );
-          if (delivery.whatsapp || delivery.sms) {
-            reviewSent++;
-            await supabase
-              .from("appointments")
-              .update({
-                status: "completed",
-                extra_data: {
-                  ...extra,
-                  review_reminder_sent_at: new Date().toISOString(),
-                },
-              })
-              .eq("id", apt.id);
-          }
-        }
-      }
-    }
-  } catch (e) {
-    console.error("[cron] review-reminder error:", e);
-  }
+  // Review reminder akışı tek kaynak olarak /api/cron/review-reminder endpoint'ine taşındı.
+  // Bu endpoint artık yalnızca hatırlatma/no-show/CRM işlerini çalıştırır.
 
   // CRM reminder dispatch (whatsapp / both)
   let crmReminderSent = 0;
@@ -248,7 +159,9 @@ export async function GET(request: NextRequest) {
     ok: true,
     reminders: { total: appointments?.length || 0, sent },
     noShowMarked,
-    reviewSent,
+    reviewSent: 0,
+    reviewSkippedService: 0,
+    reviewReminderRoute: "/api/cron/review-reminder",
     crmReminderSent,
   });
 }

@@ -10,6 +10,7 @@ import {
   setWebhookDebugRecord,
 } from "@/lib/redis";
 import { createMessageProcessingJob } from "@/services/messageProcessingJob.service";
+import { normalizePhoneE164 } from "@/lib/phone";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -160,7 +161,8 @@ export async function POST(request: NextRequest) {
 
       for (let msgIdx = 0; msgIdx < messages.length; msgIdx += 1) {
         const msg = messages[msgIdx];
-        const from = msg.from ? `+${msg.from}` : "";
+        const from =
+          normalizePhoneE164(msg.from) ?? (msg.from ? `+${msg.from}` : "");
         if (!from) continue;
 
         const messageId = (msg.id || "").trim() || `gen_${nanoid(12)}`;

@@ -1,6 +1,18 @@
 import type { ConversationState } from "../../database.types";
+import type { CrmCustomerProfile } from "@/services/crmCustomer.service";
 import { APP_TIMEZONE, TR_DAY_NAMES_FULL, EN_DAY_TO_INDEX } from "./constants";
 import { parseNaturalDateTime } from "@/lib/chrono-parse";
+
+export function getSelectedServiceFromExtracted(
+  extracted: Record<string, unknown>
+): { slug?: string; name?: string } {
+  const slug =
+    (extracted.selected_service_slug as string | undefined)?.trim() ||
+    (extracted.service_slug as string | undefined)?.trim() ||
+    undefined;
+  const name = (extracted.selected_service_name as string | undefined)?.trim() || undefined;
+  return { slug, name };
+}
 
 export function localDateStr(d: Date, timeZone = APP_TIMEZONE): string {
   return new Intl.DateTimeFormat("en-CA", {
@@ -57,6 +69,12 @@ export function buildStateSummary(state: ConversationState | null): string {
   }
   const customerName = ext.customer_name as string | undefined;
   if (customerName) parts.push(`Müşteri adı: ${customerName}.`);
+  const selectedService = getSelectedServiceFromExtracted(ext);
+  if (selectedService.slug || selectedService.name) {
+    parts.push(
+      `Seçilen hizmet: ${selectedService.name || selectedService.slug}. Tekrar "hangi hizmet" diye sorma.`
+    );
+  }
   const lastDate = ext.last_availability_date as string | undefined;
   const lastSlots = ext.last_available_slots as string[] | undefined;
   if (lastDate && Array.isArray(lastSlots) && lastSlots.length > 0) {
@@ -69,7 +87,8 @@ export function buildStateSummary(state: ConversationState | null): string {
 export function buildSystemContext(
   state: ConversationState | null,
   historySummary?: string,
-  lastUserMessage?: string
+  lastUserMessage?: string,
+  customerProfile?: CrmCustomerProfile | null
 ): string {
   const today = new Date();
   const todayStr = localDateStr(today);
@@ -104,9 +123,23 @@ export function buildSystemContext(
 
   const ext = (state?.extracted || {}) as Record<string, unknown>;
 
-  const customerName = ext.customer_name as string | undefined;
+  const customerName =
+    (ext.customer_name as string | undefined) || customerProfile?.customer_name || undefined;
   if (customerName) {
-    ctx += ` Konuşan kişinin (müşterinin) adı: ${customerName}. Tekrar sorma. Başka biri için randevu alırken (arkadaş, eş) o kişinin adını ayrıca sor ve create_appointment'ta customer_name olarak sadece o randevu için geç.`;
+    let profileNote = "";
+    if (customerProfile && (customerProfile.total_visits > 0 || customerProfile.last_visit_at)) {
+      const lastVisit = customerProfile.last_visit_at
+        ? new Date(customerProfile.last_visit_at).toLocaleDateString("tr-TR", {
+            timeZone: APP_TIMEZONE,
+          })
+        : null;
+      profileNote = ` ${customerProfile.total_visits} kez gelmiş${lastVisit ? `, son ziyaret: ${lastVisit}` : ""}.`;
+    }
+    ctx += ` Konuşan kişinin (müşterinin) adı: ${customerName}.${profileNote} Tekrar sorma. Başka biri için randevu alırken (arkadaş, eş) o kişinin adını ayrıca sor ve create_appointment'ta customer_name olarak sadece o randevu için geç.`;
+  }
+  const selectedService = getSelectedServiceFromExtracted(ext);
+  if (selectedService.slug || selectedService.name) {
+    ctx += ` Seçili hizmet: ${selectedService.name || selectedService.slug}. Hizmet tekrar sorulmaz; müsaitlik/fiyat/randevu adımlarında bu hizmeti kullan.`;
   }
 
   const lastDate = ext.last_availability_date as string | undefined;

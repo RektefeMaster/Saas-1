@@ -3,6 +3,7 @@ import {
   parseTenantCodeFromMessage,
   sanitizeIncomingCustomerMessage,
 } from "@/lib/tenant-code";
+import { normalizePhoneDigits } from "@/lib/phone";
 
 export type RoutingReason =
   | "marker"
@@ -233,15 +234,11 @@ async function getTenantSummaryByCode(tenantCode: string): Promise<TenantSummary
   return data;
 }
 
-function phoneDigitsOnly(phone: string): string {
-  return phone.replace(/\D/g, "");
-}
-
 async function getRecentCustomerTenantIds(
   customerPhone: string,
   limit = 12
 ): Promise<string[]> {
-  const digits = phoneDigitsOnly(customerPhone);
+  const digits = normalizePhoneDigits(customerPhone);
   const candidates = [customerPhone];
   if (digits && digits !== customerPhone) candidates.push(digits);
 

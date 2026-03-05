@@ -86,28 +86,19 @@ async function notifyTargets(
   }
 }
 
-/** date: YYYY-MM-DD, time: HH:mm (Türkiye yerel). Çıktı: "DD.MM.YYYY HH:mm" */
+/** date: YYYY-MM-DD, time: HH:mm (zaten tenant timezone'da). Çıktı: "DD.MM.YYYY HH:mm" */
 function formatDateTimeTr(date: string, time: string): string {
-  const [y, m, d] = date.split("-").map(Number);
-  const [hh, mm] = time.split(":").map(Number);
-  if (!y || !m || !d || hh == null || mm == null) {
-    return `${date} ${time}`;
-  }
-  const iso = `${date}T${time.padStart(5, "0").slice(0, 5)}:00+03:00`;
-  const dt = new Date(iso);
-  if (isNaN(dt.getTime())) return `${date} ${time}`;
-  const dateStr = dt.toLocaleDateString("tr-TR", {
-    timeZone: "Europe/Istanbul",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  });
-  const timeStr = dt.toLocaleTimeString("tr-TR", {
-    timeZone: "Europe/Istanbul",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-  return `${dateStr} ${timeStr}`;
+  const parts = date.split("-");
+  const timeParts = time.split(":");
+  if (parts.length < 3 || timeParts.length < 2) return `${date} ${time}`;
+  const [y, m, d] = parts.map(Number);
+  const [hh, mm] = timeParts.map(Number);
+  if (!y || !m || !d || hh == null || mm == null) return `${date} ${time}`;
+  const d2 = String(d).padStart(2, "0");
+  const m2 = String(m).padStart(2, "0");
+  const h2 = String(hh).padStart(2, "0");
+  const min2 = String(mm).padStart(2, "0");
+  return `${d2}.${m2}.${y} ${h2}:${min2}`;
 }
 
 export async function notifyNewAppointmentForMerchant(params: {

@@ -4,6 +4,8 @@
  */
 
 import { supabase } from "@/lib/supabase";
+
+const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
 import { sendCustomerNotification } from "@/lib/notify";
 import { notifyCancelledAppointmentForMerchant } from "@/services/merchantNotification.service";
 
@@ -59,33 +61,34 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
       return { ok: false, error: updateErr.message };
     }
 
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("name, timezone")
+      .eq("id", tenantId)
+      .single();
+
+    const tenantName = tenant?.name || "İşletme";
+    const tz = (tenant?.timezone as string)?.trim() || APP_TIMEZONE;
+
     const slotDate = new Date(apt.slot_start);
-    const dateStr = slotDate.toLocaleDateString("tr-TR", { timeZone: "Europe/Istanbul" });
+    const dateStr = slotDate.toLocaleDateString("tr-TR", { timeZone: tz });
     const timeStr = slotDate.toLocaleTimeString("tr-TR", {
       hour: "2-digit",
       minute: "2-digit",
-      timeZone: "Europe/Istanbul",
+      timeZone: tz,
     });
     const dateIso = slotDate.toLocaleDateString("en-CA", {
-      timeZone: "Europe/Istanbul",
+      timeZone: tz,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
     });
     const timeIso = slotDate.toLocaleTimeString("en-GB", {
-      timeZone: "Europe/Istanbul",
+      timeZone: tz,
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
     });
-
-    const { data: tenant } = await supabase
-      .from("tenants")
-      .select("name")
-      .eq("id", tenantId)
-      .single();
-
-    const tenantName = tenant?.name || "İşletme";
 
     const customerMessage = `${tenantName} randevunuz (${dateStr} ${timeStr}) iptal edildi. Başka bir saate almak ister misiniz?`;
     await sendCustomerNotification(apt.customer_phone, customerMessage);

@@ -27,7 +27,7 @@ const nextConfig: NextConfig = {
   },
   // Experimental optimizasyonlar - tree-shaking ile bundle küçültme
   experimental: {
-    optimizePackageImports: ["lucide-react", "@supabase/supabase-js", "motion", "@tremor/react"],
+    optimizePackageImports: ["lucide-react", "@supabase/supabase-js", "motion", "recharts"],
   },
   async headers() {
     return [

@@ -339,7 +339,7 @@ export default function PricingPage({
               Henüz hizmet eklenmemiş
             </p>
             <p className="mt-1 max-w-sm text-sm text-slate-500 dark:text-slate-400">
-              Aşağıdaki formu doldurarak ilk hizmetinizi ekleyebilirsiniz. Müşteriler randevu alırken bu listeyi görecek.
+              Yukarıdaki formu doldurarak ilk hizmetinizi ekleyebilirsiniz. Müşteriler randevu alırken bu listeyi görecek.
             </p>
           </div>
         ) : (

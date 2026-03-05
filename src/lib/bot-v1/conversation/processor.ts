@@ -9,11 +9,11 @@ import {
 } from "../../redis";
 import { sendWhatsAppMessage } from "../../whatsapp";
 import { getCustomerHistory, formatHistoryForPrompt } from "@/services/customerHistory.service";
+import { getCrmCustomer } from "@/services/crmCustomer.service";
 import {
   getCustomerLastActiveAppointment,
   cancelAppointment,
 } from "@/services/cancellation.service";
-import { submitReview, submitReviewSkipped, hasReview } from "@/services/review.service";
 import { isCustomerBlocked } from "@/services/blacklist.service";
 import {
   mergeConfig,
@@ -43,14 +43,12 @@ import type {
 import { openai } from "./client";
 import {
   HUMAN_ESCALATION_TAG,
-  MAX_MESSAGES_BEFORE_ESCALATION,
   CONTEXT_TURNS_TO_SEND,
   MAX_TOOL_ROUNDS,
   APP_TIMEZONE,
   isValidStep,
   MODEL_SIMPLE,
   MODEL_COMPLEX,
-  RATING_MAP,
 } from "./constants";
 import {
   normalizeHalfHourRequest,
@@ -81,6 +79,7 @@ import {
   localTimeStr,
   buildSystemContext,
   buildStateSummary,
+  getSelectedServiceFromExtracted,
   formatSlotDateTimeTr,
 } from "./context-builder";
 import {
@@ -94,6 +93,7 @@ import { validateToolArgs } from "./tools/tool-schemas";
 import { getValidNextStep } from "../fsm/bot-state-machine";
 import { withRetry } from "@/lib/retry";
 import { isAdminTakeoverReason } from "@/lib/human-takeover";
+import { tryHandleReview } from "./review-flow";
 
 // ── Human escalation ────────────────────────────────────────────────────────────
 
@@ -129,92 +129,6 @@ function isValidBotConfig(c: unknown): c is BotConfig {
     typeof o.tone === "object" &&
     o.tone !== null
   );
-}
-
-function parseRating(text: string): number | null {
-  const t = text.trim().toLowerCase().replace(/\s*⭐\s*/g, " ").trim();
-  const digitMatch = t.match(/^([1-5])\s*(yıldız)?\s*$/);
-  if (digitMatch) return parseInt(digitMatch[1], 10);
-  const words = t.replace(/\s*yıldız\s*/gi, "").split(/\s+/);
-  for (const w of words) {
-    if (RATING_MAP[w] != null) return RATING_MAP[w];
-  }
-  if (RATING_MAP[t] != null) return RATING_MAP[t];
-  return null;
-}
-
-const REVIEW_SKIP_PHRASES = [
-  "gec",
-  "geç",
-  "atla",
-  "sonra",
-  "istemiyorum",
-  "pas",
-  "skip",
-  "hayır",
-  "vazgeçtim",
-  "yok",
-  "gerek yok",
-  "gerekmez",
-];
-
-async function tryHandleReview(
-  tenantId: string,
-  customerPhone: string,
-  msg: string
-): Promise<{ handled: boolean; reply?: string }> {
-  const trimmed = msg.trim().toLowerCase();
-  if (REVIEW_SKIP_PHRASES.includes(trimmed)) {
-    const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-    const { data: apt } = await supabase
-      .from("appointments")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .eq("customer_phone", customerPhone)
-      .lt("slot_start", thirtyMinutesAgo.toISOString())
-      .in("status", ["completed", "confirmed"])
-      .order("slot_start", { ascending: false })
-      .limit(1)
-      .single();
-    if (apt && !(await hasReview(apt.id))) {
-      await submitReviewSkipped(tenantId, apt.id, customerPhone);
-      await supabase
-        .from("appointments")
-        .update({ status: "completed" })
-        .eq("id", apt.id);
-    }
-    return { handled: true, reply: "Tamam, teşekkürler!" };
-  }
-  const rating = parseRating(msg);
-  if (rating == null || rating < 1 || rating > 5) return { handled: false };
-  const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
-
-  const { data: apt } = await supabase
-    .from("appointments")
-    .select("id")
-    .eq("tenant_id", tenantId)
-    .eq("customer_phone", customerPhone)
-    .lt("slot_start", thirtyMinutesAgo.toISOString())
-    .in("status", ["completed", "confirmed"])
-    .order("slot_start", { ascending: false })
-    .limit(1)
-    .single();
-
-  if (!apt) return { handled: false };
-  if (await hasReview(apt.id)) return { handled: false };
-
-  const result = await submitReview(tenantId, apt.id, customerPhone, rating);
-  if (!result.ok) return { handled: false };
-
-  await supabase
-    .from("appointments")
-    .update({ status: "completed" })
-    .eq("id", apt.id);
-
-  return {
-    handled: true,
-    reply: "Teşekkürler! Değerlendirmen için sağ ol, tekrar bekleriz!",
-  };
 }
 
 // ── Tenant lookup ───────────────────────────────────────────────────────────────
@@ -336,6 +250,7 @@ async function callOpenAI(
         return await openai!.chat.completions.create({
           model,
           messages,
+          temperature: 0.4,
           ...(tools ? { tools, tool_choice: "auto" as const } : {}),
         });
       } catch (err: unknown) {
@@ -352,6 +267,7 @@ async function callOpenAI(
           return await openai!.chat.completions.create({
             model,
             messages,
+            temperature: 0.4,
             ...(tools ? { tools, tool_choice: "auto" as const } : {}),
           });
         }
@@ -485,9 +401,8 @@ export async function processMessage(
       await setSession(tenantId, customerPhone, state);
     }
     const messageCount = (state?.message_count ?? 0) + 1;
-    if (messageCount > MAX_MESSAGES_BEFORE_ESCALATION) {
-      return { reply: buildHumanEscalationMessage(tenant, tone) };
-    }
+    // 20 mesaj limiti kaldırıldı: uzun konuşmalarda context zaten trimChatHistory ile sıkıştırılıyor,
+    // bot otonom devam eder, insan devralması yok.
 
     if (state && !isValidStep(state.step)) {
       console.warn("[session] Geçersiz step, sıfırlanıyor:", state.step);
@@ -574,8 +489,34 @@ export async function processMessage(
       };
     }
 
-    if ((state?.retry_count ?? 0) >= 3) {
-      return { reply: buildHumanEscalationMessage(tenant, tone) };
+    // retry_count: anlaşılmayan mesaj sayacı. Tam otonomi için limit yükseltildi (3→8).
+    // 8 kez üst üste anlaşılamazsa yine insan devralmıyor; bot "Farklı bir şekilde sorabilir misin?" ile devam eder.
+    if ((state?.retry_count ?? 0) >= 8) {
+      const softReply =
+        tone === "siz"
+          ? "Tam anlamadım. İsterseniz 'randevu almak istiyorum', 'yarın müsait misiniz?' veya 'fiyatlar ne?' gibi yazabilirsiniz."
+          : "Tam anlamadım. İstersen 'randevu almak istiyorum', 'yarın müsait misin?' veya 'fiyatlar ne?' gibi yazabilirsin.";
+      await setSession(tenantId, customerPhone, {
+        ...(state || {}),
+        tenant_id: tenantId,
+        customer_phone: customerPhone,
+        step: "devam",
+        extracted: state?.extracted || {},
+        flow_type: flowType,
+        message_count: messageCount,
+        retry_count: 0,
+        consecutive_misunderstandings: 0,
+        window_status: "OPEN",
+        last_customer_message_at: new Date().toISOString(),
+        timezone: state?.timezone || APP_TIMEZONE,
+        chat_history: trimChatHistory([
+          ...(state?.chat_history || []),
+          { role: "user", content: incomingMessage },
+          { role: "assistant", content: softReply },
+        ]),
+        updated_at: new Date().toISOString(),
+      });
+      return { reply: softReply };
     }
 
     const extracted = (state.extracted || {}) as Record<string, unknown>;
@@ -857,9 +798,22 @@ export async function processMessage(
     }
 
     // ── Build context ──
-    const history = await getCustomerHistory(tenantId, customerPhone);
+    const [history, customerProfile] = await Promise.all([
+      getCustomerHistory(tenantId, customerPhone),
+      getCrmCustomer(tenantId, customerPhone),
+    ]);
     const historySummary = formatHistoryForPrompt(history);
-    const systemContext = buildSystemContext(state, historySummary, effectiveMessage);
+
+    if (customerProfile?.customer_name && !(state?.extracted as { customer_name?: string })?.customer_name) {
+      const ext = (state?.extracted || {}) as Record<string, unknown>;
+      state = {
+        ...(state || {}),
+        extracted: { ...ext, customer_name: customerProfile.customer_name },
+      } as ConversationState;
+      await setSession(tenantId, customerPhone, { ...state, updated_at: new Date().toISOString() });
+    }
+
+    const systemContext = buildSystemContext(state, historySummary, effectiveMessage, customerProfile);
 
     let systemPrompt: string;
     if (mergedConfig) {
@@ -867,6 +821,7 @@ export async function processMessage(
       const tomorrow = new Date(today);
       tomorrow.setDate(tomorrow.getDate() + 1);
       const ext = (state?.extracted || {}) as Record<string, unknown>;
+      const selectedService = getSelectedServiceFromExtracted(ext);
       const promptContext: PromptBuilderContext = {
         today: localDateStr(today),
         tomorrow: localDateStr(tomorrow),
@@ -882,6 +837,8 @@ export async function processMessage(
         })})`,
         availableSlots: ext.last_available_slots as string[] | undefined,
         lastAvailabilityDate: ext.last_availability_date as string | undefined,
+        selectedServiceSlug: selectedService.slug,
+        selectedServiceName: selectedService.name,
         pendingCancelId: ext.pending_cancel_appointment_id as string | undefined,
         customerHistory: historySummary,
         misunderstandingCount: state?.consecutive_misunderstandings ?? 0,
@@ -1080,7 +1037,10 @@ export async function processMessage(
         if (mergedConfig && tc.function.name === "create_appointment") {
           const res = toolExec.result as { ok?: boolean; date?: string; date_readable?: string; time?: string; customer_name?: string };
           if (res.ok) {
-            const serviceVal = (fnArgs.service as string) ?? (fnArgs.extra_data as Record<string, unknown>)?.service as string ?? "";
+            const serviceVal =
+              (fnArgs.service_slug as string) ??
+              ((fnArgs.extra_data as Record<string, unknown>)?.service_slug as string) ??
+              "";
             confirmationResults.push({
               date: res.date ?? "",
               date_readable: res.date_readable ?? formatDateReadableTr(res.date ?? "", res.time),
@@ -1173,21 +1133,13 @@ export async function processMessage(
       llm_latency_ms: llmLatencyMs,
     };
 
-    // ── Check for human escalation tag ──
+    // ── Check for human escalation tag (legacy; LLM artık [[INSAN]] yazmıyor) ──
     if (finalReply.includes(HUMAN_ESCALATION_TAG)) {
-      if (mergedConfig) {
-        const msg = buildConfigMessage(
-          mergedConfig,
-          "human_escalation",
-          {
-            contact_phone: tenant.contact_phone?.trim() ?? "",
-            working_hours: tenant.working_hours_text?.trim() ?? "",
-          },
-          tenant.name
-        );
-        if (msg) return { reply: msg, metrics };
-      }
-      return { reply: buildHumanEscalationMessage(tenant, tone), metrics };
+      const softMsg =
+        tone === "siz"
+          ? "Bu konuda yardımcı olamıyorum; randevu, fiyat veya müsaitlik için yazabilirsiniz."
+          : "Bu konuda yardımcı olamıyorum; randevu, fiyat veya müsaitlik için yazabilirsin.";
+      return { reply: softMsg, metrics };
     }
 
     // ── Session management ──

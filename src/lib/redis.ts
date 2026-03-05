@@ -119,7 +119,7 @@ function parseRedisJson<T>(raw: unknown): T | null {
 }
 
 function sessionKey(tenantId: string, customerPhone: string): string {
-  const normalized = customerPhone.replace(/\D/g, "");
+  const normalized = normalizePhoneDigits(customerPhone);
   return `${SESSION_PREFIX}${tenantId}:${normalized}`;
 }
 
@@ -262,12 +262,8 @@ export function hasRedis(): boolean {
   return redis !== null;
 }
 
-function phoneDigits(customerPhone: string): string {
-  return customerPhone.replace(/\D/g, "");
-}
-
 export async function getTenantIdByPhone(customerPhone: string): Promise<string | null> {
-  const digits = phoneDigits(customerPhone);
+  const digits = normalizePhoneDigits(customerPhone);
   if (!digits) return null;
   const key = PHONE_TENANT_PREFIX + digits;
 
@@ -304,7 +300,7 @@ export async function setPhoneTenantMapping(
   customerPhone: string,
   tenantId: string
 ): Promise<void> {
-  const digits = phoneDigits(customerPhone);
+  const digits = normalizePhoneDigits(customerPhone);
   if (!digits) return;
   const key = PHONE_TENANT_PREFIX + digits;
 
@@ -338,7 +334,7 @@ export async function setPhoneTenantMapping(
 }
 
 export async function clearPhoneTenantMapping(customerPhone: string): Promise<void> {
-  const digits = phoneDigits(customerPhone);
+  const digits = normalizePhoneDigits(customerPhone);
   if (!digits) return;
   const key = PHONE_TENANT_PREFIX + digits;
 
@@ -1131,7 +1127,7 @@ function bookingHoldKey(tenantId: string, date: string, time: string): string {
 }
 
 function normalizeHoldPhone(phone: string): string {
-  return phone.replace(/\D/g, "");
+  return normalizePhoneDigits(phone);
 }
 
 export async function acquireBookingSlotLock(

@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { ChartBar } from "@/components/charts/ChartBar";
+import { ChartCard } from "@/components/charts/ChartCard";
 import {
   ArrowUpRight,
   Building2,
@@ -205,13 +206,10 @@ export default function AdminPage() {
       )}
 
       {!loading && normalizedStats.tenants > 0 && (
-        <section className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <h2 className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Özet Grafik
-          </h2>
-          <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-            Platform metrikleri
-          </p>
+        <ChartCard
+          title="Platform Özeti"
+          subtitle="Ana metriklerin karşılaştırmalı görünümü"
+        >
           <ChartBar
             data={[
               { name: "İşletme", value: normalizedStats.tenants },
@@ -223,9 +221,12 @@ export default function AdminPage() {
             xKey="name"
             bars="value"
             colors="emerald"
-            height={300}
+            layout="horizontal"
+            showBarLabels
+            valueFormatter={(v) => (v >= 1000 ? `${(v / 1000).toFixed(1)}K` : String(v))}
+            height={280}
           />
-        </section>
+        </ChartCard>
       )}
 
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">

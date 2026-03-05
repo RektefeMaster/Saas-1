@@ -5,6 +5,8 @@
 
 import { supabase } from "@/lib/supabase";
 
+const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
+
 export interface HistoryItem {
   date: string;
   service: string | null;
@@ -28,6 +30,13 @@ export async function getCustomerHistory(
   customerPhone: string
 ): Promise<HistoryItem[]> {
   try {
+    const { data: tenant } = await supabase
+      .from("tenants")
+      .select("timezone")
+      .eq("id", tenantId)
+      .single();
+    const tz = (tenant?.timezone as string)?.trim() || APP_TIMEZONE;
+
     const { data, error } = await supabase
       .from("appointments")
       .select("slot_start, service_slug, status")
@@ -40,7 +49,7 @@ export async function getCustomerHistory(
 
     return (data ?? []).map((a) => ({
       date: new Date(a.slot_start).toLocaleDateString("tr-TR", {
-        timeZone: "Europe/Istanbul",
+        timeZone: tz,
       }),
       service: a.service_slug || null,
       status: a.status,

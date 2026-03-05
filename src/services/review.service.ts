@@ -78,6 +78,46 @@ export async function hasReview(appointmentId: string): Promise<boolean> {
 }
 
 /**
+ * Müşteri belirtilen hizmet için daha önce puan verdi mi?
+ * (Aynı appointment hariç tutulabilir.)
+ */
+export async function hasCustomerRatedService(
+  tenantId: string,
+  customerPhone: string,
+  serviceSlug: string | null | undefined,
+  excludeAppointmentId?: string
+): Promise<boolean> {
+  const slug = String(serviceSlug || "").trim();
+  if (!slug) return false;
+
+  const { data: appointments, error: aptError } = await supabase
+    .from("appointments")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("customer_phone", customerPhone)
+    .eq("service_slug", slug)
+    .limit(200);
+  if (aptError || !appointments || appointments.length === 0) return false;
+
+  const appointmentIds = appointments
+    .map((row) => String(row.id || "").trim())
+    .filter((id) => id && id !== excludeAppointmentId);
+  if (appointmentIds.length === 0) return false;
+
+  const { data: reviews, error: reviewError } = await supabase
+    .from("reviews")
+    .select("id")
+    .eq("tenant_id", tenantId)
+    .eq("customer_phone", customerPhone)
+    .not("rating", "is", null)
+    .in("appointment_id", appointmentIds)
+    .limit(1);
+
+  if (reviewError) return false;
+  return (reviews?.length ?? 0) > 0;
+}
+
+/**
  * Tenant'ın tüm yorumlarını ve ortalama puanı döndürür.
  */
 export async function getTenantReviews(tenantId: string) {

@@ -8,6 +8,10 @@ import {
   buildExamplesPrompt,
   buildBotPersona,
 } from "./configMerge.service";
+import {
+  SERVICE_FIRST_FLOW_RULE,
+  SERVICE_SELECTED_CONTINUE_RULE,
+} from "@/lib/bot-v1/conversation/prompt-rules";
 
 export interface PromptBuilderContext {
   today: string;
@@ -18,6 +22,8 @@ export interface PromptBuilderContext {
   tomorrowLabel?: string;
   availableSlots?: string[];
   lastAvailabilityDate?: string;
+  selectedServiceSlug?: string;
+  selectedServiceName?: string;
   pendingCancelId?: string;
   customerHistory?: string;
   misunderstandingCount: number;
@@ -42,9 +48,8 @@ export function buildSystemPrompt(
   const contextBlock = buildContextBlock(context);
 
   const escalationInstructions = `
-Yapamayacağın bir şey çıkarsa, anlamadığın bir durum olursa,
-müşteri "insan", "yetkili", "sizi aramak istiyorum" yazarsa:
-Sadece [[INSAN]] yaz.`;
+Yapamayacağın bir şey çıkarsa nazikçe "Bu konuda yardımcı olamıyorum; randevu, fiyat veya müsaitlik için yazabilirsiniz" de.
+Müşteri "insan", "yetkili", "sizi aramak istiyorum" yazarsa iletişim bilgilerini ver. [[INSAN]] yazma.`;
 
   const kurallar = [fieldInstructions, toolUsage, escalationInstructions, examples]
     .filter(Boolean)
@@ -104,9 +109,11 @@ ${hints ? `\nBilgi çıkarma ipuçları:\n${hints}` : ""}`;
 }
 
 function buildToolUsageInstructions(): string {
+  const serviceFirstRuleLine = SERVICE_FIRST_FLOW_RULE.replace(/^HİZMET ÖNCELİKLİ AKIŞ:\s*/u, "");
   return `
 Araç kullanımı (ne zaman hangi fonksiyonu çağır):
-- RANDEVU AKIŞINDA ÖNCE HİZMET: create_appointment çağırmadan önce hizmet (service_slug) mutlaka belli olmalı. Müşteri "randevu almak istiyorum", "yarın 3'te boş musun?" dese bile önce "Hangi hizmet için?" diye sor. Müşteri hizmet söylediğinde match_service(user_text) çağır; dönen service_slug ile create_appointment çağır.
+- RANDEVU AKIŞINDA ÖNCE HİZMET: ${serviceFirstRuleLine}
+- ${SERVICE_SELECTED_CONTINUE_RULE}
 - Tarih belli değilse veya müşteri "müsait mi?", "boş var mı?" derse → check_availability(date) (YYYY-MM-DD). service_slug ile çağır (hizmete göre süre hesaplanır).
 - Müşteri belirli bir personel isterse (Ayşe, belirli uzman vb.) uygun staff_id ile check_availability ve create_appointment çağır.
 - Hizmet seçildiyse ve paketli kullanım ihtimali varsa önce check_customer_package(service_slug) çağır.
@@ -137,6 +144,12 @@ Saat dilimi: ${context.timeZone || "Europe/Istanbul"}`;
 
   if (context.customerHistory) {
     block += `\n\nMüşteri geçmişi:\n${context.customerHistory}`;
+  }
+
+  if (context.selectedServiceSlug || context.selectedServiceName) {
+    block += `\n\nSeçili hizmet:
+${context.selectedServiceName || context.selectedServiceSlug}
+Not: Bu konuşmada tekrar hizmet sormadan aynı hizmetle ilerle.`;
   }
 
   if (

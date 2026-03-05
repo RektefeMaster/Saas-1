@@ -2,9 +2,9 @@ import type { TenantMessagesConfig } from "../../database.types";
 
 export const HUMAN_ESCALATION_TAG = "[[INSAN]]";
 export const MAX_MESSAGES_BEFORE_ESCALATION = 20;
-export const MAX_CHAT_HISTORY_TURNS = 10;
+export const MAX_CHAT_HISTORY_TURNS = 15;
 /** API'ye gönderilen sohbet turu sayısı (bağlam sıkıştırma: token tasarrufu). */
-export const CONTEXT_TURNS_TO_SEND = 3;
+export const CONTEXT_TURNS_TO_SEND = 4;
 export const MAX_TOOL_ROUNDS = 5;
 export const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
 
@@ -149,8 +149,10 @@ export const COMPLEX_KEYWORDS = [
 
 export const COMPLEX_PATTERN = /\b(\d{1,2}[:.]?\d{0,2})\b.*\b(\d{1,2}[:.]?\d{0,2})\b/;
 
-export const MODEL_SIMPLE = "gpt-4o-mini";
-export const MODEL_COMPLEX = "gpt-4o";
+export const MODEL_SIMPLE =
+  process.env.OPENAI_CHAT_MODEL_SIMPLE?.trim() || "gpt-4o-mini";
+export const MODEL_COMPLEX =
+  process.env.OPENAI_CHAT_MODEL_COMPLEX?.trim() || "gpt-4o";
 
 export const TR_DAY_NAMES_FULL = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 

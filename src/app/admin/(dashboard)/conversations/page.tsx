@@ -90,7 +90,7 @@ export default function AdminConversationsPage() {
   const [tenantFilter, setTenantFilter] = useState("");
   const [phoneFilter, setPhoneFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
-  const [selected, setSelected] = useState<ConversationSummary | null>(null);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const [messages, setMessages] = useState<MessageItem[]>([]);
   const [messagesLoading, setMessagesLoading] = useState(false);
   const [draft, setDraft] = useState("");
@@ -99,8 +99,20 @@ export default function AdminConversationsPage() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const messagesPollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const selectedRef = useRef(selected);
-  selectedRef.current = selected;
+
+  const selectedKeyRef = useRef(selectedKey);
+  selectedKeyRef.current = selectedKey;
+
+  const selected = selectedKey
+    ? (() => {
+        const sep = selectedKey.indexOf(":");
+        const tid = sep >= 0 ? selectedKey.slice(0, sep) : "";
+        const ph = sep >= 0 ? selectedKey.slice(sep + 1) : "";
+        return items.find(
+          (i) => i.tenant_id === tid && i.customer_phone_digits === ph
+        ) ?? null;
+      })()
+    : null;
 
   const fetchList = useCallback(
     async (silent = false) => {
@@ -129,15 +141,15 @@ export default function AdminConversationsPage() {
         const data = payload as { items: ConversationSummary[] };
         const newItems = Array.isArray(data.items) ? data.items : [];
         setItems(newItems);
-        const sel = selectedRef.current;
-        if (sel) {
-          const updated = newItems.find(
-            (i) =>
-              i.tenant_id === sel.tenant_id &&
-              i.customer_phone_digits === sel.customer_phone_digits
+        const key = selectedKeyRef.current;
+        if (key) {
+          const sep = key.indexOf(":");
+          const tid = sep >= 0 ? key.slice(0, sep) : "";
+          const ph = sep >= 0 ? key.slice(sep + 1) : "";
+          const stillExists = newItems.some(
+            (i) => i.tenant_id === tid && i.customer_phone_digits === ph
           );
-          if (updated) setSelected(updated);
-          else setSelected(null);
+          if (!stillExists) setSelectedKey(null);
         }
       } catch (err) {
         setItems([]);
@@ -197,25 +209,30 @@ export default function AdminConversationsPage() {
   }, [fetchList]);
 
   useEffect(() => {
-    if (selected) {
-      fetchMessages(selected);
-      messagesPollRef.current = setInterval(() => {
-        if (selectedRef.current) fetchMessages(selectedRef.current, true);
-      }, MESSAGES_POLL_MS);
-    } else {
+    if (!selectedKey) {
       if (messagesPollRef.current) {
         clearInterval(messagesPollRef.current);
         messagesPollRef.current = null;
       }
       setMessages([]);
+      return;
     }
+    const sep = selectedKey.indexOf(":");
+    const tenant_id = sep >= 0 ? selectedKey.slice(0, sep) : "";
+    const customer_phone_digits = sep >= 0 ? selectedKey.slice(sep + 1) : "";
+    if (!tenant_id || !customer_phone_digits) return;
+    const conv = { tenant_id, customer_phone_digits } as ConversationSummary;
+    fetchMessages(conv);
+    messagesPollRef.current = setInterval(() => {
+      fetchMessages(conv, true);
+    }, MESSAGES_POLL_MS);
     return () => {
       if (messagesPollRef.current) {
         clearInterval(messagesPollRef.current);
         messagesPollRef.current = null;
       }
     };
-  }, [selected, fetchMessages]);
+  }, [selectedKey, fetchMessages]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -490,7 +507,7 @@ export default function AdminConversationsPage() {
             {loading && items.length === 0 ? (
               <div className="flex min-h-[200px] flex-col items-center justify-center gap-3">
                 <Loader2 className="h-8 w-8 animate-spin text-emerald-500" />
-                <p className="text-sm text-slate-500 dark:text-slate-400">Yükleniyor...</p>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Yükleniyor…</p>
               </div>
             ) : filteredItems.length === 0 ? (
               <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 px-6 text-center">
@@ -508,14 +525,12 @@ export default function AdminConversationsPage() {
               <div className="divide-y divide-slate-100 dark:divide-slate-800">
                 {filteredItems.map((item) => {
                   const key = `${item.tenant_id}:${item.customer_phone_digits}`;
-                  const isSelected =
-                    selected?.tenant_id === item.tenant_id &&
-                    selected?.customer_phone_digits === item.customer_phone_digits;
+                  const isSelected = selectedKey === key;
                   return (
                     <button
                       key={key}
                       type="button"
-                      onClick={() => setSelected(item)}
+                      onClick={() => setSelectedKey(`${item.tenant_id}:${item.customer_phone_digits}`)}
                       className={cn(
                         "flex w-full items-start gap-3 p-4 text-left transition",
                         isSelected
@@ -697,6 +712,13 @@ export default function AdminConversationsPage() {
                                 : "rounded-tl-md bg-amber-50 dark:bg-amber-950/30"
                           )}
                         >
+                          <span className="mb-1 block text-[10px] font-medium uppercase tracking-wide text-slate-400 dark:text-slate-500">
+                            {m.direction === "inbound"
+                              ? "Müşteri"
+                              : m.direction === "outbound"
+                                ? "Bot"
+                                : "Sistem"}
+                          </span>
                           <p className="break-words text-sm text-slate-900 dark:text-slate-100">
                             {m.message_text || "—"}
                           </p>

@@ -7,7 +7,11 @@ import { createRecurringAppointment, dayOfWeekToTurkish } from "@/services/recur
 import { createOpsAlert } from "@/services/opsAlert.service";
 import { isCancelConfirmation } from "../intent-detection";
 import { formatDateTr, formatDateReadableTr } from "../helpers";
-import { localDateStr, formatSlotDateTimeTr } from "../context-builder";
+import {
+  localDateStr,
+  formatSlotDateTimeTr,
+  getSelectedServiceFromExtracted,
+} from "../context-builder";
 import { todayStr } from "@/lib/dayjs-utils";
 import { withRetry } from "@/lib/retry";
 import type { ConversationState } from "../../../database.types";
@@ -16,6 +20,7 @@ import {
   notifyNewAppointmentForMerchant,
   notifyRescheduledAppointmentForMerchant,
 } from "@/services/merchantNotification.service";
+import { upsertCrmCustomer } from "@/services/crmCustomer.service";
 import {
   checkCustomerPackage,
   consumeCustomerPackageSession,
@@ -55,6 +60,36 @@ async function getAppointmentDate(appointmentId: string): Promise<string | null>
   return localDateStr(parsed);
 }
 
+function getStateExtracted(state: ConversationState | null): Record<string, unknown> {
+  return (state?.extracted || {}) as Record<string, unknown>;
+}
+
+function resolveSelectedServiceSlug(
+  args: Record<string, unknown>,
+  state: ConversationState | null
+): string | undefined {
+  const extracted = getStateExtracted(state);
+  const fromArgs =
+    (args.service_slug as string | undefined)?.trim() ||
+    ((args.extra_data as Record<string, unknown> | undefined)?.service_slug as string | undefined)?.trim();
+  const fromState = getSelectedServiceFromExtracted(extracted).slug;
+  return fromArgs || fromState || undefined;
+}
+
+function mergeSelectedService(
+  state: ConversationState | null,
+  serviceSlug?: string,
+  serviceName?: string
+): Record<string, unknown> {
+  const extracted = getStateExtracted(state);
+  if (!serviceSlug) return extracted;
+  return {
+    ...extracted,
+    selected_service_slug: serviceSlug,
+    ...(serviceName ? { selected_service_name: serviceName } : {}),
+  };
+}
+
 export async function executeToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -67,7 +102,7 @@ export async function executeToolCall(
 ): Promise<ToolExecResult> {
   if (name === "check_availability") {
     const dateStr = args.date as string;
-    const serviceSlug = (args.service_slug as string | undefined) || undefined;
+    const serviceSlug = resolveSelectedServiceSlug(args, state);
     const staffId = (args.staff_id as string | undefined)?.trim() || undefined;
     const daily = await getDailyAvailability(tenantId, dateStr, {
       configOverride,
@@ -99,7 +134,7 @@ export async function executeToolCall(
       sessionUpdate: {
         step: "saat_secimi_bekleniyor",
         extracted: {
-          ...(state?.extracted || {}),
+          ...mergeSelectedService(state, serviceSlug),
           last_availability_date: dateStr,
           last_available_slots: availability.available,
         },
@@ -110,6 +145,19 @@ export async function executeToolCall(
   if (name === "match_service") {
     const userText = (args.user_text as string)?.trim() ?? "";
     const matchResult = await matchServiceToSlug(tenantId, userText);
+    if (matchResult.ok) {
+      return {
+        result: matchResult as unknown as Record<string, unknown>,
+        sessionUpdate: {
+          step: "tarih_saat_bekleniyor",
+          extracted: mergeSelectedService(
+            state,
+            matchResult.service_slug,
+            matchResult.service_name
+          ),
+        },
+      };
+    }
     return { result: matchResult as unknown as Record<string, unknown> };
   }
 
@@ -140,10 +188,7 @@ export async function executeToolCall(
     }
     const customerName = (args.customer_name as string) ||
       (state?.extracted as { customer_name?: string })?.customer_name || "";
-    const serviceSlug =
-      (args.service_slug as string | undefined)?.trim() ||
-      ((args.extra_data as Record<string, unknown> | undefined)?.service_slug as string | undefined)?.trim() ||
-      "";
+    const serviceSlug = resolveSelectedServiceSlug(args, state) || "";
 
     if (!serviceSlug) {
       return {
@@ -260,6 +305,7 @@ export async function executeToolCall(
       checkAndNotifyWaitlist(tenantId, dateStr, configOverride).catch((e) =>
         console.error("[ai] waitlist notify error:", e)
       );
+      await upsertCrmCustomer(tenantId, customerPhone, customerName);
       return {
         result: {
           ok: true,
@@ -278,7 +324,7 @@ export async function executeToolCall(
         },
         sessionUpdate: {
           extracted: {
-            ...(state?.extracted || {}),
+            ...mergeSelectedService(state, serviceSlug),
             customer_name: customerName,
           },
         },

@@ -29,6 +29,96 @@ async function langfuseFetch<T>(path: string, options?: RequestInit): Promise<T>
   return res.json() as Promise<T>;
 }
 
+type DailyUsageItem = {
+  model?: string;
+  inputUsage?: number;
+  outputUsage?: number;
+  totalUsage?: number;
+  totalCost?: number;
+  countTraces?: number;
+  countObservations?: number;
+};
+
+type DailyMetricRow = {
+  date?: string;
+  countTraces?: number;
+  countObservations?: number;
+  totalCost?: number;
+  usage?: DailyUsageItem[];
+};
+
+/** Legacy /api/public/metrics/daily fallback - v2 beta bazen boş dönebiliyor */
+async function fetchLegacyDailyMetrics(
+  from: Date,
+  to: Date,
+  limit: number
+): Promise<{ total: Record<string, number>; daily: Array<Record<string, unknown>>; byModel: Array<Record<string, unknown>> }> {
+  const params = new URLSearchParams();
+  params.set("fromTimestamp", from.toISOString());
+  params.set("toTimestamp", to.toISOString());
+  params.set("limit", String(Math.min(limit, 60)));
+  const data = await langfuseFetch<{ data?: DailyMetricRow[] }>(
+    `/api/public/metrics/daily?${params.toString()}`
+  );
+  const rows = data.data ?? [];
+  let totalCost = 0;
+  let totalInputTokens = 0;
+  let totalOutputTokens = 0;
+  let observationCount = 0;
+  const modelMap = new Map<string, { totalCost: number; totalTokens: number; count: number }>();
+
+  for (const row of rows) {
+    totalCost += Number(row.totalCost ?? 0);
+    observationCount += Number(row.countObservations ?? row.countTraces ?? 0);
+    for (const u of row.usage ?? []) {
+      totalInputTokens += Number(u.inputUsage ?? 0);
+      totalOutputTokens += Number(u.outputUsage ?? 0);
+      const model = String(u.model ?? "unknown");
+      const existing = modelMap.get(model) ?? { totalCost: 0, totalTokens: 0, count: 0 };
+      existing.totalCost += Number(u.totalCost ?? 0);
+      existing.totalTokens += Number(u.totalUsage ?? u.inputUsage ?? 0) + Number(u.outputUsage ?? 0);
+      existing.count += Number(u.countObservations ?? u.countTraces ?? 0);
+      modelMap.set(model, existing);
+    }
+  }
+
+  const daily = rows.map((r) => ({
+    startTime: r.date ? `${r.date}T00:00:00.000Z` : undefined,
+    startTimeDay: r.date,
+    totalCost: r.totalCost,
+    totalCost_sum: r.totalCost,
+    totalTokens: (r.usage ?? []).reduce((s, u) => s + Number(u.totalUsage ?? u.inputUsage ?? 0) + Number(u.outputUsage ?? 0), 0),
+    totalTokens_sum: (r.usage ?? []).reduce((s, u) => s + Number(u.totalUsage ?? u.inputUsage ?? 0) + Number(u.outputUsage ?? 0), 0),
+    count: r.countObservations ?? r.countTraces,
+    count_sum: r.countObservations ?? r.countTraces,
+  }));
+
+  const byModel = Array.from(modelMap.entries()).map(([model, v]) => ({
+    providedModelName: model,
+    totalCost: v.totalCost,
+    totalCost_sum: v.totalCost,
+    totalTokens: v.totalTokens,
+    totalTokens_sum: v.totalTokens,
+    count: v.count,
+    count_sum: v.count,
+  }));
+
+  return {
+    total: {
+      totalCost,
+      totalCost_sum: totalCost,
+      inputTokens: totalInputTokens,
+      inputTokens_sum: totalInputTokens,
+      outputTokens: totalOutputTokens,
+      outputTokens_sum: totalOutputTokens,
+      count: observationCount,
+      count_sum: observationCount,
+    },
+    daily,
+    byModel,
+  };
+}
+
 /** Son 7 gün için toplam maliyet ve token kullanımı */
 export async function GET(request: NextRequest) {
   try {
@@ -70,78 +160,116 @@ export async function GET(request: NextRequest) {
       const from = new Date(to);
       from.setDate(from.getDate() - days);
 
-      // Toplam özet (tek satır)
-      const queryTotal = {
-        view: "observations" as const,
-        metrics: [
-          { measure: "totalCost", aggregation: "sum" as const },
-          { measure: "inputTokens", aggregation: "sum" as const },
-          { measure: "outputTokens", aggregation: "sum" as const },
-          { measure: "count", aggregation: "sum" as const },
-        ],
-        dimensions: [],
-        filters: [],
-        fromTimestamp: from.toISOString(),
-        toTimestamp: to.toISOString(),
-        config: { row_limit: 1 },
-      };
-
-      const totalData = await langfuseFetch<{ data?: Array<Record<string, unknown>> }>(
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(queryTotal))}`
-      );
-
-      // Günlük dağılım (grafik için)
-      const queryDaily = {
-        view: "observations" as const,
-        metrics: [
-          { measure: "totalCost", aggregation: "sum" as const },
-          { measure: "totalTokens", aggregation: "sum" as const },
-          { measure: "count", aggregation: "sum" as const },
-        ],
-        dimensions: [],
-        filters: [],
-        fromTimestamp: from.toISOString(),
-        toTimestamp: to.toISOString(),
-        timeDimension: { granularity: "day" as const },
-        config: { row_limit: 100 },
-      };
-
-      const dailyData = await langfuseFetch<{ data?: Array<Record<string, unknown>> }>(
-        `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(queryDaily))}`
-      );
-
-      // Model bazlı özet için ikinci sorgu
-      const queryByModel = {
-        view: "observations" as const,
-        metrics: [
-          { measure: "totalCost", aggregation: "sum" as const },
-          { measure: "totalTokens", aggregation: "sum" as const },
-          { measure: "count", aggregation: "sum" as const },
-        ],
-        dimensions: [{ field: "providedModelName" }],
-        filters: [],
-        fromTimestamp: from.toISOString(),
-        toTimestamp: to.toISOString(),
-        config: { row_limit: 20 },
-      };
-
+      let total: Record<string, unknown> = {};
+      let daily: Array<Record<string, unknown>> = [];
       let byModel: Array<Record<string, unknown>> = [];
+      let usedLegacy = false;
+
       try {
-        const modelData = await langfuseFetch<{ data?: Array<Record<string, unknown>> }>(
-          `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(queryByModel))}`
+        // v2 Metrics API (beta) - config kaldırıldı, v2 farklı parametre kullanıyor olabilir
+        const queryTotal = {
+          view: "observations" as const,
+          metrics: [
+            { measure: "totalCost", aggregation: "sum" as const },
+            { measure: "inputTokens", aggregation: "sum" as const },
+            { measure: "outputTokens", aggregation: "sum" as const },
+            { measure: "count", aggregation: "sum" as const },
+          ],
+          dimensions: [] as Array<Record<string, never>>,
+          filters: [] as unknown[],
+          fromTimestamp: from.toISOString(),
+          toTimestamp: to.toISOString(),
+        };
+
+        const totalData = await langfuseFetch<{ data?: Array<Record<string, unknown>> }>(
+          `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(queryTotal))}`
         );
-        byModel = modelData.data || [];
-      } catch {
-        // Model bazlı sorgu opsiyonel
+
+        const queryDaily = {
+          view: "observations" as const,
+          metrics: [
+            { measure: "totalCost", aggregation: "sum" as const },
+            { measure: "totalTokens", aggregation: "sum" as const },
+            { measure: "count", aggregation: "sum" as const },
+          ],
+          dimensions: [] as Array<Record<string, never>>,
+          filters: [] as unknown[],
+          fromTimestamp: from.toISOString(),
+          toTimestamp: to.toISOString(),
+          timeDimension: { granularity: "day" as const },
+        };
+
+        const dailyData = await langfuseFetch<{ data?: Array<Record<string, unknown>> }>(
+          `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(queryDaily))}`
+        );
+
+        total = totalData.data?.[0] ?? {};
+        daily = dailyData.data ?? [];
+
+        // Model bazlı - v2 başarısız olursa atla
+        try {
+          const queryByModel = {
+            view: "observations" as const,
+            metrics: [
+              { measure: "totalCost", aggregation: "sum" as const },
+              { measure: "totalTokens", aggregation: "sum" as const },
+              { measure: "count", aggregation: "sum" as const },
+            ],
+            dimensions: [{ field: "providedModelName" }],
+            filters: [] as unknown[],
+            fromTimestamp: from.toISOString(),
+            toTimestamp: to.toISOString(),
+          };
+          const modelData = await langfuseFetch<{ data?: Array<Record<string, unknown>> }>(
+            `/api/public/v2/metrics?query=${encodeURIComponent(JSON.stringify(queryByModel))}`
+          );
+          byModel = modelData.data ?? [];
+        } catch {
+          // Model bazlı opsiyonel
+        }
+
+        const hasData =
+          (Number(total.totalCost ?? total.totalCost_sum ?? total.sum_totalCost ?? 0) > 0) ||
+          (Number(total.count ?? total.count_sum ?? total.sum_count ?? 0) > 0) ||
+          daily.length > 0;
+
+        if (!hasData) {
+          throw new Error("v2_empty");
+        }
+      } catch (v2Err) {
+        const errMsg = v2Err instanceof Error ? v2Err.message : String(v2Err);
+        const shouldTryLegacy =
+          errMsg.includes("v2_empty") ||
+          errMsg.includes("401") ||
+          errMsg.includes("404") ||
+          errMsg.includes("500") ||
+          errMsg.includes("Langfuse API");
+
+        if (shouldTryLegacy) {
+          try {
+            const legacy = await fetchLegacyDailyMetrics(from, to, 100);
+            total = legacy.total;
+            daily = legacy.daily;
+            byModel = legacy.byModel;
+            usedLegacy = true;
+          } catch (legacyErr) {
+            console.error("[admin tools langfuse] legacy fallback failed:", legacyErr);
+            if (!errMsg.includes("v2_empty")) throw v2Err;
+            // v2 boş, legacy de başarısız - boş yanıt dön (UI "veri yok" gösterecek)
+          }
+        } else {
+          throw v2Err;
+        }
       }
 
       return NextResponse.json({
-        total: totalData.data?.[0] ?? {},
-        daily: dailyData.data ?? [],
+        total,
+        daily,
         byModel,
         from: from.toISOString(),
         to: to.toISOString(),
         days,
+        _source: usedLegacy ? "legacy" : "v2",
       });
     }
 

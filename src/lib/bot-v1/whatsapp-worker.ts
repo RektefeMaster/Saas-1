@@ -335,6 +335,7 @@ export async function processWhatsAppInboundEvent(
         direction: "inbound",
         stage: "empty_or_unsupported_message",
         messageId,
+        policyReason: messageType,
       });
       return;
     }

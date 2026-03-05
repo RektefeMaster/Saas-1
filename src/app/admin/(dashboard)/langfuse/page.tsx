@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import { ChartBar } from "@/components/charts/ChartBar";
+import { ChartCard } from "@/components/charts/ChartCard";
 import {
   Brain,
   Coins,
@@ -141,11 +142,13 @@ export default function AdminLangfusePage() {
   }
 
   const total = metrics?.total ?? {};
-  const totalCost = Number(total.totalCost ?? total.totalCost_sum ?? 0);
-  const inputTokens = Number(total.inputTokens ?? total.inputTokens_sum ?? 0);
-  const outputTokens = Number(total.outputTokens ?? total.outputTokens_sum ?? 0);
+  const totalCost = Number(total.totalCost ?? total.totalCost_sum ?? total.sum_totalCost ?? 0);
+  const inputTokens = Number(total.inputTokens ?? total.inputTokens_sum ?? total.sum_inputTokens ?? 0);
+  const outputTokens = Number(total.outputTokens ?? total.outputTokens_sum ?? total.sum_outputTokens ?? 0);
   const totalTokens = inputTokens + outputTokens;
-  const observationCount = Number(total.count ?? total.count_sum ?? 0);
+  const observationCount = Number(total.count ?? total.count_sum ?? total.sum_count ?? 0);
+
+  const hasAnyData = totalCost > 0 || totalTokens > 0 || observationCount > 0;
 
   const chartData =
     (metrics?.daily ?? []).map((row) => {
@@ -154,9 +157,9 @@ export default function AdminLangfusePage() {
         tarih: timeKey
           ? new Date(String(timeKey)).toLocaleDateString("tr-TR", { day: "numeric", month: "short" })
           : "—",
-        maliyet: Number(row.totalCost ?? row.totalCost_sum ?? 0),
-        token: Number(row.totalTokens ?? row.totalTokens_sum ?? 0),
-        çağrı: Number(row.count ?? row.count_sum ?? 0),
+        maliyet: Number(row.totalCost ?? row.totalCost_sum ?? row.sum_totalCost ?? 0),
+        token: Number(row.totalTokens ?? row.totalTokens_sum ?? row.sum_totalTokens ?? 0),
+        çağrı: Number(row.count ?? row.count_sum ?? row.sum_count ?? 0),
       };
     }) || [];
 
@@ -200,111 +203,161 @@ export default function AdminLangfusePage() {
         </div>
       </header>
 
+      {!hasAnyData && (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/50 p-6 dark:border-amber-800 dark:bg-amber-950/20">
+          <h3 className="font-semibold text-amber-800 dark:text-amber-200">
+            Henüz veri görünmüyor
+          </h3>
+          <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">
+            Langfuse&apos;a LLM çağrıları gönderilmiş olmalı. Kontrol edin:
+          </p>
+          <ul className="mt-3 list-inside list-disc space-y-1 text-sm text-amber-700 dark:text-amber-300">
+            <li>
+              <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/50">LANGFUSE_PUBLIC_KEY</code> ve{" "}
+              <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/50">LANGFUSE_SECRET_KEY</code> .env dosyasında tanımlı mı?
+            </li>
+            <li>
+              Bot (WhatsApp) üzerinden en az bir mesaj gönderildi mi? LLM yanıtı tetiklenmeli.
+            </li>
+            <li>
+              Langfuse Cloud&apos;da doğru projeyi seçtiniz mi? Key&apos;ler proje ayarlarından alınmalı.
+            </li>
+            <li>
+              EU vs US: <code className="rounded bg-amber-100 px-1 dark:bg-amber-900/50">LANGFUSE_BASE_URL</code> projenizin bölgesine uygun mu? (cloud.langfuse.com = EU, us.cloud.langfuse.com = US)
+            </li>
+          </ul>
+          <a
+            href={baseUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-4 inline-flex items-center gap-2 rounded-lg bg-amber-600 px-4 py-2 text-sm font-medium text-white hover:bg-amber-700"
+          >
+            Langfuse Dashboard&apos;a Git
+            <ExternalLink className="h-4 w-4" />
+          </a>
+        </div>
+      )}
+
       {/* Özet kartları */}
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex items-center gap-2">
-            <Coins className="h-5 w-5 text-amber-500" />
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Toplam Maliyet</span>
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+          <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+            <div className="rounded-xl bg-amber-100 p-2.5 dark:bg-amber-900/30">
+              <Coins className="h-5 w-5 text-amber-600 dark:text-amber-400" />
+            </div>
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Toplam Maliyet</span>
           </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-            {formatCost(totalCost)}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Son {days} gün</p>
+          <div className="px-5 py-4">
+            <p className="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+              {formatCost(totalCost)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Son {days} gün</p>
+          </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-violet-500" />
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Toplam Token</span>
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+          <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+            <div className="rounded-xl bg-violet-100 p-2.5 dark:bg-violet-900/30">
+              <Sparkles className="h-5 w-5 text-violet-600 dark:text-violet-400" />
+            </div>
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Toplam Token</span>
           </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-            {formatNumber(totalTokens)}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-            Giriş: {formatNumber(inputTokens)} · Çıkış: {formatNumber(outputTokens)}
-          </p>
+          <div className="px-5 py-4">
+            <p className="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+              {formatNumber(totalTokens)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+              Giriş: {formatNumber(inputTokens)} · Çıkış: {formatNumber(outputTokens)}
+            </p>
+          </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex items-center gap-2">
-            <Brain className="h-5 w-5 text-emerald-500" />
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">LLM Çağrısı</span>
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+          <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+            <div className="rounded-xl bg-emerald-100 p-2.5 dark:bg-emerald-900/30">
+              <Brain className="h-5 w-5 text-emerald-600 dark:text-emerald-400" />
+            </div>
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">LLM Çağrısı</span>
           </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-            {formatNumber(observationCount)}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Observation sayısı</p>
+          <div className="px-5 py-4">
+            <p className="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+              {formatNumber(observationCount)}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Observation sayısı</p>
+          </div>
         </div>
 
-        <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="h-5 w-5 text-blue-500" />
-            <span className="text-sm font-medium text-slate-500 dark:text-slate-400">Ort. Maliyet</span>
+        <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+          <div className="flex items-center gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+            <div className="rounded-xl bg-blue-100 p-2.5 dark:bg-blue-900/30">
+              <TrendingUp className="h-5 w-5 text-blue-600 dark:text-blue-400" />
+            </div>
+            <span className="text-sm font-medium text-slate-600 dark:text-slate-400">Ort. Maliyet</span>
           </div>
-          <p className="mt-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-            {observationCount > 0 ? formatCost(totalCost / observationCount) : "—"}
-          </p>
-          <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">Çağrı başına</p>
+          <div className="px-5 py-4">
+            <p className="text-2xl font-bold tabular-nums text-slate-900 dark:text-slate-100">
+              {observationCount > 0 ? formatCost(totalCost / observationCount) : "—"}
+            </p>
+            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Çağrı başına</p>
+          </div>
         </div>
       </div>
 
       {/* Günlük grafik */}
       {chartData.length > 0 && (
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <h3 className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
-            Günlük Kullanım
-          </h3>
-          <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-            Maliyet, token ve çağrı sayıları
-          </p>
-          <div className="mt-2">
-            <ChartBar
-              data={chartData}
-              xKey="tarih"
-              bars={["maliyet", "token", "çağrı"]}
-              colors={["amber", "violet", "emerald"]}
-              barLabels={{ maliyet: "Maliyet ($)", token: "Token", çağrı: "Çağrı" }}
-              valueFormatter={(v) =>
-                v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v < 1 ? v.toFixed(4) : String(Math.round(v))
-              }
-              showLegend
-              normalize
-              height={320}
-            />
-          </div>
-        </div>
+        <ChartCard
+          title="Günlük Kullanım"
+          subtitle="Maliyet, token ve LLM çağrı trendleri"
+          footnote="Değerler karşılaştırma için 0–100 aralığına normalize edilmiştir. Tooltip'te gerçek değerler gösterilir."
+        >
+          <ChartBar
+            data={chartData}
+            xKey="tarih"
+            bars={["maliyet", "token", "çağrı"]}
+            colors={["amber", "violet", "emerald"]}
+            barLabels={{ maliyet: "Maliyet ($)", token: "Token", çağrı: "LLM Çağrı" }}
+            valueFormatter={(v) =>
+              v >= 1000 ? `${(v / 1000).toFixed(1)}K` : v < 1 ? v.toFixed(4) : String(Math.round(v))
+            }
+            showLegend
+            normalize
+            height={340}
+          />
+        </ChartCard>
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Model bazlı dağılım */}
         {metrics?.byModel && metrics.byModel.length > 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Model Bazlı Kullanım</h3>
-            <div className="mt-4 overflow-x-auto">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+            <div className="border-b border-slate-100 bg-gradient-to-b from-slate-50/80 to-white px-6 py-4 dark:border-slate-800 dark:from-slate-900/50 dark:to-slate-900">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100">Model Bazlı Kullanım</h3>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">LLM modellerine göre dağılım</p>
+            </div>
+            <div className="overflow-x-auto p-4">
               <table className="w-full text-sm">
                 <thead>
                   <tr className="border-b border-slate-200 dark:border-slate-700">
-                    <th className="pb-2 text-left font-medium text-slate-500 dark:text-slate-400">Model</th>
-                    <th className="pb-2 text-right font-medium text-slate-500 dark:text-slate-400">Maliyet</th>
-                    <th className="pb-2 text-right font-medium text-slate-500 dark:text-slate-400">Token</th>
-                    <th className="pb-2 text-right font-medium text-slate-500 dark:text-slate-400">Çağrı</th>
+                    <th className="pb-3 text-left font-medium text-slate-500 dark:text-slate-400">Model</th>
+                    <th className="pb-3 text-right font-medium text-slate-500 dark:text-slate-400">Maliyet</th>
+                    <th className="pb-3 text-right font-medium text-slate-500 dark:text-slate-400">Token</th>
+                    <th className="pb-3 text-right font-medium text-slate-500 dark:text-slate-400">Çağrı</th>
                   </tr>
                 </thead>
                 <tbody>
                   {metrics.byModel.map((row, i) => (
-                    <tr key={i} className="border-b border-slate-100 dark:border-slate-800">
-                      <td className="py-2 font-medium text-slate-900 dark:text-slate-100">
+                    <tr key={i} className="border-b border-slate-100 last:border-0 dark:border-slate-800">
+                      <td className="py-3 font-medium text-slate-900 dark:text-slate-100">
                         {String(row.providedModelName ?? "—")}
                       </td>
-                      <td className="py-2 text-right text-slate-600 dark:text-slate-300">
-                        {formatCost(Number(row.totalCost ?? row.totalCost_sum ?? 0))}
+                      <td className="py-3 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                        {formatCost(Number(row.totalCost ?? row.totalCost_sum ?? row.sum_totalCost ?? 0))}
                       </td>
-                      <td className="py-2 text-right text-slate-600 dark:text-slate-300">
-                        {formatNumber(Number(row.totalTokens ?? row.totalTokens_sum ?? 0))}
+                      <td className="py-3 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                        {formatNumber(Number(row.totalTokens ?? row.totalTokens_sum ?? row.sum_totalTokens ?? 0))}
                       </td>
-                      <td className="py-2 text-right text-slate-600 dark:text-slate-300">
-                        {formatNumber(Number(row.count ?? row.count_sum ?? 0))}
+                      <td className="py-3 text-right tabular-nums text-slate-600 dark:text-slate-300">
+                        {formatNumber(Number(row.count ?? row.count_sum ?? row.sum_count ?? 0))}
                       </td>
                     </tr>
                   ))}
@@ -316,46 +369,51 @@ export default function AdminLangfusePage() {
 
         {/* Son trace'ler */}
         {traces?.data && traces.data.length > 0 && (
-          <div className="rounded-xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">Son Trace&apos;ler</h3>
-            <div className="mt-4 space-y-2">
+          <div className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-slate-700/80 dark:bg-slate-900">
+            <div className="border-b border-slate-100 bg-gradient-to-b from-slate-50/80 to-white px-6 py-4 dark:border-slate-800 dark:from-slate-900/50 dark:to-slate-900">
+              <h3 className="font-semibold text-slate-900 dark:text-slate-100">Son Trace&apos;ler</h3>
+              <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">En son LLM çağrıları</p>
+            </div>
+            <div className="space-y-1 p-4">
               {traces.data.map((trace) => (
                 <a
                   key={trace.id}
                   href={trace.htmlPath ? `${baseUrl}${trace.htmlPath}` : baseUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center justify-between rounded-lg border border-slate-100 p-3 transition hover:bg-slate-50 dark:border-slate-800 dark:hover:bg-slate-800/50"
+                  className="flex items-center justify-between rounded-xl border border-slate-100 p-3 transition hover:border-slate-200 hover:bg-slate-50 dark:border-slate-800 dark:hover:border-slate-700 dark:hover:bg-slate-800/50"
                 >
                   <div className="min-w-0 flex-1">
                     <p className="truncate font-medium text-slate-900 dark:text-slate-100">
                       {trace.name || trace.id}
                     </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
                       {formatDate(trace.timestamp)}
                       {trace.totalTokens != null && ` · ${formatNumber(trace.totalTokens)} token`}
                     </p>
                   </div>
-                  <div className="ml-2 flex items-center gap-2">
+                  <div className="ml-3 flex items-center gap-2">
                     {trace.totalCost != null && (
-                      <span className="text-xs font-medium text-amber-600 dark:text-amber-400">
+                      <span className="rounded-lg bg-amber-100 px-2 py-0.5 text-xs font-semibold text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
                         {formatCost(trace.totalCost)}
                       </span>
                     )}
-                    <ExternalLink className="h-3.5 w-3.5 text-slate-400" />
+                    <ExternalLink className="h-4 w-4 text-slate-400" />
                   </div>
                 </a>
               ))}
             </div>
-            <Link
-              href={baseUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="mt-3 inline-flex items-center gap-1 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
-            >
-              Tüm trace&apos;leri görüntüle
-              <ExternalLink className="h-3.5 w-3.5" />
-            </Link>
+            <div className="border-t border-slate-100 px-4 py-3 dark:border-slate-800">
+              <Link
+                href={baseUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-100"
+              >
+                Tüm trace&apos;leri görüntüle
+                <ExternalLink className="h-3.5 w-3.5" />
+              </Link>
+            </div>
           </div>
         )}
       </div>

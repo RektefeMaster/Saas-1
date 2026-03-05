@@ -28,6 +28,10 @@ export async function PATCH(
       cancellation_hours,
       ui_preferences,
       pricing_preferences,
+      address,
+      maps_url,
+      review_request_enabled,
+      review_request_delay_hours,
     } = body;
 
     const hasConfig =
@@ -38,7 +42,11 @@ export async function PATCH(
       advance_booking_days !== undefined ||
       cancellation_hours !== undefined ||
       ui_preferences !== undefined ||
-      pricing_preferences !== undefined;
+      pricing_preferences !== undefined ||
+      address !== undefined ||
+      maps_url !== undefined ||
+      review_request_enabled !== undefined ||
+      review_request_delay_hours !== undefined;
     const hasTenantFields = contact_phone !== undefined || working_hours_text !== undefined;
 
     if (!hasConfig && !hasTenantFields) {
@@ -126,6 +134,16 @@ export async function PATCH(
         ...((newConfig.pricing_preferences as Record<string, unknown>) || {}),
         ...(pricing_preferences as Record<string, unknown>),
       };
+    }
+    if (address !== undefined) newConfig.address = address;
+    if (maps_url !== undefined) newConfig.maps_url = maps_url;
+    if (review_request_enabled !== undefined) newConfig.review_request_enabled = review_request_enabled === true;
+    if (
+      review_request_delay_hours !== undefined &&
+      typeof review_request_delay_hours === "number" &&
+      review_request_delay_hours >= 0
+    ) {
+      newConfig.review_request_delay_hours = Math.min(24, review_request_delay_hours);
     }
 
     const updatePayload: Record<string, unknown> = {
