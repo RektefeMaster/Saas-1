@@ -411,8 +411,8 @@ export default function TenantDetailPage() {
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             WhatsApp Link
           </p>
-          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Doğrudan WhatsApp URL’i</p>
-          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">wa.me üzerinden direkt sohbet açılır</p>
+          <p className="mt-2 text-sm font-semibold text-slate-900 dark:text-slate-100">Temiz paylaşım URL’i</p>
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">/t linki ile hızlı şekilde WhatsApp’a yönlenir</p>
         </a>
         <a
           href={`${baseUrl}/api/tenant/${tenant.id}/qr`}

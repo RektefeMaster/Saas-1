@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
-import { generateDirectWhatsAppLink } from "@/utils/generateTenantAssets";
+import { generateWhatsAppLink, generateDirectWhatsAppLink } from "@/utils/generateTenantAssets";
 import { getAppBaseUrl } from "@/lib/app-url";
 
 export async function GET(
@@ -26,10 +26,12 @@ export async function GET(
     tenant_code: tenant.tenant_code,
     config_override: tenant.config_override,
   };
-  const whatsappUrl = generateDirectWhatsAppLink(tenantData);
+  const whatsappUrl = generateWhatsAppLink(tenantData);
+  const directWhatsAppUrl = generateDirectWhatsAppLink(tenantData);
 
   return NextResponse.json({
     whatsapp_url: whatsappUrl,
+    direct_whatsapp_url: directWhatsAppUrl,
     tenant_name: tenant.name,
     tenant_code: tenant.tenant_code,
     qr_api: `${getAppBaseUrl()}/api/tenant/${id}/qr`,

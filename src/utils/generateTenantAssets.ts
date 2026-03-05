@@ -6,6 +6,7 @@
 import QRCode from "qrcode";
 import type { Tenant, SharePackage } from "@/types/tenant.types";
 import { encodeTenantMarker } from "@/lib/zero-width";
+import { getAppBaseUrl } from "@/lib/app-url";
 
 /** API telefon numarası (wa.me için); env: WHATSAPP_API_PHONE veya WHATSAPP_PHONE_NUMBER */
 function getApiPhone(): string {
@@ -55,14 +56,16 @@ export function generateDirectWhatsAppLink(tenant: Tenant): string {
 }
 
 /**
- * Tenant için paylaşım WhatsApp linki üretir.
- * Geriye dönük uyumluluk için fonksiyon adı korunur; çıktı daima doğrudan wa.me linkidir.
+ * Tenant için paylaşım linki üretir.
+ * Dışarıya temiz ve kısa bir URL verir; bu URL /t/:tenantId üzerinden
+ * anında işletmeye özel doğrudan wa.me linkine yönlendirir.
  *
  * @param tenant - Esnaf bilgileri
- * @returns Doğrudan WhatsApp wa.me linki
+ * @returns Temiz paylaşım linki (/t/:tenantId)
  */
 export function generateWhatsAppLink(tenant: Tenant): string {
-  return generateDirectWhatsAppLink(tenant);
+  const appBase = getAppBaseUrl();
+  return `${appBase}/t/${encodeURIComponent(tenant.id)}`;
 }
 
 /**
@@ -78,7 +81,7 @@ export async function generateQRCode(tenant: Tenant): Promise<Buffer> {
 
 /**
  * Esnaf paylaşım paketi: link, QR (base64), Instagram bio, Google Maps açıklama
- * whatsapp_link: doğrudan wa.me linki
+ * whatsapp_link: kısa yönlendirme linki (/t/:tenantId)
  * QR: doğrudan wa.me linki (taranınca WhatsApp açılır)
  */
 export async function generateSharePackage(tenant: Tenant): Promise<SharePackage> {
@@ -110,7 +113,7 @@ export async function generateSharePackage(tenant: Tenant): Promise<SharePackage
  *
  * const tenant = { id: "uuid", name: "Kuaför Ahmet", tenant_code: "AHMET01" };
  * const link = generateWhatsAppLink(tenant);
- * // -> "https://wa.me/905551234567?text=..."
+ * // -> "https://www.aiahi.net/t/uuid"
  *
  * // Özel greeting ile:
  * const t2 = { ...tenant, config_override: { messages: { whatsapp_greeting: "Selam, saç kesimi istiyorum" } } };
