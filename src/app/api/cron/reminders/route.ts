@@ -5,13 +5,13 @@ import { markAppointmentNoShow } from "@/services/noShow.service";
 
 const CRON_SECRET = process.env.CRON_SECRET?.trim() || "";
 
-async function sendReminder2h(
+async function sendReminder(
   to: string,
   tenantName: string,
   dateText: string,
   timeText: string
 ): Promise<boolean> {
-  const text = `Merhaba, 2 saat sonra ${dateText} günü ${timeText}'da ${tenantName} için randevunuz var. Lütfen unutmayın! İptal etmek isterseniz "iptal" yazabilirsiniz.`;
+  const text = `Merhaba, ${dateText} günü ${timeText}'da ${tenantName} için randevunuz var. Lütfen unutmayın! İptal etmek isterseniz "iptal" yazabilirsiniz.`;
   const delivery = await sendCustomerNotification(to, text);
   return delivery.whatsapp || delivery.sms;
 }
@@ -27,8 +27,11 @@ export async function GET(request: NextRequest) {
   }
 
   const now = new Date();
-  const windowStart = new Date(now.getTime() + (2 * 60 - 15) * 60 * 1000);
-  const windowEnd = new Date(now.getTime() + (2 * 60 + 15) * 60 * 1000);
+  const windowStart = new Date(now);
+  windowStart.setDate(windowStart.getDate() + 1);
+  windowStart.setHours(0, 0, 0, 0);
+  const windowEnd = new Date(windowStart);
+  windowEnd.setHours(23, 59, 59, 999);
 
   const { data: appointments, error } = await supabase
     .from("appointments")
@@ -78,7 +81,7 @@ export async function GET(request: NextRequest) {
       timeZone: tz,
     });
     const tenantName = tenantMap.get(apt.tenant_id)?.name || "İşletme";
-    const ok = await sendReminder2h(apt.customer_phone, tenantName, dateStr, timeStr);
+    const ok = await sendReminder(apt.customer_phone, tenantName, dateStr, timeStr);
     if (ok) {
       sent++;
       await supabase

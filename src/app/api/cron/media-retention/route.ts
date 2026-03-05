@@ -20,7 +20,7 @@ export async function GET(request: NextRequest) {
       traceId: `media-retention-${Date.now()}`,
       direction: "system",
       stage: "media_retention_cleanup",
-      policyReason: "hourly_cron",
+      policyReason: "daily_cron",
       toolResult: {
         scanned: result.scanned,
         removed: result.removed,
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
       traceId: `media-retention-${Date.now()}`,
       direction: "system",
       stage: "media_retention_cleanup_failed",
-      policyReason: "hourly_cron",
+      policyReason: "daily_cron",
       errorCode: "media_cleanup_failed",
     });
     return NextResponse.json(
