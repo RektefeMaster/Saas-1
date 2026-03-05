@@ -28,96 +28,96 @@ import { ContactModal, ThemeLocaleSwitch } from "@/components/ui";
 const COPY = {
   tr: {
     nav: {
-      solutions: "Çözümler",
-      flow: "Akış",
-      impact: "Etki",
+      solutions: "Neler Sunuyor",
+      flow: "Nasıl Çalışır",
+      impact: "Sonuçlar",
       businesses: "İşletmeler",
       contact: "İletişim",
       login: "Giriş",
     },
     hero: {
-      badge: "Ahi AI · İşletme İşletim Sistemi",
-      titleA: "İşletmeniz için akıllı altyapı.",
-      titleB: "İşletmenizi yöneten yapay zeka platformu.",
+      badge: "Ahi AI · Yeni Nesil İşletme Merkezi",
+      titleA: "İşletmenizi büyüten dijital vitrin.",
+      titleB: "Randevu, iletişim ve takip tek panelde.",
       desc:
-        "Ahi AI; operasyon, randevu, müşteri defteri, kampanya ve ekip verimliliğini tek akıllı akışta birleştirir. Müşteri deneyimi daha iyi olur, ekip daha az yorulur, gelir daha öngörülebilir hale gelir.",
-      primary: "Paneli Keşfet",
-      secondary: "Canlı İşletmeler",
+        "Müşteri mesajından randevuya, hatırlatmadan değerlendirmeye kadar tüm süreci tek yerden yönetirsiniz. Ekip daha az yorulur, müşteri daha hızlı yanıt alır, gününüz daha planlı akar.",
+      primary: "Paneli İncele",
+      secondary: "İşletmeleri Gör",
       points: [
-        "Randevu + Müşteri Defteri + Otomasyon tek panel",
-        "Çok kiracılı yapı ve rol bazlı güvenlik",
-        "Mobil öncelikli, hızlı, sade yönetim",
+        "Randevu, müşteri notu ve hatırlatma aynı ekranda",
+        "İşletmeye özel güvenli altyapı ve yetki kontrolü",
+        "Telefonda da masaüstünde de hızlı kullanım",
       ],
     },
     metrics: [
-      { label: "Akıllı Akış Modülü", value: "12+" },
-      { label: "Panel Tepki Süresi", value: "<120ms" },
-      { label: "Desteklenen İş Modeli", value: "5 sektör" },
+      { label: "Günlük Yanıt Hızı", value: "Dakikalar içinde" },
+      { label: "Tek Panelde Yönetim", value: "7 ana akış" },
+      { label: "Uygun Sektör Yapısı", value: "5 farklı alan" },
     ],
-    solutionsTitle: "Platform Neleri Birleştirir?",
+    solutionsTitle: "İşletmenizi Baştan Sona Güçlendiren Yapı",
     solutions: [
       {
         title: "Randevu ve Kapasite Yönetimi",
-        text: "Takvim, müsaitlik, iptal, no-show ve tekrar rezervasyon akışlarını tek yerden yönet.",
+        text: "Takvim, uygun saat, iptal ve gelmeme durumlarını tek ekranda yönetin.",
         icon: CalendarDays,
       },
       {
-        title: "Müşteri Hafızası ve Segmentasyon",
-        text: "Müşteri notu, etiket, hatırlatma ve davranış geçmişini aksiyona dönüştür.",
+        title: "Müşteri Hafızası ve Akıllı Gruplama",
+        text: "Müşteri notlarını, etiketleri ve geçmiş davranışları hızlı aksiyona dönüştürün.",
         icon: BrainCircuit,
       },
       {
         title: "Kampanya ve Geri Kazanım",
-        text: "Doğru kitleye doğru mesajı planla; kayıp müşteriyi geri çağır.",
+        text: "Doğru kitleye doğru mesajı planlayın, uzaklaşan müşteriyi yeniden kazanın.",
         icon: MessageSquareText,
       },
       {
-        title: "Operasyon Komuta Merkezi",
-        text: "Gecikme, iptal ve kritik uyarıları tek bakışta gör, ekipte sorumluluk dağıt.",
+        title: "Günlük Yönetim Merkezi",
+        text: "Gecikme, iptal ve kritik bildirimleri tek bakışta görün, ekibe net görev verin.",
         icon: CircleGauge,
       },
       {
-        title: "Yapay Zeka Yardımcıları",
-        text: "İşletme tipine göre farklı asistan profilleriyle daha doğru cevap üret.",
+        title: "Yapay Zeka Destekli Asistan",
+        text: "İşletme tipinize göre çalışan asistanla daha doğru ve tutarlı yanıtlar verin.",
         icon: Bot,
       },
       {
-        title: "Güvenlik ve Ölçek",
-        text: "2FA, audit log, tenant izolasyonu ve güvenli API erişimiyle büyü.",
+        title: "Güvenli ve Büyüyebilir Altyapı",
+        text: "İki adımlı doğrulama, işlem kayıtları ve güvenli erişimle işletmenizi rahatça büyütün.",
         icon: ShieldCheck,
       },
     ],
-    flowTitle: "Müşteri Yolculuğu ve İç Operasyon Tek Zincirde",
+    flowTitle: "Müşteri Yolculuğu Baştan Sona Tek Akışta",
     flow: [
       {
         step: "01",
-        title: "Müşteri temas kurar",
-        text: "Mesaj, link veya form üzerinden niyet yakalanır.",
+        title: "Müşteri size ulaşır",
+        text: "Mesaj veya bağlantı üzerinden gelen talep anında yakalanır.",
       },
       {
         step: "02",
-        title: "AI bağlamı işler",
-        text: "İşletme kuralları, müsaitlik ve geçmiş veri birlikte değerlendirilir.",
+        title: "Sistem talebi yorumlar",
+        text: "İşletme kuralları, uygun saatler ve geçmiş veriler birlikte değerlendirilir.",
       },
       {
         step: "03",
-        title: "Aksiyon otomatikleşir",
-        text: "Randevu, hatırlatma, müşteri notu ve uyarılar eşzamanlı güncellenir.",
+        title: "Süreç otomatik ilerler",
+        text: "Randevu, hatırlatma ve müşteri notları anında güncellenir.",
       },
       {
         step: "04",
-        title: "Yönetici panelde net görünürlük",
-        text: "KPI, risk, fırsat ve görevler karar odaklı şekilde sunulur.",
+        title: "Yönetici net tabloyu görür",
+        text: "Performans göstergeleri, riskler ve fırsatlar tek ekranda net şekilde görünür.",
       },
     ],
     cta: {
-      title: "İşletmeyi büyütürken operasyonu sadeleştir.",
-      text: "Ahi AI ile dağınık araçlardan tek, akıllı, ölçülebilir sisteme geç.",
+      title: "İşinizi büyütürken yönetimi sadeleştirin.",
+      text: "Dağınık araçlardan kurtulup tek, anlaşılır ve ölçülebilir bir düzene geçin.",
       primary: "İşletme Girişi",
-      secondary: "Canlı İşletmeler",
+      secondary: "İşletmeleri İncele",
     },
-    footer: "Ahi AI · İşletmeler için yapay zeka destekli yazılım platformu",
-    copyright: "© 2025 Ahi AI. Tüm hakları saklıdır.",
+    footer: "Ahi AI · İşletmeler için yapay zeka destekli yönetim platformu",
+    copyright: "© 2026 Ahi AI. Tüm hakları saklıdır.",
   },
   en: {
     nav: {
@@ -210,7 +210,7 @@ const COPY = {
       secondary: "Live Businesses",
     },
     footer: "Ahi AI · AI-powered software platform for businesses",
-    copyright: "© 2025 Ahi AI. All rights reserved.",
+    copyright: "© 2026 Ahi AI. All rights reserved.",
   },
 } as const;
 
@@ -241,7 +241,7 @@ export default function Home() {
               height={34}
               className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
             />
-            <span className="font-mono text-base font-semibold tracking-tight">Ahi AI</span>
+            <span className="text-base font-semibold tracking-tight">Ahi AI</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300 md:flex">
             <a href="#solutions" className="transition hover:text-slate-900 dark:hover:text-white">
@@ -276,7 +276,7 @@ export default function Home() {
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
               className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 md:hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
-              aria-label="Toggle menu"
+              aria-label={locale === "tr" ? "Menüyü aç veya kapat" : "Toggle menu"}
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
@@ -336,19 +336,19 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="relative mx-auto grid w-full max-w-7xl items-center gap-10 px-4 pb-14 pt-14 sm:px-6 lg:grid-cols-[1.08fr_0.92fr] lg:pt-20">
+        <section className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-4 pb-16 pt-16 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:pt-20">
           <ScrollReveal variant="fadeUp" delay={0.05}>
             <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-cyan-50/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:border-cyan-900/60 dark:bg-cyan-950/35 dark:text-cyan-300">
               <Sparkles className="h-3.5 w-3.5" />
               {t.hero.badge}
             </span>
-            <h1 className="mt-4 text-4xl font-bold tracking-tight sm:text-5xl lg:text-6xl">
+            <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-[1.03] tracking-tight sm:text-5xl lg:text-6xl">
               {t.hero.titleA}
               <span className="mt-2 block bg-gradient-to-r from-cyan-600 to-emerald-600 bg-clip-text text-transparent dark:from-cyan-300 dark:to-emerald-400">
                 {t.hero.titleB}
               </span>
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-relaxed text-slate-600 dark:text-slate-300 sm:text-lg">
+            <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600 dark:text-slate-300 sm:text-lg">
               {t.hero.desc}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row">
@@ -367,10 +367,10 @@ export default function Home() {
                 {t.hero.secondary}
               </Link>
             </div>
-            <ul className="mt-6 space-y-2.5">
+            <ul className="mt-6 grid gap-2.5 sm:max-w-xl">
               {t.hero.points.map((point) => (
-                <li key={point} className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                  <CheckCircle2 className="h-4 w-4 text-emerald-500" />
+                <li key={point} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
+                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
                   {point}
                 </li>
               ))}
@@ -381,10 +381,10 @@ export default function Home() {
             <div id="impact" className="relative rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-xl shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900/85 dark:shadow-black/20">
               <div className="mb-5 flex items-center justify-between">
                 <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                  {locale === "tr" ? "Ahi AI Altyapısı" : "Ahi AI Stack"}
+                  {locale === "tr" ? "Canlı Performans Görünümü" : "Ahi AI Stack"}
                 </p>
                 <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                  {locale === "tr" ? "Canlı" : "Live"}
+                  {locale === "tr" ? "Güncel" : "Live"}
                 </span>
               </div>
               <div className="grid gap-3">
@@ -406,11 +406,11 @@ export default function Home() {
               </div>
               <div className="mt-5 rounded-2xl border border-cyan-100 bg-cyan-50/80 p-4 dark:border-cyan-900/60 dark:bg-cyan-950/30">
                 <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">
-                  {locale === "tr" ? "Birleşik Deneyim" : "Unified Experience"}
+                  {locale === "tr" ? "Tek Ekran Deneyimi" : "Unified Experience"}
                 </p>
                 <p className="mt-1.5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
                   {locale === "tr"
-                    ? "Müşteri deneyimi ve iç operasyonu aynı veri katmanında toplar. Ekip kararları daha hızlı ve daha az hatalı verir."
+                    ? "Müşteri iletişimi, randevu ve ekip yönetimi aynı veri akışında birleşir. Böylece kararlar daha hızlı ve daha isabetli alınır."
                     : "Brings customer experience and internal operations to the same data layer. Teams decide faster with fewer mistakes."}
                 </p>
               </div>
