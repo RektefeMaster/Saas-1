@@ -206,6 +206,855 @@ a:focus-visible {
   }
 }
 
+/* ===== Randevu Defteri ===== */
+
+.defter {
+  position: relative;
+  border-radius: 2px 10px 10px 2px;
+  background: #fefcf3;
+  box-shadow:
+    -4px 0 0 0 #7c5e24,
+    -6px 0 0 0 #5a4318,
+    0 2px 24px -4px rgba(90, 67, 24, 0.18),
+    0 1px 4px rgba(90, 67, 24, 0.08);
+  overflow: hidden;
+}
+
+/* Spiral binding along the top */
+.defter-spiral {
+  position: relative;
+  z-index: 20;
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  padding: 0 48px;
+  height: 28px;
+  background: linear-gradient(180deg, #e8dcc8 0%, #faf5e8 100%);
+  border-bottom: 2px solid #d4c4a8;
+}
+
+.defter-ring {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: 2.5px solid #999;
+  background: linear-gradient(145deg, #ccc, #aaa);
+  box-shadow:
+    inset 0 1px 3px rgba(255, 255, 255, 0.5),
+    0 2px 3px rgba(0, 0, 0, 0.12);
+  margin-top: -4px;
+  flex-shrink: 0;
+}
+
+/* Cover / header */
+.defter-cover {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 14px 20px 12px 20px;
+  border-bottom: 1px solid #e4d8c4;
+  background: linear-gradient(180deg, #f8f0e0 0%, #fefcf3 100%);
+}
+
+/* Notebook body */
+.defter-body {
+  position: relative;
+  padding-bottom: 16px;
+}
+
+/* Background ruled lines */
+.defter-page-lines {
+  position: absolute;
+  inset: 0;
+  background:
+    repeating-linear-gradient(
+      180deg,
+      transparent 0px,
+      transparent 43px,
+      #c8d8e8 43px,
+      #c8d8e8 44px
+    );
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.4;
+}
+
+/* --- Day group --- */
+.defter-gun {
+  position: relative;
+}
+
+.defter-gun + .defter-gun {
+  border-top: none;
+}
+
+/* Date header */
+.defter-tarih {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px 20px 10px 20px;
+  background: linear-gradient(
+    180deg,
+    rgba(232, 220, 200, 0.35) 0%,
+    rgba(232, 220, 200, 0) 100%
+  );
+  border-top: 1.5px dashed #d4c4a8;
+}
+
+.defter-gun:first-child .defter-tarih {
+  border-top: none;
+}
+
+.defter-bugun {
+  background: linear-gradient(
+    180deg,
+    rgba(16, 185, 129, 0.07) 0%,
+    rgba(16, 185, 129, 0) 100%
+  );
+  border-top-color: rgba(16, 185, 129, 0.25);
+}
+
+.defter-tarih-daire {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: 2.5px solid #c4a873;
+  background: #fefcf5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  box-shadow: 0 1px 4px rgba(140, 110, 60, 0.1);
+}
+
+.defter-bugun .defter-tarih-daire {
+  border-color: #10b981;
+  background: #ecfdf5;
+  box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.1);
+}
+
+.defter-tarih-gun {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #6b4e12;
+  line-height: 1;
+}
+
+.defter-bugun .defter-tarih-gun {
+  color: #059669;
+}
+
+.defter-tarih-bilgi {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.defter-tarih-isim {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #4a3510;
+  text-transform: capitalize;
+}
+
+.defter-tarih-ay {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 12px;
+  color: #8b7355;
+}
+
+.defter-bugun-rozet {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: #ecfdf5;
+  border: 1px solid #a7f3d0;
+  color: #059669;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.defter-tarih-sayi {
+  margin-left: auto;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 12px;
+  color: #a08b6d;
+  font-style: italic;
+}
+
+/* --- Ruled lines area --- */
+.defter-satirlar {
+  position: relative;
+}
+
+/* Faint red margin line */
+.defter-satirlar::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 82px;
+  width: 1.5px;
+  background: #e8a0a0;
+  opacity: 0.45;
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* --- Single appointment entry (a "line") --- */
+.defter-satir {
+  position: relative;
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.defter-satir:hover {
+  background: rgba(232, 220, 200, 0.18);
+}
+
+.defter-satir-acik {
+  background: rgba(232, 220, 200, 0.22);
+}
+
+/* Blue ruled line under each entry */
+.defter-satir::after {
+  content: "";
+  position: absolute;
+  bottom: 0;
+  left: 88px;
+  right: 16px;
+  height: 1px;
+  background: #c8d8e8;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.defter-satir:last-child::after {
+  opacity: 0;
+}
+
+/* Cancelled / no-show strikes */
+.defter-satir-iptal .defter-isim {
+  text-decoration: line-through;
+  opacity: 0.45;
+}
+
+.defter-satir-iptal .defter-hizmet {
+  opacity: 0.35;
+}
+
+.defter-satir-gelmedi .defter-isim {
+  opacity: 0.5;
+}
+
+/* Entry row layout */
+.defter-satir-icerik {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 10px 20px 10px 20px;
+  position: relative;
+  z-index: 2;
+}
+
+/* Time in left "margin" area */
+.defter-saat {
+  width: 62px;
+  flex-shrink: 0;
+  font-family: "Courier New", Courier, monospace;
+  font-size: 14px;
+  font-weight: 700;
+  color: #6b4e12;
+  letter-spacing: -0.3px;
+  padding-right: 8px;
+  text-align: right;
+}
+
+/* Content after margin */
+.defter-detay {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding-left: 28px;
+}
+
+.defter-detay-sol {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+
+.defter-detay-sag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+/* Status dot */
+.defter-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.defter-dot-bekle {
+  background: #f59e0b;
+  box-shadow: 0 0 0 2px rgba(245, 158, 11, 0.2);
+}
+
+.defter-dot-onay {
+  background: #10b981;
+  box-shadow: 0 0 0 2px rgba(16, 185, 129, 0.2);
+}
+
+.defter-dot-tamam {
+  background: #94a3b8;
+}
+
+.defter-dot-iptal {
+  background: #ef4444;
+  opacity: 0.5;
+}
+
+.defter-dot-gelmedi {
+  background: #f97316;
+  opacity: 0.6;
+}
+
+/* Name */
+.defter-isim {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 14.5px;
+  font-weight: 500;
+  color: #2d1f06;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Service label */
+.defter-hizmet {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 13px;
+  color: #8b7355;
+  white-space: nowrap;
+}
+
+/* Duration badge */
+.defter-sure {
+  font-size: 11px;
+  color: #a08b6d;
+  background: rgba(160, 139, 109, 0.1);
+  padding: 1px 7px;
+  border-radius: 4px;
+  white-space: nowrap;
+}
+
+/* Status text */
+.defter-durum {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 11px;
+  color: #a08b6d;
+  font-style: italic;
+  white-space: nowrap;
+}
+
+/* Chevron arrow */
+.defter-ok {
+  width: 14px;
+  height: 14px;
+  color: #c4b28a;
+  transition: transform 0.2s ease;
+}
+
+.defter-ok-acik {
+  transform: rotate(180deg);
+}
+
+/* --- Expanded detail --- */
+.defter-acilan {
+  overflow: hidden;
+}
+
+.defter-acilan-ic {
+  padding: 0 20px 14px 110px;
+}
+
+.defter-bilgiler {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-bottom: 12px;
+}
+
+.defter-bilgi-satir {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 12.5px;
+  color: #8b7355;
+}
+
+/* Action buttons */
+.defter-aksiyonlar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.defter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 7px 14px;
+  border-radius: 8px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1.5px solid;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  min-height: 36px;
+}
+
+.defter-btn:disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+
+.defter-btn-onayla {
+  background: #ecfdf5;
+  border-color: #a7f3d0;
+  color: #059669;
+}
+
+.defter-btn-onayla:hover {
+  background: #d1fae5;
+  border-color: #6ee7b7;
+}
+
+.defter-btn-iptal {
+  background: #fef2f2;
+  border-color: #fecaca;
+  color: #dc2626;
+}
+
+.defter-btn-iptal:hover {
+  background: #fee2e2;
+  border-color: #fca5a5;
+}
+
+.defter-btn-gelmedi {
+  background: #fffbeb;
+  border-color: #fde68a;
+  color: #d97706;
+}
+
+.defter-btn-gelmedi:hover {
+  background: #fef3c7;
+  border-color: #fcd34d;
+}
+
+/* --- Mobile responsiveness --- */
+@media (max-width: 640px) {
+  .defter-spiral {
+    gap: 12px;
+    padding: 0 24px;
+  }
+
+  .defter-ring {
+    width: 14px;
+    height: 14px;
+    border-width: 2px;
+    margin-top: -3px;
+  }
+
+  .defter-satir-icerik {
+    padding: 8px 12px;
+    flex-wrap: wrap;
+  }
+
+  .defter-saat {
+    width: 50px;
+    font-size: 13px;
+  }
+
+  .defter-satirlar::before {
+    left: 62px;
+  }
+
+  .defter-satir::after {
+    left: 68px;
+  }
+
+  .defter-detay {
+    padding-left: 20px;
+    flex-wrap: wrap;
+  }
+
+  .defter-detay-sol {
+    width: 100%;
+  }
+
+  .defter-detay-sag {
+    padding-left: 16px;
+  }
+
+  .defter-tarih {
+    padding: 12px 12px 8px 12px;
+    gap: 10px;
+  }
+
+  .defter-tarih-daire {
+    width: 38px;
+    height: 38px;
+  }
+
+  .defter-tarih-gun {
+    font-size: 17px;
+  }
+
+  .defter-cover {
+    padding: 12px;
+  }
+
+  .defter-acilan-ic {
+    padding: 0 12px 12px 82px;
+  }
+
+  .defter-aksiyonlar {
+    gap: 6px;
+  }
+
+  .defter-btn {
+    padding: 6px 12px;
+    font-size: 11px;
+  }
+}
+
+/* --- Dark mode --- */
+.dark .defter {
+  background: #1a1510;
+  box-shadow:
+    -4px 0 0 0 #3d2c10,
+    -6px 0 0 0 #2a1e0a,
+    0 2px 24px -4px rgba(0, 0, 0, 0.35),
+    0 1px 4px rgba(0, 0, 0, 0.2);
+}
+
+.dark .defter-spiral {
+  background: linear-gradient(180deg, #2a2218 0%, #1a1510 100%);
+  border-bottom-color: #3d2c10;
+}
+
+.dark .defter-ring {
+  border-color: #555;
+  background: linear-gradient(145deg, #444, #333);
+}
+
+.dark .defter-cover {
+  border-bottom-color: #3d2c10;
+  background: linear-gradient(180deg, #221c12 0%, #1a1510 100%);
+}
+
+.dark .defter-tarih {
+  background: linear-gradient(
+    180deg,
+    rgba(61, 44, 16, 0.25) 0%,
+    transparent 100%
+  );
+  border-top-color: #3d2c10;
+}
+
+.dark .defter-bugun {
+  background: linear-gradient(
+    180deg,
+    rgba(16, 185, 129, 0.06) 0%,
+    transparent 100%
+  );
+  border-top-color: rgba(16, 185, 129, 0.2);
+}
+
+.dark .defter-tarih-daire {
+  border-color: #6b5530;
+  background: #2d2418;
+}
+
+.dark .defter-bugun .defter-tarih-daire {
+  border-color: #059669;
+  background: #0a2e1e;
+}
+
+.dark .defter-tarih-gun {
+  color: #d4b896;
+}
+
+.dark .defter-bugun .defter-tarih-gun {
+  color: #34d399;
+}
+
+.dark .defter-tarih-isim {
+  color: #d4b896;
+}
+
+.dark .defter-tarih-ay {
+  color: #7a6540;
+}
+
+.dark .defter-bugun-rozet {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #34d399;
+}
+
+.dark .defter-tarih-sayi {
+  color: #6b5530;
+}
+
+.dark .defter-satirlar::before {
+  background: #6b3030;
+  opacity: 0.25;
+}
+
+.dark .defter-satir::after {
+  background: #2a3a4a;
+  opacity: 0.2;
+}
+
+.dark .defter-satir:hover {
+  background: rgba(61, 44, 16, 0.15);
+}
+
+.dark .defter-satir-acik {
+  background: rgba(61, 44, 16, 0.2);
+}
+
+.dark .defter-saat {
+  color: #d4b896;
+}
+
+.dark .defter-isim {
+  color: #e8dcc8;
+}
+
+.dark .defter-hizmet {
+  color: #7a6540;
+}
+
+.dark .defter-sure {
+  color: #8b7355;
+  background: rgba(139, 115, 85, 0.1);
+}
+
+.dark .defter-durum {
+  color: #6b5530;
+}
+
+.dark .defter-ok {
+  color: #5a4620;
+}
+
+.dark .defter-bilgi-satir {
+  color: #7a6540;
+}
+
+.dark .defter-btn-onayla {
+  background: rgba(16, 185, 129, 0.1);
+  border-color: rgba(16, 185, 129, 0.25);
+  color: #34d399;
+}
+
+.dark .defter-btn-onayla:hover {
+  background: rgba(16, 185, 129, 0.15);
+}
+
+.dark .defter-btn-iptal {
+  background: rgba(220, 38, 38, 0.08);
+  border-color: rgba(220, 38, 38, 0.25);
+  color: #f87171;
+}
+
+.dark .defter-btn-iptal:hover {
+  background: rgba(220, 38, 38, 0.12);
+}
+
+.dark .defter-btn-gelmedi {
+  background: rgba(217, 119, 6, 0.08);
+  border-color: rgba(217, 119, 6, 0.25);
+  color: #fbbf24;
+}
+
+.dark .defter-btn-gelmedi:hover {
+  background: rgba(217, 119, 6, 0.12);
+}
+
+/* --- Defter takvim (date picker) --- */
+.defter-takvim {
+  border-radius: 2px 10px 10px 2px;
+  background: #faf7f0;
+  border: 1px solid #e4d8c4;
+  box-shadow:
+    -3px 0 0 0 #7c5e24,
+    -5px 0 0 0 #5a4318,
+    0 1px 8px -2px rgba(90, 67, 24, 0.1);
+  overflow: hidden;
+}
+
+.defter-takvim-baslik {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px dashed #d4c4a8;
+  background: linear-gradient(180deg, #f5efe3, #faf7f0);
+}
+
+.defter-takvim-grid {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  padding: 14px 16px 16px;
+  -webkit-overflow-scrolling: touch;
+  scroll-snap-type: x mandatory;
+}
+
+@media (min-width: 640px) {
+  .defter-takvim-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    overflow: visible;
+  }
+}
+
+.defter-takvim-gun {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px 10px;
+  border-radius: 8px;
+  border: 1.5px solid transparent;
+  min-width: 56px;
+  flex-shrink: 0;
+  scroll-snap-align: start;
+  cursor: pointer;
+  transition:
+    background 0.15s,
+    border-color 0.15s,
+    box-shadow 0.15s;
+}
+
+.defter-takvim-normal {
+  background: rgba(232, 220, 200, 0.15);
+  border-color: rgba(212, 196, 168, 0.3);
+  color: #6b4e12;
+}
+
+.defter-takvim-normal:hover {
+  background: rgba(232, 220, 200, 0.35);
+  border-color: #c4a873;
+}
+
+.defter-takvim-secili {
+  background: linear-gradient(135deg, #7c5e24, #5a4318);
+  border-color: #7c5e24;
+  color: #fff;
+  box-shadow:
+    0 2px 8px rgba(90, 67, 24, 0.3),
+    0 0 0 2px rgba(196, 168, 115, 0.3);
+}
+
+.defter-takvim-bugun {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.3);
+  color: #059669;
+}
+
+.defter-takvim-bugun:hover {
+  background: rgba(16, 185, 129, 0.14);
+  border-color: #10b981;
+}
+
+.defter-takvim-gecmis {
+  opacity: 0.4;
+  cursor: not-allowed;
+  color: #a08b6d;
+}
+
+.defter-takvim-kapali {
+  background: rgba(245, 158, 11, 0.08);
+  border-color: rgba(245, 158, 11, 0.25);
+  color: #b45309;
+}
+
+/* Dark mode */
+.dark .defter-takvim {
+  background: #1a1510;
+  border-color: #3d2c10;
+  box-shadow:
+    -3px 0 0 0 #3d2c10,
+    -5px 0 0 0 #2a1e0a,
+    0 1px 8px -2px rgba(0, 0, 0, 0.2);
+}
+
+.dark .defter-takvim-baslik {
+  border-bottom-color: #3d2c10;
+  background: linear-gradient(180deg, #221c12, #1a1510);
+}
+
+.dark .defter-takvim-normal {
+  background: rgba(61, 44, 16, 0.2);
+  border-color: rgba(61, 44, 16, 0.4);
+  color: #d4b896;
+}
+
+.dark .defter-takvim-normal:hover {
+  background: rgba(61, 44, 16, 0.35);
+  border-color: #6b5530;
+}
+
+.dark .defter-takvim-secili {
+  background: linear-gradient(135deg, #6b5530, #4a3a1c);
+  border-color: #8b7040;
+  box-shadow:
+    0 2px 8px rgba(0, 0, 0, 0.3),
+    0 0 0 2px rgba(107, 85, 48, 0.3);
+}
+
+.dark .defter-takvim-bugun {
+  background: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+}
+
+.dark .defter-takvim-bugun:hover {
+  background: rgba(16, 185, 129, 0.1);
+}
+
+.dark .defter-takvim-gecmis {
+  color: #5a4620;
+}
+
+.dark .defter-takvim-kapali {
+  background: rgba(245, 158, 11, 0.06);
+  border-color: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+}
+
 /* ===== Recharts grafik stilleri ===== */
 .recharts-cartesian-grid-horizontal line,
 .recharts-cartesian-grid-vertical line {

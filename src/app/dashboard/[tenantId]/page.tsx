@@ -15,9 +15,6 @@ import {
   Calendar,
   AlertCircle,
   CheckCircle2,
-  Check,
-  XOctagon,
-  UserX,
   BarChart3,
   CalendarDays,
   Settings2,
@@ -28,7 +25,7 @@ import {
   type CommandCenterAction,
 } from "./components/CommandCenterSection";
 import { MessageSettings } from "./components/MessageSettings";
-import { LottieAnimationLazy } from "@/components/ui/LottieAnimationLazy";
+import AppointmentBook from "./components/AppointmentBook";
 import { WhatsAppLinkModal } from "@/components/ui/WhatsAppLinkModal";
 import { useDashboardTenant } from "../DashboardTenantContext";
 import { group, sort } from "radash";
@@ -1376,36 +1373,36 @@ export default function EsnafDashboard({
 
         {activeView === "appointments" && (
           <>
-        {/* Haftalık takvim */}
+        {/* Haftalık takvim - defter temalı */}
         <ScrollReveal variant="fadeUp" delay={0.05} as="section" className="mb-6">
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">📅 Tarih seç</h3>
+        <section className="defter-takvim">
+          <div className="defter-takvim-baslik">
+            <h3 className="font-serif text-[15px] font-semibold text-amber-900/70 dark:text-amber-200/70">Sayfa Seç</h3>
             <div className="flex gap-2 overflow-x-auto pb-1">
               <button
                 type="button"
                 onClick={() => setWeekAnchor((d) => new Date(d.getTime() - 7 * 24 * 60 * 60 * 1000))}
-                className="shrink-0 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="shrink-0 rounded-lg border border-amber-300/40 bg-amber-50/40 px-3 py-1.5 font-serif text-sm font-medium text-amber-800/60 shadow-sm transition hover:bg-amber-100/50 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-300/60 dark:hover:bg-amber-800/30"
               >
                 ← Önceki
               </button>
               <button
                 type="button"
                 onClick={() => setWeekAnchor(new Date())}
-                className="shrink-0 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="shrink-0 rounded-lg border border-amber-300/40 bg-amber-50/40 px-3 py-1.5 font-serif text-sm font-medium text-amber-800/60 shadow-sm transition hover:bg-amber-100/50 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-300/60 dark:hover:bg-amber-800/30"
               >
                 Bugün
               </button>
               <button
                 type="button"
                 onClick={() => setWeekAnchor((d) => new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000))}
-                className="shrink-0 rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="shrink-0 rounded-lg border border-amber-300/40 bg-amber-50/40 px-3 py-1.5 font-serif text-sm font-medium text-amber-800/60 shadow-sm transition hover:bg-amber-100/50 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-300/60 dark:hover:bg-amber-800/30"
               >
                 Sonraki →
               </button>
             </div>
           </div>
-          <div className="flex snap-x snap-mandatory gap-2 overflow-x-auto pb-1 sm:grid sm:grid-cols-7 sm:overflow-visible sm:pb-0">
+          <div className="defter-takvim-grid">
             {weekDates.map((dateStr, idx) => {
               const d = new Date(dateStr + "T12:00:00");
               const isSelected = selectedDate === dateStr;
@@ -1424,42 +1421,41 @@ export default function EsnafDashboard({
                   initial={{ opacity: 0, scale: 0.9 }}
                   animate={{ opacity: 1, scale: 1 }}
                   transition={{ delay: idx * 0.02 }}
-                  whileHover={!isPast ? { scale: 1.05 } : {}}
-                  whileTap={!isPast ? { scale: 0.95 } : {}}
-                  className={`relative flex w-[4.65rem] shrink-0 snap-start flex-col items-center rounded-xl px-1 py-3 text-sm font-medium transition sm:w-auto sm:shrink ${
+                  whileHover={!isPast ? { scale: 1.04 } : {}}
+                  whileTap={!isPast ? { scale: 0.96 } : {}}
+                  className={`defter-takvim-gun ${
                     isSelected
-                      ? "bg-gradient-to-br from-emerald-600 to-emerald-700 text-white shadow-lg ring-2 ring-emerald-300 dark:ring-emerald-500"
+                      ? "defter-takvim-secili"
                       : isPast
-                      ? "cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-500"
+                      ? "defter-takvim-gecmis"
                       : isBlocked
-                      ? "bg-gradient-to-br from-amber-100 to-amber-200 text-amber-900 hover:from-amber-200 hover:to-amber-300 border-2 border-amber-300 dark:from-amber-900/40 dark:to-amber-800/40 dark:text-amber-200 dark:border-amber-700"
+                      ? "defter-takvim-kapali"
                       : isToday
-                      ? "bg-gradient-to-br from-cyan-50 to-blue-50 text-cyan-900 border-2 border-cyan-300 hover:from-cyan-100 hover:to-blue-100 dark:from-cyan-900/30 dark:to-blue-900/30 dark:text-cyan-200 dark:border-cyan-700"
-                      : "bg-gradient-to-br from-slate-50 to-slate-100 text-slate-800 border-2 border-slate-200 hover:from-emerald-50 hover:to-emerald-100 hover:border-emerald-300 hover:text-emerald-800 dark:from-slate-800 dark:to-slate-800 dark:border-slate-700 dark:text-slate-200 dark:hover:from-emerald-900/30 dark:hover:to-emerald-800/30 dark:hover:border-emerald-700"
+                      ? "defter-takvim-bugun"
+                      : "defter-takvim-normal"
                   }`}
                 >
-                  <span className={`text-xs font-semibold ${isSelected ? "text-white/90" : "opacity-70"}`}>
+                  <span className={`text-xs font-semibold ${isSelected ? "text-white/80" : "opacity-60"}`}>
                     {DAY_NAMES[d.getDay()]}
                   </span>
-                  <span className={`mt-1 text-lg font-bold ${isSelected ? "text-white" : ""}`}>
+                  <span className={`mt-0.5 font-serif text-lg font-bold ${isSelected ? "text-white" : ""}`}>
                     {d.getDate()}
                   </span>
-                  {hasAppts && (
+                  {hasAppts ? (
                     <motion.span
                       initial={{ scale: 0 }}
                       animate={{ scale: 1 }}
-                      className={`mt-1.5 flex h-5 w-5 items-center justify-center rounded-full text-xs font-bold ${
+                      className={`mt-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
                         isSelected
-                          ? "bg-white/20 text-white"
-                          : "bg-emerald-500 text-white"
+                          ? "bg-white/25 text-white"
+                          : "bg-amber-700/80 text-white dark:bg-amber-500/80"
                       }`}
-                      title={`${hasAppts} randevu`}
                     >
                       {hasAppts}
                     </motion.span>
-                  )}
+                  ) : null}
                   {isToday && !isSelected && (
-                    <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-cyan-500 ring-2 ring-white dark:ring-slate-900" />
+                    <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-[#faf7f0] dark:ring-[#1a1510]" />
                   )}
                 </motion.button>
               );
@@ -1470,40 +1466,39 @@ export default function EsnafDashboard({
 
         {selectedDate && (
           <ScrollReveal variant="slideLeft" delay={0} as="section" className="mb-6">
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <h3 className="mb-4 font-semibold capitalize text-slate-900 dark:text-slate-100">
-              {new Date(selectedDate + "T12:00:00").toLocaleDateString("tr-TR", {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-              })}
-            </h3>
+          <section className="defter-takvim" style={{ borderRadius: "2px 10px 10px 2px" }}>
+            <div className="defter-takvim-baslik">
+              <h3 className="font-serif text-[15px] font-semibold capitalize text-amber-900/70 dark:text-amber-200/70">
+                {new Date(selectedDate + "T12:00:00").toLocaleDateString("tr-TR", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                })}
+              </h3>
+            </div>
+            <div className="p-4">
             {availabilityLoading ? (
               <div className="py-12 text-center">
-                <LottieAnimationLazy src="loading" width={80} height={80} className="mx-auto" />
-                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Müsaitlik kontrol ediliyor...</p>
+                <Loader2 className="mx-auto h-7 w-7 animate-spin text-amber-800/30" />
+                <p className="mt-3 font-serif text-sm text-amber-800/40">Müsaitlik kontrol ediliyor...</p>
               </div>
             ) : availability?.blocked ? (
-              <div className="rounded-xl bg-gradient-to-r from-amber-50 to-orange-50 border-2 border-amber-200 py-6 text-center dark:from-amber-900/30 dark:to-orange-900/30 dark:border-amber-700">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-amber-100 mb-3 dark:bg-amber-800/50">
-                  <XCircle className="h-6 w-6 text-amber-600 dark:text-amber-400" />
-                </div>
-                <p className="text-sm font-semibold text-amber-900 dark:text-amber-200">Bu gün kapalı</p>
-                <p className="mt-1 text-xs text-amber-700 dark:text-amber-300">Tatil veya izin günü</p>
+              <div className="rounded-lg border border-amber-300/30 bg-amber-50/30 py-6 text-center dark:border-amber-700/30 dark:bg-amber-900/10">
+                <XCircle className="mx-auto h-8 w-8 text-amber-600/50 dark:text-amber-400/50" />
+                <p className="mt-3 font-serif text-sm font-semibold text-amber-900/60 dark:text-amber-200/60">Bu gün kapalı</p>
+                <p className="mt-1 font-serif text-xs text-amber-700/50 dark:text-amber-300/50">Tatil veya izin günü</p>
               </div>
             ) : availability?.noSchedule ? (
-              <div className="rounded-xl bg-gradient-to-r from-slate-50 to-slate-100 border-2 border-slate-200 py-6 text-center dark:from-slate-800 dark:to-slate-800 dark:border-slate-700">
-                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-200 mb-3 dark:bg-slate-700">
-                  <Clock className="h-6 w-6 text-slate-600 dark:text-slate-400" />
-                </div>
-                <p className="text-sm font-semibold text-slate-700 dark:text-slate-200">Çalışma saati tanımlı değil</p>
-                <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">Ayarlardan çalışma saatlerini tanımlayın</p>
+              <div className="rounded-lg border border-amber-300/20 bg-amber-50/20 py-6 text-center dark:border-amber-700/20 dark:bg-amber-900/10">
+                <Clock className="mx-auto h-8 w-8 text-amber-800/30 dark:text-amber-400/30" />
+                <p className="mt-3 font-serif text-sm font-semibold text-amber-900/50 dark:text-amber-200/50">Çalışma saati tanımlı değil</p>
+                <p className="mt-1 font-serif text-xs text-amber-800/40 dark:text-amber-300/40">Ayarlardan çalışma saatlerini tanımlayın</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-4">
                 {availability?.available && availability.available.length > 0 && (
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
+                    <p className="mb-2 font-serif text-xs font-semibold text-emerald-700/70 dark:text-emerald-400/70">
                       Müsait Saatler ({availability.available.length})
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -1512,11 +1507,10 @@ export default function EsnafDashboard({
                           key={time}
                           type="button"
                           onClick={() => handleSlotClick(selectedDate, time)}
-                          whileHover={{ scale: 1.05 }}
-                          whileTap={{ scale: 0.95 }}
-                          className="rounded-xl border-2 border-emerald-300 bg-gradient-to-br from-emerald-50 to-emerald-100 px-4 py-2.5 text-sm font-semibold text-emerald-800 shadow-sm transition hover:border-emerald-400 hover:shadow-md dark:border-emerald-700 dark:from-emerald-900/40 dark:to-emerald-800/40 dark:text-emerald-200 dark:hover:border-emerald-600"
+                          whileHover={{ scale: 1.04 }}
+                          whileTap={{ scale: 0.96 }}
+                          className="rounded-lg border border-emerald-300/40 bg-emerald-50/40 px-4 py-2.5 font-mono text-sm font-semibold text-emerald-800/80 transition hover:border-emerald-400/60 hover:bg-emerald-50/60 dark:border-emerald-700/30 dark:bg-emerald-900/15 dark:text-emerald-300/80 dark:hover:bg-emerald-900/25"
                         >
-                          <Clock className="mr-1.5 inline h-3.5 w-3.5" />
                           {time}
                         </motion.button>
                       ))}
@@ -1525,19 +1519,18 @@ export default function EsnafDashboard({
                 )}
                 {availability?.booked && availability.booked.length > 0 && (
                   <div>
-                    <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    <p className="mb-2 font-serif text-xs font-semibold text-amber-800/50 dark:text-amber-400/50">
                       Dolu Saatler ({availability.booked.length})
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {availability.booked.map((b) => (
                         <div
                           key={b.time + (b.id ?? "")}
-                          className="rounded-xl border-2 border-slate-200 bg-gradient-to-br from-slate-50 to-slate-100 px-4 py-2.5 text-sm text-slate-700 shadow-sm dark:border-slate-700 dark:from-slate-800 dark:to-slate-800 dark:text-slate-300"
+                          className="rounded-lg border border-amber-300/25 bg-amber-50/25 px-4 py-2.5 text-sm dark:border-amber-700/20 dark:bg-amber-900/10"
                         >
-                          <Clock className="mr-1.5 inline h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
-                          <span className="font-semibold">{b.time}</span>
+                          <span className="font-mono font-semibold text-amber-900/60 dark:text-amber-200/60">{b.time}</span>
                           {b.customer_phone && (
-                            <span className="ml-2 text-xs text-slate-500 dark:text-slate-400">– {b.customer_phone}</span>
+                            <span className="ml-2 font-serif text-xs text-amber-800/40 dark:text-amber-300/40">– {b.customer_phone}</span>
                           )}
                         </div>
                       ))}
@@ -1546,12 +1539,13 @@ export default function EsnafDashboard({
                 )}
                 {(!availability?.available || availability.available.length === 0) &&
                   (!availability?.booked || availability.booked.length === 0) && (
-                    <div className="rounded-xl bg-slate-50 py-6 text-center dark:bg-slate-800/60">
-                      <p className="text-sm text-slate-600 dark:text-slate-400">Bu gün için müsait saat bulunmuyor</p>
+                    <div className="rounded-lg border border-amber-300/15 bg-amber-50/15 py-6 text-center dark:border-amber-700/15 dark:bg-amber-900/10">
+                      <p className="font-serif text-sm text-amber-800/40 dark:text-amber-300/40">Bu gün için müsait saat bulunmuyor</p>
                     </div>
                   )}
               </div>
             )}
+            </div>
           </section>
           </ScrollReveal>
         )}
@@ -1691,214 +1685,19 @@ export default function EsnafDashboard({
           </motion.form>
         )}
 
-        {/* Yaklaşan randevular - Geliştirilmiş */}
+        {/* Randevu Defteri */}
         <ScrollReveal variant="fadeUp" delay={0.1} as="section" className="mb-6">
-        <section className="rounded-2xl border-2 border-slate-200 bg-white shadow-lg dark:border-slate-700 dark:bg-slate-900">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 bg-gradient-to-r from-slate-50 to-white px-5 py-4 dark:border-slate-800 dark:from-slate-800 dark:to-slate-900">
-            <div>
-              <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                <Calendar className="h-5 w-5 text-emerald-600" />
-                Yaklaşan Randevular
-              </h3>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {sortedDates.length > 0
-                  ? `${weekCount} randevu`
-                  : "Henüz randevu yok"}
-              </p>
-            </div>
-            {tenantId && sortedDates.length > 0 && (
-              <Link
-                href={`/dashboard/${tenantId}/workflow`}
-                className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
-              >
-                İş Akışına Git →
-              </Link>
-            )}
-          </div>
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <LottieAnimationLazy src="loading" width={96} height={96} />
-              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Randevular yükleniyor...</p>
-            </div>
-          ) : sortedDates.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12">
-              <LottieAnimationLazy src="empty" width={80} height={80} />
-              <p className="mt-4 text-sm font-medium text-slate-600 dark:text-slate-400">Henüz randevu yok</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Yeni randevu eklemek için yukarıdaki butonu kullanın</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100 dark:divide-slate-800">
-              {sortedDates.map((date, idx) => {
-                const dateInfo = new Date(date + "T12:00:00");
-                const isToday = date === todayIso;
-                return (
-                  <motion.div
-                    key={date}
-                    initial={{ opacity: 0, y: 10 }}
-                    animate={{ opacity: 1, y: 0 }}
-                    transition={{ delay: idx * 0.05 }}
-                    className="p-5 transition hover:bg-slate-50/50 dark:hover:bg-slate-800/50"
-                  >
-                    <div className="mb-3 flex items-center gap-2">
-                      <div
-                        className={`flex h-8 w-8 items-center justify-center rounded-lg ${
-                          isToday ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300" : "bg-slate-100 text-slate-600 dark:bg-slate-700 dark:text-slate-300"
-                        }`}
-                      >
-                        <span className="text-xs font-bold">{dateInfo.getDate()}</span>
-                      </div>
-                      <div>
-                        <div className="text-sm font-semibold capitalize text-slate-900 dark:text-slate-100">
-                          {dateInfo.toLocaleDateString("tr-TR", {
-                            weekday: "long",
-                            month: "long",
-                          })}
-                        </div>
-                        {isToday && (
-                          <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Bugün</span>
-                        )}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {grouped[date].map((apt) => {
-                        const start = new Date(apt.slot_start);
-                        const time = start.toLocaleTimeString("tr-TR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          timeZone: "Europe/Istanbul",
-                        });
-                        const durationMinutes =
-                          (apt.extra_data as { duration_minutes?: number })?.duration_minutes ??
-                          null;
-                        const timeLabel =
-                          durationMinutes && durationMinutes > 0
-                            ? `${time} · ${durationMinutes} dk`
-                            : time;
-                        const name = (apt.extra_data as { customer_name?: string })?.customer_name;
-                        const statusColors = {
-                          confirmed: "from-emerald-50 to-emerald-100 border-emerald-200 text-emerald-800 dark:from-emerald-900/40 dark:to-emerald-800/40 dark:border-emerald-700 dark:text-emerald-200",
-                          pending: "from-amber-50 to-amber-100 border-amber-200 text-amber-800 dark:from-amber-900/40 dark:to-amber-800/40 dark:border-amber-700 dark:text-amber-200",
-                          completed: "from-slate-50 to-slate-100 border-slate-200 text-slate-700 dark:from-slate-800 dark:to-slate-800 dark:border-slate-700 dark:text-slate-300",
-                          cancelled: "from-red-50 to-red-100 border-red-200 text-red-800 dark:from-red-900/40 dark:to-red-800/40 dark:border-red-800 dark:text-red-200",
-                          no_show: "from-orange-50 to-orange-100 border-orange-200 text-orange-800 dark:from-orange-900/40 dark:to-orange-800/40 dark:border-orange-700 dark:text-orange-200",
-                        };
-                        const statusColor = statusColors[apt.status as keyof typeof statusColors] || "from-slate-50 to-slate-100 border-slate-200 text-slate-800 dark:from-slate-800 dark:to-slate-800 dark:border-slate-700 dark:text-slate-200";
-                        const isUpdating = updatingAptId === apt.id;
-                        const actionBtn = "min-h-[44px] min-w-[44px] rounded-xl px-3 py-2.5 text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition shadow-sm active:scale-95 disabled:opacity-50 disabled:pointer-events-none";
-                        return (
-                          <motion.div
-                            key={apt.id}
-                            initial={{ opacity: 0, scale: 0.95 }}
-                            animate={{ opacity: 1, scale: 1 }}
-                            className={`flex flex-col gap-2 rounded-xl border-2 bg-gradient-to-r ${statusColor} px-4 py-3 text-sm shadow-sm sm:flex-row sm:items-center`}
-                          >
-                            <div className="flex flex-1 items-center gap-2 min-w-0">
-                              <Clock className="h-3.5 w-3.5 shrink-0" />
-                              <div className="min-w-0">
-                                <div>
-                                  <span className="font-semibold">{timeLabel}</span>
-                                  <span className="mx-1.5">–</span>
-                                  <span className="truncate">{name || apt.customer_phone}</span>
-                                </div>
-                                <p className="mt-0.5 text-xs opacity-90">
-                                  {getAppointmentServiceLabel(apt)}
-                                </p>
-                              </div>
-                            </div>
-                            {(apt.status === "pending" || apt.status === "confirmed") && (
-                              <div className="flex flex-wrap gap-2 shrink-0">
-                                {apt.status === "pending" && (
-                                  <>
-                                    <motion.button
-                                      type="button"
-                                      disabled={isUpdating}
-                                      onClick={() => updateAppointmentStatus(apt.id, "confirmed")}
-                                      whileHover={{ scale: 1.02 }}
-                                      whileTap={{ scale: 0.98 }}
-                                      className={`${actionBtn} bg-emerald-600 text-white hover:bg-emerald-700`}
-                                      title="Onayla"
-                                    >
-                                      {isUpdating ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                      ) : (
-                                        <>
-                                          <Check className="h-3.5 w-3.5" />
-                                          Onayla
-                                        </>
-                                      )}
-                                    </motion.button>
-                                    <motion.button
-                                      type="button"
-                                      disabled={isUpdating}
-                                      onClick={() => updateAppointmentStatus(apt.id, "cancelled")}
-                                      whileHover={{ scale: 1.02 }}
-                                      whileTap={{ scale: 0.98 }}
-                                      className={`${actionBtn} bg-white/90 text-red-600 border border-red-200 hover:bg-red-50 dark:bg-slate-800/90 dark:border-red-800 dark:hover:bg-red-900/30`}
-                                      title="İptal et"
-                                    >
-                                      <XOctagon className="h-3.5 w-3.5" />
-                                      İptal
-                                    </motion.button>
-                                  </>
-                                )}
-                                {apt.status === "confirmed" && (
-                                  <>
-                                    <motion.button
-                                      type="button"
-                                      disabled={isUpdating}
-                                      onClick={() => updateAppointmentStatus(apt.id, "completed")}
-                                      whileHover={{ scale: 1.02 }}
-                                      whileTap={{ scale: 0.98 }}
-                                      className={`${actionBtn} bg-emerald-600 text-white hover:bg-emerald-700`}
-                                      title="Tamamlandı"
-                                    >
-                                      {isUpdating ? (
-                                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                      ) : (
-                                        <>
-                                          <CheckCircle2 className="h-3.5 w-3.5" />
-                                          Tamamlandı
-                                        </>
-                                      )}
-                                    </motion.button>
-                                    <motion.button
-                                      type="button"
-                                      disabled={isUpdating}
-                                      onClick={() => updateAppointmentStatus(apt.id, "no_show")}
-                                      whileHover={{ scale: 1.02 }}
-                                      whileTap={{ scale: 0.98 }}
-                                      className={`${actionBtn} bg-amber-100 text-amber-800 border border-amber-300 hover:bg-amber-200`}
-                                      title="Gelmedi"
-                                    >
-                                      <UserX className="h-3.5 w-3.5" />
-                                      Gelmedi
-                                    </motion.button>
-                                    <motion.button
-                                      type="button"
-                                      disabled={isUpdating}
-                                      onClick={() => updateAppointmentStatus(apt.id, "cancelled")}
-                                      whileHover={{ scale: 1.02 }}
-                                      whileTap={{ scale: 0.98 }}
-                                      className={`${actionBtn} bg-white/90 text-red-600 border border-red-200 hover:bg-red-50 dark:bg-slate-800/90 dark:border-red-800 dark:hover:bg-red-900/30`}
-                                      title="İptal et"
-                                    >
-                                      <XOctagon className="h-3.5 w-3.5" />
-                                      İptal
-                                    </motion.button>
-                                  </>
-                                )}
-                              </div>
-                            )}
-                          </motion.div>
-                        );
-                      })}
-                    </div>
-                  </motion.div>
-                );
-              })}
-            </div>
-          )}
-        </section>
+          <AppointmentBook
+            grouped={grouped}
+            sortedDates={sortedDates}
+            todayIso={todayIso}
+            loading={loading}
+            weekCount={weekCount}
+            updatingAptId={updatingAptId}
+            onUpdateStatus={updateAppointmentStatus}
+            getServiceLabel={getAppointmentServiceLabel}
+            tenantId={tenantId}
+          />
         </ScrollReveal>
 
         <ScrollReveal variant="fadeUp" delay={0.06} as="section" className="mt-8">
