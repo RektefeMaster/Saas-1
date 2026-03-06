@@ -290,7 +290,7 @@ export default function WorkflowPage({
   useEffect(() => {
     if (!tenantId) return;
     const interval = window.setInterval(() => {
-      void refresh(true);
+      if (document.visibilityState === "visible") void refresh(true);
     }, 60000);
     return () => window.clearInterval(interval);
   }, [refresh, tenantId]);

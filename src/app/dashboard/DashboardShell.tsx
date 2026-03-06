@@ -4,7 +4,6 @@ import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { Link } from "next-view-transitions";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
-import useSWR from "swr";
 import {
   Calendar,
   ChevronDown,
@@ -26,7 +25,7 @@ import { createClient } from "@/lib/supabase-client";
 import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
 import { useLocale } from "@/lib/locale-context";
 import { ThemeLocaleSwitch } from "@/components/ui";
-import { fetcher } from "@/lib/swr-fetcher";
+import { DashboardTenantProvider, useDashboardTenant } from "./DashboardTenantContext";
 
 const QRCodeModal = dynamic(
   () => import("@/components/ui/QRCodeModal").then((m) => ({ default: m.QRCodeModal })),
@@ -176,32 +175,17 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     setTenantId(extractedTenantId);
   }, [pathname, isLogin, extractedTenantId]);
 
-  const { data: tenantData } = useSWR<{
-    name?: string;
-    tenant_code?: string;
-    ui_preferences?: Record<string, unknown>;
-    config_override?: { ui_preferences?: Record<string, unknown> };
-  }>(
-    extractedTenantId && !isLogin ? `/api/tenant/${extractedTenantId}` : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 30000 }
-  );
-
-  const { data: featureData } = useSWR<{ feature_flags?: DashboardFeatureFlags }>(
-    extractedTenantId && !isLogin ? `/api/tenant/${extractedTenantId}/features` : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 30000 }
-  );
-
+  const tenantCtx = useDashboardTenant();
+  const tenantData = tenantCtx?.tenant ?? null;
   const tenantName = tenantData?.name ?? null;
   const tenantCode = tenantData?.tenant_code ?? null;
   const uiPrefs =
-    (tenantData?.ui_preferences as Record<string, unknown> | undefined) ||
-    (tenantData?.config_override?.ui_preferences as Record<string, unknown> | undefined) ||
+    (tenantData as { ui_preferences?: Record<string, unknown> } | null)?.ui_preferences ||
+    (tenantData?.config_override as { ui_preferences?: Record<string, unknown> } | undefined)?.ui_preferences ||
     {};
   const moduleVisibility = (uiPrefs.moduleVisibility as Record<string, boolean>) || null;
   const moduleOrder = Array.isArray(uiPrefs.moduleOrder) ? (uiPrefs.moduleOrder as string[]) : null;
-  const featureFlags = (featureData?.feature_flags as DashboardFeatureFlags | undefined) || null;
+  const featureFlags = tenantCtx?.features ?? null;
 
   useEffect(() => {
     if (isLogin) return;
@@ -248,6 +232,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   if (isLogin) return <>{children}</>;
 
   return (
+    <DashboardTenantProvider tenantId={extractedTenantId}>
     <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div className="pointer-events-none fixed inset-0 opacity-50">
         <div className="absolute -left-16 -top-20 h-72 w-72 rounded-full bg-slate-300/25 blur-3xl dark:bg-slate-700/20" />
@@ -413,5 +398,6 @@ export default function DashboardShell({ children }: { children: React.ReactNode
         <main className="min-h-[calc(100vh-4rem)]">{children}</main>
       )}
     </div>
+    </DashboardTenantProvider>
   );
 }

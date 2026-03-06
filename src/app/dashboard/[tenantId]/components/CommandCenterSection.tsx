@@ -53,12 +53,12 @@ export const CommandCenterSection = memo(function CommandCenterSection({
             <span className="text-xl">🎯</span>
             Kontrol Merkezi
           </h2>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
             Gelir ve günlük aksiyonları buradan yönetin
           </p>
         </div>
         {loading && (
-          <div className="flex items-center gap-2 text-xs text-slate-500">
+          <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" />
             Yenileniyor...
           </div>
@@ -67,8 +67,8 @@ export const CommandCenterSection = memo(function CommandCenterSection({
 
       {!commandCenter ? (
         <div className="flex flex-col items-center justify-center py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-slate-600" />
-          <p className="mt-3 text-sm text-slate-500">Panel verisi alınıyor...</p>
+          <Loader2 className="h-8 w-8 animate-spin text-slate-600 dark:text-slate-400" />
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Panel verisi alınıyor...</p>
         </div>
       ) : (
         <>
@@ -101,9 +101,9 @@ export const CommandCenterSection = memo(function CommandCenterSection({
 
           <div className="space-y-3">
             {commandCenter.actions.length === 0 ? (
-              <div className="rounded-xl bg-slate-50 border-2 border-slate-200 p-6 text-center">
-                <p className="text-sm font-medium text-slate-600">Bugün için kritik aksiyon bulunmuyor</p>
-                <p className="mt-1 text-xs text-slate-500">Her şey yolunda görünüyor! 🎉</p>
+              <div className="rounded-xl bg-slate-50 border-2 border-slate-200 p-6 text-center dark:border-slate-700 dark:bg-slate-800/60">
+                <p className="text-sm font-medium text-slate-600 dark:text-slate-300">Bugün için kritik aksiyon bulunmuyor</p>
+                <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Her şey yolunda görünüyor! 🎉</p>
               </div>
             ) : (
               commandCenter.actions.map((action) => {
@@ -118,8 +118,8 @@ export const CommandCenterSection = memo(function CommandCenterSection({
                     className={`flex flex-wrap items-center justify-between gap-4 rounded-xl border px-4 py-4 shadow-sm ${severityColors[action.severity]}`}
                   >
                     <div className="flex-1">
-                      <p className="text-sm font-semibold text-slate-900">{action.title}</p>
-                      <p className="mt-1 text-xs text-slate-600">{action.description}</p>
+                      <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">{action.title}</p>
+                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">{action.description}</p>
                       {action.estimated_impact_try > 0 && (
                         <p className="mt-2 inline-block rounded-lg bg-white px-2.5 py-1 text-xs font-medium text-slate-700 dark:bg-slate-900 dark:text-slate-200">
                           💰 Tahmini etki: {action.estimated_impact_try.toLocaleString("tr-TR")} ₺

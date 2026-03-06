@@ -15,19 +15,20 @@ export async function POST(
       return NextResponse.json({ error: "date gerekli" }, { status: 400 });
     }
 
-    const { data: tenant } = await supabase
-      .from("tenants")
-      .select("name")
-      .eq("id", tenantId)
-      .single();
-
-    const { data: appointments } = await supabase
-      .from("appointments")
-      .select("id, customer_phone, slot_start")
-      .eq("tenant_id", tenantId)
-      .gte("slot_start", `${date}T00:00:00`)
-      .lt("slot_start", `${date}T23:59:59`)
-      .in("status", ["confirmed", "pending"]);
+    const [{ data: tenant }, { data: appointments }] = await Promise.all([
+      supabase
+        .from("tenants")
+        .select("name")
+        .eq("id", tenantId)
+        .single(),
+      supabase
+        .from("appointments")
+        .select("id, customer_phone, slot_start")
+        .eq("tenant_id", tenantId)
+        .gte("slot_start", `${date}T00:00:00`)
+        .lt("slot_start", `${date}T23:59:59`)
+        .in("status", ["confirmed", "pending"]),
+    ]);
 
     if (!appointments || appointments.length === 0) {
       return NextResponse.json({ ok: true, cancelled: 0, message: "O gün randevu yok." });
@@ -46,21 +47,23 @@ export async function POST(
 
     const tenantName = tenant?.name || "İşletme";
     const reasonText = reason ? ` Sebep: ${reason}` : "";
-    let sent = 0;
 
-    for (const apt of appointments) {
-      const d = new Date(apt.slot_start);
-      const timeStr = d.toLocaleTimeString("tr-TR", {
-        hour: "2-digit",
-        minute: "2-digit",
-        timeZone: "Europe/Istanbul",
-      });
-      const delivery = await sendCustomerNotification(
-        apt.customer_phone,
-        `Merhaba, ${tenantName} ${date} tarihindeki saat ${timeStr} randevunuzu maalesef iptal etmek zorunda kaldı.${reasonText} En kısa sürede yeni randevu almak için bize yazabilirsiniz.`
-      );
-      if (delivery.whatsapp || delivery.sms) sent++;
-    }
+    const results = await Promise.all(
+      appointments.map(async (apt) => {
+        const d = new Date(apt.slot_start);
+        const timeStr = d.toLocaleTimeString("tr-TR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: "Europe/Istanbul",
+        });
+        const delivery = await sendCustomerNotification(
+          apt.customer_phone,
+          `Merhaba, ${tenantName} ${date} tarihindeki saat ${timeStr} randevunuzu maalesef iptal etmek zorunda kaldı.${reasonText} En kısa sürede yeni randevu almak için bize yazabilirsiniz.`
+        );
+        return delivery.whatsapp || delivery.sms ? 1 : 0;
+      })
+    );
+    const sent = results.reduce((a, b) => a + b, 0);
 
     return NextResponse.json({ ok: true, cancelled: ids.length, notified: sent });
   } catch (err) {

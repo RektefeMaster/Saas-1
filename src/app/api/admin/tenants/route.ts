@@ -10,6 +10,9 @@ import type { AdminTenantWizardPayload } from "@/types/dashboard-v2.types";
 import { slugify } from "@/lib/slugify";
 import { detectBlueprintSlug } from "@/services/blueprint.service";
 
+const DEFAULT_PAGE_SIZE = 100;
+const MAX_PAGE_SIZE = 200;
+
 export async function GET(request: NextRequest) {
   if (!isSupabaseConfigured()) {
     return NextResponse.json([]);
@@ -18,23 +21,30 @@ export async function GET(request: NextRequest) {
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status");
     const type = searchParams.get("business_type");
+    const limitParam = Math.min(
+      MAX_PAGE_SIZE,
+      Math.max(1, parseInt(searchParams.get("limit") || String(DEFAULT_PAGE_SIZE), 10) || DEFAULT_PAGE_SIZE)
+    );
+    const offsetParam = Math.max(0, parseInt(searchParams.get("offset") || "0", 10) || 0);
 
     let query = supabase
       .from("tenants")
       .select("*, business_types(id, name, slug)", { count: "exact" })
       .is("deleted_at", null)
       .order("name")
-      .limit(1000); // Performans için limit
+      .range(offsetParam, offsetParam + limitParam - 1);
 
     if (status) query = query.eq("status", status);
     if (type) query = query.eq("business_type_id", type);
 
-    const { data, error } = await query;
+    const { data, error, count } = await query;
     if (error) {
       console.error("[tenants GET]", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
-    return NextResponse.json(data ?? []);
+    const res = NextResponse.json(data ?? []);
+    if (count != null) res.headers.set("X-Total-Count", String(count));
+    return res;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "Sunucu hatası";
     return NextResponse.json(

@@ -21,7 +21,8 @@ export async function GET(
     .select(APPOINTMENT_LIST_COLUMNS)
     .eq("tenant_id", id)
     .neq("status", "cancelled")
-    .order("slot_start", { ascending: true });
+    .order("slot_start", { ascending: true })
+    .limit(500);
 
   if (from) {
     query = query.gte("slot_start", from);

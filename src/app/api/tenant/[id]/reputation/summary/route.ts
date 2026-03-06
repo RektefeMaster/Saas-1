@@ -20,18 +20,21 @@ export async function GET(
         .from("reviews")
         .select("rating")
         .eq("tenant_id", tenantId)
-        .gte("created_at", ninetyDaysAgo.toISOString()),
+        .gte("created_at", ninetyDaysAgo.toISOString())
+        .limit(500),
       supabase
         .from("ops_alerts")
         .select("id, type")
         .eq("tenant_id", tenantId)
-        .eq("status", "open"),
+        .eq("status", "open")
+        .limit(200),
       supabase
         .from("appointments")
         .select("status")
         .eq("tenant_id", tenantId)
         .gte("slot_start", thirtyDaysAgo.toISOString())
-        .in("status", ["completed", "no_show"]),
+        .in("status", ["completed", "no_show"])
+        .limit(2000),
     ]);
 
     let ratings: number[] = [];

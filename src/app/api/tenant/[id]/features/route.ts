@@ -1,3 +1,4 @@
+import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import {
@@ -9,6 +10,8 @@ import {
   coerceFeatureFlags,
   inferFeatureFlagsByBusinessType,
 } from "@/types/feature-flags";
+
+const FEATURES_CACHE_SECONDS = 120;
 
 interface TenantFeatureRow {
   id: string;
@@ -104,40 +107,52 @@ export async function GET(
   try {
     const { id: tenantId } = await params;
 
-    const tenant = await getTenantForFeatures(tenantId);
-    if (!tenant) {
+    const getFeatures = unstable_cache(
+      async () => {
+        const tenant = await getTenantForFeatures(tenantId);
+        if (!tenant) {
+          return null;
+        }
+
+        const businessTypeId =
+          typeof tenant.business_type_id === "string" ? tenant.business_type_id : null;
+
+        const bt = businessTypeId ? await getBusinessTypeFeatures(businessTypeId) : null;
+
+        const inferredFlags = inferFeatureFlagsByBusinessType(bt?.slug, bt?.name);
+        const businessTypeFlags = coerceFeatureFlags(bt?.feature_flags);
+        const tenantOverrideFlags = coerceFeatureFlags(
+          (tenant.config_override as Record<string, unknown> | null)?.feature_flags
+        );
+
+        const featureFlags = buildFeatureFlags(
+          inferredFlags,
+          businessTypeFlags,
+          tenantOverrideFlags
+        );
+
+        return {
+          tenant_id: tenantId,
+          tenant_name: tenant.name || null,
+          business_type: bt
+            ? {
+                id: bt.id,
+                name: bt.name || null,
+                slug: bt.slug || null,
+              }
+            : null,
+          feature_flags: featureFlags,
+        };
+      },
+      [`features-${tenantId}`],
+      { revalidate: FEATURES_CACHE_SECONDS }
+    );
+
+    const result = await getFeatures();
+    if (!result) {
       return NextResponse.json({ error: "Tenant bulunamadi" }, { status: 404 });
     }
-
-    const businessTypeId =
-      typeof tenant.business_type_id === "string" ? tenant.business_type_id : null;
-
-    const bt = businessTypeId ? await getBusinessTypeFeatures(businessTypeId) : null;
-
-    const inferredFlags = inferFeatureFlagsByBusinessType(bt?.slug, bt?.name);
-    const businessTypeFlags = coerceFeatureFlags(bt?.feature_flags);
-    const tenantOverrideFlags = coerceFeatureFlags(
-      (tenant.config_override as Record<string, unknown> | null)?.feature_flags
-    );
-
-    const featureFlags = buildFeatureFlags(
-      inferredFlags,
-      businessTypeFlags,
-      tenantOverrideFlags
-    );
-
-    return NextResponse.json({
-      tenant_id: tenantId,
-      tenant_name: tenant.name || null,
-      business_type: bt
-        ? {
-            id: bt.id,
-            name: bt.name || null,
-            slug: bt.slug || null,
-          }
-        : null,
-      feature_flags: featureFlags,
-    });
+    return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : "Feature bilgisi alinamadi";
     return NextResponse.json({ error: message }, { status: 500 });

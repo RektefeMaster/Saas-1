@@ -18,7 +18,8 @@ export async function GET(
     )
     .eq("tenant_id", tenantId)
     .order("last_visit_at", { ascending: false, nullsFirst: false })
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(500);
 
   let data = result.data ?? [];
   if (result.error) {

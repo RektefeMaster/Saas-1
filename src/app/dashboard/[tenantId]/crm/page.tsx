@@ -18,6 +18,7 @@ import { useLocale } from "@/lib/locale-context";
 import { fetcher } from "@/lib/swr-fetcher";
 import { VirtualList } from "@/components/ui";
 import { useCrmStore } from "@/stores/crm-store";
+import { useDashboardTenant } from "../../DashboardTenantContext";
 
 interface CrmCustomer {
   customer_phone: string;
@@ -163,6 +164,7 @@ export default function CrmPage({
   const t = COPY[locale];
 
   const [tenantId, setTenantId] = useState("");
+  const tenantCtx = useDashboardTenant();
   const [crmExtendedProfileEnabled, setCrmExtendedProfileEnabled] = useState(false);
   const search = useCrmStore((s) => s.search);
   const setSearch = useCrmStore((s) => s.setSearch);
@@ -207,17 +209,9 @@ export default function CrmPage({
       setCrmExtendedProfileEnabled(false);
       return;
     }
-    const controller = new AbortController();
-    fetch(`/api/tenant/${tenantId}/features`, { signal: controller.signal, cache: "no-store" })
-      .then((res) => res.json())
-      .then((payload: TenantFeaturesResponse) => {
-        setCrmExtendedProfileEnabled(Boolean(payload?.feature_flags?.crm_extended_profile));
-      })
-      .catch(() => {
-        setCrmExtendedProfileEnabled(false);
-      });
-    return () => controller.abort();
-  }, [tenantId]);
+    const flags = tenantCtx?.features as Record<string, unknown> | null;
+    setCrmExtendedProfileEnabled(Boolean(flags?.crm_extended_profile));
+  }, [tenantId, tenantCtx?.features]);
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -265,7 +259,10 @@ export default function CrmPage({
     error: detailError,
     isLoading: detailLoading,
     mutate: mutateDetail,
-  } = useSWR<{ customer?: CrmCustomer; notes?: CrmNote[]; error?: string }>(detailKey, fetcher);
+  } = useSWR<{ customer?: CrmCustomer; notes?: CrmNote[]; error?: string }>(detailKey, fetcher, {
+    revalidateOnFocus: false,
+    dedupingInterval: 10000,
+  });
 
   useEffect(() => {
     if (!detailData || !selectedPhone) return;

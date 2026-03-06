@@ -50,8 +50,8 @@ type MessageItem = {
   created_at: string;
 };
 
-const POLL_INTERVAL_MS = 2000;
-const MESSAGES_POLL_MS = 2000;
+const POLL_INTERVAL_MS = 6000;
+const MESSAGES_POLL_MS = 4000;
 
 function formatDate(value: string): string {
   const d = new Date(value);
@@ -202,7 +202,10 @@ export default function AdminConversationsPage() {
   }, [fetchList]);
 
   useEffect(() => {
-    pollRef.current = setInterval(() => fetchList(true), POLL_INTERVAL_MS);
+    const poll = () => {
+      if (document.visibilityState === "visible") fetchList(true);
+    };
+    pollRef.current = setInterval(poll, POLL_INTERVAL_MS);
     return () => {
       if (pollRef.current) clearInterval(pollRef.current);
     };
@@ -223,9 +226,10 @@ export default function AdminConversationsPage() {
     if (!tenant_id || !customer_phone_digits) return;
     const conv = { tenant_id, customer_phone_digits } as ConversationSummary;
     fetchMessages(conv);
-    messagesPollRef.current = setInterval(() => {
-      fetchMessages(conv, true);
-    }, MESSAGES_POLL_MS);
+    const poll = () => {
+      if (document.visibilityState === "visible") fetchMessages(conv, true);
+    };
+    messagesPollRef.current = setInterval(poll, MESSAGES_POLL_MS);
     return () => {
       if (messagesPollRef.current) {
         clearInterval(messagesPollRef.current);

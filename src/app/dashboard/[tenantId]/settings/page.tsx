@@ -21,6 +21,7 @@ import {
 import { useLocale } from "@/lib/locale-context";
 import { humanizeMinutes } from "@/lib/humanize-duration";
 import { LottieAnimationLazy, QRCodeModal } from "@/components/ui";
+import { useDashboardTenant } from "../../DashboardTenantContext";
 
 interface TenantData {
   id: string;
@@ -296,6 +297,7 @@ export default function TenantSettingsPage({
   const t = COPY[locale];
 
   const [tenantId, setTenantId] = useState("");
+  const tenantCtx = useDashboardTenant();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -351,9 +353,18 @@ export default function TenantSettingsPage({
       if (!tenantId) return;
       setLoading(true);
       try {
-        const res = await fetch(`/api/tenant/${tenantId}`, { cache: "no-store" });
-        const data = (await res.json().catch(() => null)) as TenantData | null;
-        if (!res.ok || !data || "error" in data) {
+        let data: TenantData | null = null;
+        if (tenantCtx?.tenant) {
+          data = tenantCtx.tenant as unknown as TenantData;
+        } else {
+          const res = await fetch(`/api/tenant/${tenantId}`, { cache: "no-store" });
+          data = (await res.json().catch(() => null)) as TenantData | null;
+          if (!res.ok || !data || "error" in data) {
+            setLoadError(t.loadError);
+            return;
+          }
+        }
+        if (!data) {
           setLoadError(t.loadError);
           return;
         }
@@ -397,7 +408,7 @@ export default function TenantSettingsPage({
       }
     };
     load();
-  }, [locale, tenantId, t.loadError]);
+  }, [locale, tenantId, t.loadError, tenantCtx?.tenant]);
 
   const save = async () => {
     if (!tenantId) return;

@@ -3,12 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
-
-interface FeatureResponse {
-  feature_flags?: {
-    staff_preference?: boolean;
-  };
-}
+import { useDashboardTenant } from "../../DashboardTenantContext";
 
 interface StaffItem {
   id: string;
@@ -38,8 +33,9 @@ export default function StaffPage({
   params: Promise<{ tenantId: string }>;
 }) {
   const [tenantId, setTenantId] = useState("");
-  const [enabled, setEnabled] = useState(false);
-  const [featuresLoading, setFeaturesLoading] = useState(true);
+  const tenantCtx = useDashboardTenant();
+  const enabled = tenantCtx?.staffPreferenceEnabled ?? false;
+  const featuresLoading = tenantCtx?.isLoading ?? true;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -106,18 +102,6 @@ export default function StaffPage({
     );
     setLoading(false);
   }, [enabled, tenantId]);
-
-  useEffect(() => {
-    if (!tenantId) return;
-    setFeaturesLoading(true);
-    fetch(`/api/tenant/${tenantId}/features`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((payload: FeatureResponse) => {
-        setEnabled(Boolean(payload?.feature_flags?.staff_preference));
-      })
-      .catch(() => setEnabled(false))
-      .finally(() => setFeaturesLoading(false));
-  }, [tenantId]);
 
   useEffect(() => {
     void loadData();

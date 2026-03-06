@@ -7,6 +7,36 @@ import { loginEmailToUsernameDisplay, normalizeUsername } from "@/lib/username-a
 
 const ADMIN_COOKIE = "admin_session";
 const SUPABASE_TENANTS_REST_PATH = "/rest/v1/tenants";
+const OWNERSHIP_CACHE_TTL_MS = 20_000; // 20 saniye - aynı kullanıcı/tenant için tekrarlayan REST çağrılarını azaltır
+
+// In-memory sahiplik cache: key = `${tenantId}:${userId}:${ownerUsername ?? ""}`, value = { result, expiresAt }
+const ownershipCache = new Map<string, { result: "owned" | "forbidden" | "error"; expiresAt: number }>();
+
+function getOwnershipCacheKey(tenantId: string, userId: string, ownerUsername: string | null): string {
+  return `${tenantId}:${userId}:${ownerUsername ?? ""}`;
+}
+
+function getCachedOwnership(tenantId: string, userId: string, ownerUsername: string | null): "owned" | "forbidden" | "error" | null {
+  const key = getOwnershipCacheKey(tenantId, userId, ownerUsername);
+  const entry = ownershipCache.get(key);
+  if (!entry || Date.now() > entry.expiresAt) {
+    if (entry) ownershipCache.delete(key);
+    return null;
+  }
+  return entry.result;
+}
+
+function setOwnershipCache(tenantId: string, userId: string, ownerUsername: string | null, result: "owned" | "forbidden" | "error"): void {
+  const key = getOwnershipCacheKey(tenantId, userId, ownerUsername);
+  ownershipCache.set(key, { result, expiresAt: Date.now() + OWNERSHIP_CACHE_TTL_MS });
+  // Basit LRU: 1000'den fazla entry varsa en eski yarısını sil
+  if (ownershipCache.size > 1000) {
+    const entries = [...ownershipCache.entries()].sort((a, b) => a[1].expiresAt - b[1].expiresAt);
+    for (let i = 0; i < Math.floor(entries.length / 2); i++) {
+      ownershipCache.delete(entries[i][0]);
+    }
+  }
+}
 
 async function isAdminAuthenticated(request: NextRequest): Promise<boolean> {
   const token = request.cookies.get(ADMIN_COOKIE)?.value;
@@ -217,7 +247,17 @@ export async function proxy(request: NextRequest) {
       }
     }
 
-    const ownership = await isTenantOwnedByUser(tenantId, user.id, user.email);
+    const ownerUsername = user.email
+      ? (() => {
+          const raw = loginEmailToUsernameDisplay(user.email);
+          return raw && raw !== user.email ? normalizeUsername(raw) : null;
+        })()
+      : null;
+    let ownership = getCachedOwnership(tenantId, user.id, ownerUsername);
+    if (ownership === null) {
+      ownership = await isTenantOwnedByUser(tenantId, user.id, user.email);
+      setOwnershipCache(tenantId, user.id, ownerUsername, ownership);
+    }
     if (ownership === "error") {
       return NextResponse.json(
         { error: "Tenant erişim doğrulaması yapılamadı" },

@@ -3,12 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, PackagePlus } from "lucide-react";
-
-interface FeatureResponse {
-  feature_flags?: {
-    packages?: boolean;
-  };
-}
+import { useDashboardTenant } from "../../DashboardTenantContext";
 
 interface PackageItem {
   id: string;
@@ -54,8 +49,9 @@ export default function PackagesPage({
   params: Promise<{ tenantId: string }>;
 }) {
   const [tenantId, setTenantId] = useState("");
-  const [packagesEnabled, setPackagesEnabled] = useState(false);
-  const [featuresLoading, setFeaturesLoading] = useState(true);
+  const tenantCtx = useDashboardTenant();
+  const packagesEnabled = tenantCtx?.features?.packages === true;
+  const featuresLoading = tenantCtx?.isLoading ?? true;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -114,20 +110,6 @@ export default function PackagesPage({
     setCustomerPackages(Array.isArray(customerPackagesPayload) ? customerPackagesPayload : []);
     setLoading(false);
   }, [packagesEnabled, tenantId]);
-
-  useEffect(() => {
-    if (!tenantId) return;
-
-    setFeaturesLoading(true);
-    fetch(`/api/tenant/${tenantId}/features`, { cache: "no-store" })
-      .then((res) => res.json())
-      .then((payload: FeatureResponse) => {
-        const enabled = Boolean(payload?.feature_flags?.packages);
-        setPackagesEnabled(enabled);
-      })
-      .catch(() => setPackagesEnabled(false))
-      .finally(() => setFeaturesLoading(false));
-  }, [tenantId]);
 
   useEffect(() => {
     void loadData();

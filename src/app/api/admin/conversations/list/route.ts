@@ -46,7 +46,7 @@ export async function GET(request: NextRequest) {
   const now = new Date();
   const from = new Date(now.getTime() - hours * 60 * 60 * 1000);
 
-  const maxRows = Math.min(limit * 50, 5000);
+  const maxRows = Math.min(limit * 2, 500);
   let query = supabase
     .from("conversation_messages")
     .select("tenant_id, customer_phone_digits, direction, message_text, created_at")
@@ -57,7 +57,14 @@ export async function GET(request: NextRequest) {
   if (tenantId) query = query.eq("tenant_id", tenantId);
   if (phoneDigits) query = query.eq("customer_phone_digits", phoneDigits);
 
-  const { data, error } = await query;
+  const [{ data, error }, paused] = await Promise.all([
+    query,
+    listPausedSessions({
+      tenantId: tenantId || undefined,
+      limit: 500,
+    }),
+  ]);
+
   if (error) {
     const missing = extractMissingSchemaTable(error);
     if (missing === "conversation_messages") {
@@ -109,11 +116,6 @@ export async function GET(request: NextRequest) {
       if (!s.last_outbound_text && row.message_text) s.last_outbound_text = row.message_text;
     }
   }
-
-  const paused = await listPausedSessions({
-    tenantId: tenantId || undefined,
-    limit: 500,
-  });
 
   for (const item of paused) {
     const phone = normalizePhoneDigits(item.customerPhone);

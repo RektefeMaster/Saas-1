@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 import { LottieAnimationLazy } from "@/components/ui";
+import { useDashboardTenant } from "../../DashboardTenantContext";
 
 interface RecipientItem {
   phone: string;
@@ -215,25 +216,14 @@ export default function CampaignsPage({
   const [extraPhones, setExtraPhones] = useState<string[]>([]);
   const [addPhoneInput, setAddPhoneInput] = useState("");
   const [showRecipientsModal, setShowRecipientsModal] = useState(false);
-  const [campaignEnabled, setCampaignEnabled] = useState<boolean | null>(null);
+  const tenantCtx = useDashboardTenant();
+  const campaignEnabled = tenantCtx?.tenant
+    ? (tenantCtx.tenant as { campaign_enabled?: boolean }).campaign_enabled !== false
+    : null;
 
   useEffect(() => {
     params.then((p) => setTenantId(p.tenantId));
   }, [params]);
-
-  useEffect(() => {
-    if (!tenantId) return;
-    fetch(`/api/tenant/${tenantId}`)
-      .then((r) => r.json())
-      .then((data) => {
-        if (!data.error) {
-          setCampaignEnabled((data as { campaign_enabled?: boolean }).campaign_enabled !== false);
-        } else {
-          setCampaignEnabled(true);
-        }
-      })
-      .catch(() => setCampaignEnabled(true));
-  }, [tenantId]);
 
   const loadRecipients = useCallback(() => {
     if (!tenantId) return;

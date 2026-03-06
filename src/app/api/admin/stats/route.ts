@@ -1,7 +1,10 @@
+import { unstable_cache } from "next/cache";
 import { NextResponse } from "next/server";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
-export async function GET() {
+const STATS_CACHE_SECONDS = 45;
+
+async function fetchStatsData() {
   const empty = {
     tenants: 0,
     businessTypes: 0,
@@ -18,7 +21,7 @@ export async function GET() {
   };
 
   if (!isSupabaseConfigured()) {
-    return NextResponse.json(empty);
+    return empty;
   }
   try {
     const today = new Date().toISOString().slice(0, 10);
@@ -98,7 +101,7 @@ export async function GET() {
       tenant_name: tenantMap.get(c.tenant_id),
     }));
 
-    return NextResponse.json({
+    return {
       tenants: tenantsCount ?? 0,
       businessTypes: businessTypesCount ?? 0,
       appointmentsToday: appointmentsTodayCount ?? 0,
@@ -111,9 +114,23 @@ export async function GET() {
       reviews: reviewsCount ?? 0,
       recentAppointments,
       recentCampaigns,
-    });
+    };
   } catch (err) {
     console.error("[admin stats]", err);
+    throw err;
+  }
+}
+
+export async function GET() {
+  try {
+    const getCachedStats = unstable_cache(
+      fetchStatsData,
+      ["admin-stats"],
+      { revalidate: STATS_CACHE_SECONDS }
+    );
+    const data = await getCachedStats();
+    return NextResponse.json(data);
+  } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Sunucu hatası" },
       { status: 500 }

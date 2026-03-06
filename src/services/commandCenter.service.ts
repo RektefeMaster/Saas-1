@@ -71,7 +71,7 @@ async function listAtRiskCustomers(
     .eq("tenant_id", tenantId)
     .in("status", ["confirmed", "completed", "no_show"])
     .order("slot_start", { ascending: false })
-    .limit(1500);
+    .limit(400);
 
   if (aptRes.error) throw new Error(aptRes.error.message);
 
@@ -164,13 +164,15 @@ async function getRevenueSummary(tenantId: string, startIso: string, endIso: str
   };
 }
 
-async function getFillRatePct(tenantId: string): Promise<number> {
+async function getFillRatePct(
+  tenantId: string,
+  tenantConfigOverride?: Record<string, unknown> | null
+): Promise<number> {
   const now = new Date();
   const until = new Date();
   until.setDate(until.getDate() + 7);
 
-  const [tenantRes, slotsRes, appointmentsRes] = await Promise.all([
-    supabase.from("tenants").select("config_override").eq("id", tenantId).single(),
+  const [slotsRes, appointmentsRes] = await Promise.all([
     supabase
       .from("availability_slots")
       .select("day_of_week, start_time, end_time")
@@ -187,7 +189,7 @@ async function getFillRatePct(tenantId: string): Promise<number> {
   if (appointmentsRes.error) throw new Error(appointmentsRes.error.message);
   if (slotsRes.error) throw new Error(slotsRes.error.message);
 
-  const override = (tenantRes.data?.config_override || {}) as Record<string, unknown>;
+  const override = (tenantConfigOverride || {}) as Record<string, unknown>;
   const slotDuration = Math.max(5, Number(override.slot_duration_minutes || 30));
 
   const slots = slotsRes.data || [];
@@ -232,7 +234,7 @@ export async function getCommandCenterSnapshot(
     await Promise.all([
       supabase
         .from("tenants")
-        .select("id, business_type_id")
+        .select("id, business_type_id, config_override")
         .eq("id", tenantId)
         .single(),
       supabase
@@ -304,7 +306,7 @@ export async function getCommandCenterSnapshot(
   const cancellationRatePct =
     monthlyAppointments > 0 ? round((cancelledCount / monthlyAppointments) * 100, 1) : 0;
 
-  const fillRatePct = await getFillRatePct(tenantId);
+  const fillRatePct = await getFillRatePct(tenantId, tenantRes.data.config_override as Record<string, unknown> | undefined);
 
   const revenue = await getRevenueSummary(
     tenantId,

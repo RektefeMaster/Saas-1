@@ -118,7 +118,8 @@ export default function TenantsListPage() {
     try {
       const params = new URLSearchParams();
       if (statusFilter) params.set("status", statusFilter);
-      const url = `/api/admin/tenants${params.toString() ? `?${params}` : ""}`;
+      params.set("limit", "200");
+      const url = `/api/admin/tenants?${params}`;
       const res = await fetch(url);
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));

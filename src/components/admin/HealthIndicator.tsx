@@ -34,7 +34,9 @@ export function HealthIndicator() {
       }
     };
     fetchHealth();
-    const interval = setInterval(fetchHealth, 60_000);
+    const interval = setInterval(() => {
+      if (document.visibilityState === "visible") fetchHealth();
+    }, 60_000);
     return () => {
       mounted = false;
       clearInterval(interval);
