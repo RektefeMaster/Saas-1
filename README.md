@@ -27,7 +27,7 @@ cp .env.example .env
 **Sesli mesaj (STT):** WhatsApp sesli mesajlarını metne çevirmek için `OPENAI_STT_MODEL` (`whisper-1`) kullanılmaktadır.
 **Template reminder:** 24 saat sonrası WhatsApp hatırlatma template'i için `WHATSAPP_REMINDER_TEMPLATE_NAME` ve `WHATSAPP_TEMPLATE_LANG` ayarlanabilir.
 
-### 3. Supabase
+### 3. Supabase kısmı
 
 1. [Supabase](https://supabase.com) projesi oluşturun
 2. `supabase/migrations/001_initial_schema.sql` dosyasını SQL Editor'da çalıştırın
