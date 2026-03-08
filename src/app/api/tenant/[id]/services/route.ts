@@ -28,7 +28,8 @@ export async function GET(
     let query = supabase
       .from("services")
       .select(selectColumns.join(", "))
-      .eq("tenant_id", tenantId);
+      .eq("tenant_id", tenantId)
+      .limit(100);
 
     if (selectColumns.includes("display_order")) {
       query = query.order("display_order", { ascending: true });

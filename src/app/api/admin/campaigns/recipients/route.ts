@@ -13,10 +13,19 @@ export async function GET(request: NextRequest) {
 
     const filterTags = tagsParam ? tagsParam.split(",").map((t) => t.trim()).filter(Boolean) : [];
 
-    const { data: crmList } = await supabase
-      .from("crm_customers")
-      .select("customer_phone, customer_name, tags")
-      .eq("tenant_id", tenantId);
+    const [{ data: crmList }, { data: aptData }] = await Promise.all([
+      supabase
+        .from("crm_customers")
+        .select("customer_phone, customer_name, tags")
+        .eq("tenant_id", tenantId)
+        .limit(1000),
+      supabase
+        .from("appointments")
+        .select("customer_phone")
+        .eq("tenant_id", tenantId)
+        .neq("status", "cancelled")
+        .limit(2000),
+    ]);
 
     let crmPhones = crmList || [];
     if (filterTags.length > 0) {
@@ -24,12 +33,6 @@ export async function GET(request: NextRequest) {
         (r.tags || []).some((t: string) => filterTags.includes(t))
       );
     }
-
-    const { data: aptData } = await supabase
-      .from("appointments")
-      .select("customer_phone")
-      .eq("tenant_id", tenantId)
-      .neq("status", "cancelled");
 
     const allPhones = new Map<string, { name?: string; tags?: string[] }>();
     for (const r of crmPhones) {

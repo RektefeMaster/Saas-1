@@ -125,7 +125,8 @@ export async function getTenantReviews(tenantId: string) {
     .from("reviews")
     .select("id, rating, comment, created_at, appointment_id, skipped")
     .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(200);
 
   if (error) return { avgRating: 0, totalCount: 0, reviews: [] };
 

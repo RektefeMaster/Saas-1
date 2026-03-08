@@ -98,7 +98,7 @@ export default function AdminPage() {
     try {
       const [btRes, tRes, statsRes] = await Promise.all([
         fetch("/api/admin/business-types"),
-        fetch("/api/admin/tenants"),
+        fetch("/api/admin/tenants?limit=100"),
         fetch("/api/admin/stats"),
       ]);
 

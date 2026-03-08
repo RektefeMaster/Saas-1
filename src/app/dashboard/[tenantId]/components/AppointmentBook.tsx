@@ -34,6 +34,7 @@ interface AppointmentBookProps {
   onUpdateStatus: (appointmentId: string, status: string) => void;
   getServiceLabel: (apt: Appointment) => string;
   tenantId: string;
+  reduceMotion?: boolean;
 }
 
 const MONTH_NAMES_TR = [
@@ -63,6 +64,7 @@ function AppointmentBook({
   onUpdateStatus,
   getServiceLabel,
   tenantId,
+  reduceMotion = false,
 }: AppointmentBookProps) {
   const [expandedEntry, setExpandedEntry] = useState<string | null>(null);
 
@@ -150,14 +152,18 @@ function AppointmentBook({
           const monthName = MONTH_NAMES_TR[dateObj.getMonth()];
           const appointments = grouped[date] || [];
 
+          const DayWrapper = reduceMotion ? "div" : motion.div;
+          const dayProps = reduceMotion
+            ? { key: date, className: "defter-gun" }
+            : {
+                key: date,
+                initial: { opacity: 0 },
+                animate: { opacity: 1 },
+                transition: { delay: dateIdx * 0.04, duration: 0.3 },
+                className: "defter-gun",
+              };
           return (
-            <motion.div
-              key={date}
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: dateIdx * 0.04, duration: 0.3 }}
-              className="defter-gun"
-            >
+            <DayWrapper {...dayProps}>
               {/* Date header - like a date stamp */}
               <div className={`defter-tarih ${isToday ? "defter-bugun" : ""}`}>
                 <div className="defter-tarih-daire">
@@ -205,25 +211,39 @@ function AppointmentBook({
                             ? "defter-dot-iptal"
                             : "defter-dot-gelmedi";
 
-                  return (
-                    <motion.div
-                      key={apt.id}
-                      initial={{ opacity: 0, x: -8 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{
-                        delay: dateIdx * 0.04 + aptIdx * 0.025,
-                      }}
-                      className={`defter-satir ${isExpanded ? "defter-satir-acik" : ""} ${
-                        apt.status === "cancelled"
-                          ? "defter-satir-iptal"
-                          : apt.status === "no_show"
-                            ? "defter-satir-gelmedi"
-                            : ""
-                      }`}
-                      onClick={() =>
-                        setExpandedEntry(isExpanded ? null : apt.id)
+                  const RowWrapper = reduceMotion ? "div" : motion.div;
+                  const rowProps = reduceMotion
+                    ? {
+                        key: apt.id,
+                        className: `defter-satir ${isExpanded ? "defter-satir-acik" : ""} ${
+                          apt.status === "cancelled"
+                            ? "defter-satir-iptal"
+                            : apt.status === "no_show"
+                              ? "defter-satir-gelmedi"
+                              : ""
+                        }`,
+                        onClick: () =>
+                          setExpandedEntry(isExpanded ? null : apt.id),
                       }
-                    >
+                    : {
+                        key: apt.id,
+                        initial: { opacity: 0, x: -8 },
+                        animate: { opacity: 1, x: 0 },
+                        transition: {
+                          delay: dateIdx * 0.04 + aptIdx * 0.025,
+                        },
+                        className: `defter-satir ${isExpanded ? "defter-satir-acik" : ""} ${
+                          apt.status === "cancelled"
+                            ? "defter-satir-iptal"
+                            : apt.status === "no_show"
+                              ? "defter-satir-gelmedi"
+                              : ""
+                        }`,
+                        onClick: () =>
+                          setExpandedEntry(isExpanded ? null : apt.id),
+                      };
+                  return (
+                    <RowWrapper {...rowProps}>
                       {/* Main line */}
                       <div className="defter-satir-icerik">
                         {/* Time in margin */}
@@ -261,18 +281,13 @@ function AppointmentBook({
                       </div>
 
                       {/* Expanded detail area */}
-                      <AnimatePresence>
-                        {isExpanded && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: "auto", opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            transition={{ duration: 0.2 }}
+                      {isExpanded && (
+                        reduceMotion ? (
+                          <div
                             className="defter-acilan"
                             onClick={(e) => e.stopPropagation()}
                           >
                             <div className="defter-acilan-ic">
-                              {/* Detail rows */}
                               <div className="defter-bilgiler">
                                 {name && (
                                   <div className="defter-bilgi-satir">
@@ -290,8 +305,6 @@ function AppointmentBook({
                                   </span>
                                 </div>
                               </div>
-
-                              {/* Action buttons */}
                               {(apt.status === "pending" ||
                                 apt.status === "confirmed") && (
                                 <div className="defter-aksiyonlar">
@@ -373,14 +386,125 @@ function AppointmentBook({
                                 </div>
                               )}
                             </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </motion.div>
+                          </div>
+                        ) : (
+                          <AnimatePresence>
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: "auto", opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                              className="defter-acilan"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              <div className="defter-acilan-ic">
+                                <div className="defter-bilgiler">
+                                  {name && (
+                                    <div className="defter-bilgi-satir">
+                                      <Phone className="h-3.5 w-3.5" />
+                                      <span>{apt.customer_phone}</span>
+                                    </div>
+                                  )}
+                                  <div className="defter-bilgi-satir">
+                                    <Clock className="h-3.5 w-3.5" />
+                                    <span>
+                                      {service}
+                                      {durationMinutes
+                                        ? ` · ${durationMinutes} dk`
+                                        : ""}
+                                    </span>
+                                  </div>
+                                </div>
+                                {(apt.status === "pending" ||
+                                  apt.status === "confirmed") && (
+                                  <div className="defter-aksiyonlar">
+                                    {apt.status === "pending" && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          disabled={isUpdating}
+                                          onClick={() =>
+                                            onUpdateStatus(apt.id, "confirmed")
+                                          }
+                                          className="defter-btn defter-btn-onayla"
+                                        >
+                                          {isUpdating ? (
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                          ) : (
+                                            <>
+                                              <Check className="h-3.5 w-3.5" />
+                                              Onayla
+                                            </>
+                                          )}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={isUpdating}
+                                          onClick={() =>
+                                            onUpdateStatus(apt.id, "cancelled")
+                                          }
+                                          className="defter-btn defter-btn-iptal"
+                                        >
+                                          <XOctagon className="h-3.5 w-3.5" />
+                                          İptal
+                                        </button>
+                                      </>
+                                    )}
+                                    {apt.status === "confirmed" && (
+                                      <>
+                                        <button
+                                          type="button"
+                                          disabled={isUpdating}
+                                          onClick={() =>
+                                            onUpdateStatus(apt.id, "completed")
+                                          }
+                                          className="defter-btn defter-btn-onayla"
+                                        >
+                                          {isUpdating ? (
+                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                          ) : (
+                                            <>
+                                              <CheckCircle2 className="h-3.5 w-3.5" />
+                                              Tamamlandı
+                                            </>
+                                          )}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={isUpdating}
+                                          onClick={() =>
+                                            onUpdateStatus(apt.id, "no_show")
+                                          }
+                                          className="defter-btn defter-btn-gelmedi"
+                                        >
+                                          <UserX className="h-3.5 w-3.5" />
+                                          Gelmedi
+                                        </button>
+                                        <button
+                                          type="button"
+                                          disabled={isUpdating}
+                                          onClick={() =>
+                                            onUpdateStatus(apt.id, "cancelled")
+                                          }
+                                          className="defter-btn defter-btn-iptal"
+                                        >
+                                          <XOctagon className="h-3.5 w-3.5" />
+                                          İptal
+                                        </button>
+                                      </>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
+                            </motion.div>
+                          </AnimatePresence>
+                        )
+                      )}
+                    </RowWrapper>
                   );
                 })}
               </div>
-            </motion.div>
+            </DayWrapper>
           );
         })}
       </div>

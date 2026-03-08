@@ -28,7 +28,8 @@ export async function GET(
       "id, tenant_id, customer_phone, package_id, total_sessions, remaining_sessions, purchased_at, expires_at, status, metadata, packages(id, name, service_slug)"
     )
     .eq("tenant_id", tenantId)
-    .order("purchased_at", { ascending: false });
+    .order("purchased_at", { ascending: false })
+    .limit(200);
 
   if (phoneFilter) query = query.eq("customer_phone", phoneFilter);
   if (statusFilter) query = query.eq("status", statusFilter);

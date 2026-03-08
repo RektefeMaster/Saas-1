@@ -3,8 +3,10 @@
 import dynamic from "next/dynamic";
 import Link from "next/link";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-import { MotionConfig, motion, useScroll, useTransform } from "motion/react";
-import { ChartBar } from "@/components/charts/ChartBar";
+const ChartBar = dynamic(
+  () => import("@/components/charts/ChartBar").then((m) => ({ default: m.ChartBar })),
+  { ssr: false, loading: () => <div className="h-[280px] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
+);
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
 import {
   Loader2,
@@ -19,16 +21,16 @@ import {
   CalendarDays,
   Settings2,
 } from "lucide-react";
-import {
-  CommandCenterSection,
-  type CommandCenterSnapshot,
-  type CommandCenterAction,
-} from "./components/CommandCenterSection";
+import type { CommandCenterSnapshot, CommandCenterAction } from "./components/CommandCenterSection";
+
+const CommandCenterSection = dynamic(
+  () => import("./components/CommandCenterSection").then((m) => ({ default: m.CommandCenterSection })),
+  { ssr: false, loading: () => <div className="h-32 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
+);
 import { MessageSettings } from "./components/MessageSettings";
 import AppointmentBook from "./components/AppointmentBook";
 import { WhatsAppLinkModal } from "@/components/ui/WhatsAppLinkModal";
 import { useDashboardTenant } from "../DashboardTenantContext";
-import { group, sort } from "radash";
 
 const QRCodeModal = dynamic(
   () => import("@/components/ui/QRCodeModal").then((m) => ({ default: m.QRCodeModal })),
@@ -121,7 +123,7 @@ const DAY_NAMES = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
 const APPOINTMENTS_POLL_MS = 30000;
 const OPS_ALERTS_POLL_MS = 60000;
 const COMMAND_CENTER_POLL_MS = 120000;
-const STAGGER_DELAY_MS = 120; // İlk yüklemede paralel istekleri dağıtmak için
+const STAGGER_DELAY_MS = 120;
 
 function getWeekDates(anchor: Date): string[] {
   const dates: string[] = [];
@@ -139,11 +141,13 @@ function getWeekDates(anchor: Date): string[] {
 }
 
 function groupByDate(apts: Appointment[]): Record<string, Appointment[]> {
-  const grouped = group(apts, (a) => new Date(a.slot_start).toISOString().split("T")[0] as string);
   const result: Record<string, Appointment[]> = {};
-  for (const k of Object.keys(grouped)) {
-    const arr = grouped[k] ?? [];
-    result[k] = sort(arr, (a) => new Date(a.slot_start).getTime());
+  for (const a of apts) {
+    const k = new Date(a.slot_start).toISOString().split("T")[0] as string;
+    (result[k] ??= []).push(a);
+  }
+  for (const k of Object.keys(result)) {
+    (result[k] as Appointment[]).sort((a, b) => new Date(a.slot_start).getTime() - new Date(b.slot_start).getTime());
   }
   return result;
 }
@@ -223,7 +227,7 @@ export default function EsnafDashboard({
   const [commandCenterLoading, setCommandCenterLoading] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const [updatingAptId, setUpdatingAptId] = useState<string | null>(null);
-  const [reduceMotion, setReduceMotion] = useState(false);
+  const reduceMotion = true;
   const appointmentsSignatureRef = useRef("");
   const opsAlertsSignatureRef = useRef("");
   const commandCenterSignatureRef = useRef("");
@@ -236,26 +240,10 @@ export default function EsnafDashboard({
     setTimeout(() => setCodeCopied(false), 2000);
   }, [tenant?.tenant_code]);
 
-  const { scrollY } = useScroll();
-  const headerY = useTransform(scrollY, [0, 120], [0, -12]);
-  const headerShadow = useTransform(
-    scrollY,
-    [0, 80],
-    ["0 1px 3px 0 rgb(0 0 0 / 0.05)", "0 4px 12px -2px rgb(0 0 0 / 0.08)"]
-  );
-
   useEffect(() => {
     params.then(setResolvedParams);
   }, [params]);
 
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const media = window.matchMedia("(max-width: 1024px), (hover: none), (pointer: coarse)");
-    const update = () => setReduceMotion(media.matches);
-    update();
-    media.addEventListener("change", update);
-    return () => media.removeEventListener("change", update);
-  }, []);
 
   const tenantId = resolvedParams?.tenantId;
 
@@ -418,48 +406,23 @@ export default function EsnafDashboard({
 useEffect(() => {
   if (!tenantId) return;
   const controller = new AbortController();
+  const { signal } = controller;
   const t = setTimeout(() => {
-    fetch(`/api/tenant/${tenantId}/blocked-dates`, {
-      signal: controller.signal,
-    })
-      .then((r) => r.json())
-      .then((d) => setBlockedDates(Array.isArray(d) ? d : []))
-      .catch(() => {});
+    Promise.all([
+      fetch(`/api/tenant/${tenantId}/blocked-dates`, { signal })
+        .then((r) => r.json())
+        .then((d) => setBlockedDates(Array.isArray(d) ? d : []))
+        .catch(() => {}),
+      fetch(`/api/tenant/${tenantId}/reviews`, { signal })
+        .then((r) => r.json())
+        .then((d) => setReviews(d))
+        .catch(() => {}),
+      fetch(`/api/tenant/${tenantId}/availability/slots`, { signal })
+        .then((r) => r.json())
+        .then((d) => setWorkingHours(Array.isArray(d) ? d : []))
+        .catch(() => {}),
+    ]);
   }, STAGGER_DELAY_MS);
-  return () => {
-    clearTimeout(t);
-    controller.abort();
-  };
-}, [tenantId]);
-
-useEffect(() => {
-  if (!tenantId) return;
-  const controller = new AbortController();
-  const t = setTimeout(() => {
-    fetch(`/api/tenant/${tenantId}/reviews`, {
-      signal: controller.signal,
-    })
-      .then((r) => r.json())
-      .then((d) => setReviews(d))
-      .catch(() => {});
-  }, STAGGER_DELAY_MS * 2);
-  return () => {
-    clearTimeout(t);
-    controller.abort();
-  };
-}, [tenantId]);
-
-useEffect(() => {
-  if (!tenantId) return;
-  const controller = new AbortController();
-  const t = setTimeout(() => {
-    fetch(`/api/tenant/${tenantId}/availability/slots`, {
-      signal: controller.signal,
-    })
-      .then((r) => r.json())
-      .then((d) => setWorkingHours(Array.isArray(d) ? d : []))
-      .catch(() => {});
-  }, STAGGER_DELAY_MS * 3);
   return () => {
     clearTimeout(t);
     controller.abort();
@@ -492,7 +455,7 @@ useEffect(() => {
     opsAlertsSignatureRef.current = "";
     const initialT = setTimeout(() => {
       if (document.visibilityState === "visible") void fetchOpsAlerts();
-    }, STAGGER_DELAY_MS * 4);
+    }, STAGGER_DELAY_MS * 2);
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
@@ -541,7 +504,7 @@ useEffect(() => {
     commandCenterSignatureRef.current = "";
     const initialT = setTimeout(() => {
       if (document.visibilityState === "visible") void fetchCommandCenter();
-    }, STAGGER_DELAY_MS * 5);
+    }, STAGGER_DELAY_MS * 2);
 
     const handleVisibility = () => {
       if (document.visibilityState === "visible") {
@@ -771,11 +734,9 @@ useEffect(() => {
   if (!tenantId) return null;
 
   return (
-    <MotionConfig reducedMotion={reduceMotion ? "always" : "never"}>
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
       {/* Header — hafif parallax + gölge scroll ile artar */}
-      <motion.header
-        style={reduceMotion ? undefined : { y: headerY, boxShadow: headerShadow }}
+      <header
         className="sticky top-0 z-10 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900"
       >
         <div className="mx-auto max-w-5xl px-4 py-4 sm:px-6 lg:px-8">
@@ -800,26 +761,22 @@ useEffect(() => {
               </div>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              <motion.button
+              <button
                 type="button"
                 onClick={() => setShowWhatsAppModal(true)}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700 sm:w-auto"
               >
                 <MessageCircle className="h-4 w-4" />
                 WhatsApp Bağlantısı
-              </motion.button>
-              <motion.button
+              </button>
+              <button
                 type="button"
                 onClick={() => setShowQRModal(true)}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl border-2 border-slate-200 bg-white px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:border-slate-300 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:border-slate-600 dark:hover:bg-slate-700 sm:w-auto"
               >
                 <span className="text-base">📷</span> QR Kod
-              </motion.button>
-              <motion.button
+              </button>
+              <button
                 type="button"
                 onClick={() => {
                   setActiveView("appointments");
@@ -829,66 +786,44 @@ useEffect(() => {
                   setAddStaffId("");
                   setShowAdd(true);
                 }}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
                 className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-400 focus:ring-offset-2 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 dark:focus:ring-slate-500 dark:focus:ring-offset-slate-900 sm:w-auto"
               >
                 <span className="text-lg">+</span> Randevu Ekle
-              </motion.button>
+              </button>
             </div>
           </div>
           {/* Mini stats - Geliştirilmiş */}
           <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.1 }}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-            >
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Bugün</span>
               <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{todayCount}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">randevu</p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15 }}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-            >
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">14 Gün</span>
               <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">{weekCount}</p>
               <p className="text-xs text-slate-500 dark:text-slate-400">randevu</p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.2 }}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-            >
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Aylık</span>
               <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 {commandCenter?.kpis.monthly_appointments || 0}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">randevu</p>
-            </motion.div>
-            <motion.div
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.25 }}
-              className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60"
-            >
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 shadow-sm dark:border-slate-700 dark:bg-slate-800/60">
               <span className="text-xs font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-300">Doluluk</span>
               <p className="mt-1 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 %{commandCenter?.kpis.fill_rate_pct.toFixed(0) || 0}
               </p>
               <p className="text-xs text-slate-500 dark:text-slate-400">oranı</p>
-            </motion.div>
+            </div>
           </div>
         </div>
-      </motion.header>
+      </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:pb-8">
-        <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6">
+        <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6" reduceMotion>
           <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
@@ -980,7 +915,7 @@ useEffect(() => {
 
         {activeView === "overview" && (
           <>
-        <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6">
+        <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6" reduceMotion>
           <CommandCenterSection
             commandCenter={commandCenter}
             loading={commandCenterLoading}
@@ -989,7 +924,7 @@ useEffect(() => {
           />
         </ScrollReveal>
 
-        <ScrollReveal variant="fadeUp" delay={0.08} as="section" className="mb-6">
+        <ScrollReveal variant="fadeUp" delay={0.08} as="section" className="mb-6" reduceMotion>
         <section className="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-white to-red-50/30 p-5 shadow-lg dark:border-red-900/50 dark:from-slate-900 dark:to-red-950/20">
           <div className="mb-4 flex items-center justify-between">
             <div>
@@ -1025,11 +960,8 @@ useEffect(() => {
                   low: "from-blue-50 to-blue-100 border-blue-300 text-blue-900 dark:from-blue-900/40 dark:to-blue-800/40 dark:border-blue-700 dark:text-blue-200",
                 };
                 return (
-                  <motion.div
+                  <div
                     key={alert.id}
-                    initial={{ opacity: 0, x: -10 }}
-                    animate={{ opacity: 1, x: 0 }}
-                    transition={{ delay: idx * 0.05 }}
                     className={`rounded-xl border-2 bg-gradient-to-r ${severityStyles[alert.severity]} px-4 py-3 shadow-sm`}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -1056,12 +988,10 @@ useEffect(() => {
                           </div>
                         </div>
                       </div>
-                      <motion.button
+                      <button
                         type="button"
                         onClick={() => handleResolveAlert(alert.id)}
                         disabled={resolvingAlertId === alert.id}
-                        whileHover={{ scale: 1.05 }}
-                        whileTap={{ scale: 0.95 }}
                         className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white hover:shadow-md disabled:opacity-50 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-700"
                       >
                         {resolvingAlertId === alert.id ? (
@@ -1072,9 +1002,9 @@ useEffect(() => {
                         ) : (
                           "Kapat"
                         )}
-                      </motion.button>
+                      </button>
                     </div>
-                  </motion.div>
+                  </div>
                 );
               })}
             </div>
@@ -1085,17 +1015,8 @@ useEffect(() => {
         )}
 
         {activeView === "settings" && (
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{ opacity: 1, height: "auto" }}
-          exit={{ opacity: 0, height: 0 }}
-          className="mb-8 space-y-6"
-        >
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-blue-50/30 p-6 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-blue-950/20"
-        >
+        <div className="mb-8 space-y-6">
+        <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-blue-50/30 p-6 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-blue-950/20">
           <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
             <span className="text-xl">🔔</span> Hatırlatma Ayarları
           </h3>
@@ -1113,12 +1034,10 @@ useEffect(() => {
               <option value="merchant_only">Sadece bana (dashboard’da görürüm)</option>
               <option value="both">İkisine de (müşteriye + bana)</option>
             </select>
-            <motion.button
+            <button
               type="button"
               onClick={handleSaveReminderPref}
               disabled={reminderSaving}
-              whileHover={{ scale: 1.02 }}
-              whileTap={{ scale: 0.98 }}
               className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 dark:from-slate-200 dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200"
             >
               {reminderSaving ? (
@@ -1129,9 +1048,9 @@ useEffect(() => {
               ) : (
                 "Kaydet"
               )}
-            </motion.button>
+            </button>
           </div>
-        </motion.div>
+        </div>
 
         <MessageSettings
           welcomeMsg={welcomeMsg}
@@ -1142,12 +1061,7 @@ useEffect(() => {
           saving={messagesSaving}
         />
 
-        <motion.div
-          initial={{ opacity: 0, y: 10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2 }}
-          className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-indigo-50/30 p-6 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-indigo-950/20"
-        >
+        <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-indigo-50/30 p-6 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-indigo-950/20">
           <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
             <span className="text-xl">🤖</span> Bot Ayarları
           </h3>
@@ -1258,12 +1172,10 @@ useEffect(() => {
                 </select>
               </div>
             </div>
-              <motion.button
+              <button
                 type="button"
                 onClick={handleSaveBotSettings}
                 disabled={botSettingsSaving}
-                whileHover={{ scale: 1.02 }}
-                whileTap={{ scale: 0.98 }}
                 className="w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 dark:from-slate-200 dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200"
               >
                 {botSettingsSaving ? (
@@ -1274,9 +1186,9 @@ useEffect(() => {
                 ) : (
                   "Bot Ayarlarını Kaydet"
                 )}
-              </motion.button>
+              </button>
           </div>
-        </motion.div>
+        </div>
 
         <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="mb-2 flex items-center justify-between">
@@ -1362,12 +1274,12 @@ useEffect(() => {
           )}
         </div>
 
-        </motion.div>
+        </div>
         )}
 
         {/* Haftalık randevu grafiği */}
         {activeView === "overview" && appointments.length > 0 && (
-          <ScrollReveal variant="fadeUp" delay={0.02} as="section" className="mb-6">
+          <ScrollReveal variant="fadeUp" delay={0.02} as="section" className="mb-6" reduceMotion>
             <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
               <h3 className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
                 Haftalık Randevu Özeti
@@ -1395,7 +1307,7 @@ useEffect(() => {
         {activeView === "appointments" && (
           <>
         {/* Haftalık takvim - defter temalı */}
-        <ScrollReveal variant="fadeUp" delay={0.05} as="section" className="mb-6">
+        <ScrollReveal variant="fadeUp" delay={0.05} as="section" className="mb-6" reduceMotion>
         <section className="defter-takvim">
           <div className="defter-takvim-baslik">
             <h3 className="font-serif text-[15px] font-semibold text-amber-900/70 dark:text-amber-200/70">Sayfa Seç</h3>
@@ -1434,16 +1346,11 @@ useEffect(() => {
               const isPast = dateStr < todayIso;
               const isToday = dateStr === todayIso;
               return (
-                <motion.button
+                <button
                   key={dateStr}
                   type="button"
                   onClick={() => !isPast && setSelectedDate(dateStr)}
                   disabled={isPast}
-                  initial={{ opacity: 0, scale: 0.9 }}
-                  animate={{ opacity: 1, scale: 1 }}
-                  transition={{ delay: idx * 0.02 }}
-                  whileHover={!isPast ? { scale: 1.04 } : {}}
-                  whileTap={!isPast ? { scale: 0.96 } : {}}
                   className={`defter-takvim-gun ${
                     isSelected
                       ? "defter-takvim-secili"
@@ -1463,9 +1370,7 @@ useEffect(() => {
                     {d.getDate()}
                   </span>
                   {hasAppts ? (
-                    <motion.span
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
+                    <span
                       className={`mt-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
                         isSelected
                           ? "bg-white/25 text-white"
@@ -1473,12 +1378,12 @@ useEffect(() => {
                       }`}
                     >
                       {hasAppts}
-                    </motion.span>
+                    </span>
                   ) : null}
                   {isToday && !isSelected && (
                     <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-[#faf7f0] dark:ring-[#1a1510]" />
                   )}
-                </motion.button>
+                </button>
               );
             })}
           </div>
@@ -1486,7 +1391,7 @@ useEffect(() => {
         </ScrollReveal>
 
         {selectedDate && (
-          <ScrollReveal variant="slideLeft" delay={0} as="section" className="mb-6">
+          <ScrollReveal variant="slideLeft" delay={0} as="section" className="mb-6" reduceMotion>
           <section className="defter-takvim" style={{ borderRadius: "2px 10px 10px 2px" }}>
             <div className="defter-takvim-baslik">
               <h3 className="font-serif text-[15px] font-semibold capitalize text-amber-900/70 dark:text-amber-200/70">
@@ -1524,16 +1429,14 @@ useEffect(() => {
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {availability.available.map((time) => (
-                        <motion.button
+                        <button
                           key={time}
                           type="button"
                           onClick={() => handleSlotClick(selectedDate, time)}
-                          whileHover={{ scale: 1.04 }}
-                          whileTap={{ scale: 0.96 }}
                           className="rounded-lg border border-emerald-300/40 bg-emerald-50/40 px-4 py-2.5 font-mono text-sm font-semibold text-emerald-800/80 transition hover:border-emerald-400/60 hover:bg-emerald-50/60 dark:border-emerald-700/30 dark:bg-emerald-900/15 dark:text-emerald-300/80 dark:hover:bg-emerald-900/25"
                         >
                           {time}
-                        </motion.button>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -1572,10 +1475,7 @@ useEffect(() => {
         )}
 
         {showAdd && (
-          <motion.form
-            initial={{ opacity: 0, y: -10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
+          <form
             onSubmit={handleAddAppointment}
             className="mb-6 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-white to-emerald-50/30 p-6 shadow-lg dark:border-emerald-800 dark:from-slate-900 dark:to-emerald-950/30"
           >
@@ -1679,14 +1579,12 @@ useEffect(() => {
                 </div>
               )}
               <div className="flex gap-3">
-                <motion.button
+                <button
                   type="submit"
-                  whileHover={{ scale: 1.02 }}
-                  whileTap={{ scale: 0.98 }}
                   className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl"
                 >
                   Randevuyu Ekle
-                </motion.button>
+                </button>
                 <button
                   type="button"
                   onClick={() => {
@@ -1703,11 +1601,11 @@ useEffect(() => {
                 </button>
               </div>
             </div>
-          </motion.form>
+          </form>
         )}
 
         {/* Randevu Defteri */}
-        <ScrollReveal variant="fadeUp" delay={0.1} as="section" className="mb-6">
+        <ScrollReveal variant="fadeUp" delay={0.1} as="section" className="mb-6" reduceMotion>
           <AppointmentBook
             grouped={grouped}
             sortedDates={sortedDates}
@@ -1718,10 +1616,11 @@ useEffect(() => {
             onUpdateStatus={updateAppointmentStatus}
             getServiceLabel={getAppointmentServiceLabel}
             tenantId={tenantId}
+            reduceMotion
           />
         </ScrollReveal>
 
-        <ScrollReveal variant="fadeUp" delay={0.06} as="section" className="mt-8">
+        <ScrollReveal variant="fadeUp" delay={0.06} as="section" className="mt-8" reduceMotion>
         <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <h3 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">🏖️ Tatil / İzin Günleri</h3>
           {blockedDates.length > 0 && (
@@ -1795,7 +1694,7 @@ useEffect(() => {
         )}
 
         {activeView === "overview" && reviews && (
-          <ScrollReveal variant="scale" delay={0} as="section" className="mt-6">
+          <ScrollReveal variant="scale" delay={0} as="section" className="mt-6" reduceMotion>
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <h3 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">⭐ Değerlendirmeler</h3>
             <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
@@ -1834,6 +1733,5 @@ useEffect(() => {
         />
       )}
     </div>
-    </MotionConfig>
   );
 }

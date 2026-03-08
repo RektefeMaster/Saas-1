@@ -39,6 +39,7 @@ interface ScrollRevealProps {
   amount?: number | "some" | "all";
   className?: string;
   as?: "div" | "section" | "article";
+  reduceMotion?: boolean;
 }
 
 const MotionComponents = {
@@ -56,7 +57,12 @@ export function ScrollReveal({
   amount = 0.15,
   className,
   as = "div",
+  reduceMotion = false,
 }: ScrollRevealProps) {
+  if (reduceMotion) {
+    const Tag = as;
+    return <Tag className={className}>{children}</Tag>;
+  }
   const v = variants[variant];
   const Component = MotionComponents[as];
 

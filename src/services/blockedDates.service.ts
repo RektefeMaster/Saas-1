@@ -78,7 +78,8 @@ export async function listBlockedDates(tenantId: string) {
     .from("blocked_dates")
     .select("*")
     .eq("tenant_id", tenantId)
-    .order("start_date", { ascending: false });
+    .order("start_date", { ascending: false })
+    .limit(100);
   if (error) return [];
   return data ?? [];
 }

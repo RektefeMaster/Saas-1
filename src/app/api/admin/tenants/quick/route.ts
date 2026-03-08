@@ -103,11 +103,20 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: existingCode } = await supabase
-    .from("tenants")
-    .select("id")
-    .eq("tenant_code", tenantCode)
-    .maybeSingle();
+  const [{ data: existingCode }, { data: existingUsername, error: existingUsernameErr }] =
+    await Promise.all([
+      supabase
+        .from("tenants")
+        .select("id")
+        .eq("tenant_code", tenantCode)
+        .maybeSingle(),
+      supabase
+        .from("tenants")
+        .select("id")
+        .eq("owner_username", ownerUsername)
+        .maybeSingle(),
+    ]);
+
   if (existingCode) {
     return NextResponse.json(
       { error: `Bu tenant kodu zaten kullanimda: ${tenantCode}` },
@@ -115,11 +124,6 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const { data: existingUsername, error: existingUsernameErr } = await supabase
-    .from("tenants")
-    .select("id")
-    .eq("owner_username", ownerUsername)
-    .maybeSingle();
   const missingUsernameCol = extractMissingSchemaColumn(existingUsernameErr);
   if (
     existingUsernameErr &&

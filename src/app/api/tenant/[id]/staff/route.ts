@@ -36,7 +36,8 @@ export async function GET(
     .from("staff")
     .select("id, tenant_id, name, phone_e164, active, created_at")
     .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: true });
+    .order("created_at", { ascending: true })
+    .limit(100);
 
   if (staffResult.error) {
     const missingTable = extractMissingSchemaTable(staffResult.error);

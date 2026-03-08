@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeft, ListChecks, Loader2, Plus, Trash2 } from "lucide-react";
 import { humanizeMinutes } from "@/lib/humanize-duration";
+import { useDashboardTenant } from "../../DashboardTenantContext";
 
 interface ServiceItem {
   id: string;
@@ -34,6 +35,7 @@ export default function PricingPage({
   params: Promise<{ tenantId: string }>;
 }) {
   const [tenantId, setTenantId] = useState<string>("");
+  const tenantCtx = useDashboardTenant();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [services, setServices] = useState<ServiceItem[]>([]);
@@ -55,28 +57,30 @@ export default function PricingPage({
     if (!tenantId) return;
     setLoading(true);
     try {
-      const [servicesRes, tenantRes] = await Promise.all([
-        fetch(`/api/tenant/${tenantId}/services`, { cache: "no-store" }),
-        includeTenant
-          ? fetch(`/api/tenant/${tenantId}`, { cache: "no-store" })
-          : Promise.resolve(null),
-      ]);
-
+      if (includeTenant && tenantCtx?.tenant) {
+        setTenant(tenantCtx.tenant as TenantBasic);
+      }
+      const servicesRes = await fetch(`/api/tenant/${tenantId}/services`, { cache: "no-store" });
       const servicesData = (await servicesRes.json().catch(() => [])) as ServiceItem[];
       setServices(Array.isArray(servicesData) ? servicesData : []);
 
-      if (tenantRes) {
+      if (includeTenant && !tenantCtx?.tenant) {
+        const tenantRes = await fetch(`/api/tenant/${tenantId}`, { cache: "no-store" });
         const tenantData = (await tenantRes.json().catch(() => null)) as TenantBasic | null;
         setTenant(tenantData);
       }
     } finally {
       setLoading(false);
     }
-  }, [tenantId]);
+  }, [tenantId, tenantCtx?.tenant]);
 
   useEffect(() => {
     void refresh(true);
   }, [refresh]);
+
+  useEffect(() => {
+    if (tenantCtx?.tenant) setTenant(tenantCtx.tenant as TenantBasic);
+  }, [tenantCtx?.tenant]);
 
   const sortedServices = useMemo(
     () =>

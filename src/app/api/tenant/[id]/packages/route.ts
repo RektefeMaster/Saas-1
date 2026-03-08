@@ -24,7 +24,8 @@ export async function GET(
       "id, tenant_id, name, service_slug, total_sessions, price, validity_days, is_active, metadata, created_at, updated_at"
     )
     .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: false });
+    .order("created_at", { ascending: false })
+    .limit(100);
 
   if (result.error) {
     const missingTable = extractMissingSchemaTable(result.error);

@@ -60,7 +60,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
     }
 
     const controller = new AbortController();
-    fetch("/api/admin/tenants", { signal: controller.signal })
+    fetch("/api/admin/tenants?limit=100", { signal: controller.signal })
       .then((r) => {
         if (!r.ok) return [];
         return r.json();
