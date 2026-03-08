@@ -232,8 +232,7 @@ export async function DELETE(
     }
     // Kayıt yok, silme başarılı
   } else {
-    // Silme başarılı, silinen kayıt sayısını logla
-    console.log("Tenant başarıyla silindi:", { id, deleted_count: deletedData.length });
+    // Silme başarılı
   }
 
   let authUserDeleted = false;

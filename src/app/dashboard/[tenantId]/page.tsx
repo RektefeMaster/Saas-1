@@ -118,9 +118,9 @@ interface OpsAlert {
 type DashboardView = "overview" | "appointments" | "settings";
 
 const DAY_NAMES = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
-const APPOINTMENTS_POLL_MS = 10000;
-const OPS_ALERTS_POLL_MS = 30000;
-const COMMAND_CENTER_POLL_MS = 60000;
+const APPOINTMENTS_POLL_MS = 30000;
+const OPS_ALERTS_POLL_MS = 60000;
+const COMMAND_CENTER_POLL_MS = 120000;
 const STAGGER_DELAY_MS = 120; // İlk yüklemede paralel istekleri dağıtmak için
 
 function getWeekDates(anchor: Date): string[] {
@@ -415,35 +415,56 @@ export default function EsnafDashboard({
     };
   }, [tenantId]);
 
-  useEffect(() => {
-    if (!tenantId) return;
-    const t = setTimeout(() => {
-      fetch(`/api/tenant/${tenantId}/blocked-dates`)
-        .then((r) => r.json())
-        .then((d) => setBlockedDates(Array.isArray(d) ? d : []));
-    }, STAGGER_DELAY_MS);
-    return () => clearTimeout(t);
-  }, [tenantId]);
+useEffect(() => {
+  if (!tenantId) return;
+  const controller = new AbortController();
+  const t = setTimeout(() => {
+    fetch(`/api/tenant/${tenantId}/blocked-dates`, {
+      signal: controller.signal,
+    })
+      .then((r) => r.json())
+      .then((d) => setBlockedDates(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, STAGGER_DELAY_MS);
+  return () => {
+    clearTimeout(t);
+    controller.abort();
+  };
+}, [tenantId]);
 
-  useEffect(() => {
-    if (!tenantId) return;
-    const t = setTimeout(() => {
-      fetch(`/api/tenant/${tenantId}/reviews`)
-        .then((r) => r.json())
-        .then((d) => setReviews(d));
-    }, STAGGER_DELAY_MS * 2);
-    return () => clearTimeout(t);
-  }, [tenantId]);
+useEffect(() => {
+  if (!tenantId) return;
+  const controller = new AbortController();
+  const t = setTimeout(() => {
+    fetch(`/api/tenant/${tenantId}/reviews`, {
+      signal: controller.signal,
+    })
+      .then((r) => r.json())
+      .then((d) => setReviews(d))
+      .catch(() => {});
+  }, STAGGER_DELAY_MS * 2);
+  return () => {
+    clearTimeout(t);
+    controller.abort();
+  };
+}, [tenantId]);
 
-  useEffect(() => {
-    if (!tenantId) return;
-    const t = setTimeout(() => {
-      fetch(`/api/tenant/${tenantId}/availability/slots`)
-        .then((r) => r.json())
-        .then((d) => setWorkingHours(Array.isArray(d) ? d : []));
-    }, STAGGER_DELAY_MS * 3);
-    return () => clearTimeout(t);
-  }, [tenantId]);
+useEffect(() => {
+  if (!tenantId) return;
+  const controller = new AbortController();
+  const t = setTimeout(() => {
+    fetch(`/api/tenant/${tenantId}/availability/slots`, {
+      signal: controller.signal,
+    })
+      .then((r) => r.json())
+      .then((d) => setWorkingHours(Array.isArray(d) ? d : []))
+      .catch(() => {});
+  }, STAGGER_DELAY_MS * 3);
+  return () => {
+    clearTimeout(t);
+    controller.abort();
+  };
+}, [tenantId]);
 
   const fetchOpsAlerts = useCallback(async (silent = false) => {
     if (!tenantId) return;

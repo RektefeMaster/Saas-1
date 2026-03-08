@@ -2,10 +2,9 @@
 
 import Link from "next/link";
 import { preload } from "swr";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import useSWR from "swr";
 import {
-  ArrowLeft,
   BellPlus,
   Loader2,
   Save,
@@ -19,6 +18,7 @@ import { fetcher } from "@/lib/swr-fetcher";
 import { VirtualList } from "@/components/ui";
 import { useCrmStore } from "@/stores/crm-store";
 import { useDashboardTenant } from "../../DashboardTenantContext";
+import { DefterLayout } from "../components/DefterLayout";
 
 interface CrmCustomer {
   customer_phone: string;
@@ -61,6 +61,7 @@ const COPY = {
     subtitle: "Müşteri bilgilerinizi, notlarınızı ve hatırlatmalarınızı tek yerden yönetin.",
     back: "Panele dön",
     search: "Telefon, ad veya etikete göre ara...",
+    index: "İndeks",
     noCustomers: "Müşteri bulunamadı.",
     selectCustomer: "Soldaki listeden bir müşteri seçin.",
     profile: "Müşteri Kartı",
@@ -103,6 +104,7 @@ const COPY = {
     subtitle: "Manage customer profiles, notes, tags, and reminders in one place.",
     back: "Back to Panel",
     search: "Search by phone, name, or tag...",
+    index: "Index",
     noCustomers: "No records found.",
     selectCustomer: "Select a customer from the list.",
     profile: "Customer Profile",
@@ -220,12 +222,27 @@ export default function CrmPage({
     return () => window.clearTimeout(timer);
   }, [search]);
 
+  const clearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const clearMessageLater = useCallback(() => {
-    window.setTimeout(() => {
+    if (clearTimerRef.current) {
+      clearTimeout(clearTimerRef.current);
+    }
+    clearTimerRef.current = window.setTimeout(() => {
       setInfo("");
       setError("");
+      clearTimerRef.current = null;
     }, 2200);
   }, []);
+
+  useEffect(
+    () => () => {
+      if (clearTimerRef.current) {
+        clearTimeout(clearTimerRef.current);
+      }
+    },
+    []
+  );
 
   const loadCustomers = useCallback(async () => {
     if (!tenantId) return;
@@ -460,165 +477,156 @@ export default function CrmPage({
     await loadReminders();
   };
 
-  const selectedLabel = useMemo(
-    () => selectedCustomer?.customer_name || selectedPhone,
-    [selectedCustomer?.customer_name, selectedPhone]
-  );
-
   return (
-    <div className="space-y-6 p-4 pb-24 sm:p-6 lg:p-10">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="flex flex-wrap items-start justify-between gap-4">
-          <div>
-            <Link
-              href={`/dashboard/${tenantId}`}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
-            >
-              <ArrowLeft className="h-3.5 w-3.5" />
-              {t.back}
-            </Link>
-            <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-              {t.title}
-            </h1>
-            <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 sm:text-base">{t.subtitle}</p>
-          </div>
-          {busy && (
-            <div className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
+    <div className="p-4 pb-24 sm:p-6 lg:p-8">
+      <DefterLayout
+        variant="musteri"
+        title={t.title}
+        subtitle={t.subtitle}
+        backHref={tenantId ? `/dashboard/${tenantId}` : undefined}
+        backLabel={t.back}
+        coverExtra={
+          busy ? (
+            <span className="inline-flex items-center gap-2 font-serif text-xs italic text-amber-800/50 dark:text-amber-300/50">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
               {t.updating}
-            </div>
-          )}
-        </div>
-        {error && <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p>}
-        {info && <p className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">{info}</p>}
-      </header>
-
-      <div className="grid gap-6 xl:grid-cols-[340px_1fr]">
-        <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-          <div className="relative mb-3">
-            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              type="search"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-              placeholder={t.search}
-              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-9 pr-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            />
+            </span>
+          ) : null
+        }
+        ruled={false}
+      >
+        {error && (
+          <div className="defter-musteri-mesaj defter-musteri-mesaj-hata mb-4">
+            {error}
           </div>
-          <div className="space-y-2">
-            {customersLoading ? (
-              <div className="flex items-center justify-center rounded-lg border border-slate-200 px-3 py-6 text-sm text-slate-500 dark:border-slate-700 dark:text-slate-300">
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Yükleniyor…
-              </div>
-            ) : customers.length === 0 ? (
-              <p className="rounded-lg bg-slate-50 px-3 py-4 text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-300">
-                {t.noCustomers}
-              </p>
-            ) : (
-              <VirtualList
-                items={customers}
-                height={400}
-                estimateSize={72}
-                renderItem={(customer) => (
-                  <button
-                    type="button"
-                    onMouseEnter={() =>
-                      tenantId &&
-                      preload(
-                        `/api/tenant/${tenantId}/crm/customers/${encodeURIComponent(customer.customer_phone)}`,
-                        fetcher
-                      )
-                    }
-                    onClick={() => setSelectedPhone(customer.customer_phone)}
-                    className={`w-full rounded-xl border px-3 py-2.5 text-left transition ${
-                      selectedPhone === customer.customer_phone
-                        ? "border-slate-400 bg-slate-100 dark:border-slate-600 dark:bg-slate-800"
-                        : "border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60"
-                    }`}
-                  >
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
-                      {customer.customer_name || customer.customer_phone}
-                    </p>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">{customer.customer_phone}</p>
-                    <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                      {customer.total_visits} {t.visits}
-                    </p>
-                  </button>
-                )}
+        )}
+        {info && (
+          <div className="defter-musteri-mesaj defter-musteri-mesaj-bilgi mb-4">
+            {info}
+          </div>
+        )}
+
+        <div className="defter-musteri-grid">
+          {/* Sol: İndeks (müşteri listesi) */}
+          <aside className="defter-indeks">
+            <div className="defter-indeks-baslik">{t.index}</div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-amber-800/40 dark:text-amber-400/40" />
+              <input
+                type="search"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder={t.search}
+                className="defter-indeks-ara"
+                aria-label={t.search}
               />
-            )}
-          </div>
-        </section>
-
-        <section className="space-y-6">
-          {!selectedPhone ? (
-            <div className="rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
-              {t.selectCustomer}
             </div>
-          ) : (
-            <>
-              <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <h2 className="mb-3 inline-flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-                  <UserRound className="h-4 w-4" />
-                  {t.profile}
-                </h2>
+            <div className="space-y-0">
+              {customersLoading ? (
+                <div className="flex items-center justify-center py-10 font-serif text-sm text-amber-800/50 dark:text-amber-300/50">
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Yükleniyor…
+                </div>
+              ) : customers.length === 0 ? (
+                <p className="py-6 font-serif text-sm text-amber-800/50 dark:text-amber-300/50">
+                  {t.noCustomers}
+                </p>
+              ) : (
+                <VirtualList
+                  items={customers}
+                  height={380}
+                  estimateSize={72}
+                  renderItem={(customer) => (
+                    <button
+                      type="button"
+                      onMouseEnter={() =>
+                        tenantId &&
+                        preload(
+                          `/api/tenant/${tenantId}/crm/customers/${encodeURIComponent(customer.customer_phone)}`,
+                          fetcher
+                        )
+                      }
+                      onClick={() => setSelectedPhone(customer.customer_phone)}
+                      className={`defter-indeks-item ${
+                        selectedPhone === customer.customer_phone ? "defter-indeks-secili" : ""
+                      }`}
+                    >
+                      <span className="block font-medium">
+                        {customer.customer_name || customer.customer_phone}
+                      </span>
+                      <span className="defter-indeks-item-telefon">{customer.customer_phone}</span>
+                      <span className="defter-indeks-item-ziyaret">
+                        {customer.total_visits} {t.visits}
+                      </span>
+                    </button>
+                  )}
+                />
+              )}
+            </div>
+          </aside>
+
+          <section className="space-y-4">
+            {!selectedPhone ? (
+              <div className="defter-sayfa flex min-h-[200px] items-center justify-center font-serif text-sm italic text-amber-800/50 dark:text-amber-300/50">
+                {t.selectCustomer}
+              </div>
+            ) : (
+              <>
+                <article className="defter-sayfa">
+                  <h2 className="defter-sayfa-baslik">
+                    <UserRound className="h-4 w-4" />
+                    {t.profile}
+                  </h2>
                 {detailLoading ? (
-                  <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300">
+                  <div className="flex items-center gap-2 font-serif text-sm text-amber-800/50 dark:text-amber-300/50">
                     <Loader2 className="h-4 w-4 animate-spin" />
                     Yükleniyor…
                   </div>
                 ) : (
-                  <div className="grid gap-3">
+                  <div className="grid gap-4">
                     <label>
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        {t.customerName}
-                      </span>
+                      <span className="defter-sayfa-label">{t.customerName}</span>
                       <input
                         value={profileForm.customer_name}
                         onChange={(e) =>
                           setProfileForm((s) => ({ ...s, customer_name: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        className="defter-sayfa-input"
                       />
                     </label>
                     <label>
-                      <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                        {t.summary}
-                      </span>
+                      <span className="defter-sayfa-label">{t.summary}</span>
                       <textarea
                         rows={3}
                         value={profileForm.notes_summary}
                         onChange={(e) =>
                           setProfileForm((s) => ({ ...s, notes_summary: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                        className="defter-sayfa-textarea"
                       />
                     </label>
                     {crmExtendedProfileEnabled && (
                       <label>
-                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          {t.extendedProfile}
-                        </span>
+                        <span className="defter-sayfa-label">{t.extendedProfile}</span>
                         <textarea
                           rows={8}
                           value={metadataJson}
                           onChange={(e) => setMetadataJson(e.target.value)}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 font-mono text-xs outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                          className="defter-sayfa-textarea font-mono text-xs"
                         />
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                        <p className="mt-1 font-serif text-xs text-amber-800/50 dark:text-amber-300/50">
                           {t.extendedProfileHint}
                         </p>
                       </label>
                     )}
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                      <p className="font-serif text-xs text-amber-800/50 dark:text-amber-300/50">
                         {t.lastVisit}: {formatDate(selectedCustomer?.last_visit_at || null, locale)}
                       </p>
                       <button
                         type="button"
                         onClick={saveCustomerProfile}
-                        className="inline-flex items-center gap-1.5 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                        className="defter-sayfa-btn"
                       >
                         <Save className="h-3.5 w-3.5" />
                         {busy ? t.saving : t.save}
@@ -627,19 +635,16 @@ export default function CrmPage({
                   </div>
                 )}
 
-                <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-800">
-                  <div className="mb-2 flex flex-wrap gap-2">
+                <div className="mt-4 border-t border-amber-300/30 pt-4 dark:border-amber-700/20">
+                  <div className="mb-2 flex flex-wrap">
                     {(selectedCustomer?.tags || []).map((tag) => (
-                      <span
-                        key={tag}
-                        className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 text-xs text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
-                      >
+                      <span key={tag} className="defter-etiket">
                         <Tag className="h-3 w-3" />
                         {tag}
                         <button
                           type="button"
                           onClick={() => removeTag(tag)}
-                          className="rounded-full p-0.5 text-slate-500 hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-700 dark:hover:text-slate-100"
+                          className="rounded-full p-0.5 opacity-70 hover:opacity-100"
                           aria-label="Etiketi kaldır"
                         >
                           <X className="h-3 w-3" />
@@ -652,12 +657,12 @@ export default function CrmPage({
                       value={newTag}
                       onChange={(e) => setNewTag(e.target.value)}
                       placeholder={t.addTag}
-                      className="flex-1 rounded-lg border border-slate-200 bg-white px-2.5 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      className="defter-sayfa-input flex-1"
                     />
                     <button
                       type="button"
                       onClick={addTag}
-                      className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      className="defter-sayfa-btn defter-sayfa-btn-ikincil"
                     >
                       {t.addTag}
                     </button>
@@ -665,204 +670,178 @@ export default function CrmPage({
                 </div>
               </article>
 
-              <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <h3 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">{t.notes}</h3>
-                <div className="space-y-2">
-                  {notes.length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{t.noNotes}</p>
-                  ) : (
-                    notes.map((note) => (
-                      <article
-                        key={note.id}
-                        className="rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800"
-                      >
-                        <p className="text-sm text-slate-800 dark:text-slate-100">{note.note}</p>
-                        <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
-                          {formatDate(note.created_at, locale)}
-                        </p>
-                      </article>
-                    ))
-                  )}
-                </div>
-                <div className="mt-3 flex gap-2">
-                  <input
-                    value={newNote}
-                    onChange={(e) => setNewNote(e.target.value)}
-                    placeholder={t.addNote}
-                    className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  />
-                  <button
-                    type="button"
-                    onClick={addNote}
-                    className="rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
-                  >
-                    {t.addNote}
-                  </button>
-                </div>
-              </article>
+                <article className="defter-sayfa">
+                  <h3 className="defter-sayfa-baslik">{t.notes}</h3>
+                  <div className="space-y-0">
+                    {notes.length === 0 ? (
+                      <p className="py-4 font-serif text-sm text-amber-800/50 dark:text-amber-300/50">
+                        {t.noNotes}
+                      </p>
+                    ) : (
+                      notes.map((note) => (
+                        <div key={note.id} className="defter-not-satir">
+                          <p>{note.note}</p>
+                          <p className="defter-not-tarih">{formatDate(note.created_at, locale)}</p>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                  <div className="mt-3 flex gap-2">
+                    <input
+                      value={newNote}
+                      onChange={(e) => setNewNote(e.target.value)}
+                      placeholder={t.addNote}
+                      className="defter-sayfa-input flex-1"
+                    />
+                    <button type="button" onClick={addNote} className="defter-sayfa-btn">
+                      {t.addNote}
+                    </button>
+                  </div>
+                </article>
 
-              <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-                <h3 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">{t.reminders}</h3>
-                <form onSubmit={createReminder} className="grid gap-2 md:grid-cols-2">
-                  <input
-                    value={reminderForm.title}
-                    onChange={(e) => setReminderForm((s) => ({ ...s, title: e.target.value }))}
-                    placeholder={t.reminderTitle}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                    required
-                  />
-                  <input
-                    type="datetime-local"
-                    value={reminderForm.remind_at}
-                    onChange={(e) => setReminderForm((s) => ({ ...s, remind_at: e.target.value }))}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                    required
-                  />
-                  <input
-                    value={reminderForm.note}
-                    onChange={(e) => setReminderForm((s) => ({ ...s, note: e.target.value }))}
-                    placeholder={t.reminderNote}
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 md:col-span-2"
-                  />
-                  <select
-                    value={reminderForm.channel}
-                    onChange={(e) =>
-                      setReminderForm((s) => ({
-                        ...s,
-                        channel: e.target.value as "panel" | "whatsapp" | "both",
-                      }))
-                    }
-                    className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    <option value="both">{t.channels.both}</option>
-                    <option value="panel">{t.channels.panel}</option>
-                    <option value="whatsapp">{t.channels.whatsapp}</option>
-                  </select>
-                  <button
-                    type="submit"
-                    className="inline-flex items-center justify-center gap-1 rounded-lg bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
-                  >
-                    <BellPlus className="h-4 w-4" />
-                    {t.createReminder}
-                  </button>
-                </form>
-              </article>
-            </>
-          )}
-        </section>
-      </div>
-
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-        <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-          <h3 className="font-semibold text-slate-900 dark:text-slate-100">{t.upcoming}</h3>
-          <div className="flex flex-wrap gap-1.5 text-xs">
-            <button
-              type="button"
-              onClick={() => setReminderFilter("all")}
-              className={`rounded-lg px-2.5 py-1 font-semibold ${
-                reminderFilter === "all"
-                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              }`}
-            >
-              {t.statusAll}
-            </button>
-            <button
-              type="button"
-              onClick={() => setReminderFilter("pending")}
-              className={`rounded-lg px-2.5 py-1 font-semibold ${
-                reminderFilter === "pending"
-                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              }`}
-            >
-              {t.statusPending}
-            </button>
-            <button
-              type="button"
-              onClick={() => setReminderFilter("sent")}
-              className={`rounded-lg px-2.5 py-1 font-semibold ${
-                reminderFilter === "sent"
-                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              }`}
-            >
-              {t.statusSent}
-            </button>
-            <button
-              type="button"
-              onClick={() => setReminderFilter("cancelled")}
-              className={`rounded-lg px-2.5 py-1 font-semibold ${
-                reminderFilter === "cancelled"
-                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
-                  : "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300"
-              }`}
-            >
-              {t.statusCancelled}
-            </button>
-          </div>
+                <article className="defter-sayfa">
+                  <h3 className="defter-sayfa-baslik">{t.reminders}</h3>
+                  <form onSubmit={createReminder} className="grid gap-3 md:grid-cols-2">
+                    <input
+                      value={reminderForm.title}
+                      onChange={(e) => setReminderForm((s) => ({ ...s, title: e.target.value }))}
+                      placeholder={t.reminderTitle}
+                      className="defter-sayfa-input"
+                      required
+                    />
+                    <input
+                      type="datetime-local"
+                      value={reminderForm.remind_at}
+                      onChange={(e) => setReminderForm((s) => ({ ...s, remind_at: e.target.value }))}
+                      className="defter-sayfa-input"
+                      required
+                    />
+                    <input
+                      value={reminderForm.note}
+                      onChange={(e) => setReminderForm((s) => ({ ...s, note: e.target.value }))}
+                      placeholder={t.reminderNote}
+                      className="defter-sayfa-input md:col-span-2"
+                    />
+                    <select
+                      value={reminderForm.channel}
+                      onChange={(e) =>
+                        setReminderForm((s) => ({
+                          ...s,
+                          channel: e.target.value as "panel" | "whatsapp" | "both",
+                        }))
+                      }
+                      className="defter-sayfa-input"
+                    >
+                      <option value="both">{t.channels.both}</option>
+                      <option value="panel">{t.channels.panel}</option>
+                      <option value="whatsapp">{t.channels.whatsapp}</option>
+                    </select>
+                    <button type="submit" className="defter-sayfa-btn">
+                      <BellPlus className="h-4 w-4" />
+                      {t.createReminder}
+                    </button>
+                  </form>
+                </article>
+              </>
+            )}
+          </section>
         </div>
 
-        {remindersLoading ? (
-          <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-300">
-            <Loader2 className="h-4 w-4 animate-spin" />
-            Yükleniyor…
+        {/* Hatırlatma listesi — tüm sayfanın altında, defter sayfası gibi */}
+        <section className="defter-sayfa mt-6">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="defter-sayfa-baslik mb-0 border-0 pb-0">{t.upcoming}</h3>
+            <div className="flex flex-wrap gap-1.5">
+              {(["all", "pending", "sent", "cancelled"] as const).map((filter) => (
+                <button
+                  key={filter}
+                  type="button"
+                  onClick={() => setReminderFilter(filter)}
+                  className={`rounded-lg px-2.5 py-1 font-serif text-xs font-semibold transition ${
+                    reminderFilter === filter
+                      ? "defter-sayfa-btn"
+                      : "defter-sayfa-btn-ikincil"
+                  }`}
+                >
+                  {filter === "all"
+                    ? t.statusAll
+                    : filter === "pending"
+                      ? t.statusPending
+                      : filter === "sent"
+                        ? t.statusSent
+                        : t.statusCancelled}
+                </button>
+              ))}
+            </div>
           </div>
-        ) : reminders.length === 0 ? (
-          <p className="text-sm text-slate-500 dark:text-slate-400">{t.noReminder}</p>
-        ) : (
-          <div className="space-y-2">
-            {reminders.map((reminder) => (
-              <article
-                key={reminder.id}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 px-3 py-2 dark:border-slate-800"
-              >
-                <div>
-                  <p className="text-sm font-medium text-slate-900 dark:text-slate-100">{reminder.title}</p>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    {reminder.customer_phone} • {formatDate(reminder.remind_at, locale)} •{" "}
-                    {t.channels[reminder.channel]}
-                  </p>
-                  {reminder.note && (
-                    <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{reminder.note}</p>
-                  )}
+
+          {remindersLoading ? (
+            <div className="flex items-center gap-2 font-serif text-sm text-amber-800/50 dark:text-amber-300/50">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Yükleniyor…
+            </div>
+          ) : reminders.length === 0 ? (
+            <p className="font-serif text-sm text-amber-800/50 dark:text-amber-300/50">
+              {t.noReminder}
+            </p>
+          ) : (
+            <div className="space-y-0">
+              {reminders.map((reminder) => (
+                <div
+                  key={reminder.id}
+                  className="defter-not-satir flex flex-wrap items-center justify-between gap-2"
+                >
+                  <div>
+                    <p className="font-medium text-amber-900/80 dark:text-amber-100/80">
+                      {reminder.title}
+                    </p>
+                    <p className="defter-not-tarih mt-0.5">
+                      {reminder.customer_phone} • {formatDate(reminder.remind_at, locale)} •{" "}
+                      {t.channels[reminder.channel]}
+                    </p>
+                    {reminder.note && (
+                      <p className="mt-1 font-serif text-xs text-amber-800/60 dark:text-amber-300/60">
+                        {reminder.note}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="defter-etiket text-[11px]">
+                      {reminder.status}
+                    </span>
+                    {reminder.status !== "sent" && (
+                      <button
+                        type="button"
+                        onClick={() => setReminderStatus(reminder.id, "sent")}
+                        className="defter-sayfa-btn-ikincil px-2 py-1 text-xs"
+                      >
+                        {t.sent}
+                      </button>
+                    )}
+                    {reminder.status !== "cancelled" ? (
+                      <button
+                        type="button"
+                        onClick={() => setReminderStatus(reminder.id, "cancelled")}
+                        className="defter-sayfa-btn-ikincil px-2 py-1 text-xs"
+                      >
+                        {t.cancel}
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setReminderStatus(reminder.id, "pending")}
+                        className="defter-sayfa-btn-ikincil px-2 py-1 text-xs"
+                      >
+                        {t.reopen}
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs dark:bg-slate-800">
-                    {reminder.status}
-                  </span>
-                  {reminder.status !== "sent" && (
-                    <button
-                      type="button"
-                      onClick={() => setReminderStatus(reminder.id, "sent")}
-                      className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-200"
-                    >
-                      {t.sent}
-                    </button>
-                  )}
-                  {reminder.status !== "cancelled" ? (
-                    <button
-                      type="button"
-                      onClick={() => setReminderStatus(reminder.id, "cancelled")}
-                      className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-200"
-                    >
-                      {t.cancel}
-                    </button>
-                  ) : (
-                    <button
-                      type="button"
-                      onClick={() => setReminderStatus(reminder.id, "pending")}
-                      className="rounded-md border border-slate-300 px-2 py-1 text-xs text-slate-700 dark:border-slate-600 dark:text-slate-200"
-                    >
-                      {t.reopen}
-                    </button>
-                  )}
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-      </section>
+              ))}
+            </div>
+          )}
+        </section>
+      </DefterLayout>
     </div>
   );
 }

@@ -372,8 +372,8 @@ export default function AdminToolsPage() {
               </div>
             ) : (
               <ul className="space-y-2">
-                {sentryIssues.map((issue) => (
-                  <li key={issue.id ?? issue.shortId ?? Math.random()}>
+{sentryIssues.map((issue, i) => (
+  <li key={issue.id ?? issue.shortId ?? `sentry-${i}`}>
                     <a
                       href={issue.permalink ?? "#"}
                       target="_blank"

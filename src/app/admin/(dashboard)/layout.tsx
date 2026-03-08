@@ -67,7 +67,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
     let mounted = true;
     (async () => {
       try {
-        const res = await fetch("/api/admin/tools/kill-switch", { cache: "no-store" });
+      const res = await fetch("/api/admin/tools/kill-switch");
         if (!res.ok) return;
         const payload = (await res.json().catch(() => null)) as { enabled?: boolean } | null;
         if (!mounted) return;

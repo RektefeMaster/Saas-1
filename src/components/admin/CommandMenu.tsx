@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Command } from "cmdk";
 import {
@@ -33,26 +33,49 @@ interface CommandMenuProps {
   onOpenChange?: (open: boolean) => void;
 }
 
+type TenantQuickItem = {
+  id: string;
+  name: string;
+  tenant_code: string;
+};
+
 export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
   const [mounted, setMounted] = useState(false);
   const [search, setSearch] = useState("");
-  const [tenants, setTenants] = useState<Array<{ id: string; name: string; tenant_code: string }>>([]);
+  const [tenants, setTenants] = useState<TenantQuickItem[]>([]);
   const router = useRouter();
+  const tenantsCacheRef = useRef<{ data: TenantQuickItem[]; at: number } | null>(null);
 
   useEffect(() => {
     setMounted(true);
   }, []);
 
   useEffect(() => {
-    if (open) {
-      fetch("/api/admin/tenants")
-        .then((r) => {
-          if (!r.ok) return [];
-          return r.json();
-        })
-        .then((data) => setTenants(Array.isArray(data) ? data : []))
-        .catch(() => setTenants([]));
+    if (!open) return;
+
+    const now = Date.now();
+    if (tenantsCacheRef.current && now - tenantsCacheRef.current.at < 60_000) {
+      setTenants(tenantsCacheRef.current.data);
+      return;
     }
+
+    const controller = new AbortController();
+    fetch("/api/admin/tenants", { signal: controller.signal })
+      .then((r) => {
+        if (!r.ok) return [];
+        return r.json();
+      })
+      .then((data) => {
+        const normalized = Array.isArray(data) ? (data as TenantQuickItem[]) : [];
+        tenantsCacheRef.current = { data: normalized, at: Date.now() };
+        setTenants(normalized);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof DOMException && error.name === "AbortError") return;
+        setTenants([]);
+      });
+
+    return () => controller.abort();
   }, [open]);
 
   useEffect(() => {

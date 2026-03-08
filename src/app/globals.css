@@ -258,6 +258,30 @@ a:focus-visible {
   background: linear-gradient(180deg, #f8f0e0 0%, #fefcf3 100%);
 }
 
+.defter-cover-back {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(196, 168, 115, 0.4);
+  background: rgba(254, 252, 243, 0.5);
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  color: rgba(107, 78, 18, 0.7);
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.defter-cover-back:hover {
+  background: rgba(232, 220, 200, 0.4);
+  border-color: #c4a873;
+}
+
+/* Müşteri defteri — aynı defter, biraz daha geniş body */
+.defter-musteri .defter-body {
+  padding: 16px 20px 24px;
+}
+
 /* Notebook body */
 .defter-body {
   position: relative;
@@ -665,6 +689,378 @@ a:focus-visible {
 .defter-btn-gelmedi:hover {
   background: #fef3c7;
   border-color: #fcd34d;
+}
+
+/* ===== Müşteri Defteri (CRM) ===== */
+.defter-musteri-grid {
+  display: grid;
+  gap: 20px;
+  grid-template-columns: 300px 1fr;
+}
+
+@media (max-width: 1024px) {
+  .defter-musteri-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Sol: İndeks (müşteri listesi) */
+.defter-indeks {
+  border-radius: 6px;
+  border: 1px solid #e4d8c4;
+  background: linear-gradient(180deg, #faf7f0 0%, #fefcf5 100%);
+  padding: 14px;
+  box-shadow: inset 0 1px 2px rgba(90, 67, 24, 0.04);
+}
+
+.defter-indeks-baslik {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 13px;
+  font-weight: 600;
+  color: #6b4e12;
+  margin-bottom: 10px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #d4c4a8;
+}
+
+.defter-indeks-ara {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #d4c4a8;
+  background: #fefcf5;
+  padding: 8px 12px 8px 32px;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  color: #4a3510;
+  margin-bottom: 12px;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.defter-indeks-ara::placeholder {
+  color: #a08b6d;
+}
+
+.defter-indeks-ara:focus {
+  border-color: #c4a873;
+  box-shadow: 0 0 0 2px rgba(196, 168, 115, 0.2);
+}
+
+.defter-indeks-item {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border-radius: 6px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  color: #4a3510;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.defter-indeks-item:hover {
+  background: rgba(232, 220, 200, 0.35);
+  border-color: rgba(212, 196, 168, 0.4);
+}
+
+.defter-indeks-item.defter-indeks-secili {
+  background: rgba(196, 168, 115, 0.2);
+  border-color: #c4a873;
+  font-weight: 600;
+}
+
+.defter-indeks-item-telefon {
+  font-size: 11px;
+  color: #8b7355;
+  margin-top: 2px;
+}
+
+.defter-indeks-item-ziyaret {
+  font-size: 11px;
+  color: #a08b6d;
+  font-style: italic;
+  margin-top: 2px;
+}
+
+/* Sağ: Sayfa blokları (profil, notlar, hatırlatmalar) */
+.defter-sayfa {
+  border-radius: 6px;
+  border: 1px solid #e4d8c4;
+  background: #fefcf5;
+  padding: 18px 20px;
+  margin-bottom: 16px;
+  box-shadow: 0 1px 3px rgba(90, 67, 24, 0.06);
+  position: relative;
+}
+
+.defter-sayfa::before {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 72px;
+  width: 1.5px;
+  background: #e8a0a0;
+  opacity: 0.35;
+  border-radius: 1px;
+  pointer-events: none;
+}
+
+.defter-sayfa-baslik {
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 15px;
+  font-weight: 600;
+  color: #4a3510;
+  margin-bottom: 14px;
+  padding-bottom: 8px;
+  border-bottom: 1px dashed #d4c4a8;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.defter-sayfa-label {
+  font-family: Georgia, serif;
+  font-size: 11px;
+  font-weight: 600;
+  color: #8b7355;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  margin-bottom: 6px;
+  display: block;
+}
+
+.defter-sayfa-input,
+.defter-sayfa-textarea {
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #d4c4a8;
+  background: #fefcf5;
+  padding: 10px 14px;
+  font-family: Georgia, serif;
+  font-size: 14px;
+  color: #2d1f06;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.defter-sayfa-input::placeholder,
+.defter-sayfa-textarea::placeholder {
+  color: #a08b6d;
+}
+
+.defter-sayfa-input:focus,
+.defter-sayfa-textarea:focus {
+  border-color: #c4a873;
+  box-shadow: 0 0 0 2px rgba(196, 168, 115, 0.2);
+}
+
+.defter-sayfa-textarea {
+  min-height: 80px;
+  resize: vertical;
+}
+
+.defter-sayfa-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 8px;
+  border: 1.5px solid #7c5e24;
+  background: linear-gradient(180deg, #8b7040 0%, #7c5e24 100%);
+  color: #fff;
+  font-family: Georgia, serif;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: filter 0.15s, transform 0.05s;
+}
+
+.defter-sayfa-btn:hover {
+  filter: brightness(1.08);
+}
+
+.defter-sayfa-btn:active {
+  transform: scale(0.98);
+}
+
+.defter-sayfa-btn-ikincil {
+  border-color: #d4c4a8;
+  background: #f5efe3;
+  color: #6b4e12;
+}
+
+.defter-sayfa-btn-ikincil:hover {
+  background: #e8dcc8;
+}
+
+.defter-not-satir {
+  padding: 12px 0 12px 16px;
+  border-bottom: 1px solid rgba(200, 216, 232, 0.5);
+  font-family: Georgia, serif;
+  font-size: 13px;
+  color: #2d1f06;
+}
+
+.defter-not-satir:last-child {
+  border-bottom: none;
+}
+
+.defter-not-tarih {
+  font-size: 11px;
+  color: #8b7355;
+  margin-top: 6px;
+}
+
+.defter-etiket {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  border: 1px solid #d4c4a8;
+  background: rgba(232, 220, 200, 0.3);
+  font-family: Georgia, serif;
+  font-size: 12px;
+  color: #6b4e12;
+  margin-right: 6px;
+  margin-bottom: 6px;
+}
+
+.defter-musteri-mesaj {
+  font-family: Georgia, serif;
+  font-size: 13px;
+  padding: 10px 14px;
+  border-radius: 6px;
+  margin-bottom: 12px;
+}
+
+.defter-musteri-mesaj-hata {
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.25);
+  color: #b91c1c;
+}
+
+.defter-musteri-mesaj-bilgi {
+  background: rgba(16, 185, 129, 0.08);
+  border: 1px solid rgba(16, 185, 129, 0.25);
+  color: #047857;
+}
+
+/* Dark mode — müşteri defteri */
+.dark .defter-cover-back {
+  border-color: rgba(107, 85, 48, 0.5);
+  background: rgba(26, 21, 16, 0.5);
+  color: rgba(212, 184, 150, 0.8);
+}
+
+.dark .defter-cover-back:hover {
+  background: rgba(61, 44, 16, 0.4);
+}
+
+.dark .defter-indeks {
+  border-color: #3d2c10;
+  background: linear-gradient(180deg, #221c12 0%, #1a1510 100%);
+}
+
+.dark .defter-indeks-baslik {
+  color: #d4b896;
+  border-bottom-color: #3d2c10;
+}
+
+.dark .defter-indeks-ara {
+  border-color: #3d2c10;
+  background: #1a1510;
+  color: #e8dcc8;
+}
+
+.dark .defter-indeks-ara::placeholder {
+  color: #6b5530;
+}
+
+.dark .defter-indeks-item {
+  color: #e8dcc8;
+}
+
+.dark .defter-indeks-item.defter-indeks-secili {
+  background: rgba(107, 85, 48, 0.3);
+  border-color: #6b5530;
+}
+
+.dark .defter-indeks-item-telefon {
+  color: #7a6540;
+}
+
+.dark .defter-indeks-item-ziyaret {
+  color: #6b5530;
+}
+
+.dark .defter-sayfa {
+  border-color: #3d2c10;
+  background: #1a1510;
+}
+
+.dark .defter-sayfa::before {
+  background: #6b3030;
+  opacity: 0.2;
+}
+
+.dark .defter-sayfa-baslik {
+  color: #d4b896;
+  border-bottom-color: #3d2c10;
+}
+
+.dark .defter-sayfa-label {
+  color: #7a6540;
+}
+
+.dark .defter-sayfa-input,
+.dark .defter-sayfa-textarea {
+  border-color: #3d2c10;
+  background: #1a1510;
+  color: #e8dcc8;
+}
+
+.dark .defter-sayfa-btn {
+  border-color: #6b5530;
+  background: linear-gradient(180deg, #6b5530 0%, #4a3a1c 100%);
+}
+
+.dark .defter-sayfa-btn-ikincil {
+  border-color: #3d2c10;
+  background: rgba(61, 44, 16, 0.5);
+  color: #d4b896;
+}
+
+.dark .defter-not-satir {
+  border-bottom-color: rgba(61, 44, 16, 0.5);
+  color: #e8dcc8;
+}
+
+.dark .defter-not-tarih {
+  color: #6b5530;
+}
+
+.dark .defter-etiket {
+  border-color: #3d2c10;
+  background: rgba(61, 44, 16, 0.4);
+  color: #d4b896;
+}
+
+.dark .defter-musteri-mesaj-hata {
+  background: rgba(239, 68, 68, 0.1);
+  border-color: rgba(239, 68, 68, 0.2);
+  color: #f87171;
+}
+
+.dark .defter-musteri-mesaj-bilgi {
+  background: rgba(16, 185, 129, 0.08);
+  border-color: rgba(16, 185, 129, 0.2);
+  color: #34d399;
 }
 
 /* --- Mobile responsiveness --- */
