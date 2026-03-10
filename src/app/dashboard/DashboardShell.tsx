@@ -190,7 +190,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   useEffect(() => {
     if (isLogin) return;
     const supabase = createClient();
-    supabase.auth.getUser().then(({ data: { user: u } }) => setUser(u ?? null));
+    supabase.auth.getUser().then((res: { data: { user: User | null } }) => setUser(res.data.user ?? null));
   }, [isLogin]);
 
   const baseNav = useMemo(

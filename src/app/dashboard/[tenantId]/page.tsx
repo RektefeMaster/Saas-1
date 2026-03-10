@@ -1,172 +1,52 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import Link from "next/link";
 import { useEffect, useState, useCallback, useMemo, useRef } from "react";
-const ChartBar = dynamic(
-  () => import("@/components/charts/ChartBar").then((m) => ({ default: m.ChartBar })),
-  { ssr: false, loading: () => <div className="h-[280px] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
-);
+import { MessageCircle, BarChart3, CalendarDays, Settings2 } from "lucide-react";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import {
-  Loader2,
-  Clock,
-  XCircle,
-  MessageCircle,
-  X,
-  Calendar,
-  AlertCircle,
-  CheckCircle2,
-  BarChart3,
-  CalendarDays,
-  Settings2,
-} from "lucide-react";
-import type { CommandCenterSnapshot, CommandCenterAction } from "./components/CommandCenterSection";
-
-const CommandCenterSection = dynamic(
-  () => import("./components/CommandCenterSection").then((m) => ({ default: m.CommandCenterSection })),
-  { ssr: false, loading: () => <div className="h-32 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
-);
-import { MessageSettings } from "./components/MessageSettings";
-import AppointmentBook from "./components/AppointmentBook";
 import { WhatsAppLinkModal } from "@/components/ui/WhatsAppLinkModal";
 import { useDashboardTenant } from "../DashboardTenantContext";
+import {
+  DAY_NAMES,
+  getWeekDates,
+  groupByDate,
+  getAppointmentServiceLabel,
+  type Appointment,
+  type AvailabilityData,
+  type BlockedDate,
+  type OpsAlert,
+  type ReminderPref,
+  type ReviewData,
+  type WorkingHoursSlot,
+} from "./components/dashboard.types";
+import type { CommandCenterSnapshot, CommandCenterAction } from "./components/CommandCenterSection";
+
+const OverviewView = dynamic(
+  () => import("./components/OverviewView").then((m) => ({ default: m.OverviewView })),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
+);
+
+const AppointmentsView = dynamic(
+  () => import("./components/AppointmentsView").then((m) => ({ default: m.AppointmentsView })),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
+);
+
+const SettingsView = dynamic(
+  () => import("./components/SettingsView").then((m) => ({ default: m.SettingsView })),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
+);
 
 const QRCodeModal = dynamic(
   () => import("@/components/ui/QRCodeModal").then((m) => ({ default: m.QRCodeModal })),
   { ssr: false, loading: () => null }
 );
 
-interface Appointment {
-  id: string;
-  customer_phone: string;
-  slot_start: string;
-  status: string;
-  service_slug: string | null;
-  extra_data: Record<string, unknown>;
-}
-
-interface AvailabilitySlot {
-  time: string;
-  customer_phone?: string;
-  id?: string;
-}
-
-interface AvailabilityData {
-  date: string;
-  blocked: boolean;
-  available: string[];
-  booked: AvailabilitySlot[];
-  workingHours: { start: string; end: string } | null;
-  noSchedule?: boolean;
-}
-
-interface WorkingHoursSlot {
-  id?: string;
-  day_of_week: number;
-  start_time: string;
-  end_time: string;
-  day_name?: string;
-}
-
-type ReminderPref = "off" | "customer_only" | "merchant_only" | "both";
-
-interface Tenant {
-  id: string;
-  name: string;
-  tenant_code: string;
-  contact_phone?: string | null;
-  working_hours_text?: string | null;
-  config_override?: {
-    reminder_preference?: ReminderPref;
-    messages?: {
-      welcome?: string;
-      whatsapp_greeting?: string;
-      confirmation?: string;
-      reminder_24h?: string;
-      [key: string]: unknown;
-    };
-    opening_message?: string;
-    slot_duration_minutes?: number;
-    advance_booking_days?: number;
-    cancellation_hours?: number;
-    [key: string]: unknown;
-  };
-}
-
-interface BlockedDate {
-  id: string;
-  start_date: string;
-  end_date: string;
-  reason: string | null;
-}
-
-interface ReviewData {
-  avgRating: number;
-  totalCount: number;
-  reviews: Array<{ id: string; rating: number; comment: string | null; created_at: string }>;
-}
-
-interface OpsAlert {
-  id: string;
-  type: "delay" | "cancellation" | "no_show" | "system";
-  severity: "low" | "medium" | "high";
-  customer_phone: string | null;
-  message: string;
-  status: "open" | "resolved";
-  created_at: string;
-}
-
 type DashboardView = "overview" | "appointments" | "settings";
 
-const DAY_NAMES = ["Paz", "Pzt", "Sal", "Çar", "Per", "Cum", "Cmt"];
 const APPOINTMENTS_POLL_MS = 30000;
 const OPS_ALERTS_POLL_MS = 60000;
 const COMMAND_CENTER_POLL_MS = 120000;
-const STAGGER_DELAY_MS = 120;
-
-function getWeekDates(anchor: Date): string[] {
-  const dates: string[] = [];
-  const start = new Date(anchor);
-  start.setDate(anchor.getDate() - ((anchor.getDay() + 6) % 7));
-  for (let i = 0; i < 14; i++) {
-    const d = new Date(start);
-    d.setDate(start.getDate() + i);
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, "0");
-    const day = String(d.getDate()).padStart(2, "0");
-    dates.push(`${y}-${m}-${day}`);
-  }
-  return dates;
-}
-
-function groupByDate(apts: Appointment[]): Record<string, Appointment[]> {
-  const result: Record<string, Appointment[]> = {};
-  for (const a of apts) {
-    const k = new Date(a.slot_start).toISOString().split("T")[0] as string;
-    (result[k] ??= []).push(a);
-  }
-  for (const k of Object.keys(result)) {
-    (result[k] as Appointment[]).sort((a, b) => new Date(a.slot_start).getTime() - new Date(b.slot_start).getTime());
-  }
-  return result;
-}
-
-/** Slug'ı okunabilir etiket metnine çevirir (örn. sac-kesimi → Saç kesimi) */
-function slugToLabel(slug: string): string {
-  return slug
-    .split(/[-_]/)
-    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
-    .join(" ");
-}
-
-function getAppointmentServiceLabel(apt: Appointment): string {
-  const extra = apt.extra_data as { service_name?: string; service_label?: string } | undefined;
-  if (extra?.service_name) return extra.service_name;
-  if (extra?.service_label) return extra.service_label;
-  if (apt.service_slug) return slugToLabel(apt.service_slug);
-  return "Randevu";
-}
+const STAGGER_DELAY_MS = 120; // ops-alerts ve command-center için kısa gecikme
 
 export default function EsnafDashboard({
   params,
@@ -227,7 +107,6 @@ export default function EsnafDashboard({
   const [commandCenterLoading, setCommandCenterLoading] = useState(false);
   const [runningActionId, setRunningActionId] = useState<string | null>(null);
   const [updatingAptId, setUpdatingAptId] = useState<string | null>(null);
-  const reduceMotion = true;
   const appointmentsSignatureRef = useRef("");
   const opsAlertsSignatureRef = useRef("");
   const commandCenterSignatureRef = useRef("");
@@ -248,16 +127,19 @@ export default function EsnafDashboard({
   const tenantId = resolvedParams?.tenantId;
 
   useEffect(() => {
-    const co = tenant?.config_override;
+    const co = tenant?.config_override as Record<string, unknown> | undefined;
     const pref = co?.reminder_preference;
-    if (pref) setReminderPref(pref);
-    setWelcomeMsg((co?.messages?.welcome as string) || "");
-    setWhatsappGreeting((co?.messages?.whatsapp_greeting as string) || "");
+    if (pref && ["off", "customer_only", "merchant_only", "both"].includes(String(pref))) {
+      setReminderPref(pref as ReminderPref);
+    }
+    const msgs = (co?.messages as Record<string, unknown> | undefined) ?? {};
+    setWelcomeMsg(String(msgs.welcome ?? ""));
+    setWhatsappGreeting(String(msgs.whatsapp_greeting ?? ""));
     setContactPhone(tenant?.contact_phone ?? "");
     setWorkingHoursText(tenant?.working_hours_text ?? "");
-    setOpeningMessage((co?.opening_message as string) || "");
-    setConfirmationMessage((co?.messages?.confirmation as string) || "");
-    setReminderMessage((co?.messages?.reminder_24h as string) || "");
+    setOpeningMessage(String(co?.opening_message ?? ""));
+    setConfirmationMessage(String(msgs.confirmation ?? ""));
+    setReminderMessage(String(msgs.reminder_24h ?? ""));
     if (typeof co?.slot_duration_minutes === "number") setSlotDuration(co.slot_duration_minutes);
     if (typeof co?.advance_booking_days === "number") setAdvanceBookingDays(co.advance_booking_days);
     if (typeof co?.cancellation_hours === "number") setCancellationHours(co.cancellation_hours);
@@ -272,7 +154,7 @@ export default function EsnafDashboard({
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reminder_preference: reminderPref }),
       });
-      if (res.ok) setTenant((t) => (t ? { ...t, config_override: { ...t.config_override, reminder_preference: reminderPref } } : t));
+      if (res.ok) setTenant((t) => (t ? { ...t, config_override: { ...(t.config_override ?? {}), reminder_preference: reminderPref } } : t));
     } finally {
       setReminderSaving(false);
     }
@@ -297,8 +179,8 @@ export default function EsnafDashboard({
             ? {
                 ...t,
                 config_override: {
-                  ...t.config_override,
-                  messages: { ...t.config_override?.messages, ...msgs },
+                  ...(t.config_override ?? {}),
+                  messages: { ...(t.config_override?.messages ?? {}), ...msgs },
                 },
               }
             : t
@@ -407,24 +289,23 @@ useEffect(() => {
   if (!tenantId) return;
   const controller = new AbortController();
   const { signal } = controller;
-  const t = setTimeout(() => {
-    Promise.all([
-      fetch(`/api/tenant/${tenantId}/blocked-dates`, { signal })
-        .then((r) => r.json())
-        .then((d) => setBlockedDates(Array.isArray(d) ? d : []))
-        .catch(() => {}),
-      fetch(`/api/tenant/${tenantId}/reviews`, { signal })
-        .then((r) => r.json())
-        .then((d) => setReviews(d))
-        .catch(() => {}),
-      fetch(`/api/tenant/${tenantId}/availability/slots`, { signal })
-        .then((r) => r.json())
-        .then((d) => setWorkingHours(Array.isArray(d) ? d : []))
-        .catch(() => {}),
-    ]);
-  }, STAGGER_DELAY_MS);
+  let active = true;
+  Promise.all([
+    fetch(`/api/tenant/${tenantId}/blocked-dates`, { signal })
+      .then((r) => r.json())
+      .then((d) => active && setBlockedDates(Array.isArray(d) ? d : []))
+      .catch(() => {}),
+    fetch(`/api/tenant/${tenantId}/reviews`, { signal })
+      .then((r) => r.json())
+      .then((d) => active && setReviews(d))
+      .catch(() => {}),
+    fetch(`/api/tenant/${tenantId}/availability/slots`, { signal })
+      .then((r) => r.json())
+      .then((d) => active && setWorkingHours(Array.isArray(d) ? d : []))
+      .catch(() => {}),
+  ]);
   return () => {
-    clearTimeout(t);
+    active = false;
     controller.abort();
   };
 }, [tenantId]);
@@ -715,7 +596,7 @@ useEffect(() => {
   const grouped = useMemo(() => groupByDate(appointments), [appointments]);
   const sortedDates = useMemo(() => Object.keys(grouped).sort(), [grouped]);
   const weekDates = useMemo(() => getWeekDates(weekAnchor), [weekAnchor]);
-  const todayIso = new Date().toISOString().slice(0, 10);
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const nextAppointment = useMemo(() => {
     const now = Date.now();
     return appointments
@@ -914,804 +795,108 @@ useEffect(() => {
         </ScrollReveal>
 
         {activeView === "overview" && (
-          <>
-        <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6" reduceMotion>
-          <CommandCenterSection
+          <OverviewView
             commandCenter={commandCenter}
-            loading={commandCenterLoading}
+            commandCenterLoading={commandCenterLoading}
             runningActionId={runningActionId}
+            opsAlerts={opsAlerts}
+            opsAlertsLoading={opsAlertsLoading}
+            resolvingAlertId={resolvingAlertId}
+            reviews={reviews}
+            appointments={appointments}
+            grouped={grouped}
+            weekDates={weekDates}
             onRunAction={runCommandAction}
+            onResolveAlert={handleResolveAlert}
           />
-        </ScrollReveal>
-
-        <ScrollReveal variant="fadeUp" delay={0.08} as="section" className="mb-6" reduceMotion>
-        <section className="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-white to-red-50/30 p-5 shadow-lg dark:border-red-900/50 dark:from-slate-900 dark:to-red-950/20">
-          <div className="mb-4 flex items-center justify-between">
-            <div>
-              <h2 className="flex items-center gap-2 text-lg font-semibold text-red-900 dark:text-red-200">
-                <AlertCircle className="h-5 w-5" />
-                Önemli Bildirimler
-              </h2>
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-400">
-                {opsAlerts.length > 0
-                  ? `${opsAlerts.length} açık bildirim`
-                  : "Açık bildirim yok"}
-              </p>
-            </div>
-            {opsAlertsLoading && (
-              <div className="flex items-center gap-2 text-xs text-slate-500 dark:text-slate-400">
-                <Loader2 className="h-4 w-4 animate-spin" />
-                Yenileniyor…
-              </div>
-            )}
-          </div>
-          {opsAlerts.length === 0 ? (
-            <div className="rounded-xl bg-gradient-to-r from-emerald-50 to-green-50 border-2 border-emerald-200 p-6 text-center dark:from-emerald-950/30 dark:to-green-950/30 dark:border-emerald-800">
-              <CheckCircle2 className="mx-auto h-10 w-10 text-emerald-600 dark:text-emerald-400" />
-              <p className="mt-3 text-sm font-medium text-emerald-800 dark:text-emerald-200">Açık bildirim yok</p>
-              <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">Şu an takip edilmesi gereken bir konu görünmüyor.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {opsAlerts.map((alert, idx) => {
-                const severityStyles = {
-                  high: "from-red-50 to-red-100 border-red-300 text-red-900 dark:from-red-900/40 dark:to-red-800/40 dark:border-red-800 dark:text-red-200",
-                  medium: "from-amber-50 to-amber-100 border-amber-300 text-amber-900 dark:from-amber-900/40 dark:to-amber-800/40 dark:border-amber-700 dark:text-amber-200",
-                  low: "from-blue-50 to-blue-100 border-blue-300 text-blue-900 dark:from-blue-900/40 dark:to-blue-800/40 dark:border-blue-700 dark:text-blue-200",
-                };
-                return (
-                  <div
-                    key={alert.id}
-                    className={`rounded-xl border-2 bg-gradient-to-r ${severityStyles[alert.severity]} px-4 py-3 shadow-sm`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="flex-1">
-                        <div className="flex items-start gap-2">
-                          <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
-                          <div>
-                            <p className="text-sm font-semibold">{alert.message}</p>
-                            <p className="mt-1.5 flex items-center gap-2 text-xs opacity-80">
-                              <Clock className="h-3 w-3" />
-                              {new Date(alert.created_at).toLocaleString("tr-TR", {
-                                day: "numeric",
-                                month: "short",
-                                hour: "2-digit",
-                                minute: "2-digit",
-                              })}
-                              {alert.customer_phone && (
-                                <>
-                                  <span>•</span>
-                                  <span>{alert.customer_phone}</span>
-                                </>
-                              )}
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        onClick={() => handleResolveAlert(alert.id)}
-                        disabled={resolvingAlertId === alert.id}
-                        className="rounded-lg bg-white/90 px-3 py-1.5 text-xs font-semibold text-slate-700 shadow-sm transition hover:bg-white hover:shadow-md disabled:opacity-50 dark:bg-slate-800/90 dark:text-slate-200 dark:hover:bg-slate-700"
-                      >
-                        {resolvingAlertId === alert.id ? (
-                          <span className="flex items-center gap-1.5">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Kapanıyor…
-                          </span>
-                        ) : (
-                          "Kapat"
-                        )}
-                      </button>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </section>
-        </ScrollReveal>
-        </>
         )}
 
         {activeView === "settings" && (
-        <div className="mb-8 space-y-6">
-        <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-blue-50/30 p-6 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-blue-950/20">
-          <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-            <span className="text-xl">🔔</span> Hatırlatma Ayarları
-          </h3>
-          <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
-            Her sabah 08:00&apos;da yarınki randevular için kimlere mesaj gitsin?
-          </p>
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={reminderPref}
-              onChange={(e) => setReminderPref(e.target.value as ReminderPref)}
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-            >
-              <option value="off">Kapalı (kimseye gitmesin)</option>
-              <option value="customer_only">Sadece müşteriye</option>
-              <option value="merchant_only">Sadece bana (dashboard’da görürüm)</option>
-              <option value="both">İkisine de (müşteriye + bana)</option>
-            </select>
-            <button
-              type="button"
-              onClick={handleSaveReminderPref}
-              disabled={reminderSaving}
-              className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 dark:from-slate-200 dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200"
-            >
-              {reminderSaving ? (
-                <span className="flex items-center gap-2">
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Kaydediliyor…
-                </span>
-              ) : (
-                "Kaydet"
-              )}
-            </button>
-          </div>
-        </div>
-
-        <MessageSettings
-          welcomeMsg={welcomeMsg}
-          whatsappGreeting={whatsappGreeting}
-          onWelcomeChange={setWelcomeMsg}
-          onWhatsappGreetingChange={setWhatsappGreeting}
-          onSave={handleSaveMessages}
-          saving={messagesSaving}
-        />
-
-        <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-indigo-50/30 p-6 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-indigo-950/20">
-          <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
-            <span className="text-xl">🤖</span> Bot Ayarları
-          </h3>
-          <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
-            İşletme tipine göre bot davranışını buradan özelleştirebilirsiniz. Boş bırakılan alanlar varsayılan değeri kullanır.
-          </p>
-          {botSettingsError && (
-            <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:border-red-800 dark:bg-red-950/50 dark:text-red-300">
-              {botSettingsError}
-            </div>
-          )}
-          {botSettingsMessage && (
-            <div className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm text-emerald-800 dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200">
-              {botSettingsMessage}
-            </div>
-          )}
-          <div className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">İletişim Telefonu</label>
-              <input
-                type="text"
-                value={contactPhone}
-                onChange={(e) => setContactPhone(e.target.value)}
-                placeholder="İnsan yönlendirme mesajında gösterilir"
-                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">Çalışma Saatleri Metni</label>
-              <input
-                type="text"
-                value={workingHoursText}
-                onChange={(e) => setWorkingHoursText(e.target.value)}
-                placeholder="Örn: Hafta içi 09:00-18:00"
-                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">Açılış Mesajı</label>
-              <input
-                type="text"
-                value={openingMessage}
-                onChange={(e) => setOpeningMessage(e.target.value)}
-                placeholder="Müşteri ilk yazdığında gönderilen mesaj"
-                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">Randevu Onay Mesajı</label>
-              <input
-                type="text"
-                value={confirmationMessage}
-                onChange={(e) => setConfirmationMessage(e.target.value)}
-                placeholder="Randevu alındığında gönderilen mesaj. {date}, {time} kullanabilirsiniz"
-                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">Hatırlatma Mesajı (24 saat önce)</label>
-              <input
-                type="text"
-                value={reminderMessage}
-                onChange={(e) => setReminderMessage(e.target.value)}
-                placeholder="Yarın randevu hatırlatması. {time} kullanabilirsiniz"
-                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-              />
-            </div>
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">Slot Süresi (dk)</label>
-                <select
-                  value={slotDuration}
-                  onChange={(e) => setSlotDuration(Number(e.target.value))}
-                  className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  <option value={30}>30 dakika</option>
-                  <option value={45}>45 dakika</option>
-                  <option value={60}>60 dakika</option>
-                  <option value={90}>90 dakika</option>
-                  <option value={120}>120 dakika</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">Kaç Gün Önceden Randevu</label>
-                <select
-                  value={advanceBookingDays}
-                  onChange={(e) => setAdvanceBookingDays(Number(e.target.value))}
-                  className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  <option value={7}>7 gün</option>
-                  <option value={14}>14 gün</option>
-                  <option value={30}>30 gün</option>
-                  <option value={60}>60 gün</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">İptal Süresi (saat)</label>
-                <select
-                  value={cancellationHours}
-                  onChange={(e) => setCancellationHours(Number(e.target.value))}
-                  className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                >
-                  <option value={1}>1 saat</option>
-                  <option value={2}>2 saat</option>
-                  <option value={4}>4 saat</option>
-                  <option value={24}>24 saat</option>
-                  <option value={48}>48 saat</option>
-                </select>
-              </div>
-            </div>
-              <button
-                type="button"
-                onClick={handleSaveBotSettings}
-                disabled={botSettingsSaving}
-                className="w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 dark:from-slate-200 dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200"
-              >
-                {botSettingsSaving ? (
-                  <span className="flex items-center justify-center gap-2">
-                    <Loader2 className="h-4 w-4 animate-spin" />
-                    Kaydediliyor…
-                  </span>
-                ) : (
-                  "Bot Ayarlarını Kaydet"
-                )}
-              </button>
-          </div>
-        </div>
-
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <div className="mb-2 flex items-center justify-between">
-            <h3 className="font-semibold text-slate-900 dark:text-slate-100">🕐 Çalışma saatleri</h3>
-            <button
-              type="button"
-              onClick={() => {
-                if (!showWorkingHours && workingHours.length === 0) {
-                  setWorkingHours(
-                    [1, 2, 3, 4, 5].map((dow) => ({
-                      day_of_week: dow,
-                      start_time: "09:00",
-                      end_time: "18:00",
-                      day_name: DAY_NAMES[dow],
-                    }))
-                  );
-                }
-                setShowWorkingHours(!showWorkingHours);
-              }}
-              className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-emerald-600 shadow-sm transition hover:bg-emerald-50 dark:border-slate-700 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
-            >
-              {showWorkingHours ? "Kapat" : workingHours.length ? "Düzenle" : "Ayarla"}
-            </button>
-          </div>
-          {showWorkingHours ? (
-            <div className="space-y-2">
-              {[1, 2, 3, 4, 5, 6, 0].map((dow) => {
-                const slot = workingHours.find((s) => s.day_of_week === dow) ?? {
-                  day_of_week: dow,
-                  start_time: "",
-                  end_time: "",
-                  day_name: DAY_NAMES[dow],
-                };
-                return (
-                  <div key={dow} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700 sm:flex sm:items-center sm:gap-2 sm:border-0 sm:p-0">
-                    <div className="mb-2 text-sm font-medium text-slate-700 sm:mb-0 sm:w-20 sm:text-slate-600 dark:text-slate-300">
-                      {DAY_NAMES[dow]}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
-                      <input
-                        type="time"
-                        value={slot.start_time}
-                        onChange={(e) => {
-                          const arr = [...workingHours];
-                          const idx = arr.findIndex((s) => s.day_of_week === dow);
-                          if (idx >= 0) arr[idx] = { ...arr[idx], start_time: e.target.value };
-                          else arr.push({ day_of_week: dow, start_time: e.target.value, end_time: slot.end_time || "18:00" });
-                          setWorkingHours(arr);
-                        }}
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      />
-                      <input
-                        type="time"
-                        value={slot.end_time}
-                        onChange={(e) => {
-                          const arr = [...workingHours];
-                          const idx = arr.findIndex((s) => s.day_of_week === dow);
-                          if (idx >= 0) arr[idx] = { ...arr[idx], end_time: e.target.value };
-                          else arr.push({ day_of_week: dow, start_time: slot.start_time || "09:00", end_time: e.target.value });
-                          setWorkingHours(arr);
-                        }}
-                        className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                      />
-                    </div>
-                  </div>
-                );
-              })}
-              <button
-                type="button"
-                onClick={handleSaveWorkingHours}
-                disabled={workingHoursSaving}
-                className="mt-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600"
-              >
-                {workingHoursSaving ? "Kaydediliyor…" : "Kaydet"}
-              </button>
-            </div>
-          ) : workingHours.length > 0 ? (
-            <p className="text-sm text-slate-600 dark:text-slate-300">
-              {workingHours.map((s) => `${s.day_name} ${s.start_time}–${s.end_time}`).join(" · ")}
-            </p>
-          ) : (
-            <p className="text-sm text-slate-500 dark:text-slate-400">Çalışma saatleri tanımlanmadı. Randevu almak için ayarlayın.</p>
-          )}
-        </div>
-
-        </div>
+          <SettingsView
+            reminderPref={reminderPref}
+            setReminderPref={setReminderPref}
+            welcomeMsg={welcomeMsg}
+            setWelcomeMsg={setWelcomeMsg}
+            whatsappGreeting={whatsappGreeting}
+            setWhatsappGreeting={setWhatsappGreeting}
+            contactPhone={contactPhone}
+            setContactPhone={setContactPhone}
+            workingHoursText={workingHoursText}
+            setWorkingHoursText={setWorkingHoursText}
+            openingMessage={openingMessage}
+            setOpeningMessage={setOpeningMessage}
+            confirmationMessage={confirmationMessage}
+            setConfirmationMessage={setConfirmationMessage}
+            reminderMessage={reminderMessage}
+            setReminderMessage={setReminderMessage}
+            slotDuration={slotDuration}
+            setSlotDuration={setSlotDuration}
+            advanceBookingDays={advanceBookingDays}
+            setAdvanceBookingDays={setAdvanceBookingDays}
+            cancellationHours={cancellationHours}
+            setCancellationHours={setCancellationHours}
+            workingHours={workingHours}
+            setWorkingHours={setWorkingHours}
+            showWorkingHours={showWorkingHours}
+            setShowWorkingHours={setShowWorkingHours}
+            reminderSaving={reminderSaving}
+            messagesSaving={messagesSaving}
+            workingHoursSaving={workingHoursSaving}
+            botSettingsSaving={botSettingsSaving}
+            botSettingsMessage={botSettingsMessage}
+            botSettingsError={botSettingsError}
+            onSaveReminderPref={handleSaveReminderPref}
+            onSaveMessages={handleSaveMessages}
+            onSaveWorkingHours={handleSaveWorkingHours}
+            onSaveBotSettings={handleSaveBotSettings}
+          />
         )}
 
-        {/* Haftalık randevu grafiği */}
-        {activeView === "overview" && appointments.length > 0 && (
-          <ScrollReveal variant="fadeUp" delay={0.02} as="section" className="mb-6" reduceMotion>
-            <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-              <h3 className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
-                Haftalık Randevu Özeti
-              </h3>
-              <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">
-                Son 7 günün randevu dağılımı
-              </p>
-              <ChartBar
-                data={weekDates.slice(0, 7).map((dateStr) => {
-                  const d = new Date(dateStr + "T12:00:00");
-                  return {
-                    gün: DAY_NAMES[d.getDay()],
-                    Randevu: grouped[dateStr]?.length ?? 0,
-                  };
-                })}
-                xKey="gün"
-                bars="Randevu"
-                colors="emerald"
-                height={280}
-              />
-            </section>
-          </ScrollReveal>
-        )}
-
-        {activeView === "appointments" && (
-          <>
-        {/* Haftalık takvim - defter temalı */}
-        <ScrollReveal variant="fadeUp" delay={0.05} as="section" className="mb-6" reduceMotion>
-        <section className="defter-takvim">
-          <div className="defter-takvim-baslik">
-            <h3 className="font-serif text-[15px] font-semibold text-amber-900/70 dark:text-amber-200/70">Sayfa Seç</h3>
-            <div className="flex gap-2 overflow-x-auto pb-1">
-              <button
-                type="button"
-                onClick={() => setWeekAnchor((d) => new Date(d.getTime() - 7 * 24 * 60 * 60 * 1000))}
-                className="shrink-0 rounded-lg border border-amber-300/40 bg-amber-50/40 px-3 py-1.5 font-serif text-sm font-medium text-amber-800/60 shadow-sm transition hover:bg-amber-100/50 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-300/60 dark:hover:bg-amber-800/30"
-              >
-                ← Önceki
-              </button>
-              <button
-                type="button"
-                onClick={() => setWeekAnchor(new Date())}
-                className="shrink-0 rounded-lg border border-amber-300/40 bg-amber-50/40 px-3 py-1.5 font-serif text-sm font-medium text-amber-800/60 shadow-sm transition hover:bg-amber-100/50 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-300/60 dark:hover:bg-amber-800/30"
-              >
-                Bugün
-              </button>
-              <button
-                type="button"
-                onClick={() => setWeekAnchor((d) => new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000))}
-                className="shrink-0 rounded-lg border border-amber-300/40 bg-amber-50/40 px-3 py-1.5 font-serif text-sm font-medium text-amber-800/60 shadow-sm transition hover:bg-amber-100/50 dark:border-amber-700/40 dark:bg-amber-900/20 dark:text-amber-300/60 dark:hover:bg-amber-800/30"
-              >
-                Sonraki →
-              </button>
-            </div>
-          </div>
-          <div className="defter-takvim-grid">
-            {weekDates.map((dateStr, idx) => {
-              const d = new Date(dateStr + "T12:00:00");
-              const isSelected = selectedDate === dateStr;
-              const hasAppts = grouped[dateStr]?.length;
-              const isBlocked = blockedDates.some(
-                (b) => dateStr >= b.start_date && dateStr <= b.end_date
-              );
-              const isPast = dateStr < todayIso;
-              const isToday = dateStr === todayIso;
-              return (
-                <button
-                  key={dateStr}
-                  type="button"
-                  onClick={() => !isPast && setSelectedDate(dateStr)}
-                  disabled={isPast}
-                  className={`defter-takvim-gun ${
-                    isSelected
-                      ? "defter-takvim-secili"
-                      : isPast
-                      ? "defter-takvim-gecmis"
-                      : isBlocked
-                      ? "defter-takvim-kapali"
-                      : isToday
-                      ? "defter-takvim-bugun"
-                      : "defter-takvim-normal"
-                  }`}
-                >
-                  <span className={`text-xs font-semibold ${isSelected ? "text-white/80" : "opacity-60"}`}>
-                    {DAY_NAMES[d.getDay()]}
-                  </span>
-                  <span className={`mt-0.5 font-serif text-lg font-bold ${isSelected ? "text-white" : ""}`}>
-                    {d.getDate()}
-                  </span>
-                  {hasAppts ? (
-                    <span
-                      className={`mt-1 flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-bold ${
-                        isSelected
-                          ? "bg-white/25 text-white"
-                          : "bg-amber-700/80 text-white dark:bg-amber-500/80"
-                      }`}
-                    >
-                      {hasAppts}
-                    </span>
-                  ) : null}
-                  {isToday && !isSelected && (
-                    <span className="absolute -top-1 -right-1 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-[#faf7f0] dark:ring-[#1a1510]" />
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        </section>
-        </ScrollReveal>
-
-        {selectedDate && (
-          <ScrollReveal variant="slideLeft" delay={0} as="section" className="mb-6" reduceMotion>
-          <section className="defter-takvim" style={{ borderRadius: "2px 10px 10px 2px" }}>
-            <div className="defter-takvim-baslik">
-              <h3 className="font-serif text-[15px] font-semibold capitalize text-amber-900/70 dark:text-amber-200/70">
-                {new Date(selectedDate + "T12:00:00").toLocaleDateString("tr-TR", {
-                  weekday: "long",
-                  day: "numeric",
-                  month: "long",
-                })}
-              </h3>
-            </div>
-            <div className="p-4">
-            {availabilityLoading ? (
-              <div className="py-12 text-center">
-                <Loader2 className="mx-auto h-7 w-7 animate-spin text-amber-800/30" />
-                <p className="mt-3 font-serif text-sm text-amber-800/40">Müsaitlik kontrol ediliyor...</p>
-              </div>
-            ) : availability?.blocked ? (
-              <div className="rounded-lg border border-amber-300/30 bg-amber-50/30 py-6 text-center dark:border-amber-700/30 dark:bg-amber-900/10">
-                <XCircle className="mx-auto h-8 w-8 text-amber-600/50 dark:text-amber-400/50" />
-                <p className="mt-3 font-serif text-sm font-semibold text-amber-900/60 dark:text-amber-200/60">Bu gün kapalı</p>
-                <p className="mt-1 font-serif text-xs text-amber-700/50 dark:text-amber-300/50">Tatil veya izin günü</p>
-              </div>
-            ) : availability?.noSchedule ? (
-              <div className="rounded-lg border border-amber-300/20 bg-amber-50/20 py-6 text-center dark:border-amber-700/20 dark:bg-amber-900/10">
-                <Clock className="mx-auto h-8 w-8 text-amber-800/30 dark:text-amber-400/30" />
-                <p className="mt-3 font-serif text-sm font-semibold text-amber-900/50 dark:text-amber-200/50">Çalışma saati tanımlı değil</p>
-                <p className="mt-1 font-serif text-xs text-amber-800/40 dark:text-amber-300/40">Ayarlardan çalışma saatlerini tanımlayın</p>
-              </div>
-            ) : (
-              <div className="space-y-4">
-                {availability?.available && availability.available.length > 0 && (
-                  <div>
-                    <p className="mb-2 font-serif text-xs font-semibold text-emerald-700/70 dark:text-emerald-400/70">
-                      Müsait Saatler ({availability.available.length})
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {availability.available.map((time) => (
-                        <button
-                          key={time}
-                          type="button"
-                          onClick={() => handleSlotClick(selectedDate, time)}
-                          className="rounded-lg border border-emerald-300/40 bg-emerald-50/40 px-4 py-2.5 font-mono text-sm font-semibold text-emerald-800/80 transition hover:border-emerald-400/60 hover:bg-emerald-50/60 dark:border-emerald-700/30 dark:bg-emerald-900/15 dark:text-emerald-300/80 dark:hover:bg-emerald-900/25"
-                        >
-                          {time}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {availability?.booked && availability.booked.length > 0 && (
-                  <div>
-                    <p className="mb-2 font-serif text-xs font-semibold text-amber-800/50 dark:text-amber-400/50">
-                      Dolu Saatler ({availability.booked.length})
-                    </p>
-                    <div className="flex flex-wrap gap-2">
-                      {availability.booked.map((b) => (
-                        <div
-                          key={b.time + (b.id ?? "")}
-                          className="rounded-lg border border-amber-300/25 bg-amber-50/25 px-4 py-2.5 text-sm dark:border-amber-700/20 dark:bg-amber-900/10"
-                        >
-                          <span className="font-mono font-semibold text-amber-900/60 dark:text-amber-200/60">{b.time}</span>
-                          {b.customer_phone && (
-                            <span className="ml-2 font-serif text-xs text-amber-800/40 dark:text-amber-300/40">– {b.customer_phone}</span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                {(!availability?.available || availability.available.length === 0) &&
-                  (!availability?.booked || availability.booked.length === 0) && (
-                    <div className="rounded-lg border border-amber-300/15 bg-amber-50/15 py-6 text-center dark:border-amber-700/15 dark:bg-amber-900/10">
-                      <p className="font-serif text-sm text-amber-800/40 dark:text-amber-300/40">Bu gün için müsait saat bulunmuyor</p>
-                    </div>
-                  )}
-              </div>
-            )}
-            </div>
-          </section>
-          </ScrollReveal>
-        )}
-
-        {showAdd && (
-          <form
-            onSubmit={handleAddAppointment}
-            className="mb-6 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-white to-emerald-50/30 p-6 shadow-lg dark:border-emerald-800 dark:from-slate-900 dark:to-emerald-950/30"
-          >
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-semibold text-slate-900 dark:text-slate-100">
-                {addDate && addTime
-                  ? `Randevu Ekle — ${new Date(addDate + "T12:00:00").toLocaleDateString("tr-TR", {
-                      day: "numeric",
-                      month: "long",
-                      weekday: "long",
-                    })} saat ${addTime}`
-                  : "Yeni Randevu Ekle"}
-              </h3>
-              <button
-                type="button"
-                onClick={() => {
-                  setShowAdd(false);
-                  setAddDate("");
-                  setAddTime("");
-                  setAddDatetimeLocal("");
-                  setAddPhone("");
-                  setAddStaffId("");
-                }}
-                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="space-y-4">
-              {!addDate || !addTime ? (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Tarih ve Saat
-                  </label>
-                  <input
-                    type="datetime-local"
-                    value={addDatetimeLocal}
-                    onChange={(e) => setAddDatetimeLocal(e.target.value)}
-                    className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                    required={!addDate || !addTime}
-                  />
-                </div>
-              ) : (
-                <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-900/30">
-                  <div className="flex items-center gap-2 text-sm text-emerald-800 dark:text-emerald-200">
-                    <Calendar className="h-4 w-4" />
-                    <span className="font-medium">
-                      {new Date(addDate + "T12:00:00").toLocaleDateString("tr-TR", {
-                        day: "numeric",
-                        month: "long",
-                        weekday: "long",
-                      })}
-                    </span>
-                    <span className="mx-2">•</span>
-                    <Clock className="h-4 w-4" />
-                    <span className="font-medium">{addTime}</span>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setAddDate("");
-                        setAddTime("");
-                        setAddDatetimeLocal("");
-                      }}
-                      className="ml-auto text-xs text-emerald-600 hover:text-emerald-800 dark:text-emerald-400 dark:hover:text-emerald-300"
-                    >
-                      Değiştir
-                    </button>
-                  </div>
-                </div>
-              )}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Müşteri Telefonu
-                </label>
-                <input
-                  type="tel"
-                  placeholder="05XX XXX XX XX"
-                  value={addPhone}
-                  onChange={(e) => setAddPhone(e.target.value)}
-                  className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
-                  required
-                />
-              </div>
-              {staffPreferenceEnabled && staffOptions.length > 0 && (
-                <div>
-                  <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                    Personel (opsiyonel)
-                  </label>
-                  <select
-                    value={addStaffId}
-                    onChange={(e) => setAddStaffId(e.target.value)}
-                    className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
-                  >
-                    <option value="">Otomatik atama</option>
-                    {staffOptions.map((staff) => (
-                      <option key={staff.id} value={staff.id}>
-                        {staff.name}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              )}
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  className="flex-1 rounded-xl bg-gradient-to-r from-emerald-600 to-emerald-700 px-6 py-3 text-sm font-semibold text-white shadow-lg transition hover:shadow-xl"
-                >
-                  Randevuyu Ekle
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAdd(false);
-                    setAddDate("");
-                    setAddTime("");
-                    setAddDatetimeLocal("");
-                    setAddPhone("");
-                    setAddStaffId("");
-                  }}
-                  className="rounded-xl border-2 border-slate-200 bg-white px-6 py-3 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                >
-                  İptal
-                </button>
-              </div>
-            </div>
-          </form>
-        )}
-
-        {/* Randevu Defteri */}
-        <ScrollReveal variant="fadeUp" delay={0.1} as="section" className="mb-6" reduceMotion>
-          <AppointmentBook
+        {activeView === "appointments" && tenantId && (
+          <AppointmentsView
+            tenantId={tenantId}
             grouped={grouped}
             sortedDates={sortedDates}
+            weekDates={weekDates}
             todayIso={todayIso}
-            loading={loading}
             weekCount={weekCount}
+            selectedDate={selectedDate}
+            availability={availability}
+            availabilityLoading={availabilityLoading}
+            weekAnchor={weekAnchor}
+            showAdd={showAdd}
+            addPhone={addPhone}
+            addStaffId={addStaffId}
+            addDate={addDate}
+            addTime={addTime}
+            addDatetimeLocal={addDatetimeLocal}
+            blockedDates={blockedDates}
+            showBlocked={showBlocked}
+            blockStart={blockStart}
+            blockEnd={blockEnd}
+            blockReason={blockReason}
+            loading={loading}
             updatingAptId={updatingAptId}
-            onUpdateStatus={updateAppointmentStatus}
-            getServiceLabel={getAppointmentServiceLabel}
-            tenantId={tenantId}
-            reduceMotion
+            staffPreferenceEnabled={staffPreferenceEnabled}
+            staffOptions={staffOptions}
+            setWeekAnchor={setWeekAnchor}
+            setSelectedDate={setSelectedDate}
+            setShowAdd={setShowAdd}
+            setAddPhone={setAddPhone}
+            setAddStaffId={setAddStaffId}
+            setAddDate={setAddDate}
+            setAddTime={setAddTime}
+            setAddDatetimeLocal={setAddDatetimeLocal}
+            setShowBlocked={setShowBlocked}
+            setBlockStart={setBlockStart}
+            setBlockEnd={setBlockEnd}
+            setBlockReason={setBlockReason}
+            onSlotClick={handleSlotClick}
+            onAddAppointment={handleAddAppointment}
+            onUpdateAppointmentStatus={updateAppointmentStatus}
+            onAddBlocked={handleAddBlocked}
+            onDeleteBlocked={handleDeleteBlocked}
           />
-        </ScrollReveal>
-
-        <ScrollReveal variant="fadeUp" delay={0.06} as="section" className="mt-8" reduceMotion>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-          <h3 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">🏖️ Tatil / İzin Günleri</h3>
-          {blockedDates.length > 0 && (
-            <ul className="mb-4 space-y-2">
-              {blockedDates.map((b) => (
-                <li key={b.id} className="flex items-center justify-between rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:bg-amber-900/30 dark:text-amber-200">
-                  <span>
-                    {b.start_date} – {b.end_date}
-                    {b.reason && ` (${b.reason})`}
-                  </span>
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteBlocked(b.id)}
-                    className="rounded-lg px-2 py-1 text-amber-600 transition hover:bg-amber-100 hover:text-amber-800 dark:text-amber-400 dark:hover:bg-amber-800/50 dark:hover:text-amber-200"
-                  >
-                    Sil
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-          {!showBlocked ? (
-            <button
-              type="button"
-              onClick={() => setShowBlocked(true)}
-              className="rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-200 dark:hover:bg-slate-800"
-            >
-              + İzin ekle
-            </button>
-          ) : (
-            <form onSubmit={handleAddBlocked} className="flex flex-wrap items-end gap-3">
-              <input
-                type="date"
-                value={blockStart}
-                onChange={(e) => setBlockStart(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:w-auto"
-                required
-              />
-              <input
-                type="date"
-                value={blockEnd}
-                onChange={(e) => setBlockEnd(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:w-auto"
-                required
-              />
-              <input
-                type="text"
-                placeholder="Sebep (opsiyonel)"
-                value={blockReason}
-                onChange={(e) => setBlockReason(e.target.value)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 sm:flex-1"
-              />
-              <button
-                type="submit"
-                className="w-full rounded-xl bg-amber-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-amber-700 dark:bg-amber-500 dark:hover:bg-amber-600 sm:w-auto"
-              >
-                Ekle
-              </button>
-              <button
-                type="button"
-                onClick={() => setShowBlocked(false)}
-                className="w-full rounded-xl border border-slate-200 px-4 py-2.5 text-sm font-medium text-slate-700 shadow-sm hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:w-auto"
-              >
-                İptal
-              </button>
-            </form>
-          )}
-        </section>
-        </ScrollReveal>
-          </>
-        )}
-
-        {activeView === "overview" && reviews && (
-          <ScrollReveal variant="scale" delay={0} as="section" className="mt-6" reduceMotion>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <h3 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">⭐ Değerlendirmeler</h3>
-            <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
-              Ortalama: <span className="font-semibold text-amber-600 dark:text-amber-400">{reviews.avgRating} ⭐</span> ({reviews.totalCount} yorum)
-            </p>
-            {reviews.reviews.length > 0 && (
-              <ul className="max-h-40 space-y-2 overflow-y-auto">
-                {reviews.reviews.map((r) => (
-                  <li key={r.id} className="rounded-xl bg-slate-50 px-4 py-2.5 text-sm dark:bg-slate-800/60">
-                    <span className="text-amber-600 dark:text-amber-400">{r.rating} ⭐</span>
-                    {r.comment && <span className="ml-2 text-slate-700 dark:text-slate-300">– {r.comment}</span>}
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-          </ScrollReveal>
         )}
       </main>
 

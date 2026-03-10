@@ -1,8 +1,21 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 
 type RevealVariant = "fadeUp" | "fadeIn" | "slideLeft" | "slideRight" | "scale";
+
+function usePrefersReducedMotion(): boolean {
+  const [prefersReducedMotion, setPrefersReducedMotion] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
+    setPrefersReducedMotion(mq.matches);
+    const handler = (e: MediaQueryListEvent) => setPrefersReducedMotion(e.matches);
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+  return prefersReducedMotion;
+}
 
 const variants: Record<
   RevealVariant,
@@ -57,9 +70,12 @@ export function ScrollReveal({
   amount = 0.15,
   className,
   as = "div",
-  reduceMotion = false,
+  reduceMotion,
 }: ScrollRevealProps) {
-  if (reduceMotion) {
+  const prefersReducedMotion = usePrefersReducedMotion();
+  const skipMotion = reduceMotion ?? prefersReducedMotion;
+
+  if (skipMotion) {
     const Tag = as;
     return <Tag className={className}>{children}</Tag>;
   }

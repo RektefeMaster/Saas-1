@@ -88,21 +88,12 @@ tenant (SWR) → features (SWR) → staff (SWR, staff_preference=true ise)
 
 ## 4. Ağır Bileşenler
 
-### AppointmentBook
-- `motion.div` × N (her tarih + her randevu için animasyon)
-- `AnimatePresence` kullanımı
-- `reduceMotion` prop'u yok → parent'taki MotionConfig etkisi belirsiz
-
 ### ChartBar
 - `weekDates`, `grouped` → appointments değişince yeniden hesaplanıyor
 - `useMemo` ile `grouped` zaten memoize; ChartBar'a giren data da öyle
 
 ### CommandCenterSection
 - ✅ Dynamic import ile lazy load yapıldı
-
-### Öneri
-- AppointmentBook'a `reduceMotion` prop geçir; `reduceMotion` ise `motion.div` → `div`
-- Veya AppointmentBook'u `MotionConfig` dışında tutup kendi `reduceMotion` mantığını kullan
 
 ---
 
@@ -130,14 +121,12 @@ const todayIso = new Date().toISOString().slice(0, 10);
 | 1 | Settings view'ı ayrı bileşene taşı (form state izolasyonu) | Yüksek | Orta |
 | 2 | Overview / Appointments / Settings tab içeriklerini ayrı bileşenlere böl | Yüksek | Orta |
 | 3 | İlk fetch'leri paralel yap (blocked, reviews, slots) | Orta | Düşük |
-| 4 | AppointmentBook'da motion → div (reduceMotion) | Orta | Düşük |
-| 5 | todayIso useMemo | Düşük | Düşük |
-| 6 | Modal state'lerini küçük context veya reducer ile izole et | Orta | Orta |
+| 4 | todayIso useMemo | Düşük | Düşük |
+| 5 | Modal state'lerini küçük context veya reducer ile izole et | Orta | Orta |
 
 ---
 
 ## 7. Hızlı Kazanımlar (Hemen Uygulanabilir)
 
 1. **Stagger kaldır, paralel fetch**: blocked-dates, reviews, availability/slots aynı anda
-2. **AppointmentBook reduceMotion**: motion.div → div when reduceMotion
-3. **todayIso useMemo**: `useMemo(() => new Date().toISOString().slice(0, 10), [])` — gün değişince güncellemek için `date-fns` startOfDay veya basit bir ref ile günlük invalidation
+2. **todayIso useMemo**: `useMemo(() => new Date().toISOString().slice(0, 10), [])` — gün değişince güncellemek için `date-fns` startOfDay veya basit bir ref ile günlük invalidation

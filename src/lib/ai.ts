@@ -1,8 +1,0 @@
-export {
-  processMessage,
-  getTenantByCode,
-  getTenantWithBusinessType,
-  checkAvailability,
-  createAppointment,
-  buildHumanEscalationMessage,
-} from "./bot-v1/conversation";

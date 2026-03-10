@@ -1,5 +1,6 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
 import {
@@ -22,8 +23,17 @@ import {
 import { motion } from "motion/react";
 import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
-import { ScrollReveal } from "@/components/ui/ScrollReveal";
-import { ContactModal, ThemeLocaleSwitch } from "@/components/ui";
+import { ThemeLocaleSwitch } from "@/components/ui";
+
+const ScrollReveal = dynamic(
+  () => import("@/components/ui/ScrollReveal").then((m) => ({ default: m.ScrollReveal })),
+  { ssr: true }
+);
+
+const ContactModal = dynamic(
+  () => import("@/components/ui/ContactModal").then((m) => ({ default: m.ContactModal })),
+  { ssr: false, loading: () => null }
+);
 
 const COPY = {
   tr: {

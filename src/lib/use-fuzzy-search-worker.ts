@@ -54,7 +54,11 @@ export function useFuzzySearchWorker<T>({
       return;
     }
 
-    const worker = getWorker();
+    const useSync =
+      trimmed.length < 3 ||
+      list.length < 100;
+
+    const worker = useSync ? null : getWorker();
     if (!worker) {
       const syncResult = fuzzySearch({ list, query: trimmed, keys, threshold, limit });
       setResult(syncResult);

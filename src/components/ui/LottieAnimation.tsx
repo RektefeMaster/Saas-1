@@ -40,10 +40,18 @@ export function LottieAnimation({
     }
     if (!url || typeof url !== "string") return;
     setError(false);
-    fetch(url)
+    let mounted = true;
+    const controller = new AbortController();
+    fetch(url, { signal: controller.signal })
       .then((res) => res.json())
-      .then((json) => setData(json))
-      .catch(() => setError(true));
+      .then((json) => mounted && setData(json))
+      .catch((err) => {
+        if (mounted && err?.name !== "AbortError") setError(true);
+      });
+    return () => {
+      mounted = false;
+      controller.abort();
+    };
   }, [url, animationData]);
 
   if (error || !data) {

@@ -277,7 +277,7 @@ export function ChartBar({
               <CustomTooltip
                 active={props.active}
                 payload={props.payload as Array<{ name: string; value: number; color: string; payload?: Record<string, unknown> }>}
-                label={props.label}
+                label={props.label != null ? String(props.label) : undefined}
                 valueFormatter={valueFormatter}
                 barKeys={normalize ? barKeys : undefined}
                 normalize={normalize}

@@ -63,7 +63,7 @@ export async function POST(
         return delivery.whatsapp || delivery.sms ? 1 : 0;
       })
     );
-    const sent = results.reduce((a, b) => a + b, 0);
+    const sent = results.reduce<number>((a, b) => a + b, 0);
 
     return NextResponse.json({ ok: true, cancelled: ids.length, notified: sent });
   } catch (err) {
