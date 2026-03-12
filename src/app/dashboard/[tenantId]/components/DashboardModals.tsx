@@ -42,7 +42,7 @@ export const DashboardModals = forwardRef<DashboardModalsHandle, DashboardModals
         {showWhatsApp && (
           <WhatsAppLinkModal
             tenantId={tenantId}
-            tenantCode={tenantCode}
+            tenantCode={tenantCode ?? undefined}
             isOpen={showWhatsApp}
             onClose={() => setShowWhatsApp(false)}
           />
@@ -50,7 +50,7 @@ export const DashboardModals = forwardRef<DashboardModalsHandle, DashboardModals
         {showQR && (
           <QRCodeModal
             tenantId={tenantId}
-            tenantCode={tenantCode}
+            tenantCode={tenantCode ?? undefined}
             isOpen={showQR}
             onClose={() => setShowQR(false)}
           />
