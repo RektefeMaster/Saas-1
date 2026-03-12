@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import React, { useEffect, useState } from "react";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST?.trim() || "https://eu.i.posthog.com";
@@ -37,7 +37,10 @@ function PostHogInner({ children }: { children: React.ReactNode }) {
 
   if (!key) return <>{children}</>;
   if (!Client || !posthog) return <>{children}</>;
-  return <Client client={posthog}>{children}</Client>;
+  
+  // PostHogProvider accepts client prop
+  // Using React.createElement to avoid type issues
+  return React.createElement(Client, { client: posthog }, children);
 }
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
