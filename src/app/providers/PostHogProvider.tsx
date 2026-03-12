@@ -75,9 +75,14 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   if (error) return <>{children}</>;
   if (!Client || !posthog) return <>{children}</>;
 
+  // Client component'ini güvenli bir şekilde render et
+  const PostHogClientProvider = Client as React.ComponentType<{ client: any; children: React.ReactNode }>;
+
   return (
     <PostHogErrorBoundary fallback={<>{children}</>}>
-      {React.createElement(Client, { client: posthog }, children)}
+      <PostHogClientProvider client={posthog}>
+        {children}
+      </PostHogClientProvider>
     </PostHogErrorBoundary>
   );
 }

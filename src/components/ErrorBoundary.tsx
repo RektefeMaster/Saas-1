@@ -4,6 +4,7 @@ import { Component, ErrorInfo, ReactNode } from "react";
 
 interface Props {
   children: ReactNode;
+  componentName?: string;
 }
 
 interface State {
@@ -22,7 +23,8 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
-    console.error("ErrorBoundary caught an error:", error, errorInfo);
+    const componentInfo = this.props.componentName ? ` in ${this.props.componentName}` : "";
+    console.error(`[ErrorBoundary] Error${componentInfo}:`, error, errorInfo);
     // Sentry'ye gönderilebilir
   }
 

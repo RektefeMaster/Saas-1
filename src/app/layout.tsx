@@ -82,19 +82,31 @@ export default function RootLayout({
         className={`${manrope.variable} ${spaceGrotesk.variable} antialiased`}
       >
         <ClientErrorBoundary>
-          <PostHogProvider>
-            <SWRProvider>
-              <ThemeProvider>
-                <LoadingWrapper>
-                  <ViewTransitionsWrapper>
-                    <LocaleProvider>{children}</LocaleProvider>
-                  </ViewTransitionsWrapper>
-                  <Toaster richColors position="top-right" />
-                  <VercelAnalytics />
-                </LoadingWrapper>
-              </ThemeProvider>
-            </SWRProvider>
-          </PostHogProvider>
+          <ClientErrorBoundary componentName="PostHogProvider">
+            <PostHogProvider>
+              <ClientErrorBoundary componentName="SWRProvider">
+                <SWRProvider>
+                  <ClientErrorBoundary componentName="ThemeProvider">
+                    <ThemeProvider>
+                      <ClientErrorBoundary componentName="LoadingWrapper">
+                        <LoadingWrapper>
+                          <ClientErrorBoundary componentName="ViewTransitionsWrapper">
+                            <ViewTransitionsWrapper>
+                              <ClientErrorBoundary componentName="LocaleProvider">
+                                <LocaleProvider>{children}</LocaleProvider>
+                              </ClientErrorBoundary>
+                            </ViewTransitionsWrapper>
+                          </ClientErrorBoundary>
+                          <Toaster richColors position="top-right" />
+                          <VercelAnalytics />
+                        </LoadingWrapper>
+                      </ClientErrorBoundary>
+                    </ThemeProvider>
+                  </ClientErrorBoundary>
+                </SWRProvider>
+              </ClientErrorBoundary>
+            </PostHogProvider>
+          </ClientErrorBoundary>
         </ClientErrorBoundary>
       </body>
     </html>

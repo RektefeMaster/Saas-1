@@ -2,6 +2,12 @@
 
 import { ErrorBoundary } from "./ErrorBoundary";
 
-export function ClientErrorBoundary({ children }: { children: React.ReactNode }) {
-  return <ErrorBoundary>{children}</ErrorBoundary>;
+export function ClientErrorBoundary({ 
+  children, 
+  componentName 
+}: { 
+  children: React.ReactNode;
+  componentName?: string;
+}) {
+  return <ErrorBoundary componentName={componentName}>{children}</ErrorBoundary>;
 }
