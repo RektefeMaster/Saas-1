@@ -1,23 +1,36 @@
 "use client";
 
 import { useEffect, useState, useRef } from "react";
-import { usePathname } from "next/navigation";
 
 export function TopLoadingBar() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
-  const pathname = usePathname();
+  const [mounted, setMounted] = useState(false);
   const prevPathnameRef = useRef<string | null>(null);
 
+  // Component mount kontrolü
   useEffect(() => {
-    // İlk render'da pathname yoksa veya aynı pathname ise çalışma
-    if (!pathname || pathname === prevPathnameRef.current) {
-      prevPathnameRef.current = pathname;
+    if (typeof window === "undefined") return;
+    
+    setMounted(true);
+    // İlk mount'ta pathname'i al
+    prevPathnameRef.current = window.location.pathname;
+  }, []);
+
+  useEffect(() => {
+    // Mount olmamışsa veya client-side'da değilse çalışma
+    if (!mounted || typeof window === "undefined") return;
+
+    // window.location.pathname kullan (usePathname hook'u yerine)
+    const currentPathname = window.location.pathname;
+
+    // Aynı pathname ise çalışma
+    if (currentPathname === prevPathnameRef.current) {
       return;
     }
 
     // Pathname değişti, önceki pathname'i güncelle
-    prevPathnameRef.current = pathname;
+    prevPathnameRef.current = currentPathname;
 
     // Route değişikliğinde loading başlat
     setLoading(true);
@@ -50,7 +63,25 @@ export function TopLoadingBar() {
       clearInterval(interval);
       clearTimeout(completeTimer);
     };
-  }, [pathname]);
+  }, [mounted]);
+
+  // Pathname değişikliklerini dinle (popstate event)
+  useEffect(() => {
+    if (!mounted || typeof window === "undefined") return;
+
+    const handleLocationChange = () => {
+      const currentPathname = window.location.pathname;
+      if (currentPathname !== prevPathnameRef.current) {
+        prevPathnameRef.current = currentPathname;
+        // Pathname değişti, loading başlat
+        setLoading(true);
+        setProgress(0);
+      }
+    };
+
+    window.addEventListener("popstate", handleLocationChange);
+    return () => window.removeEventListener("popstate", handleLocationChange);
+  }, [mounted]);
 
   if (!loading) return null;
 

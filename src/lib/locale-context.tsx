@@ -34,8 +34,12 @@ function applyLocaleToDocument(locale: Locale) {
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const [locale, setLocaleState] = useState<Locale>("tr");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    if (typeof window === "undefined") return;
+    
     const stored = localStorage.getItem(LOCALE_STORAGE_KEY);
     if (isLocale(stored)) {
       setLocaleState(stored);
@@ -47,15 +51,19 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
 
   const setLocale = useCallback((value: Locale) => {
     setLocaleState(value);
-    localStorage.setItem(LOCALE_STORAGE_KEY, value);
-    applyLocaleToDocument(value);
+    if (typeof window !== "undefined") {
+      localStorage.setItem(LOCALE_STORAGE_KEY, value);
+      applyLocaleToDocument(value);
+    }
   }, []);
 
   const toggleLocale = useCallback(() => {
     setLocaleState((prev) => {
       const next: Locale = prev === "tr" ? "en" : "tr";
-      localStorage.setItem(LOCALE_STORAGE_KEY, next);
-      applyLocaleToDocument(next);
+      if (typeof window !== "undefined") {
+        localStorage.setItem(LOCALE_STORAGE_KEY, next);
+        applyLocaleToDocument(next);
+      }
       return next;
     });
   }, []);

@@ -1,6 +1,5 @@
 "use client";
 
-import { TopLoadingBar } from "@/components/ui/TopLoadingBar";
 import { LoadingProvider, useLoadingContext } from "@/lib/loading-context";
 import { Loading } from "@/components/ui/Loading";
 
@@ -9,7 +8,7 @@ function LoadingContent() {
 
   return (
     <>
-      <TopLoadingBar />
+      {/* TopLoadingBar geçici olarak devre dışı - sorun giderilene kadar */}
       {loading && (
         <Loading
           fullScreen

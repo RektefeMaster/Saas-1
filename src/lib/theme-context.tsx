@@ -25,8 +25,12 @@ const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 export function ThemeProvider({ children }: { children: ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("light");
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    setMounted(true);
+    if (typeof window === "undefined" || typeof document === "undefined") return;
+    
     const stored =
       (localStorage.getItem(STORAGE_KEY) as Theme | null) ||
       (localStorage.getItem(LEGACY_STORAGE_KEY) as Theme | null);
@@ -39,15 +43,19 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
 
   const setTheme = useCallback((value: Theme) => {
     setThemeState(value);
-    localStorage.setItem(STORAGE_KEY, value);
-    document.documentElement.classList.toggle("dark", value === "dark");
+    if (typeof window !== "undefined" && typeof document !== "undefined") {
+      localStorage.setItem(STORAGE_KEY, value);
+      document.documentElement.classList.toggle("dark", value === "dark");
+    }
   }, []);
 
   const toggleTheme = useCallback(() => {
     setThemeState((prev) => {
       const next = prev === "light" ? "dark" : "light";
-      localStorage.setItem(STORAGE_KEY, next);
-      document.documentElement.classList.toggle("dark", next === "dark");
+      if (typeof window !== "undefined" && typeof document !== "undefined") {
+        localStorage.setItem(STORAGE_KEY, next);
+        document.documentElement.classList.toggle("dark", next === "dark");
+      }
       return next;
     });
   }, []);
