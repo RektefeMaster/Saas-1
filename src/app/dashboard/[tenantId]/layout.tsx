@@ -13,6 +13,9 @@ export default async function DashboardTenantLayout({
   children: React.ReactNode;
   params: Promise<unknown>;
 }) {
+  // Null check ekle
+  const safeChildren = children ?? null;
+  
   const resolved = await params;
   const tenantId =
     resolved &&
@@ -29,7 +32,7 @@ export default async function DashboardTenantLayout({
   const adminToken = cookieStore.get(getAdminCookieName())?.value;
   const isAdmin = adminToken ? await verifyAdminToken(adminToken) : false;
   if (isAdmin) {
-    return <>{children}</>;
+    return <>{safeChildren}</>;
   }
 
   const supabase = await createClient();
@@ -68,7 +71,7 @@ export default async function DashboardTenantLayout({
 
   const tenantUserId = typeof tenant.user_id === "string" ? tenant.user_id : null;
   if (tenantUserId === user.id) {
-    return <>{children}</>;
+    return <>{safeChildren}</>;
   }
 
   const tenantOwnerUsername =
@@ -81,5 +84,5 @@ export default async function DashboardTenantLayout({
     redirect("/dashboard");
   }
 
-  return <>{children}</>;
+  return <>{safeChildren}</>;
 }

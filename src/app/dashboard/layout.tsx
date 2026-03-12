@@ -5,5 +5,9 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Null check ekle
+  if (children == null) {
+    return <DashboardShell>{null}</DashboardShell>;
+  }
   return <DashboardShell>{children}</DashboardShell>;
 }

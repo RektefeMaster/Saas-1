@@ -229,7 +229,10 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   const mobileNavItems = navItems.slice(0, 5);
   const isTenantPage = !!tenantId;
 
-  if (isLogin) return <>{children}</>;
+  // Null check ekle
+  const safeChildren = children ?? null;
+
+  if (isLogin) return <>{safeChildren}</>;
 
   return (
     <DashboardTenantProvider tenantId={extractedTenantId}>
@@ -349,7 +352,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           </aside>
 
           <main className="min-h-[calc(100vh-4rem)] pb-[calc(5.6rem+env(safe-area-inset-bottom))] lg:ml-72 lg:pb-0">
-            {children}
+            {safeChildren}
           </main>
 
           {tenantId && (
@@ -395,7 +398,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           )}
         </div>
       ) : (
-        <main className="min-h-[calc(100vh-4rem)]">{children}</main>
+        <main className="min-h-[calc(100vh-4rem)]">{safeChildren}</main>
       )}
     </div>
     </DashboardTenantProvider>

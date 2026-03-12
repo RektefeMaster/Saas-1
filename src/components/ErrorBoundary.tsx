@@ -53,8 +53,8 @@ export class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    // Null check ekle
-    if (!this.props || !this.props.children) {
+    // Null check ekle - this.props hiçbir zaman null olmaz, sadece children kontrolü yeterli
+    if (this.props.children == null) {
       return null;
     }
 

@@ -26,8 +26,8 @@ class ViewTransitionsErrorBoundary extends Component<ErrorBoundaryProps, { hasEr
     if (this.state.hasError) {
       return this.props.fallback || this.props.children || null;
     }
-    // Null check ekle
-    if (!this.props || !this.props.children) {
+    // Null check ekle - this.props hiçbir zaman null olmaz, sadece children kontrolü yeterli
+    if (this.props.children == null) {
       return null;
     }
     return this.props.children;
@@ -41,6 +41,11 @@ export function ViewTransitionsWrapper({ children }: { children: React.ReactNode
   //     <ViewTransitions>{children}</ViewTransitions>
   //   </ViewTransitionsErrorBoundary>
   // );
+  
+  // Null check ekle
+  if (children == null) {
+    return null;
+  }
   
   return <>{children}</>;
 }

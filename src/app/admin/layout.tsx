@@ -3,5 +3,9 @@ export default function AdminLayout({
 }: {
   children: React.ReactNode;
 }) {
+  // Null check ekle
+  if (children == null) {
+    return null;
+  }
   return <>{children}</>;
 }

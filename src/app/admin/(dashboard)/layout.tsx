@@ -231,7 +231,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
         </header>
 
         <main className="p-4 pb-20 sm:p-6 lg:pb-8">
-          <div className="mx-auto max-w-6xl">{children}</div>
+          <div className="mx-auto max-w-6xl">{children ?? null}</div>
         </main>
 
         <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} />

@@ -28,8 +28,8 @@ class PostHogErrorBoundary extends Component<ErrorBoundaryProps, { hasError: boo
     if (this.state.hasError) {
       return this.props.fallback || this.props.children || null;
     }
-    // Null check ekle
-    if (!this.props || !this.props.children) {
+    // Null check ekle - this.props hiçbir zaman null olmaz, sadece children kontrolü yeterli
+    if (this.props.children == null) {
       return null;
     }
     return this.props.children;
@@ -92,5 +92,10 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   // );
 
   // Geçici olarak sadece children döndür
+  // Null check ekle
+  if (children == null) {
+    return null;
+  }
+  
   return <>{children}</>;
 }
