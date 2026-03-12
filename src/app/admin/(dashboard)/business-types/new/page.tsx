@@ -3,6 +3,7 @@
 import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
 const FLOW_TYPES = [
   { value: "appointment", label: "Randevu" },
@@ -193,10 +194,16 @@ function NewBusinessTypePageContent() {
   );
 }
 
+// Dynamic import ile SSR'ı devre dışı bırak
+const NewBusinessTypePageContentDynamic = dynamic(
+  () => Promise.resolve(NewBusinessTypePageContent),
+  { ssr: false }
+);
+
 export default function NewBusinessTypePage() {
   return (
     <Suspense fallback={<div className="p-4">Yükleniyor...</div>}>
-      <NewBusinessTypePageContent />
+      <NewBusinessTypePageContentDynamic />
     </Suspense>
   );
 }
