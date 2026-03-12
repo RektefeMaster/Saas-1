@@ -77,11 +77,18 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
   if (children == null) {
     return null;
   }
-  return (
-    <LocaleContext.Provider value={contextValue}>
-      {children}
-    </LocaleContext.Provider>
-  );
+  
+  // Güvenli render
+  try {
+    return (
+      <LocaleContext.Provider value={contextValue}>
+        {children}
+      </LocaleContext.Provider>
+    );
+  } catch (error) {
+    console.error("[LocaleProvider] Render hatası:", error);
+    return null;
+  }
 }
 
 export function useLocale() {

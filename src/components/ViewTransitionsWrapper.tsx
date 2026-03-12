@@ -1,6 +1,5 @@
 "use client";
 
-import { ViewTransitions } from "next-view-transitions";
 import { Component, ErrorInfo, ReactNode } from "react";
 
 interface ErrorBoundaryProps {

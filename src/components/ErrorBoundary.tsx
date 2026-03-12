@@ -25,6 +25,18 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     const componentInfo = this.props.componentName ? ` in ${this.props.componentName}` : "";
     console.error(`[ErrorBoundary] Error${componentInfo}:`, error, errorInfo);
+    
+    // Hata detaylarını logla
+    if (error.message?.includes("children")) {
+      console.error("[ErrorBoundary] Children hatası tespit edildi:", {
+        componentName: this.props.componentName,
+        hasProps: !!this.props,
+        hasChildren: this.props?.children != null,
+        childrenType: typeof this.props?.children,
+        errorStack: error.stack,
+        errorInfo,
+      });
+    }
     // Sentry'ye gönderilebilir
   }
 
@@ -53,11 +65,22 @@ export class ErrorBoundary extends Component<Props, State> {
       );
     }
 
-    // Null check ekle - this.props hiçbir zaman null olmaz, sadece children kontrolü yeterli
-    if (this.props.children == null) {
+    // Güvenli children erişimi - props ve children kontrolü
+    try {
+      if (!this.props) {
+        console.warn("[ErrorBoundary] Props is null or undefined");
+        return null;
+      }
+      
+      const children = this.props.children;
+      if (children == null) {
+        return null;
+      }
+
+      return children;
+    } catch (error) {
+      console.error("[ErrorBoundary] Render hatası:", error);
       return null;
     }
-
-    return this.props.children;
   }
 }

@@ -73,22 +73,29 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
   if (children == null) {
     return null;
   }
-  return (
-    <LoadingContext.Provider
-      value={{
-        loading: state.loading,
-        message: state.message,
-        progress: state.progress,
-        variant: state.variant || "spinner",
-        startLoading,
-        stopLoading,
-        setProgress,
-        setMessage,
-      }}
-    >
-      {children}
-    </LoadingContext.Provider>
-  );
+  
+  // Güvenli render
+  try {
+    return (
+      <LoadingContext.Provider
+        value={{
+          loading: state.loading,
+          message: state.message,
+          progress: state.progress,
+          variant: state.variant || "spinner",
+          startLoading,
+          stopLoading,
+          setProgress,
+          setMessage,
+        }}
+      >
+        {children}
+      </LoadingContext.Provider>
+    );
+  } catch (error) {
+    console.error("[LoadingProvider] Render hatası:", error);
+    return null;
+  }
 }
 
 export function useLoadingContext() {

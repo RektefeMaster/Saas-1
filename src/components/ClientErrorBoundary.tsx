@@ -9,9 +9,14 @@ export function ClientErrorBoundary({
   children: React.ReactNode;
   componentName?: string;
 }) {
-  // Null check ekle
-  if (children == null) {
+  // Güvenli children kontrolü
+  try {
+    if (children == null) {
+      return null;
+    }
+    return <ErrorBoundary componentName={componentName}>{children}</ErrorBoundary>;
+  } catch (error) {
+    console.error("[ClientErrorBoundary] Hata:", error, { componentName });
     return null;
   }
-  return <ErrorBoundary componentName={componentName}>{children}</ErrorBoundary>;
 }

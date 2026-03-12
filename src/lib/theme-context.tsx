@@ -69,7 +69,14 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   if (children == null) {
     return null;
   }
-  return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
+  
+  // Güvenli render
+  try {
+    return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
+  } catch (error) {
+    console.error("[ThemeProvider] Render hatası:", error);
+    return null;
+  }
 }
 
 export function useTheme() {
