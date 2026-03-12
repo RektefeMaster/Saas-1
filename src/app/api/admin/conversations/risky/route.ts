@@ -214,81 +214,161 @@ export async function GET(request: NextRequest) {
   const now = new Date();
   const from = new Date(now.getTime() - hours * 60 * 60 * 1000);
 
-  const maxRows = Math.min(Math.max(limit * 40, 600), 6000);
-  let query = supabase
-    .from("conversation_messages")
-    .select("tenant_id, customer_phone_digits, direction, message_text, stage, created_at")
-    .gte("created_at", from.toISOString())
-    .order("created_at", { ascending: false })
-    .limit(maxRows);
+  // SQL Aggregation ile optimize edilmiş sorgu
+  // Öncelik: RPC function kullan (migration 030 çalıştırılmışsa)
+  // Fallback: Optimize edilmiş client-side aggregation
+  
+  let summaries = new Map<string, RiskSummary>();
+  
+  // RPC function'ı dene (opsiyonel - migration 030 gerekli)
+  try {
+    const rpcResult = await supabase.rpc("get_risky_conversations_aggregated", {
+      p_from_timestamp: from.toISOString(),
+      p_to_timestamp: now.toISOString(),
+      p_tenant_id: tenantId || null,
+      p_phone_digits: phoneDigits || null,
+      p_limit: Math.min(Math.max(limit * 3, 100), 500), // RPC'de daha yüksek limit (aggregated olduğu için)
+    });
 
-  if (tenantId) {
-    query = query.eq("tenant_id", tenantId);
-  }
-  if (phoneDigits) {
-    query = query.eq("customer_phone_digits", phoneDigits);
-  }
+    if (!rpcResult.error && rpcResult.data) {
+      // RPC function başarılı - aggregated sonuçları kullan
+      for (const row of rpcResult.data as Array<{
+        tenant_id: string;
+        customer_phone_digits: string;
+        message_count: number;
+        inbound_count: number;
+        outbound_count: number;
+        system_count: number;
+        last_message_at: string;
+        last_inbound_text: string | null;
+        last_outbound_text: string | null;
+        stage_counts: Record<string, number> | null;
+      }>) {
+        if (!row.tenant_id || !row.customer_phone_digits) continue;
 
-  const { data, error } = await query;
-  if (error) {
-    const missing = extractMissingSchemaTable(error);
-    if (missing === "conversation_messages") {
-      return NextResponse.json({
-        query: {
-          hours,
-          min_score_filter: minScore,
-          limit,
-          tenant_id: tenantId || null,
-          phone_digits: phoneDigits,
-          from: from.toISOString(),
-          to: now.toISOString(),
-        },
-        total: 0,
-        items: [],
-        migration_hint: true,
-        migration_message:
-          "conversation_messages tablosu bulunamadı. Supabase migration 029 çalıştırılmalı: supabase db push veya supabase migration up",
-      });
-    }
-    return NextResponse.json({ error: error.message }, { status: 500 });
-  }
-
-  const rows = (data || []) as ConversationMessageRow[];
-  const summaries = new Map<string, RiskSummary>();
-
-  for (const row of rows) {
-    if (!row.tenant_id) continue;
-    if (!row.customer_phone_digits) continue;
-
-    const summary = ensureSummary(
-      summaries,
-      row.tenant_id,
-      row.customer_phone_digits,
-      row.created_at
-    );
-
-    summary.message_count += 1;
-    if (toMs(row.created_at) > toMs(summary.last_message_at)) {
-      summary.last_message_at = row.created_at;
-    }
-
-    if (row.direction === "inbound") {
-      summary.inbound_count += 1;
-      if (!summary.last_inbound_text && row.message_text) {
-        summary.last_inbound_text = row.message_text;
-      }
-    } else if (row.direction === "outbound") {
-      summary.outbound_count += 1;
-      if (!summary.last_outbound_text && row.message_text) {
-        summary.last_outbound_text = row.message_text;
+        const key = `${row.tenant_id}:${row.customer_phone_digits}`;
+        const summary: RiskSummary = {
+          tenant_id: row.tenant_id,
+          customer_phone_digits: row.customer_phone_digits,
+          last_message_at: row.last_message_at,
+          last_inbound_text: row.last_inbound_text,
+          last_outbound_text: row.last_outbound_text,
+          inbound_count: Number(row.inbound_count) || 0,
+          outbound_count: Number(row.outbound_count) || 0,
+          system_count: Number(row.system_count) || 0,
+          message_count: Number(row.message_count) || 0,
+          stage_counts: (row.stage_counts as Record<string, number>) || {},
+          risk_reasons: [],
+          risk_score: 0,
+          paused_for_human: false,
+          admin_takeover_active: false,
+          pause_reason: null,
+          current_step: null,
+          risk_threshold: 0,
+          threshold_source: "default",
+          effective_threshold: 0,
+        };
+        summaries.set(key, summary);
       }
     } else {
-      summary.system_count += 1;
+      // RPC function yok veya hata - fallback'e geç
+      throw new Error("RPC not available");
+    }
+  } catch {
+    // Fallback: Optimize edilmiş client-side aggregation
+    // Limit 6000'den 2000'e düşürüldü - %67 azalma
+    const maxRows = Math.min(Math.max(limit * 20, 300), 2000);
+    
+    let query = supabase
+      .from("conversation_messages")
+      .select("tenant_id, customer_phone_digits, direction, message_text, stage, created_at")
+      .gte("created_at", from.toISOString())
+      .order("created_at", { ascending: false })
+      .limit(maxRows);
+
+    if (tenantId) {
+      query = query.eq("tenant_id", tenantId);
+    }
+    if (phoneDigits) {
+      query = query.eq("customer_phone_digits", phoneDigits);
     }
 
-    const stage = (row.stage || "").trim();
-    if (stage) {
-      summary.stage_counts[stage] = (summary.stage_counts[stage] || 0) + 1;
+    const { data, error } = await query;
+    if (error) {
+      const missing = extractMissingSchemaTable(error);
+      if (missing === "conversation_messages") {
+        return NextResponse.json({
+          query: {
+            hours,
+            min_score_filter: minScore,
+            limit,
+            tenant_id: tenantId || null,
+            phone_digits: phoneDigits,
+            from: from.toISOString(),
+            to: now.toISOString(),
+          },
+          total: 0,
+          items: [],
+          migration_hint: true,
+          migration_message:
+            "conversation_messages tablosu bulunamadı. Supabase migration 029 çalıştırılmalı: supabase db push veya supabase migration up",
+        });
+      }
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    const rows = (data || []) as ConversationMessageRow[];
+
+    // Optimize edilmiş aggregation: Map kullanarak O(1) lookup
+    for (const row of rows) {
+      if (!row.tenant_id || !row.customer_phone_digits) continue;
+
+      const key = `${row.tenant_id}:${row.customer_phone_digits}`;
+      let summary = summaries.get(key);
+      
+      if (!summary) {
+        summary = ensureSummary(
+          summaries,
+          row.tenant_id,
+          row.customer_phone_digits,
+          row.created_at
+        );
+        summaries.set(key, summary);
+      }
+
+      // Aggregation işlemleri
+      summary.message_count += 1;
+      const rowTime = toMs(row.created_at);
+      const lastTime = toMs(summary.last_message_at);
+      
+      if (rowTime > lastTime) {
+        summary.last_message_at = row.created_at;
+      }
+
+      // Direction-based counting
+      if (row.direction === "inbound") {
+        summary.inbound_count += 1;
+        if (rowTime >= lastTime && row.message_text) {
+          summary.last_inbound_text = row.message_text;
+        } else if (!summary.last_inbound_text && row.message_text) {
+          summary.last_inbound_text = row.message_text;
+        }
+      } else if (row.direction === "outbound") {
+        summary.outbound_count += 1;
+        if (rowTime >= lastTime && row.message_text) {
+          summary.last_outbound_text = row.message_text;
+        } else if (!summary.last_outbound_text && row.message_text) {
+          summary.last_outbound_text = row.message_text;
+        }
+      } else {
+        summary.system_count += 1;
+      }
+
+      // Stage counts aggregation
+      const stage = (row.stage || "").trim();
+      if (stage) {
+        summary.stage_counts[stage] = (summary.stage_counts[stage] || 0) + 1;
+      }
     }
   }
 

@@ -128,5 +128,25 @@ const todayIso = new Date().toISOString().slice(0, 10);
 
 ## 7. Hızlı Kazanımlar (Hemen Uygulanabilir)
 
-1. **Stagger kaldır, paralel fetch**: blocked-dates, reviews, availability/slots aynı anda
+1. **Stagger kaldır, paralel fetch**: blocked-dates, reviews, availability/slots aynı anda ✅ (Promise.all ile uygulandı)
 2. **todayIso useMemo**: `useMemo(() => new Date().toISOString().slice(0, 10), [])` — gün değişince güncellemek için `date-fns` startOfDay veya basit bir ref ile günlük invalidation
+
+---
+
+## 8. Uygulanan İyileştirmeler (Güncel)
+
+- **useCallback**: handleSaveReminderPref, handleSaveMessages, handleSaveBotSettings, handleAddBlocked, handleDeleteBlocked, handleAddAppointment, handleSaveWorkingHours — child bileşenlere sabit referans, gereksiz re-render azaltıldı.
+- **React.memo**: OverviewView, AppointmentsView, SettingsView memo ile sarıldı; props değişmediğinde (örn. codeCopied değişimi) view'lar yeniden render olmuyor.
+- **DashboardCodeCopy**: Kod kopyalama state'i (codeCopied) ana sayfadan çıkarıldı; "Kopyala" tıklanınca sadece bu bileşen re-render oluyor.
+- **Paralel fetch**: blocked-dates, reviews paralel; availability/slots artık sadece SettingsView içinde (Ayarlar açıldığında) çekiliyor, ana sayfa yükü azaldı.
+- **Settings form state izolasyonu**: Tüm ayar formu state'i (reminderPref, welcomeMsg, slotDuration, workingHours, …) SettingsView içine taşındı. Her tuş vuruşunda sadece SettingsView re-render oluyor, ana dashboard sayfası değil. Kaydet işlemleri de SettingsView içinde.
+- **DashboardModals**: WhatsApp ve QR modal state'leri ana sayfadan çıkarıldı. `DashboardModals` ref ile openWhatsApp/openQR sunuyor; modal aç/kapa sadece bu bileşeni re-render ediyor.
+- **Admin panel**: fetchData useCallback ile sarıldı, useEffect dependency stabil.
+- **todayIso**: Günlük invalidation eklendi; `useMemo(..., [Math.floor(Date.now()/86400000)])` ile takvim günü değişince güncellenir.
+- **Ops + Command Center**: İlk yüklemede ve sekme tekrar görünür olduğunda iki istek paralel atılıyor; ayrı ayrı effect yerine tek effect ile visibility'de ikisi birden tetikleniyor.
+- **AppointmentsView form state izolasyonu**: Tüm randevu ekleme formu state'leri (showAdd, addPhone, addDate, addTime, addDatetimeLocal, addStaffId) ve blocked dates formu state'leri (showBlocked, blockStart, blockEnd, blockReason) AppointmentsView içine taşındı. Her tuş vuruşunda sadece AppointmentsView re-render oluyor, ana dashboard sayfası değil.
+- **Availability state izolasyonu**: selectedDate, availability, availabilityLoading state'leri ve fetchAvailability fonksiyonu AppointmentsView içine taşındı. Sadece AppointmentsView açıkken ve tarih seçildiğinde availability çekiliyor.
+- **weekAnchor state izolasyonu**: weekAnchor state'i AppointmentsView içine taşındı. Hafta navigasyonu sadece AppointmentsView'ı etkiliyor.
+- **State sayısı azaltıldı**: Ana sayfadaki state sayısı 28+ 'dan 13'e düştü. Form state'leri ve UI state'leri ilgili view bileşenlerine taşındı.
+- **todayCount optimize edildi**: `todayCount` hesaplaması useMemo ile optimize edildi, her render'da yeniden hesaplanmıyor.
+- **weekDates optimize edildi**: OverviewView için `weekDates` hesaplaması useMemo ile optimize edildi, günlük bazda cache ediliyor.

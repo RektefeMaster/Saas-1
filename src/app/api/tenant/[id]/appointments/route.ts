@@ -7,6 +7,10 @@ import { notifyNewAppointmentForMerchant } from "@/services/merchantNotification
 const APPOINTMENT_LIST_COLUMNS =
   "id,customer_phone,slot_start,status,service_slug,staff_id,extra_data";
 
+// POST için gerekli tüm kolonlar (response'da döndürülecek)
+const APPOINTMENT_FULL_COLUMNS =
+  "id,tenant_id,customer_phone,slot_start,status,service_slug,staff_id,extra_data,created_at,updated_at";
+
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -37,15 +41,20 @@ export async function GET(
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json(data);
+  return NextResponse.json(data, {
+    headers: {
+      "Cache-Control": "s-maxage=10, stale-while-revalidate=20",
+    },
+  });
 }
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-  const body = (await request.json().catch(() => ({}))) as {
+  try {
+    const { id } = await params;
+    const body = (await request.json().catch(() => ({}))) as {
     customer_phone?: string;
     slot_start?: string;
     staff_id?: string | null;
@@ -112,7 +121,7 @@ export async function POST(
 
   const { data, error } = await supabase
     .from("appointments")
-    .select("*")
+    .select(APPOINTMENT_FULL_COLUMNS)
     .eq("id", booking.id)
     .single();
 
@@ -177,9 +186,14 @@ export async function POST(
       staffId: (data.staff_id as string | null | undefined) || body.staff_id || null,
       source: "dashboard",
     });
-  } catch (e) {
-    console.error("[appointments POST] merchant notify error:", e);
-  }
+    } catch (e) {
+      console.error("[appointments POST] merchant notify error:", e);
+    }
 
-  return NextResponse.json(data);
+    return NextResponse.json(data);
+  } catch (err) {
+    const message = err instanceof Error ? err.message : "Randevu oluşturulamadı";
+    console.error("[appointments POST]", err);
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
 }

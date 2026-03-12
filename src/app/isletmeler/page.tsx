@@ -1,13 +1,20 @@
 "use client";
 
-import { memo, useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { memo, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
+import useSWR from "swr";
 import { ArrowLeft, Building2, MessageCircle, Search, Store } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
+import { fetcher } from "@/lib/swr-fetcher";
 import { LottieAnimationLazy, ThemeLocaleSwitch } from "@/components/ui";
 import { useFuzzySearchWorker } from "@/lib/use-fuzzy-search-worker";
-import { VirtualList } from "@/components/ui";
+
+const VirtualList = dynamic(
+  () => import("@/components/ui/VirtualList").then((m) => ({ default: m.VirtualList })),
+  { ssr: false }
+);
 
 interface TenantItem {
   id: string;
@@ -82,19 +89,13 @@ const TenantCard = memo(function TenantCard({
 export default function IsletmelerPage() {
   const { locale } = useLocale();
   const t = COPY[locale];
-  const [tenants, setTenants] = useState<TenantItem[]>([]);
-  const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
-  useEffect(() => {
-    const controller = new AbortController();
-    fetch("/api/public/tenants", { signal: controller.signal })
-      .then((r) => r.json())
-      .then((data) => setTenants(Array.isArray(data) ? data : []))
-      .catch(() => setTenants([]))
-      .finally(() => setLoading(false));
-    return () => controller.abort();
-  }, []);
+  const { data: tenants = [], isLoading: loading } = useSWR<TenantItem[]>(
+    "/api/public/tenants",
+    fetcher,
+    { revalidateOnFocus: false, dedupingInterval: 60000 }
+  );
 
   const { result: filtered } = useFuzzySearchWorker({
     list: tenants,
@@ -110,6 +111,7 @@ export default function IsletmelerPage() {
         alt="Ahi AI backdrop"
         fill
         priority
+        sizes="100vw"
         className="pointer-events-none object-cover opacity-[0.07] blur-[1px]"
       />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(40%_30%_at_20%_0%,rgba(56,189,248,0.17),transparent),radial-gradient(40%_30%_at_90%_10%,rgba(16,185,129,0.15),transparent)]" />
@@ -122,6 +124,7 @@ export default function IsletmelerPage() {
               alt="Ahi AI"
               width={30}
               height={30}
+              sizes="30px"
               className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
             />
             <span>Ahi AI</span>

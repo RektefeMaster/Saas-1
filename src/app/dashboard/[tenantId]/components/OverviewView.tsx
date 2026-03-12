@@ -1,8 +1,16 @@
 "use client";
 
+import React, { memo, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { AlertCircle, CheckCircle2, Clock, Loader2 } from "lucide-react";
-import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import { useDashboardStore } from "@/stores/dashboard-store";
+import { groupByDate } from "./dashboard.types";
+import { getWeekDates } from "./dashboard.types";
+
+const ScrollReveal = dynamic(
+  () => import("@/components/ui/ScrollReveal").then((m) => ({ default: m.ScrollReveal })),
+  { ssr: false }
+);
 import type { CommandCenterSnapshot, CommandCenterAction } from "./CommandCenterSection";
 import { DAY_NAMES, type Appointment, type OpsAlert, type ReviewData } from "./dashboard.types";
 
@@ -17,34 +25,41 @@ const CommandCenterSection = dynamic(
 );
 
 interface OverviewViewProps {
-  commandCenter: CommandCenterSnapshot | null;
-  commandCenterLoading: boolean;
-  runningActionId: string | null;
-  opsAlerts: OpsAlert[];
-  opsAlertsLoading: boolean;
-  resolvingAlertId: string | null;
-  reviews: ReviewData | null;
-  appointments: Appointment[];
-  grouped: Record<string, Appointment[]>;
-  weekDates: string[];
   onRunAction: (action: CommandCenterAction) => void;
   onResolveAlert: (alertId: string) => void;
 }
 
-export function OverviewView({
-  commandCenter,
-  commandCenterLoading,
-  runningActionId,
-  opsAlerts,
-  opsAlertsLoading,
-  resolvingAlertId,
-  reviews,
-  appointments,
-  grouped,
-  weekDates,
+function OverviewViewInner({
   onRunAction,
   onResolveAlert,
 }: OverviewViewProps) {
+  // Store'dan veri çek - selector pattern ile sadece gerekli state'leri dinle
+  const commandCenter = useDashboardStore((state) => state.commandCenter);
+  const commandCenterLoading = useDashboardStore((state) => state.commandCenterLoading);
+  const runningActionId = useDashboardStore((state) => state.runningActionId);
+  const opsAlerts = useDashboardStore((state) => state.opsAlerts);
+  const opsAlertsLoading = useDashboardStore((state) => state.opsAlertsLoading);
+  const resolvingAlertId = useDashboardStore((state) => state.resolvingAlertId);
+  const reviews = useDashboardStore((state) => state.reviews);
+  const appointments = useDashboardStore((state) => state.appointments);
+
+  // Computed values
+  const grouped = useMemo(() => groupByDate(appointments), [appointments]);
+  const weekDates = useMemo(() => getWeekDates(new Date()), [Math.floor(Date.now() / 86400000)]);
+  const chartData = useMemo(
+    () =>
+      weekDates.slice(0, 7).map((dateStr) => {
+        const d = new Date(dateStr + "T12:00:00");
+        return {
+          gün: DAY_NAMES[d.getDay()],
+          Randevu: grouped[dateStr]?.length ?? 0,
+        };
+      }),
+    [weekDates, grouped]
+  );
+
+  const hasAppointments = appointments.length > 0;
+
   return (
     <>
       <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6" reduceMotion>
@@ -142,7 +157,7 @@ export function OverviewView({
         </section>
       </ScrollReveal>
 
-      {appointments.length > 0 && (
+      {hasAppointments && (
         <ScrollReveal variant="fadeUp" delay={0.02} as="section" className="mb-6" reduceMotion>
           <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <h3 className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
@@ -150,13 +165,7 @@ export function OverviewView({
             </h3>
             <p className="mb-4 text-sm text-slate-600 dark:text-slate-300">Son 7 günün randevu dağılımı</p>
             <ChartBar
-              data={weekDates.slice(0, 7).map((dateStr) => {
-                const d = new Date(dateStr + "T12:00:00");
-                return {
-                  gün: DAY_NAMES[d.getDay()],
-                  Randevu: grouped[dateStr]?.length ?? 0,
-                };
-              })}
+              data={chartData}
               xKey="gün"
               bars="Randevu"
               colors="emerald"
@@ -190,3 +199,5 @@ export function OverviewView({
     </>
   );
 }
+
+export const OverviewView = memo(OverviewViewInner);

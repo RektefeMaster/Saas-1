@@ -20,14 +20,13 @@ import {
   Menu,
   X,
 } from "lucide-react";
-import { motion } from "motion/react";
 import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
 import { ThemeLocaleSwitch } from "@/components/ui";
 
 const ScrollReveal = dynamic(
   () => import("@/components/ui/ScrollReveal").then((m) => ({ default: m.ScrollReveal })),
-  { ssr: true }
+  { ssr: false }
 );
 
 const ContactModal = dynamic(
@@ -237,6 +236,7 @@ export default function Home() {
         alt="Ahi AI backdrop"
         fill
         priority
+        sizes="100vw"
         className="pointer-events-none object-cover opacity-[0.08] blur-[1.2px]"
       />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_45%_at_20%_10%,rgba(56,189,248,0.22),transparent),radial-gradient(50%_40%_at_84%_14%,rgba(16,185,129,0.2),transparent)]" />
@@ -249,6 +249,7 @@ export default function Home() {
               alt="Ahi AI"
               width={34}
               height={34}
+              sizes="34px"
               className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
             />
             <span className="text-base font-semibold tracking-tight">Ahi AI</span>
@@ -347,7 +348,7 @@ export default function Home() {
 
       <main>
         <section className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-4 pb-16 pt-16 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:pt-20">
-          <ScrollReveal variant="fadeUp" delay={0.05}>
+          <div className="animate-hero-in opacity-0">
             <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-cyan-50/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:border-cyan-900/60 dark:bg-cyan-950/35 dark:text-cyan-300">
               <Sparkles className="h-3.5 w-3.5" />
               {t.hero.badge}
@@ -385,36 +386,36 @@ export default function Home() {
                 </li>
               ))}
             </ul>
-          </ScrollReveal>
+          </div>
 
-          <ScrollReveal variant="slideLeft" delay={0.12}>
-            <div id="impact" className="relative rounded-3xl border border-slate-200 bg-white/90 p-6 shadow-xl shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900/85 dark:shadow-black/20">
-              <div className="mb-5 flex items-center justify-between">
-                <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                  {locale === "tr" ? "Canlı Performans Görünümü" : "Ahi AI Stack"}
-                </p>
-                <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                  {locale === "tr" ? "Güncel" : "Live"}
-                </span>
-              </div>
-              <div className="grid gap-3">
-                {t.metrics.map((metric, idx) => (
-                  <motion.article
-                    key={metric.label}
-                    initial={{ opacity: 0, x: 24 }}
-                    whileInView={{ opacity: 1, x: 0 }}
-                    viewport={{ once: true, amount: 0.2 }}
-                    transition={{ delay: 0.12 + idx * 0.06, duration: 0.42 }}
-                    className="rounded-2xl border border-slate-200 bg-slate-50/90 p-4 dark:border-slate-700 dark:bg-slate-800/60"
-                  >
-                    <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                      {metric.label}
-                    </p>
-                    <p className="mt-1.5 text-2xl font-bold tracking-tight">{metric.value}</p>
-                  </motion.article>
-                ))}
-              </div>
-              <div className="mt-5 rounded-2xl border border-cyan-100 bg-cyan-50/80 p-4 dark:border-cyan-900/60 dark:bg-cyan-950/30">
+          <div
+            id="impact"
+            className="relative animate-hero-in rounded-3xl border border-slate-200 bg-white/90 p-6 opacity-0 shadow-xl shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900/85 dark:shadow-black/20"
+            style={{ animationDelay: "80ms" }}
+          >
+            <div className="mb-5 flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
+                {locale === "tr" ? "Canlı Performans Görünümü" : "Ahi AI Stack"}
+              </p>
+              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
+                {locale === "tr" ? "Güncel" : "Live"}
+              </span>
+            </div>
+            <div className="grid gap-3">
+              {t.metrics.map((metric, idx) => (
+                <article
+                  key={metric.label}
+                  className="animate-metric-in rounded-2xl border border-slate-200 bg-slate-50/90 p-4 opacity-0 dark:border-slate-700 dark:bg-slate-800/60"
+                  style={{ animationDelay: `${120 + idx * 60}ms`, animationFillMode: "forwards" }}
+                >
+                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                    {metric.label}
+                  </p>
+                  <p className="mt-1.5 text-2xl font-bold tracking-tight">{metric.value}</p>
+                </article>
+              ))}
+            </div>
+            <div className="mt-5 rounded-2xl border border-cyan-100 bg-cyan-50/80 p-4 dark:border-cyan-900/60 dark:bg-cyan-950/30">
                 <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">
                   {locale === "tr" ? "Tek Ekran Deneyimi" : "Unified Experience"}
                 </p>
@@ -425,7 +426,6 @@ export default function Home() {
                 </p>
               </div>
             </div>
-          </ScrollReveal>
         </section>
 
         <section id="solutions" className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6">

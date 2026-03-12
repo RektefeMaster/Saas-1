@@ -1,91 +1,188 @@
 "use client";
 
+import React, { memo, useCallback, useEffect, useState } from "react";
 import dynamic from "next/dynamic";
 import { Loader2 } from "lucide-react";
 import { DAY_NAMES, type ReminderPref, type WorkingHoursSlot } from "./dashboard.types";
+import type { TenantBasic } from "@/app/dashboard/DashboardTenantContext";
 
 const MessageSettings = dynamic(
   () => import("./MessageSettings").then((m) => ({ default: m.MessageSettings })),
   { ssr: false, loading: () => <div className="h-32 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
 );
 
-interface SettingsViewProps {
-  reminderPref: ReminderPref;
-  setReminderPref: (v: ReminderPref) => void;
-  welcomeMsg: string;
-  setWelcomeMsg: (v: string) => void;
-  whatsappGreeting: string;
-  setWhatsappGreeting: (v: string) => void;
-  contactPhone: string;
-  setContactPhone: (v: string) => void;
-  workingHoursText: string;
-  setWorkingHoursText: (v: string) => void;
-  openingMessage: string;
-  setOpeningMessage: (v: string) => void;
-  confirmationMessage: string;
-  setConfirmationMessage: (v: string) => void;
-  reminderMessage: string;
-  setReminderMessage: (v: string) => void;
-  slotDuration: number;
-  setSlotDuration: (v: number) => void;
-  advanceBookingDays: number;
-  setAdvanceBookingDays: (v: number) => void;
-  cancellationHours: number;
-  setCancellationHours: (v: number) => void;
-  workingHours: WorkingHoursSlot[];
-  setWorkingHours: (v: WorkingHoursSlot[] | ((prev: WorkingHoursSlot[]) => WorkingHoursSlot[])) => void;
-  showWorkingHours: boolean;
-  setShowWorkingHours: (v: boolean) => void;
-  reminderSaving: boolean;
-  messagesSaving: boolean;
-  workingHoursSaving: boolean;
-  botSettingsSaving: boolean;
-  botSettingsMessage: string;
-  botSettingsError: string;
-  onSaveReminderPref: () => void;
-  onSaveMessages: () => void;
-  onSaveWorkingHours: () => void;
-  onSaveBotSettings: () => void;
+export interface SettingsViewProps {
+  tenantId: string;
+  tenant: TenantBasic | null;
+  setTenant: React.Dispatch<React.SetStateAction<TenantBasic | null>>;
+  onWorkingHoursSaved?: () => void;
 }
 
-export function SettingsView({
-  reminderPref,
-  setReminderPref,
-  welcomeMsg,
-  setWelcomeMsg,
-  whatsappGreeting,
-  setWhatsappGreeting,
-  contactPhone,
-  setContactPhone,
-  workingHoursText,
-  setWorkingHoursText,
-  openingMessage,
-  setOpeningMessage,
-  confirmationMessage,
-  setConfirmationMessage,
-  reminderMessage,
-  setReminderMessage,
-  slotDuration,
-  setSlotDuration,
-  advanceBookingDays,
-  setAdvanceBookingDays,
-  cancellationHours,
-  setCancellationHours,
-  workingHours,
-  setWorkingHours,
-  showWorkingHours,
-  setShowWorkingHours,
-  reminderSaving,
-  messagesSaving,
-  workingHoursSaving,
-  botSettingsSaving,
-  botSettingsMessage,
-  botSettingsError,
-  onSaveReminderPref,
-  onSaveMessages,
-  onSaveWorkingHours,
-  onSaveBotSettings,
-}: SettingsViewProps) {
+function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }: SettingsViewProps) {
+  const [reminderPref, setReminderPref] = useState<ReminderPref>("customer_only");
+  const [welcomeMsg, setWelcomeMsg] = useState("");
+  const [whatsappGreeting, setWhatsappGreeting] = useState("");
+  const [contactPhone, setContactPhone] = useState("");
+  const [workingHoursText, setWorkingHoursText] = useState("");
+  const [openingMessage, setOpeningMessage] = useState("");
+  const [confirmationMessage, setConfirmationMessage] = useState("");
+  const [reminderMessage, setReminderMessage] = useState("");
+  const [slotDuration, setSlotDuration] = useState(30);
+  const [advanceBookingDays, setAdvanceBookingDays] = useState(30);
+  const [cancellationHours, setCancellationHours] = useState(2);
+  const [workingHours, setWorkingHours] = useState<WorkingHoursSlot[]>([]);
+  const [showWorkingHours, setShowWorkingHours] = useState(false);
+  const [reminderSaving, setReminderSaving] = useState(false);
+  const [messagesSaving, setMessagesSaving] = useState(false);
+  const [workingHoursSaving, setWorkingHoursSaving] = useState(false);
+  const [botSettingsSaving, setBotSettingsSaving] = useState(false);
+  const [botSettingsMessage, setBotSettingsMessage] = useState("");
+  const [botSettingsError, setBotSettingsError] = useState("");
+
+  useEffect(() => {
+    if (!tenant) return;
+    const co = tenant.config_override as Record<string, unknown> | undefined;
+    const pref = co?.reminder_preference;
+    if (pref && ["off", "customer_only", "merchant_only", "both"].includes(String(pref))) {
+      setReminderPref(pref as ReminderPref);
+    }
+    const msgs = (co?.messages as Record<string, unknown> | undefined) ?? {};
+    setWelcomeMsg(String(msgs.welcome ?? ""));
+    setWhatsappGreeting(String(msgs.whatsapp_greeting ?? ""));
+    setContactPhone(tenant.contact_phone ?? "");
+    setWorkingHoursText(tenant.working_hours_text ?? "");
+    setOpeningMessage(String(co?.opening_message ?? ""));
+    setConfirmationMessage(String(msgs.confirmation ?? ""));
+    setReminderMessage(String(msgs.reminder_24h ?? ""));
+    if (typeof co?.slot_duration_minutes === "number") setSlotDuration(co.slot_duration_minutes);
+    if (typeof co?.advance_booking_days === "number") setAdvanceBookingDays(co.advance_booking_days);
+    if (typeof co?.cancellation_hours === "number") setCancellationHours(co.cancellation_hours);
+  }, [tenant?.id, tenant?.config_override, tenant?.contact_phone, tenant?.working_hours_text]);
+
+  useEffect(() => {
+    if (!tenantId) return;
+    let active = true;
+    fetch(`/api/tenant/${tenantId}/availability/slots`)
+      .then((r) => r.json())
+      .then((d) => active && setWorkingHours(Array.isArray(d) ? d : []))
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [tenantId]);
+
+  const handleSaveReminderPref = useCallback(async () => {
+    setReminderSaving(true);
+    try {
+      const res = await fetch(`/api/tenant/${tenantId}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ reminder_preference: reminderPref }),
+      });
+      if (res.ok) setTenant((t) => (t ? { ...t, config_override: { ...(t.config_override ?? {}), reminder_preference: reminderPref } } : t));
+    } finally {
+      setReminderSaving(false);
+    }
+  }, [tenantId, reminderPref, setTenant]);
+
+  const handleSaveMessages = useCallback(async () => {
+    setMessagesSaving(true);
+    try {
+      const msgs: Record<string, string> = {
+        welcome: welcomeMsg.trim(),
+        whatsapp_greeting: whatsappGreeting.trim(),
+      };
+      const res = await fetch(`/api/tenant/${tenantId}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ messages: msgs }),
+      });
+      if (res.ok) {
+        setTenant((t) =>
+          t
+            ? {
+                ...t,
+                config_override: {
+                  ...(t.config_override ?? {}),
+                  messages: { ...(t.config_override?.messages ?? {}), ...msgs },
+                },
+              }
+            : t
+        );
+      }
+    } finally {
+      setMessagesSaving(false);
+    }
+  }, [tenantId, welcomeMsg, whatsappGreeting, setTenant]);
+
+  const handleSaveBotSettings = useCallback(async () => {
+    setBotSettingsSaving(true);
+    setBotSettingsError("");
+    setBotSettingsMessage("");
+    try {
+      const payload: Record<string, unknown> = {
+        contact_phone: contactPhone.trim() || null,
+        working_hours_text: workingHoursText.trim() || null,
+        opening_message: openingMessage.trim() || undefined,
+        slot_duration_minutes: slotDuration,
+        advance_booking_days: advanceBookingDays,
+        cancellation_hours: cancellationHours,
+        messages: {
+          confirmation: confirmationMessage.trim() || undefined,
+          reminder_24h: reminderMessage.trim() || undefined,
+        },
+      };
+      const res = await fetch(`/api/tenant/${tenantId}/settings`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setTenant((t) => (t ? { ...t, ...data } : t));
+        setBotSettingsMessage("Kaydedildi");
+        setTimeout(() => setBotSettingsMessage(""), 3000);
+      } else {
+        setBotSettingsError((data.error as string) || "Kaydedilemedi");
+      }
+    } finally {
+      setBotSettingsSaving(false);
+    }
+  }, [
+    tenantId,
+    contactPhone,
+    workingHoursText,
+    openingMessage,
+    slotDuration,
+    advanceBookingDays,
+    cancellationHours,
+    confirmationMessage,
+    reminderMessage,
+    setTenant,
+  ]);
+
+  const handleSaveWorkingHours = useCallback(async () => {
+    setWorkingHoursSaving(true);
+    try {
+      const payload = workingHours
+        .filter((s) => s.start_time && s.end_time)
+        .map((s) => ({ day_of_week: s.day_of_week, start_time: s.start_time, end_time: s.end_time }));
+      const res = await fetch(`/api/tenant/${tenantId}/availability/slots`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ slots: payload }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setWorkingHours(data);
+        setShowWorkingHours(false);
+        onWorkingHoursSaved?.();
+      }
+    } finally {
+      setWorkingHoursSaving(false);
+    }
+  }, [tenantId, workingHours, onWorkingHoursSaved]);
+
   return (
     <div className="mb-8 space-y-6">
       <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-blue-50/30 p-6 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-blue-950/20">
@@ -103,12 +200,12 @@ export function SettingsView({
           >
             <option value="off">Kapalı (kimseye gitmesin)</option>
             <option value="customer_only">Sadece müşteriye</option>
-            <option value="merchant_only">Sadece bana (dashboard'da görürüm)</option>
+            <option value="merchant_only">Sadece bana (dashboard&apos;da görürüm)</option>
             <option value="both">İkisine de (müşteriye + bana)</option>
           </select>
           <button
             type="button"
-            onClick={onSaveReminderPref}
+            onClick={handleSaveReminderPref}
             disabled={reminderSaving}
             className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 dark:from-slate-200 dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200"
           >
@@ -129,7 +226,7 @@ export function SettingsView({
         whatsappGreeting={whatsappGreeting}
         onWelcomeChange={setWelcomeMsg}
         onWhatsappGreetingChange={setWhatsappGreeting}
-        onSave={onSaveMessages}
+        onSave={handleSaveMessages}
         saving={messagesSaving}
       />
 
@@ -246,7 +343,7 @@ export function SettingsView({
           </div>
           <button
             type="button"
-            onClick={onSaveBotSettings}
+            onClick={handleSaveBotSettings}
             disabled={botSettingsSaving}
             className="w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 dark:from-slate-200 dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200"
           >
@@ -330,7 +427,7 @@ export function SettingsView({
             })}
             <button
               type="button"
-              onClick={onSaveWorkingHours}
+              onClick={handleSaveWorkingHours}
               disabled={workingHoursSaving}
               className="mt-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600"
             >
@@ -348,3 +445,5 @@ export function SettingsView({
     </div>
   );
 }
+
+export const SettingsView = memo(SettingsViewInner);

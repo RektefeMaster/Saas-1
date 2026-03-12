@@ -4,6 +4,17 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: false },
+  // Webpack fallback için cache (build:webpack kullanıldığında)
+  webpack: (config, { dev, isServer }) => {
+    if (!dev && !isServer) {
+      config.cache = { type: "filesystem", buildDependencies: { config: [__filename] } };
+    }
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings ?? []),
+      { module: /opentelemetry\/instrumentation/, message: /Critical dependency/ },
+    ];
+    return config;
+  },
   // Birden fazla lockfile veya yanlış workspace root uyarısını ve Vercel deploy hatalarını önlemek için trace root sabit
   outputFileTracingRoot: path.join(__dirname),
   // Serverless bundle'da docs klasörünün trace edilmesini engelle (runtime'da gerek yok)

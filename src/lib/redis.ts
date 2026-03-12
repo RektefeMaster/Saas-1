@@ -96,6 +96,55 @@ let globalKillSwitchMemory: GlobalKillSwitchState | null = null;
 const webhookMessageDedupeMemory = new Map<string, { expiry: number }>();
 const tempMediaMemory = new Map<string, { value: string; expiry: number }>();
 
+/**
+ * SCAN helper: Redis keys() yerine cursor-based SCAN kullanır
+ * O(N) yerine O(1) per iteration, production-safe
+ * 
+ * Upstash Redis SCAN API: scan(cursor, { match, count })
+ * Returns: [nextCursor: number, keys: string[]]
+ */
+async function scanKeys(pattern: string, maxKeys = 1000): Promise<string[]> {
+  if (!redis) return [];
+  
+  const keys: string[] = [];
+  let cursor = 0;
+  const count = 100; // Her iterasyonda 100 key
+  const maxIterations = 100; // Sonsuz döngüyü önlemek için
+  
+  try {
+    let iterations = 0;
+    do {
+      // Upstash Redis SCAN API
+      const result = await redis.scan(cursor, { match: pattern, count });
+      
+      // Upstash returns [cursor: number, keys: string[]]
+      if (Array.isArray(result) && result.length >= 2) {
+        const nextCursor = typeof result[0] === 'number' ? result[0] : 0;
+        const batch = Array.isArray(result[1]) ? (result[1] as string[]) : [];
+        
+        keys.push(...batch);
+        cursor = nextCursor;
+        iterations++;
+        
+        // Cursor 0 ise tarama tamamlandı
+        if (cursor === 0 || keys.length >= maxKeys || iterations >= maxIterations) {
+          break;
+        }
+      } else {
+        // Beklenmeyen format, durdur
+        break;
+      }
+    } while (cursor !== 0 && keys.length < maxKeys && iterations < maxIterations);
+  } catch (err) {
+    logRedisFallback("scanKeys", err);
+    // Fallback: Eğer SCAN desteklenmiyorsa boş döner
+    // Production'da bu durumda keys() kullanılabilir ama performans sorunu olur
+    return [];
+  }
+  
+  return keys.slice(0, maxKeys);
+}
+
 function logRedisFallback(action: string, err: unknown) {
   if (fallbackLogged) return;
   fallbackLogged = true;
@@ -205,7 +254,7 @@ export async function listPausedSessions(input?: {
       const pattern = tenantFilter
         ? `${SESSION_PREFIX}${tenantFilter}:*`
         : `${SESSION_PREFIX}*`;
-      const keys = (await redis.keys(pattern)) || [];
+      const keys = await scanKeys(pattern, limit * 2); // Limit'ten fazla tarayalım ki filtreleme sonrası yeterli olsun
       for (const key of keys) {
         if (collected.length >= limit) break;
         const parsed = parseSessionStorageKey(key);
@@ -585,8 +634,8 @@ export async function purgeExpiredTemporaryMedia(
 
   if (redis) {
     try {
-      const keys = await redis.keys(`${TEMP_MEDIA_PREFIX}*`);
-      for (const key of (keys || []).slice(0, maxKeys)) {
+      const keys = await scanKeys(`${TEMP_MEDIA_PREFIX}*`, maxKeys);
+      for (const key of keys) {
         scanned += 1;
         const ttl = await redis.ttl(key);
         if (typeof ttl === "number" && ttl <= 0) {
@@ -1240,7 +1289,7 @@ export async function getBookingHoldsForDate(
   const prefix = bookingHoldKey(tenantId, date, "");
   if (redis) {
     try {
-      const keys = await redis.keys(`${prefix}*`);
+      const keys = await scanKeys(`${prefix}*`, 500); // Günlük booking hold sayısı genelde 500'den az
       if (!keys || keys.length === 0) return [];
       const holds: BookingHoldRecord[] = [];
       for (const key of keys) {

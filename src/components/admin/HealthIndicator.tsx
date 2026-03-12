@@ -1,47 +1,29 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import Link from "next/link";
+import useSWR from "swr";
 import { Activity, AlertTriangle, CheckCircle, Pause } from "lucide-react";
 import { cn } from "@/lib/cn";
 
 type HealthStatus = "ok" | "warning" | "degraded" | "paused" | "unknown";
 
-export function HealthIndicator() {
-  const [status, setStatus] = useState<HealthStatus>("unknown");
-  const [sentryCount, setSentryCount] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [hover, setHover] = useState(false);
+async function fetcher(url: string) {
+  const res = await fetch(url, { cache: "no-store" });
+  if (!res.ok) throw new Error("Health fetch failed");
+  return res.json() as Promise<{ status?: HealthStatus; sentryCount?: number }>;
+}
 
-  useEffect(() => {
-    let mounted = true;
-    const fetchHealth = async () => {
-      try {
-        const res = await fetch("/api/admin/tools/health", { cache: "no-store" });
-        if (!mounted) return;
-        if (res.ok) {
-          const data = (await res.json()) as {
-            status?: HealthStatus;
-            sentryCount?: number;
-          };
-          setStatus(data.status ?? "unknown");
-          setSentryCount(data.sentryCount ?? 0);
-        }
-      } catch {
-        if (mounted) setStatus("unknown");
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    };
-    fetchHealth();
-    const interval = setInterval(() => {
-      if (document.visibilityState === "visible") fetchHealth();
-    }, 60_000);
-    return () => {
-      mounted = false;
-      clearInterval(interval);
-    };
-  }, []);
+export function HealthIndicator() {
+  const [hover, setHover] = useState(false);
+  const { data, isLoading } = useSWR("/api/admin/tools/health", fetcher, {
+    refreshInterval: 60_000,
+    revalidateOnFocus: true,
+    dedupingInterval: 30_000,
+  });
+
+  const status = data?.status ?? "unknown";
+  const sentryCount = data?.sentryCount ?? 0;
 
   const config = {
     ok: {
@@ -74,7 +56,7 @@ export function HealthIndicator() {
   const cfg = config[status];
   const Icon = cfg.icon;
 
-  if (loading) return null;
+  if (isLoading) return null;
 
   return (
     <div

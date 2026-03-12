@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import useSWR from "swr";
 import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { CommandMenu } from "@/components/admin/CommandMenu";
@@ -27,6 +28,12 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { AdminLogout } from "../admin-logout";
+
+async function killSwitchFetcher(url: string): Promise<{ enabled?: boolean }> {
+  const res = await fetch(url);
+  if (!res.ok) return { enabled: false };
+  return res.json();
+}
 
 type NavItem = {
   href: string;
@@ -55,31 +62,20 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
   const pathname = usePathname();
   const [mobileOpen, setMobileOpen] = useState(false);
   const [cmdOpen, setCmdOpen] = useState(false);
-  const [killSwitchEnabled, setKillSwitchEnabled] = useState(false);
-  const [killSwitchReady, setKillSwitchReady] = useState(false);
   const [killSwitchLoading, setKillSwitchLoading] = useState(false);
+
+  const { data: killSwitchData, isLoading: killSwitchSwrLoading, mutate: mutateKillSwitch } = useSWR<{ enabled?: boolean }>(
+    "/api/admin/tools/kill-switch",
+    killSwitchFetcher,
+    { revalidateOnFocus: false, dedupingInterval: 30000 }
+  );
+
+  const killSwitchEnabled = Boolean(killSwitchData?.enabled);
+  const killSwitchReady = !killSwitchSwrLoading;
 
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
-
-  useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-      const res = await fetch("/api/admin/tools/kill-switch");
-        if (!res.ok) return;
-        const payload = (await res.json().catch(() => null)) as { enabled?: boolean } | null;
-        if (!mounted) return;
-        setKillSwitchEnabled(Boolean(payload?.enabled));
-      } finally {
-        if (mounted) setKillSwitchReady(true);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
 
   const handleKillSwitchToggle = async () => {
     if (killSwitchLoading) return;
@@ -96,12 +92,11 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
       });
       if (!res.ok) throw new Error("Kill switch guncellenemedi");
       const payload = (await res.json().catch(() => null)) as { enabled?: boolean } | null;
-      setKillSwitchEnabled(Boolean(payload?.enabled));
+      await mutateKillSwitch({ enabled: Boolean(payload?.enabled) });
     } catch (err) {
       console.error("[admin] kill switch update failed", err);
     } finally {
       setKillSwitchLoading(false);
-      setKillSwitchReady(true);
     }
   };
 
@@ -124,7 +119,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
       >
         <div className="flex h-14 items-center justify-between border-b border-slate-200 px-4 dark:border-slate-800">
           <Link href="/" className="flex items-center gap-2">
-            <Image src="/appicon.png" alt="Ahi AI" width={28} height={28} className="rounded-lg" />
+            <Image src="/appicon.png" alt="Ahi AI" width={28} height={28} sizes="28px" className="rounded-lg" />
             <span className="text-sm font-semibold text-slate-900 dark:text-slate-100">Admin</span>
           </Link>
           <button

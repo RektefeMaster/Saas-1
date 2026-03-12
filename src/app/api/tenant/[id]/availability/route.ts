@@ -34,14 +34,21 @@ export async function GET(
     customerPhone: customerPhone || undefined,
   });
 
-  return NextResponse.json({
-    date: daily.date,
-    blocked: Boolean(daily.blocked),
-    closed: Boolean(daily.closed),
-    noSchedule: Boolean(daily.noSchedule),
-    available: daily.available,
-    booked: daily.booked.map((time) => ({ time })),
-    workingHours: daily.workingHours,
-    duration_minutes: daily.durationMinutes,
-  });
+  return NextResponse.json(
+    {
+      date: daily.date,
+      blocked: Boolean(daily.blocked),
+      closed: Boolean(daily.closed),
+      noSchedule: Boolean(daily.noSchedule),
+      available: daily.available,
+      booked: daily.booked.map((time) => ({ time })),
+      workingHours: daily.workingHours,
+      duration_minutes: daily.durationMinutes,
+    },
+    {
+      headers: {
+        "Cache-Control": "s-maxage=60, stale-while-revalidate=120",
+      },
+    }
+  );
 }

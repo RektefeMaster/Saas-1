@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import {
   AlertTriangle,
@@ -198,18 +198,28 @@ export default function AdminCampaignsPage() {
   }, [showConfirm, showRecipientsModal]);
 
   const baseRecipientsFromApi = recipientInfo?.recipients ?? [];
-  const effectiveRecipients: { phone: string; name?: string }[] = customPhones.trim()
-    ? customPhones
+  
+  // useMemo ile optimize edilmiş array işlemleri - her render'da yeniden hesaplanmasını önler
+  const effectiveRecipients = useMemo((): { phone: string; name?: string }[] => {
+    if (customPhones.trim()) {
+      return customPhones
         .split(/[\n,;]+/)
         .map((p) => p.trim())
         .filter(Boolean)
-        .map((p) => ({ phone: p }))
-    : [
-        ...baseRecipientsFromApi
-          .filter((r) => !excludedPhones.has(normalizePhoneForCompare(r.phone)))
-          .map((r) => ({ phone: r.phone, name: r.name })),
-        ...extraPhones.filter((p) => p.trim()).map((p) => ({ phone: p })),
-      ];
+        .map((p) => ({ phone: p }));
+    }
+    
+    const filtered = baseRecipientsFromApi
+      .filter((r) => !excludedPhones.has(normalizePhoneForCompare(r.phone)))
+      .map((r) => ({ phone: r.phone, name: r.name }));
+    
+    const extra = extraPhones
+      .filter((p) => p.trim())
+      .map((p) => ({ phone: p }));
+    
+    return [...filtered, ...extra];
+  }, [customPhones, baseRecipientsFromApi, excludedPhones, extraPhones]);
+  
   const effectiveCount = effectiveRecipients.length;
 
   const toggleTag = (tag: string) => {

@@ -261,14 +261,6 @@ export async function getCommandCenterSnapshot(
     throw new Error(tenantRes.error?.message || "Tenant bulunamadi");
   }
 
-  const btRes = await supabase
-    .from("business_types")
-    .select("slug, name")
-    .eq("id", tenantRes.data.business_type_id)
-    .maybeSingle();
-
-  const blueprintSlug = detectBlueprintSlug(btRes.data?.slug, btRes.data?.name);
-
   if (appointmentsRes.error) throw new Error(appointmentsRes.error.message);
 
   let avgRating = 0;
@@ -306,13 +298,18 @@ export async function getCommandCenterSnapshot(
   const cancellationRatePct =
     monthlyAppointments > 0 ? round((cancelledCount / monthlyAppointments) * 100, 1) : 0;
 
-  const fillRatePct = await getFillRatePct(tenantId, tenantRes.data.config_override as Record<string, unknown> | undefined);
+  // Paralel sorgular: btRes, fillRatePct, revenue bağımsız olduğu için aynı anda çekilebilir
+  const [btRes, fillRatePct, revenue] = await Promise.all([
+    supabase
+      .from("business_types")
+      .select("slug, name")
+      .eq("id", tenantRes.data.business_type_id)
+      .maybeSingle(),
+    getFillRatePct(tenantId, tenantRes.data.config_override as Record<string, unknown> | undefined),
+    getRevenueSummary(tenantId, toIso(monthStart), toIso(now)),
+  ]);
 
-  const revenue = await getRevenueSummary(
-    tenantId,
-    toIso(monthStart),
-    toIso(now)
-  );
+  const blueprintSlug = detectBlueprintSlug(btRes.data?.slug, btRes.data?.name);
 
   const avgTicketTry =
     completedCount > 0 ? round(revenue.monthlyRevenue / completedCount, 2) : 0;

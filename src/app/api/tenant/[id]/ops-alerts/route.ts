@@ -18,7 +18,11 @@ export async function GET(
     const status: OpsAlertStatus = statusParam === "resolved" ? "resolved" : "open";
 
     const alerts = await listOpsAlerts(tenantId, status, limitParam);
-    return NextResponse.json(alerts);
+    return NextResponse.json(alerts, {
+      headers: {
+        "Cache-Control": "s-maxage=30, stale-while-revalidate=60",
+      },
+    });
   } catch (err) {
     const missingTable = extractMissingSchemaTable(
       err && typeof err === "object" ? (err as { message?: string }) : null

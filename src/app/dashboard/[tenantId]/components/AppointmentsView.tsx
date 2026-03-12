@@ -1,5 +1,7 @@
 "use client";
 
+import React, { memo, useState, useEffect, useCallback, useMemo } from "react";
+import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Calendar,
@@ -12,110 +14,194 @@ import {
   XOctagon,
   UserX,
 } from "lucide-react";
-import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import { useDashboardStore } from "@/stores/dashboard-store";
+import { useDashboardTenant } from "../../DashboardTenantContext";
 import {
   DAY_NAMES,
+  getWeekDates,
   getAppointmentServiceLabel,
+  groupByDate,
   type Appointment,
   type AvailabilityData,
   type BlockedDate,
 } from "./dashboard.types";
 
-interface StaffOption {
-  id: string;
-  name: string;
-}
+const ScrollReveal = dynamic(
+  () => import("@/components/ui/ScrollReveal").then((m) => ({ default: m.ScrollReveal })),
+  { ssr: false }
+);
 
 interface AppointmentsViewProps {
   tenantId: string;
-  grouped: Record<string, Appointment[]>;
-  sortedDates: string[];
-  weekDates: string[];
-  todayIso: string;
-  weekCount: number;
-  selectedDate: string | null;
-  availability: AvailabilityData | null;
-  availabilityLoading: boolean;
-  weekAnchor: Date;
-  showAdd: boolean;
-  addPhone: string;
-  addStaffId: string;
-  addDate: string;
-  addTime: string;
-  addDatetimeLocal: string;
-  blockedDates: BlockedDate[];
-  showBlocked: boolean;
-  blockStart: string;
-  blockEnd: string;
-  blockReason: string;
-  loading: boolean;
-  updatingAptId: string | null;
-  staffPreferenceEnabled: boolean;
-  staffOptions: StaffOption[];
-  setWeekAnchor: (v: Date | ((prev: Date) => Date)) => void;
-  setSelectedDate: (v: string | null) => void;
-  setShowAdd: (v: boolean) => void;
-  setAddPhone: (v: string) => void;
-  setAddStaffId: (v: string) => void;
-  setAddDate: (v: string) => void;
-  setAddTime: (v: string) => void;
-  setAddDatetimeLocal: (v: string) => void;
-  setShowBlocked: (v: boolean) => void;
-  setBlockStart: (v: string) => void;
-  setBlockEnd: (v: string) => void;
-  setBlockReason: (v: string) => void;
-  onSlotClick: (dateStr: string, timeStr: string) => void;
-  onAddAppointment: (e: React.FormEvent) => void;
   onUpdateAppointmentStatus: (appointmentId: string, status: string) => void;
-  onAddBlocked: (e: React.FormEvent) => void;
-  onDeleteBlocked: (blockId: string) => void;
-  onOpenAddFromHeader?: () => void;
 }
 
-export function AppointmentsView({
+function AppointmentsViewInner({
   tenantId,
-  grouped,
-  sortedDates,
-  weekDates,
-  todayIso,
-  weekCount,
-  selectedDate,
-  availability,
-  availabilityLoading,
-  weekAnchor,
-  showAdd,
-  addPhone,
-  addStaffId,
-  addDate,
-  addTime,
-  addDatetimeLocal,
-  blockedDates,
-  showBlocked,
-  blockStart,
-  blockEnd,
-  blockReason,
-  loading,
-  updatingAptId,
-  staffPreferenceEnabled,
-  staffOptions,
-  setWeekAnchor,
-  setSelectedDate,
-  setShowAdd,
-  setAddPhone,
-  setAddStaffId,
-  setAddDate,
-  setAddTime,
-  setAddDatetimeLocal,
-  setShowBlocked,
-  setBlockStart,
-  setBlockEnd,
-  setBlockReason,
-  onSlotClick,
-  onAddAppointment,
   onUpdateAppointmentStatus,
-  onAddBlocked,
-  onDeleteBlocked,
 }: AppointmentsViewProps) {
+  // Store'dan veri çek - selector pattern ile sadece gerekli state'leri dinle
+  const appointments = useDashboardStore((state) => state.appointments);
+  const blockedDates = useDashboardStore((state) => state.blockedDates);
+  const loading = useDashboardStore((state) => state.appointmentsLoading);
+  const updatingAptId = useDashboardStore((state) => state.updatingAptId);
+  const updateAppointment = useDashboardStore((state) => state.updateAppointment);
+  const addAppointment = useDashboardStore((state) => state.addAppointment);
+  const addBlockedDate = useDashboardStore((state) => state.addBlockedDate);
+  const removeBlockedDate = useDashboardStore((state) => state.removeBlockedDate);
+
+  // Context'ten staff bilgileri
+  const tenantCtx = useDashboardTenant();
+  const staffPreferenceEnabled = tenantCtx?.staffPreferenceEnabled ?? false;
+  const staffOptions = tenantCtx?.staffOptions ?? [];
+
+  // Computed values
+  const grouped = useMemo(() => groupByDate(appointments), [appointments]);
+  const sortedDates = useMemo(() => Object.keys(grouped).sort(), [grouped]);
+  const todayIso = useMemo(
+    () => new Date().toISOString().slice(0, 10),
+    [Math.floor(Date.now() / 86400000)]
+  );
+  const weekCount = useMemo(
+    () => sortedDates.reduce((acc, d) => acc + (grouped[d]?.length ?? 0), 0),
+    [sortedDates, grouped]
+  );
+  // Week anchor state
+  const [weekAnchor, setWeekAnchor] = useState(new Date());
+  const weekDates = useMemo(() => getWeekDates(weekAnchor), [weekAnchor]);
+
+  // Selected date and availability state
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<AvailabilityData | null>(null);
+  const [availabilityLoading, setAvailabilityLoading] = useState(false);
+
+  // Add appointment form state
+  const [showAdd, setShowAdd] = useState(false);
+  const [addPhone, setAddPhone] = useState("");
+  const [addStaffId, setAddStaffId] = useState("");
+  const [addDate, setAddDate] = useState("");
+  const [addTime, setAddTime] = useState("");
+  const [addDatetimeLocal, setAddDatetimeLocal] = useState("");
+
+  // Blocked dates form state
+  const [showBlocked, setShowBlocked] = useState(false);
+  const [blockStart, setBlockStart] = useState("");
+  const [blockEnd, setBlockEnd] = useState("");
+  const [blockReason, setBlockReason] = useState("");
+
+  // Fetch availability when selectedDate changes
+  const fetchAvailability = useCallback(
+    async (dateStr: string) => {
+      if (!tenantId) return;
+      setAvailabilityLoading(true);
+      try {
+        const res = await fetch(`/api/tenant/${tenantId}/availability?date=${dateStr}`);
+        const data = await res.json();
+        setAvailability(data);
+      } finally {
+        setAvailabilityLoading(false);
+      }
+    },
+    [tenantId]
+  );
+
+  useEffect(() => {
+    if (selectedDate) {
+      fetchAvailability(selectedDate);
+    } else {
+      setAvailability(null);
+    }
+  }, [selectedDate, fetchAvailability]);
+
+  // Handle slot click
+  const handleSlotClick = useCallback((dateStr: string, timeStr: string) => {
+    setAddDate(dateStr);
+    setAddTime(timeStr);
+    setAddPhone("");
+    setAddStaffId("");
+    setShowAdd(true);
+  }, []);
+
+  // Handle add appointment
+  const handleAddAppointment = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!tenantId || !addPhone) return;
+      let slotStart: string;
+      let dateStr: string;
+      if (addDate && addTime) {
+        slotStart = `${addDate}T${addTime}:00`;
+        dateStr = addDate;
+      } else if (addDatetimeLocal) {
+        slotStart = addDatetimeLocal.includes("T") ? addDatetimeLocal + ":00" : `${addDatetimeLocal}:00`;
+        dateStr = addDatetimeLocal.slice(0, 10);
+      } else return;
+      const res = await fetch(`/api/tenant/${tenantId}/appointments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          customer_phone: addPhone,
+          slot_start: slotStart,
+          staff_id: staffPreferenceEnabled && addStaffId.trim() ? addStaffId.trim() : null,
+        }),
+      });
+      if (res.ok) {
+        setAddPhone("");
+        setAddStaffId("");
+        setAddDate("");
+        setAddTime("");
+        setAddDatetimeLocal("");
+        setShowAdd(false);
+        const data = await res.json();
+        addAppointment(data);
+        if (dateStr === selectedDate) {
+          fetchAvailability(dateStr);
+        }
+      }
+    },
+    [tenantId, addPhone, addDate, addTime, addDatetimeLocal, staffPreferenceEnabled, addStaffId, selectedDate, fetchAvailability, addAppointment]
+  );
+
+  // Handle add blocked date
+  const handleAddBlocked = useCallback(
+    async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!tenantId || !blockStart || !blockEnd) return;
+      const res = await fetch(`/api/tenant/${tenantId}/blocked-dates`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          start_date: blockStart,
+          end_date: blockEnd,
+          reason: blockReason || undefined,
+        }),
+      });
+      if (res.ok) {
+        setBlockStart("");
+        setBlockEnd("");
+        setBlockReason("");
+        setShowBlocked(false);
+        const data = await res.json();
+        addBlockedDate({ id: data.id, start_date: blockStart, end_date: blockEnd, reason: blockReason || null });
+      }
+    },
+    [tenantId, blockStart, blockEnd, blockReason, addBlockedDate]
+  );
+
+  // Handle delete blocked date
+  const handleDeleteBlocked = useCallback(
+    async (blockId: string) => {
+      if (!tenantId) return;
+      const res = await fetch(`/api/tenant/${tenantId}/blocked-dates/${blockId}`, {
+        method: "DELETE",
+      });
+      if (res.ok) {
+        removeBlockedDate(blockId);
+      }
+    },
+    [tenantId, removeBlockedDate]
+  );
+
   return (
     <>
       <ScrollReveal variant="fadeUp" delay={0.05} as="section" className="mb-6" reduceMotion>
@@ -229,15 +315,15 @@ export function AppointmentsView({
                     </p>
                     <div className="flex flex-wrap gap-2">
                       {availability.available.map((time) => (
-                        <button
-                          key={time}
-                          type="button"
-                          onClick={() => onSlotClick(selectedDate, time)}
-                          className="rounded-lg border-2 border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:border-emerald-400 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
-                        >
-                          <Clock className="mr-1.5 inline h-3.5 w-3.5" />
-                          {time}
-                        </button>
+                    <button
+                      key={time}
+                      type="button"
+                      onClick={() => handleSlotClick(selectedDate, time)}
+                      className="rounded-lg border-2 border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:border-emerald-400 hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
+                    >
+                      <Clock className="mr-1.5 inline h-3.5 w-3.5" />
+                      {time}
+                    </button>
                       ))}
                     </div>
                   </div>
@@ -277,7 +363,7 @@ export function AppointmentsView({
 
       {showAdd && (
         <form
-          onSubmit={onAddAppointment}
+          onSubmit={handleAddAppointment}
           className="mb-6 rounded-2xl border-2 border-emerald-200 bg-gradient-to-br from-white to-emerald-50/30 p-6 shadow-lg dark:border-emerald-800 dark:from-slate-900 dark:to-emerald-950/30"
         >
           <div className="mb-4 flex items-center justify-between">
@@ -569,7 +655,7 @@ export function AppointmentsView({
                   </span>
                   <button
                     type="button"
-                    onClick={() => onDeleteBlocked(b.id)}
+                    onClick={() => handleDeleteBlocked(b.id)}
                     className="rounded-lg px-2 py-1 text-amber-600 transition hover:bg-amber-100 hover:text-amber-800 dark:text-amber-400 dark:hover:bg-amber-800/50 dark:hover:text-amber-200"
                   >
                     Sil
@@ -587,7 +673,7 @@ export function AppointmentsView({
               + İzin ekle
             </button>
           ) : (
-            <form onSubmit={onAddBlocked} className="flex flex-wrap items-end gap-3">
+            <form onSubmit={handleAddBlocked} className="flex flex-wrap items-end gap-3">
               <input
                 type="date"
                 value={blockStart}
@@ -629,3 +715,5 @@ export function AppointmentsView({
     </>
   );
 }
+
+export const AppointmentsView = memo(AppointmentsViewInner);

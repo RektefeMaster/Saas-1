@@ -1,11 +1,10 @@
 "use client";
 
-import React from "react";
+import React, { useEffect, useRef, useState, useCallback } from "react";
 import {
   Bar,
   BarChart as RechartsBarChart,
   CartesianGrid,
-  ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
@@ -210,15 +209,68 @@ export function ChartBar({
     ? { top: 8, right: 60, left: 8, bottom: 8 }
     : { top: 20, right: 16, left: 8, bottom: 12 };
 
+  // Debounced resize için container ref ve state
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height });
+
+  // Debounce function
+  const debounce = useCallback((func: () => void, wait: number) => {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    return () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(func, wait);
+    };
+  }, []);
+
+  // Resize handler - debounced (250ms)
+  useEffect(() => {
+    if (!containerRef.current) return;
+
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setDimensions({
+          width: rect.width || 800,
+          height: rect.height || height,
+        });
+      }
+    };
+
+    // İlk yüklemede boyutları al
+    updateDimensions();
+
+    // Debounced resize handler
+    const debouncedResize = debounce(updateDimensions, 250);
+
+    window.addEventListener("resize", debouncedResize);
+    return () => {
+      window.removeEventListener("resize", debouncedResize);
+    };
+  }, [height, debounce]);
+
   return (
-    <div ref={ref} className={`w-full ${className}`} style={{ height }}>
-      <ResponsiveContainer width="100%" height="100%">
-        <RechartsBarChart
-          data={displayData}
-          layout={layout}
-          margin={margin}
-          barCategoryGap={`${Math.round(barGap * 100)}%`}
-        >
+    <div 
+      ref={(node) => {
+        // Intersection observer ref'i
+        if (typeof ref === "function") {
+          ref(node);
+        } else if (ref) {
+          (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
+        }
+        // Container ref'i
+        containerRef.current = node;
+      }}
+      className={`w-full ${className}`} 
+      style={{ height }}
+    >
+      <RechartsBarChart
+        width={dimensions.width}
+        height={dimensions.height}
+        data={displayData}
+        layout={layout}
+        margin={margin}
+        barCategoryGap={`${Math.round(barGap * 100)}%`}
+      >
           <defs>
             {displayKeys.map((key, i) => {
               const color = getBarColor(barKeys, colors, i);
@@ -303,9 +355,8 @@ export function ChartBar({
                 })}
               />
             );
-          })}
-        </RechartsBarChart>
-      </ResponsiveContainer>
+            })}
+          </RechartsBarChart>
       {showLegend && barKeys.length > 1 && (
         <div className="mt-5 flex flex-wrap justify-center gap-4">
           {barKeys.map((key, i) => {

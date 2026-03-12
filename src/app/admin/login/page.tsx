@@ -190,6 +190,7 @@ function AdminLoginForm() {
         alt="Ahi AI backdrop"
         fill
         priority
+        sizes="100vw"
         className="pointer-events-none object-cover opacity-[0.08]"
       />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_40%_at_20%_0%,rgba(56,189,248,0.18),transparent),radial-gradient(40%_35%_at_85%_10%,rgba(16,185,129,0.17),transparent)]" />

@@ -91,15 +91,17 @@ export async function GET(
     const { id: tenantId, phone } = await params;
     const customerPhone = normalizePhoneForLookup(phone);
 
-    const { customer } = await getCustomerWithFallback(tenantId, customerPhone);
-
-    const notesResult = await supabase
-      .from("crm_notes")
-      .select("id, tenant_id, customer_phone, note, created_by, created_at")
-      .eq("tenant_id", tenantId)
-      .eq("customer_phone", customerPhone)
-      .order("created_at", { ascending: false })
-      .limit(20);
+    // Paralel sorgular: customer ve notes bağımsız olduğu için aynı anda çekilebilir
+    const [{ customer }, notesResult] = await Promise.all([
+      getCustomerWithFallback(tenantId, customerPhone),
+      supabase
+        .from("crm_notes")
+        .select("id, tenant_id, customer_phone, note, created_by, created_at")
+        .eq("tenant_id", tenantId)
+        .eq("customer_phone", customerPhone)
+        .order("created_at", { ascending: false })
+        .limit(20),
+    ]);
 
     let notes = notesResult.data ?? [];
     if (notesResult.error) {

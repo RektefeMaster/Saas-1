@@ -260,6 +260,7 @@ export default function DashboardLoginPage() {
         alt="Ahi AI backdrop"
         fill
         priority
+        sizes="100vw"
         className="pointer-events-none object-cover opacity-[0.08] blur-[1.2px]"
       />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_40%_at_15%_0%,rgba(56,189,248,0.22),transparent),radial-gradient(35%_30%_at_90%_10%,rgba(16,185,129,0.18),transparent)]" />
@@ -276,6 +277,7 @@ export default function DashboardLoginPage() {
               alt="Ahi AI"
               width={36}
               height={36}
+              sizes="36px"
               className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
             />
             <span className="font-mono text-sm font-semibold">Ahi AI Workspace</span>

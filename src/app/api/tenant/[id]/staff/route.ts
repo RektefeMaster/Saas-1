@@ -32,12 +32,20 @@ export async function GET(
 ) {
   const { id: tenantId } = await params;
 
-  const staffResult = await supabase
-    .from("staff")
-    .select("id, tenant_id, name, phone_e164, active, created_at")
-    .eq("tenant_id", tenantId)
-    .order("created_at", { ascending: true })
-    .limit(100);
+  // Paralel sorgular: staff ve staff_services bağımsız olduğu için aynı anda çekilebilir
+  // (staff_services'i tenant_id ile çekiyoruz, staffIds'e gerek yok)
+  const [staffResult, mappingResult] = await Promise.all([
+    supabase
+      .from("staff")
+      .select("id, tenant_id, name, phone_e164, active, created_at")
+      .eq("tenant_id", tenantId)
+      .order("created_at", { ascending: true })
+      .limit(100),
+    supabase
+      .from("staff_services")
+      .select("staff_id, service_slug")
+      .eq("tenant_id", tenantId),
+  ]);
 
   if (staffResult.error) {
     const missingTable = extractMissingSchemaTable(staffResult.error);
@@ -48,18 +56,13 @@ export async function GET(
   }
 
   const staffRows = (staffResult.data || []) as StaffRow[];
-  const staffIds = staffRows.map((row) => row.id);
+  const staffIds = new Set(staffRows.map((row) => row.id));
 
-  if (staffIds.length === 0) {
+  if (staffIds.size === 0) {
     return NextResponse.json([]);
   }
 
   let servicesByStaff = new Map<string, string[]>();
-  const mappingResult = await supabase
-    .from("staff_services")
-    .select("staff_id, service_slug")
-    .eq("tenant_id", tenantId)
-    .in("staff_id", staffIds);
 
   if (mappingResult.error) {
     const missingTable = extractMissingSchemaTable(mappingResult.error);
@@ -67,13 +70,19 @@ export async function GET(
       return NextResponse.json({ error: mappingResult.error.message }, { status: 500 });
     }
   } else {
-    servicesByStaff = (mappingResult.data || []).reduce((map, row) => {
-      const entry = row as StaffServiceRow;
-      const current = map.get(entry.staff_id) || [];
-      current.push(entry.service_slug);
-      map.set(entry.staff_id, current);
-      return map;
-    }, new Map<string, string[]>());
+    // Sadece staffIds içindeki staff'ların servislerini filtrele
+    servicesByStaff = (mappingResult.data || [])
+      .filter((row) => {
+        const entry = row as StaffServiceRow;
+        return staffIds.has(entry.staff_id);
+      })
+      .reduce((map, row) => {
+        const entry = row as StaffServiceRow;
+        const current = map.get(entry.staff_id) || [];
+        current.push(entry.service_slug);
+        map.set(entry.staff_id, current);
+        return map;
+      }, new Map<string, string[]>());
   }
 
   return NextResponse.json(

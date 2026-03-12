@@ -78,6 +78,37 @@ html {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Landing hero/metrics - JS-free animasyon (LCP iyileştirmesi) */
+@keyframes fade-in-up {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fade-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(24px);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-hero-in {
+  animation: fade-in-up 0.5s ease-out forwards;
+}
+
+.animate-metric-in {
+  animation: fade-in-right 0.42s ease-out forwards;
+}
+
 ::selection {
   background: color-mix(in oklab, var(--primary) 28%, transparent);
   color: var(--foreground);

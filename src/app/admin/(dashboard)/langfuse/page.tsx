@@ -1,9 +1,18 @@
 "use client";
 
+import dynamic from "next/dynamic";
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { ChartBar } from "@/components/charts/ChartBar";
-import { ChartCard } from "@/components/charts/ChartCard";
+
+const ChartBar = dynamic(
+  () => import("@/components/charts/ChartBar").then((m) => ({ default: m.ChartBar })),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
+);
+
+const ChartCard = dynamic(
+  () => import("@/components/charts/ChartCard").then((m) => ({ default: m.ChartCard })),
+  { ssr: false, loading: () => <div className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" /> }
+);
 import {
   Brain,
   Coins,

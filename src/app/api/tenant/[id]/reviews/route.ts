@@ -13,7 +13,11 @@ export async function GET(
   try {
     const { id } = await params;
     const data = await getTenantReviews(id);
-    return NextResponse.json(data);
+    return NextResponse.json(data, {
+      headers: {
+        "Cache-Control": "s-maxage=300, stale-while-revalidate=600",
+      },
+    });
   } catch (err) {
     console.error("[reviews GET]", err);
     return NextResponse.json({ error: "Liste alınamadı" }, { status: 500 });

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { motion } from "motion/react";
 
 type RevealVariant = "fadeUp" | "fadeIn" | "slideLeft" | "slideRight" | "scale";
@@ -43,6 +43,9 @@ const variants: Record<
   },
 };
 
+// Sabit transition objesi - her render'da yeni obje oluşturulmasını önler
+const defaultEase = [0.25, 0.46, 0.45, 0.94] as const;
+
 interface ScrollRevealProps {
   children: React.ReactNode;
   variant?: RevealVariant;
@@ -82,16 +85,22 @@ export function ScrollReveal({
   const v = variants[variant];
   const Component = MotionComponents[as];
 
+  // Transition objesini memoize et - delay ve duration değişmediği sürece aynı referans
+  const transition = useMemo(
+    () => ({
+      duration,
+      delay,
+      ease: defaultEase,
+    }),
+    [duration, delay]
+  );
+
   return (
     <Component
       initial={v.initial}
       whileInView={v.visible}
       viewport={{ once, amount }}
-      transition={{
-        duration,
-        delay,
-        ease: [0.25, 0.46, 0.45, 0.94],
-      }}
+      transition={transition}
       className={className}
     >
       {children}

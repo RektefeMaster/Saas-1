@@ -1,14 +1,24 @@
 import type { Metadata } from "next";
+import dynamic from "next/dynamic";
 import { Manrope, Space_Grotesk } from "next/font/google";
-import { Analytics } from "@vercel/analytics/react";
-import { SpeedInsights } from "@vercel/speed-insights/next";
 import { Toaster } from "sonner";
 import { ViewTransitions } from "next-view-transitions";
 import { ThemeProvider } from "@/lib/theme-context";
 import { LocaleProvider } from "@/lib/locale-context";
 import { PostHogProvider } from "@/app/providers/PostHogProvider";
+import { SWRProvider } from "@/app/providers/SWRProvider";
 import "./globals.css";
 import { getDefaultAppUrl } from "@/lib/app-url";
+
+const Analytics = dynamic(
+  () => import("@vercel/analytics/react").then((m) => ({ default: m.Analytics })),
+  { ssr: false }
+);
+
+const SpeedInsights = dynamic(
+  () => import("@vercel/speed-insights/next").then((m) => ({ default: m.SpeedInsights })),
+  { ssr: false }
+);
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -34,14 +44,29 @@ export const metadata: Metadata = {
   },
 };
 
+function getSupabaseOrigin(): string | null {
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim();
+  if (!url) return null;
+  try {
+    return new URL(url).origin;
+  } catch {
+    return null;
+  }
+}
+
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const supabaseOrigin = getSupabaseOrigin();
+
   return (
     <html lang="tr" data-locale="tr" suppressHydrationWarning>
       <head>
+        {supabaseOrigin && (
+          <link rel="preconnect" href={supabaseOrigin} crossOrigin="anonymous" />
+        )}
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -65,14 +90,16 @@ export default function RootLayout({
         className={`${manrope.variable} ${spaceGrotesk.variable} antialiased`}
       >
         <PostHogProvider>
-          <ThemeProvider>
-            <ViewTransitions>
-              <LocaleProvider>{children}</LocaleProvider>
-            </ViewTransitions>
-            <Toaster richColors position="top-right" />
-            <Analytics />
-            <SpeedInsights />
-          </ThemeProvider>
+          <SWRProvider>
+            <ThemeProvider>
+              <ViewTransitions>
+                <LocaleProvider>{children}</LocaleProvider>
+              </ViewTransitions>
+              <Toaster richColors position="top-right" />
+              <Analytics />
+              <SpeedInsights />
+            </ThemeProvider>
+          </SWRProvider>
         </PostHogProvider>
       </body>
     </html>

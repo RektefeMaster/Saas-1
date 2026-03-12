@@ -1,9 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { ChartBar } from "@/components/charts/ChartBar";
-import { ChartCard } from "@/components/charts/ChartCard";
+import { AdminHelpPanel } from "@/components/admin/AdminHelpPanel";
+
+const ChartBar = dynamic(
+  () => import("@/components/charts/ChartBar").then((m) => ({ default: m.ChartBar })),
+  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
+);
+
+const ChartCard = dynamic(
+  () => import("@/components/charts/ChartCard").then((m) => ({ default: m.ChartCard })),
+  { ssr: false, loading: () => <div className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800" /> }
+);
+
 import {
   ArrowUpRight,
   Building2,
@@ -18,7 +29,6 @@ import {
   UserCircle,
   Wrench,
 } from "lucide-react";
-import { AdminHelpPanel } from "@/components/admin/AdminHelpPanel";
 
 interface BusinessType {
   id: string;
@@ -92,7 +102,7 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -125,11 +135,11 @@ export default function AdminPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
   useEffect(() => {
     fetchData();
-  }, []);
+  }, [fetchData]);
 
   const normalizedStats = useMemo<Stats>(() => {
     if (stats && !("error" in stats) && typeof stats.tenants === "number") return stats;
