@@ -104,6 +104,10 @@ export default function IsletmelerPage() {
     threshold: 0.4,
   });
 
+  const renderTenantItem = (tenant: TenantItem, index: number) => (
+    <TenantCard tenant={tenant} cta={t.cta} badge={t.badge} />
+  );
+
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
       <Image
@@ -183,9 +187,7 @@ export default function IsletmelerPage() {
             height={500}
             estimateSize={140}
             className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-            renderItem={(tenant: TenantItem) => (
-              <TenantCard tenant={tenant} cta={t.cta} badge={t.badge} />
-            )}
+            renderItem={renderTenantItem}
           />
         )}
       </main>
