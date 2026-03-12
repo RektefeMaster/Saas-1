@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 
@@ -12,7 +12,7 @@ const FLOW_TYPES = [
   { value: "hybrid", label: "Hibrit" },
 ] as const;
 
-export default function NewBusinessTypePage() {
+function NewBusinessTypePageContent() {
   const router = useRouter();
   const [name, setName] = useState("");
   const [slug, setSlug] = useState("");
@@ -190,5 +190,13 @@ export default function NewBusinessTypePage() {
             </div>
           </form>
     </div>
+  );
+}
+
+export default function NewBusinessTypePage() {
+  return (
+    <Suspense fallback={<div className="p-4">Yükleniyor...</div>}>
+      <NewBusinessTypePageContent />
+    </Suspense>
   );
 }
