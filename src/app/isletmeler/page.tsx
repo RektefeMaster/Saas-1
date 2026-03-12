@@ -178,7 +178,7 @@ export default function IsletmelerPage() {
             {t.empty}
           </div>
         ) : (
-          <VirtualList
+          <VirtualList<TenantItem>
             items={filtered}
             height={500}
             estimateSize={140}
