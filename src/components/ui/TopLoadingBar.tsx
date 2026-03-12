@@ -1,14 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import { usePathname } from "next/navigation";
 
 export function TopLoadingBar() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const pathname = usePathname();
+  const prevPathnameRef = useRef<string | null>(null);
 
   useEffect(() => {
+    // İlk render'da pathname yoksa veya aynı pathname ise çalışma
+    if (!pathname || pathname === prevPathnameRef.current) {
+      prevPathnameRef.current = pathname;
+      return;
+    }
+
+    // Pathname değişti, önceki pathname'i güncelle
+    prevPathnameRef.current = pathname;
+
     // Route değişikliğinde loading başlat
     setLoading(true);
     setProgress(0);
