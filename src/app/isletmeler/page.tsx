@@ -183,7 +183,7 @@ export default function IsletmelerPage() {
             height={500}
             estimateSize={140}
             className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900"
-            renderItem={(tenant) => (
+            renderItem={(tenant: TenantItem) => (
               <TenantCard tenant={tenant} cta={t.cta} badge={t.badge} />
             )}
           />
