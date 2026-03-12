@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, Component, ErrorInfo, ReactNode } from "react";
+import React, { useEffect, useState, Component, ErrorInfo, ReactNode } from "react";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST?.trim() || "https://eu.i.posthog.com";
@@ -57,7 +57,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
         const PHProvider = reactModule.PostHogProvider;
 
         setPosthog(ph);
-        setClient(() => PHProvider);
+        setClient(PHProvider);
       } catch (err) {
         console.error("PostHog initialization error:", err);
         setError(err instanceof Error ? err : new Error(String(err)));
@@ -77,7 +77,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
 
   return (
     <PostHogErrorBoundary fallback={<>{children}</>}>
-      <Client client={posthog}>{children}</Client>
+      {React.createElement(Client, { client: posthog }, children)}
     </PostHogErrorBoundary>
   );
 }

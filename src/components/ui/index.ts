@@ -9,3 +9,5 @@ export { LottieAnimation } from "./LottieAnimation";
 export { LottieAnimationLazy } from "./LottieAnimationLazy";
 export { VirtualList } from "./VirtualList";
 export type { VirtualListProps } from "./VirtualList";
+export { Loading } from "./Loading";
+export { useLoadingContext as useLoading } from "@/lib/loading-context";

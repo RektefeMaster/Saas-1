@@ -7,6 +7,7 @@ import { LocaleProvider } from "@/lib/locale-context";
 import { PostHogProvider } from "@/app/providers/PostHogProvider";
 import { SWRProvider } from "@/app/providers/SWRProvider";
 import { VercelAnalytics } from "@/components/VercelAnalytics";
+import { LoadingWrapper } from "@/components/LoadingWrapper";
 import "./globals.css";
 import { getDefaultAppUrl } from "@/lib/app-url";
 
@@ -82,11 +83,13 @@ export default function RootLayout({
         <PostHogProvider>
           <SWRProvider>
             <ThemeProvider>
-              <ViewTransitions>
-                <LocaleProvider>{children}</LocaleProvider>
-              </ViewTransitions>
-              <Toaster richColors position="top-right" />
-              <VercelAnalytics />
+              <LoadingWrapper>
+                <ViewTransitions>
+                  <LocaleProvider>{children}</LocaleProvider>
+                </ViewTransitions>
+                <Toaster richColors position="top-right" />
+                <VercelAnalytics />
+              </LoadingWrapper>
             </ThemeProvider>
           </SWRProvider>
         </PostHogProvider>

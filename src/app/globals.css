@@ -189,6 +189,32 @@ a:focus-visible {
   animation: floatSlow 6.5s ease-in-out infinite;
 }
 
+/* Loading animasyonları */
+@keyframes loading {
+  0%,
+  100% {
+    transform: scaleY(0.4);
+    opacity: 0.5;
+  }
+  50% {
+    transform: scaleY(1);
+    opacity: 1;
+  }
+}
+
+@keyframes shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  100% {
+    transform: translateX(100%);
+  }
+}
+
+.animate-shimmer {
+  animation: shimmer 2s infinite;
+}
+
 /* Scrollbar - ince ve tutarlı */
 .scrollbar-thin {
   scrollbar-width: thin;
