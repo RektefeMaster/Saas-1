@@ -6,7 +6,7 @@ const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST?.trim() || "https://eu.i.posthog.com";
 
 function PostHogInner({ children }: { children: React.ReactNode }) {
-  const [Client, setClient] = useState<React.ComponentType<{ children: React.ReactNode; client: unknown }> | null>(null);
+  const [Client, setClient] = useState<React.ComponentType<any> | null>(null);
   const [posthog, setPosthog] = useState<unknown>(null);
 
   useEffect(() => {
