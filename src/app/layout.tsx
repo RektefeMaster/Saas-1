@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import dynamic from "next/dynamic";
 import { Manrope, Space_Grotesk } from "next/font/google";
 import { Toaster } from "sonner";
 import { ViewTransitions } from "next-view-transitions";
@@ -7,18 +6,9 @@ import { ThemeProvider } from "@/lib/theme-context";
 import { LocaleProvider } from "@/lib/locale-context";
 import { PostHogProvider } from "@/app/providers/PostHogProvider";
 import { SWRProvider } from "@/app/providers/SWRProvider";
+import { VercelAnalytics } from "@/components/VercelAnalytics";
 import "./globals.css";
 import { getDefaultAppUrl } from "@/lib/app-url";
-
-const Analytics = dynamic(
-  () => import("@vercel/analytics/react").then((m) => ({ default: m.Analytics })),
-  { ssr: false }
-);
-
-const SpeedInsights = dynamic(
-  () => import("@vercel/speed-insights/next").then((m) => ({ default: m.SpeedInsights })),
-  { ssr: false }
-);
 
 const manrope = Manrope({
   variable: "--font-manrope",
@@ -96,8 +86,7 @@ export default function RootLayout({
                 <LocaleProvider>{children}</LocaleProvider>
               </ViewTransitions>
               <Toaster richColors position="top-right" />
-              <Analytics />
-              <SpeedInsights />
+              <VercelAnalytics />
             </ThemeProvider>
           </SWRProvider>
         </PostHogProvider>
