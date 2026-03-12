@@ -8,7 +8,9 @@ import { useDashboardStore } from "@/stores/dashboard-store";
 import {
   groupByDate,
   getAppointmentServiceLabel,
+  getWeekDates,
   type Appointment,
+  type OpsAlert,
 } from "./components/dashboard.types";
 import type { CommandCenterSnapshot, CommandCenterAction } from "./components/CommandCenterSection";
 import type { DashboardModalsHandle } from "./components/DashboardModals";
@@ -349,6 +351,7 @@ export default function EsnafDashboard({
     () => new Date().toISOString().slice(0, 10),
     [Math.floor(Date.now() / 86400000)]
   );
+  const sortedDates = useMemo(() => getWeekDates(new Date()), []);
   const nextAppointment = useMemo(() => {
     const now = Date.now();
     return appointments
