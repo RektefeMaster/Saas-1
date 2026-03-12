@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, Space_Grotesk } from "next/font/google";
 import { Toaster } from "sonner";
-// import { ViewTransitions } from "next-view-transitions"; // Geçici olarak devre dışı
+import { ViewTransitions } from "next-view-transitions";
 import { ThemeProvider } from "@/lib/theme-context";
 import { LocaleProvider } from "@/lib/locale-context";
 import { PostHogProvider } from "@/app/providers/PostHogProvider";
@@ -86,10 +86,9 @@ export default function RootLayout({
             <SWRProvider>
               <ThemeProvider>
                 <LoadingWrapper>
-                  {/* ViewTransitions geçici olarak devre dışı - test için */}
-                  {/* <ViewTransitions> */}
+                  <ViewTransitions>
                     <LocaleProvider>{children}</LocaleProvider>
-                  {/* </ViewTransitions> */}
+                  </ViewTransitions>
                   <Toaster richColors position="top-right" />
                   <VercelAnalytics />
                 </LoadingWrapper>
