@@ -1,13 +1,14 @@
 import type { Metadata } from "next";
 import { Manrope, Space_Grotesk } from "next/font/google";
 import { Toaster } from "sonner";
-import { ViewTransitions } from "next-view-transitions";
+// import { ViewTransitions } from "next-view-transitions"; // Geçici olarak devre dışı
 import { ThemeProvider } from "@/lib/theme-context";
 import { LocaleProvider } from "@/lib/locale-context";
 import { PostHogProvider } from "@/app/providers/PostHogProvider";
 import { SWRProvider } from "@/app/providers/SWRProvider";
 import { VercelAnalytics } from "@/components/VercelAnalytics";
 import { LoadingWrapper } from "@/components/LoadingWrapper";
+import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 import "./globals.css";
 import { getDefaultAppUrl } from "@/lib/app-url";
 
@@ -80,19 +81,22 @@ export default function RootLayout({
       <body
         className={`${manrope.variable} ${spaceGrotesk.variable} antialiased`}
       >
-        <PostHogProvider>
-          <SWRProvider>
-            <ThemeProvider>
-              <LoadingWrapper>
-                <ViewTransitions>
-                  <LocaleProvider>{children}</LocaleProvider>
-                </ViewTransitions>
-                <Toaster richColors position="top-right" />
-                <VercelAnalytics />
-              </LoadingWrapper>
-            </ThemeProvider>
-          </SWRProvider>
-        </PostHogProvider>
+        <ClientErrorBoundary>
+          <PostHogProvider>
+            <SWRProvider>
+              <ThemeProvider>
+                <LoadingWrapper>
+                  {/* ViewTransitions geçici olarak devre dışı - test için */}
+                  {/* <ViewTransitions> */}
+                    <LocaleProvider>{children}</LocaleProvider>
+                  {/* </ViewTransitions> */}
+                  <Toaster richColors position="top-right" />
+                  <VercelAnalytics />
+                </LoadingWrapper>
+              </ThemeProvider>
+            </SWRProvider>
+          </PostHogProvider>
+        </ClientErrorBoundary>
       </body>
     </html>
   );
