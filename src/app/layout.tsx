@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Manrope, Space_Grotesk } from "next/font/google";
 import { Toaster } from "sonner";
-import { ViewTransitions } from "next-view-transitions";
+import { ViewTransitionsWrapper } from "@/components/ViewTransitionsWrapper";
 import { ThemeProvider } from "@/lib/theme-context";
 import { LocaleProvider } from "@/lib/locale-context";
 import { PostHogProvider } from "@/app/providers/PostHogProvider";
@@ -86,9 +86,9 @@ export default function RootLayout({
             <SWRProvider>
               <ThemeProvider>
                 <LoadingWrapper>
-                  <ViewTransitions>
+                  <ViewTransitionsWrapper>
                     <LocaleProvider>{children}</LocaleProvider>
-                  </ViewTransitions>
+                  </ViewTransitionsWrapper>
                   <Toaster richColors position="top-right" />
                   <VercelAnalytics />
                 </LoadingWrapper>
