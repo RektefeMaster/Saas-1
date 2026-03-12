@@ -6,7 +6,7 @@ const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST?.trim() || "https://eu.i.posthog.com";
 
 function PostHogInner({ children }: { children: React.ReactNode }) {
-  const [Client, setClient] = useState<React.ComponentType<{ children: React.ReactNode }> | null>(null);
+  const [Client, setClient] = useState<React.ComponentType<{ children: React.ReactNode; client: unknown }> | null>(null);
   const [posthog, setPosthog] = useState<unknown>(null);
 
   useEffect(() => {
@@ -22,7 +22,7 @@ function PostHogInner({ children }: { children: React.ReactNode }) {
         });
         setPosthog(ph);
         import("posthog-js/react").then((reactMod) => {
-          setClient(() => reactMod.PostHogProvider);
+          setClient(reactMod.PostHogProvider);
         });
       });
     };
