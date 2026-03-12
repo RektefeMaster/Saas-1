@@ -69,6 +69,10 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
+  // Null check ekle
+  if (children == null) {
+    return null;
+  }
   return (
     <LoadingContext.Provider
       value={{

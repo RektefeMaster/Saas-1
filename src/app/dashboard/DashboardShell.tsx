@@ -2,7 +2,7 @@
 
 import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
-import { Link } from "next-view-transitions";
+import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
   Calendar,

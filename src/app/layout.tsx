@@ -53,6 +53,9 @@ export default function RootLayout({
 }>) {
   const supabaseOrigin = getSupabaseOrigin();
 
+  // Children null check - güvenlik için
+  const safeChildren = children ?? null;
+
   return (
     <html lang="tr" data-locale="tr" suppressHydrationWarning>
       <head>
@@ -93,7 +96,7 @@ export default function RootLayout({
                           <ClientErrorBoundary componentName="ViewTransitionsWrapper">
                             <ViewTransitionsWrapper>
                               <ClientErrorBoundary componentName="LocaleProvider">
-                                <LocaleProvider>{children}</LocaleProvider>
+                                <LocaleProvider>{safeChildren}</LocaleProvider>
                               </ClientErrorBoundary>
                             </ViewTransitionsWrapper>
                           </ClientErrorBoundary>

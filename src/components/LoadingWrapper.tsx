@@ -24,6 +24,14 @@ function LoadingContent() {
 }
 
 export function LoadingWrapper({ children }: { children: React.ReactNode }) {
+  // Null check ekle
+  if (children == null) {
+    return (
+      <LoadingProvider>
+        <LoadingContent />
+      </LoadingProvider>
+    );
+  }
   return (
     <LoadingProvider>
       <LoadingContent />

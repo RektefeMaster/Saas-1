@@ -65,6 +65,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [theme, setTheme, toggleTheme]
   );
 
+  // Null check ekle
+  if (children == null) {
+    return null;
+  }
   return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
 }
 

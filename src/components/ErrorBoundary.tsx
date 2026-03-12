@@ -53,6 +53,11 @@ export class ErrorBoundary extends Component<Props, State> {
       );
     }
 
+    // Null check ekle
+    if (!this.props || !this.props.children) {
+      return null;
+    }
+
     return this.props.children;
   }
 }

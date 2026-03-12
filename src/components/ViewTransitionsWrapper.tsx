@@ -24,17 +24,23 @@ class ViewTransitionsErrorBoundary extends Component<ErrorBoundaryProps, { hasEr
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback || this.props.children;
+      return this.props.fallback || this.props.children || null;
+    }
+    // Null check ekle
+    if (!this.props || !this.props.children) {
+      return null;
     }
     return this.props.children;
   }
 }
 
 export function ViewTransitionsWrapper({ children }: { children: React.ReactNode }) {
-  // ViewTransitions SSR'da sorun çıkarabilir, bu yüzden error boundary ile koruyoruz
-  return (
-    <ViewTransitionsErrorBoundary fallback={<>{children}</>}>
-      <ViewTransitions>{children}</ViewTransitions>
-    </ViewTransitionsErrorBoundary>
-  );
+  // ViewTransitions geçici olarak devre dışı - sorun giderilene kadar
+  // return (
+  //   <ViewTransitionsErrorBoundary fallback={<>{children}</>}>
+  //     <ViewTransitions>{children}</ViewTransitions>
+  //   </ViewTransitionsErrorBoundary>
+  // );
+  
+  return <>{children}</>;
 }

@@ -26,7 +26,11 @@ class PostHogErrorBoundary extends Component<ErrorBoundaryProps, { hasError: boo
 
   render() {
     if (this.state.hasError) {
-      return this.props.fallback || this.props.children;
+      return this.props.fallback || this.props.children || null;
+    }
+    // Null check ekle
+    if (!this.props || !this.props.children) {
+      return null;
     }
     return this.props.children;
   }
@@ -71,18 +75,22 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     }
   }, []);
 
-  if (!key) return <>{children}</>;
-  if (error) return <>{children}</>;
-  if (!Client || !posthog) return <>{children}</>;
-
+  // PostHog geçici olarak devre dışı - sorun giderilene kadar
+  // if (!key) return <>{children}</>;
+  // if (error) return <>{children}</>;
+  // if (!Client || !posthog) return <>{children}</>;
+  
   // Client component'ini güvenli bir şekilde render et
-  const PostHogClientProvider = Client as React.ComponentType<{ client: any; children: React.ReactNode }>;
+  // const PostHogClientProvider = Client as React.ComponentType<{ client: any; children: React.ReactNode }>;
 
-  return (
-    <PostHogErrorBoundary fallback={<>{children}</>}>
-      <PostHogClientProvider client={posthog}>
-        {children}
-      </PostHogClientProvider>
-    </PostHogErrorBoundary>
-  );
+  // return (
+  //   <PostHogErrorBoundary fallback={<>{children}</>}>
+  //     <PostHogClientProvider client={posthog}>
+  //       {children}
+  //     </PostHogClientProvider>
+  //   </PostHogErrorBoundary>
+  // );
+
+  // Geçici olarak sadece children döndür
+  return <>{children}</>;
 }

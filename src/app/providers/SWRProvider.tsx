@@ -14,6 +14,10 @@ interface SWRProviderProps {
  * - Consistent cache settings
  */
 export function SWRProvider({ children }: SWRProviderProps) {
+  // Null check ekle
+  if (children == null) {
+    return null;
+  }
   return (
     <SWRConfig
       value={{

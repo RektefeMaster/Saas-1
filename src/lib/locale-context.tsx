@@ -73,6 +73,10 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     [locale, setLocale, toggleLocale]
   );
 
+  // Null check ekle
+  if (children == null) {
+    return null;
+  }
   return (
     <LocaleContext.Provider value={contextValue}>
       {children}
