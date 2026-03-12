@@ -1,8 +1,9 @@
 "use client";
 
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import dynamic from "next/dynamic";
 
 const FLOW_TYPES = [
   { value: "appointment", label: "Randevu" },
@@ -193,10 +194,11 @@ function NewBusinessTypePageContent() {
   );
 }
 
+const NewBusinessTypePageDynamic = dynamic(
+  () => Promise.resolve(NewBusinessTypePageContent),
+  { ssr: false }
+);
+
 export default function NewBusinessTypePage() {
-  return (
-    <Suspense fallback={<div className="p-4">Yükleniyor...</div>}>
-      <NewBusinessTypePageContent />
-    </Suspense>
-  );
+  return <NewBusinessTypePageDynamic />;
 }
