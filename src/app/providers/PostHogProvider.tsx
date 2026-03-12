@@ -1,34 +1,70 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import { useEffect, useState, Component, ErrorInfo, ReactNode } from "react";
 
 const key = process.env.NEXT_PUBLIC_POSTHOG_KEY?.trim();
 const host = process.env.NEXT_PUBLIC_POSTHOG_HOST?.trim() || "https://eu.i.posthog.com";
 
-function PostHogInner({ children }: { children: React.ReactNode }) {
+interface ErrorBoundaryProps {
+  children: ReactNode;
+  fallback?: ReactNode;
+}
+
+class PostHogErrorBoundary extends Component<ErrorBoundaryProps, { hasError: boolean }> {
+  constructor(props: ErrorBoundaryProps) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError() {
+    return { hasError: true };
+  }
+
+  componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    console.error("PostHogProvider error:", error, errorInfo);
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return this.props.fallback || this.props.children;
+    }
+    return this.props.children;
+  }
+}
+
+export function PostHogProvider({ children }: { children: React.ReactNode }) {
   const [Client, setClient] = useState<React.ComponentType<any> | null>(null);
-  const [posthog, setPosthog] = useState<unknown>(null);
+  const [posthog, setPosthog] = useState<any>(null);
+  const [error, setError] = useState<Error | null>(null);
 
   useEffect(() => {
     if (!key || typeof window === "undefined") return;
 
-    const load = () => {
-      import("posthog-js").then((mod) => {
-        const ph = mod.default;
+    const load = async () => {
+      try {
+        const posthogModule = await import("posthog-js");
+        const ph = posthogModule.default;
+        
+        // PostHog'u başlat
         ph.init(key, {
           api_host: host,
           capture_pageview: true,
           person_profiles: "identified_only",
         });
+
+        // PostHog başlatıldıktan sonra React provider'ı yükle
+        const reactModule = await import("posthog-js/react");
+        const PHProvider = reactModule.PostHogProvider;
+
         setPosthog(ph);
-        import("posthog-js/react").then((reactMod) => {
-          setClient(reactMod.PostHogProvider);
-        });
-      });
+        setClient(() => PHProvider);
+      } catch (err) {
+        console.error("PostHog initialization error:", err);
+        setError(err instanceof Error ? err : new Error(String(err)));
+      }
     };
 
     if ("requestIdleCallback" in window) {
-      // Timeout 500ms - kullanıcı etkileşimi başlamadan önce yüklenmeli
       (window as Window & { requestIdleCallback: (cb: () => void) => number }).requestIdleCallback(load, { timeout: 500 });
     } else {
       setTimeout(load, 500);
@@ -36,13 +72,12 @@ function PostHogInner({ children }: { children: React.ReactNode }) {
   }, []);
 
   if (!key) return <>{children}</>;
+  if (error) return <>{children}</>;
   if (!Client || !posthog) return <>{children}</>;
-  
-  // PostHogProvider accepts client prop
-  // Using React.createElement to avoid type issues
-  return React.createElement(Client, { client: posthog }, children);
-}
 
-export function PostHogProvider({ children }: { children: React.ReactNode }) {
-  return <PostHogInner>{children}</PostHogInner>;
+  return (
+    <PostHogErrorBoundary fallback={<>{children}</>}>
+      <Client client={posthog}>{children}</Client>
+    </PostHogErrorBoundary>
+  );
 }
