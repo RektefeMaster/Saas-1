@@ -1,13 +1,12 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { usePathname, useSearchParams } from "next/navigation";
+import { usePathname } from "next/navigation";
 
 export function TopLoadingBar() {
   const [loading, setLoading] = useState(false);
   const [progress, setProgress] = useState(0);
   const pathname = usePathname();
-  const searchParams = useSearchParams();
 
   useEffect(() => {
     // Route değişikliğinde loading başlat
@@ -41,7 +40,7 @@ export function TopLoadingBar() {
       clearInterval(interval);
       clearTimeout(completeTimer);
     };
-  }, [pathname, searchParams]);
+  }, [pathname]);
 
   if (!loading) return null;
 
