@@ -22,44 +22,63 @@ class PostHogErrorBoundary extends Component<ErrorBoundaryProps, { hasError: boo
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Güvenli erişim - this.props kontrolü
-    if (!this.props) {
-      console.error("[PostHogErrorBoundary] Props is null in componentDidCatch:", error, errorInfo);
-      return;
+    try {
+      if (!this.props) {
+        console.error("[PostHogErrorBoundary] Props is null in componentDidCatch:", error, errorInfo);
+        return;
+      }
+      console.error("[PostHogErrorBoundary] PostHogProvider error:", error, errorInfo);
+    } catch (err) {
+      console.error("[PostHogErrorBoundary] componentDidCatch hatası:", err, error, errorInfo);
     }
-    console.error("PostHogProvider error:", error, errorInfo);
   }
 
   render() {
-    if (this.state.hasError) {
+    try {
+      if (this.state.hasError) {
+        // Güvenli erişim - this.props kontrolü
+        if (!this.props) {
+          console.warn("[PostHogErrorBoundary] Props is null in error state");
+          return <></>;
+        }
+        // React 19 uyumluluğu - null children yerine boş Fragment kullan
+        if (this.props.fallback != null) {
+          return <>{this.props.fallback}</>;
+        }
+        if (this.props.children == null) {
+          return <></>;
+        }
+        return <>{this.props.children}</>;
+      }
       // Güvenli erişim - this.props kontrolü
       if (!this.props) {
+        console.warn("[PostHogErrorBoundary] Props is null in normal render");
         return <></>;
       }
       // React 19 uyumluluğu - null children yerine boş Fragment kullan
-      if (this.props.fallback != null) {
-        return this.props.fallback;
-      }
       if (this.props.children == null) {
         return <></>;
       }
-      return this.props.children;
-    }
-    // Güvenli erişim - this.props kontrolü
-    if (!this.props) {
+      return <>{this.props.children}</>;
+    } catch (err) {
+      console.error("[PostHogErrorBoundary] Render hatası:", err);
       return <></>;
     }
-    // React 19 uyumluluğu - null children yerine boş Fragment kullan
-    if (this.props.children == null) {
-      return <></>;
-    }
-    return this.props.children;
   }
 }
 
 export function PostHogProvider(props: { children?: React.ReactNode }) {
-  // React 19 uyumluluğu - props null olabilir, bu yüzden güvenli kontrol
-  // useState hook'u sırasında props null ise sorun çıkabilir
-  const safeChildren = props?.children != null ? props.children : <></>;
+  // React 19 uyumluluğu - props null/undefined olabilir, bu yüzden güvenli kontrol
+  // useState hook'u sırasında props null/undefined ise sorun çıkabilir
+  // ÖNEMLİ: props kontrolünü useState'ten ÖNCE yap
+  // == null kontrolü hem null hem undefined'ı yakalar
+  if (props == null) {
+    console.warn("[PostHogProvider] Props is null or undefined");
+    return <></>;
+  }
+  
+  // Children prop'unu güvenli şekilde al
+  const safeChildren = props.children != null ? props.children : <></>;
   
   const [Client, setClient] = useState<React.ComponentType<any> | null>(null);
   const [posthog, setPosthog] = useState<any>(null);
@@ -117,5 +136,14 @@ export function PostHogProvider(props: { children?: React.ReactNode }) {
 
   // Geçici olarak sadece children döndür
   // React 19 uyumluluğu - null children yerine boş Fragment kullan
-  return <React.Fragment>{safeChildren}</React.Fragment>;
+  // Güvenli render - children null/undefined kontrolü
+  try {
+    if (safeChildren == null) {
+      return <></>;
+    }
+    return <>{safeChildren}</>;
+  } catch (err) {
+    console.error("[PostHogProvider] Render hatası:", err);
+    return <></>;
+  }
 }

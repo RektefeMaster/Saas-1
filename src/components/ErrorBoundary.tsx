@@ -24,26 +24,30 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
     // Güvenli erişim - this.props kontrolü
-    if (!this.props) {
-      console.error("[ErrorBoundary] Props is null in componentDidCatch:", error, errorInfo);
-      return;
+    try {
+      if (!this.props) {
+        console.error("[ErrorBoundary] Props is null in componentDidCatch:", error, errorInfo);
+        return;
+      }
+      
+      const componentInfo = this.props.componentName ? ` in ${this.props.componentName}` : "";
+      console.error(`[ErrorBoundary] Error${componentInfo}:`, error, errorInfo);
+      
+      // Hata detaylarını logla
+      if (error.message?.includes("children")) {
+        console.error("[ErrorBoundary] Children hatası tespit edildi:", {
+          componentName: this.props.componentName,
+          hasProps: !!this.props,
+          hasChildren: this.props?.children != null,
+          childrenType: typeof this.props?.children,
+          errorStack: error.stack,
+          errorInfo,
+        });
+      }
+      // Sentry'ye gönderilebilir
+    } catch (err) {
+      console.error("[ErrorBoundary] componentDidCatch hatası:", err, error, errorInfo);
     }
-    
-    const componentInfo = this.props.componentName ? ` in ${this.props.componentName}` : "";
-    console.error(`[ErrorBoundary] Error${componentInfo}:`, error, errorInfo);
-    
-    // Hata detaylarını logla
-    if (error.message?.includes("children")) {
-      console.error("[ErrorBoundary] Children hatası tespit edildi:", {
-        componentName: this.props.componentName,
-        hasProps: !!this.props,
-        hasChildren: this.props?.children != null,
-        childrenType: typeof this.props?.children,
-        errorStack: error.stack,
-        errorInfo,
-      });
-    }
-    // Sentry'ye gönderilebilir
   }
 
   render() {
@@ -85,7 +89,8 @@ export class ErrorBoundary extends Component<Props, State> {
         return <></>;
       }
 
-      return children;
+      // React 19 uyumluluğu - children'ı Fragment içine al
+      return <>{children}</>;
     } catch (error) {
       console.error("[ErrorBoundary] Render hatası:", error);
       return <></>;
