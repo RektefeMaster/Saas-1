@@ -33,22 +33,34 @@ class PostHogErrorBoundary extends Component<ErrorBoundaryProps, { hasError: boo
     if (this.state.hasError) {
       // Güvenli erişim - this.props kontrolü
       if (!this.props) {
-        return null;
+        return <></>;
       }
-      return this.props.fallback || this.props.children || null;
+      // React 19 uyumluluğu - null children yerine boş Fragment kullan
+      if (this.props.fallback != null) {
+        return this.props.fallback;
+      }
+      if (this.props.children == null) {
+        return <></>;
+      }
+      return this.props.children;
     }
     // Güvenli erişim - this.props kontrolü
     if (!this.props) {
-      return null;
+      return <></>;
     }
+    // React 19 uyumluluğu - null children yerine boş Fragment kullan
     if (this.props.children == null) {
-      return null;
+      return <></>;
     }
     return this.props.children;
   }
 }
 
 export function PostHogProvider({ children }: { children: React.ReactNode }) {
+  // React 19 uyumluluğu - children null check'i useState'ten önce yapılmalı
+  // useState hook'u sırasında children null ise sorun çıkabilir
+  const safeChildren = children ?? <></>;
+  
   const [Client, setClient] = useState<React.ComponentType<any> | null>(null);
   const [posthog, setPosthog] = useState<any>(null);
   const [error, setError] = useState<Error | null>(null);
@@ -88,23 +100,22 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   }, []);
 
   // PostHog geçici olarak devre dışı - sorun giderilene kadar
-  // if (!key) return <>{children}</>;
-  // if (error) return <>{children}</>;
-  // if (!Client || !posthog) return <>{children}</>;
+  // if (!key) return <>{safeChildren}</>;
+  // if (error) return <>{safeChildren}</>;
+  // if (!Client || !posthog) return <>{safeChildren}</>;
   
   // Client component'ini güvenli bir şekilde render et
   // const PostHogClientProvider = Client as React.ComponentType<{ client: any; children: React.ReactNode }>;
 
   // return (
-  //   <PostHogErrorBoundary fallback={<>{children}</>}>
+  //   <PostHogErrorBoundary fallback={<>{safeChildren}</>}>
   //     <PostHogClientProvider client={posthog}>
-  //       {children}
+  //       {safeChildren}
   //     </PostHogClientProvider>
   //   </PostHogErrorBoundary>
   // );
 
   // Geçici olarak sadece children döndür
   // React 19 uyumluluğu - null children yerine boş Fragment kullan
-  const safeChildren = children ?? <></>;
   return <React.Fragment>{safeChildren}</React.Fragment>;
 }

@@ -30,16 +30,24 @@ class ViewTransitionsErrorBoundary extends Component<ErrorBoundaryProps, { hasEr
     if (this.state.hasError) {
       // Güvenli erişim - this.props kontrolü
       if (!this.props) {
-        return null;
+        return <></>;
       }
-      return this.props.fallback || this.props.children || null;
+      // React 19 uyumluluğu - null children yerine boş Fragment kullan
+      if (this.props.fallback != null) {
+        return this.props.fallback;
+      }
+      if (this.props.children == null) {
+        return <></>;
+      }
+      return this.props.children;
     }
     // Güvenli erişim - this.props kontrolü
     if (!this.props) {
-      return null;
+      return <></>;
     }
+    // React 19 uyumluluğu - null children yerine boş Fragment kullan
     if (this.props.children == null) {
-      return null;
+      return <></>;
     }
     return this.props.children;
   }
