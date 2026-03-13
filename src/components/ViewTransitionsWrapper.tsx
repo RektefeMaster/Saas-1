@@ -1,6 +1,6 @@
 "use client";
 
-import { Component, ErrorInfo, ReactNode } from "react";
+import React, { Component, ErrorInfo, ReactNode } from "react";
 
 interface ErrorBoundaryProps {
   children: ReactNode;
@@ -18,14 +18,26 @@ class ViewTransitionsErrorBoundary extends Component<ErrorBoundaryProps, { hasEr
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Güvenli erişim - this.props kontrolü
+    if (!this.props) {
+      console.error("[ViewTransitionsErrorBoundary] Props is null in componentDidCatch:", error, errorInfo);
+      return;
+    }
     console.error("ViewTransitions error:", error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
+      // Güvenli erişim - this.props kontrolü
+      if (!this.props) {
+        return null;
+      }
       return this.props.fallback || this.props.children || null;
     }
-    // Null check ekle - this.props hiçbir zaman null olmaz, sadece children kontrolü yeterli
+    // Güvenli erişim - this.props kontrolü
+    if (!this.props) {
+      return null;
+    }
     if (this.props.children == null) {
       return null;
     }
@@ -46,5 +58,6 @@ export function ViewTransitionsWrapper({ children }: { children: React.ReactNode
     return null;
   }
   
-  return <>{children}</>;
+  // React 19 uyumluluğu için güvenli Fragment kullanımı
+  return <React.Fragment>{children}</React.Fragment>;
 }

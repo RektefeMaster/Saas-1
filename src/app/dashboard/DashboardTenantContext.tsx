@@ -98,9 +98,28 @@ export function DashboardTenantProvider({
     [tenantId, tenant, features, staffPreferenceEnabled, staffOptions, isLoading]
   );
 
-  return (
-    <DashboardTenantContext.Provider value={value}>
-      {children}
-    </DashboardTenantContext.Provider>
-  );
+  // Null check ekle - React 19'da Context.Provider'ın children prop'una null geçildiğinde sorun olabilir
+  if (children == null) {
+    return (
+      <DashboardTenantContext.Provider value={value}>
+        {null}
+      </DashboardTenantContext.Provider>
+    );
+  }
+
+  // Güvenli render
+  try {
+    return (
+      <DashboardTenantContext.Provider value={value}>
+        {children}
+      </DashboardTenantContext.Provider>
+    );
+  } catch (error) {
+    console.error("[DashboardTenantProvider] Render hatası:", error);
+    return (
+      <DashboardTenantContext.Provider value={value}>
+        {null}
+      </DashboardTenantContext.Provider>
+    );
+  }
 }

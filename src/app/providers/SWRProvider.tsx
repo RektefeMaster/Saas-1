@@ -14,9 +14,33 @@ interface SWRProviderProps {
  * - Consistent cache settings
  */
 export function SWRProvider({ children }: SWRProviderProps) {
-  // Null check ekle
+  // Null check ekle - React 19'da SWRConfig'in children prop'una null geçildiğinde sorun olabilir
   if (children == null) {
-    return null;
+    // SWRConfig null children'ı desteklemiyor olabilir, boş Fragment döndür
+    return (
+      <SWRConfig
+        value={{
+          fetcher,
+          revalidateOnFocus: false,
+          revalidateOnReconnect: true,
+          dedupingInterval: 30000,
+          errorRetryCount: 3,
+          errorRetryInterval: 5000,
+          onError: (error, key) => {
+            if (process.env.NODE_ENV === "development") {
+              console.error("[SWR Error]", key, error);
+            }
+          },
+          onSuccess: (data, key) => {
+            if (process.env.NODE_ENV === "development") {
+              console.log("[SWR Success]", key);
+            }
+          },
+        }}
+      >
+        {null}
+      </SWRConfig>
+    );
   }
   
   // Güvenli render
@@ -49,6 +73,20 @@ export function SWRProvider({ children }: SWRProviderProps) {
     );
   } catch (error) {
     console.error("[SWRProvider] Render hatası:", error);
-    return null;
+    // Hata durumunda da SWRConfig'i boş children ile döndür
+    return (
+      <SWRConfig
+        value={{
+          fetcher,
+          revalidateOnFocus: false,
+          revalidateOnReconnect: true,
+          dedupingInterval: 30000,
+          errorRetryCount: 3,
+          errorRetryInterval: 5000,
+        }}
+      >
+        {null}
+      </SWRConfig>
+    );
   }
 }

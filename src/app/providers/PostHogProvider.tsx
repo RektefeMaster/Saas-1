@@ -21,14 +21,26 @@ class PostHogErrorBoundary extends Component<ErrorBoundaryProps, { hasError: boo
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Güvenli erişim - this.props kontrolü
+    if (!this.props) {
+      console.error("[PostHogErrorBoundary] Props is null in componentDidCatch:", error, errorInfo);
+      return;
+    }
     console.error("PostHogProvider error:", error, errorInfo);
   }
 
   render() {
     if (this.state.hasError) {
+      // Güvenli erişim - this.props kontrolü
+      if (!this.props) {
+        return null;
+      }
       return this.props.fallback || this.props.children || null;
     }
-    // Null check ekle - this.props hiçbir zaman null olmaz, sadece children kontrolü yeterli
+    // Güvenli erişim - this.props kontrolü
+    if (!this.props) {
+      return null;
+    }
     if (this.props.children == null) {
       return null;
     }
@@ -97,5 +109,6 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
     return null;
   }
   
-  return <>{children}</>;
+  // React 19 uyumluluğu için güvenli Fragment kullanımı
+  return <React.Fragment>{children}</React.Fragment>;
 }

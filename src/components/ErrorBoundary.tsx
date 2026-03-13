@@ -23,6 +23,12 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   componentDidCatch(error: Error, errorInfo: ErrorInfo) {
+    // Güvenli erişim - this.props kontrolü
+    if (!this.props) {
+      console.error("[ErrorBoundary] Props is null in componentDidCatch:", error, errorInfo);
+      return;
+    }
+    
     const componentInfo = this.props.componentName ? ` in ${this.props.componentName}` : "";
     console.error(`[ErrorBoundary] Error${componentInfo}:`, error, errorInfo);
     
