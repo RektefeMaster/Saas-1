@@ -56,10 +56,10 @@ class PostHogErrorBoundary extends Component<ErrorBoundaryProps, { hasError: boo
   }
 }
 
-export function PostHogProvider({ children }: { children: React.ReactNode }) {
-  // React 19 uyumluluğu - children null check'i useState'ten önce yapılmalı
-  // useState hook'u sırasında children null ise sorun çıkabilir
-  const safeChildren = children ?? <></>;
+export function PostHogProvider(props: { children?: React.ReactNode }) {
+  // React 19 uyumluluğu - props null olabilir, bu yüzden güvenli kontrol
+  // useState hook'u sırasında props null ise sorun çıkabilir
+  const safeChildren = props?.children != null ? props.children : <></>;
   
   const [Client, setClient] = useState<React.ComponentType<any> | null>(null);
   const [posthog, setPosthog] = useState<any>(null);
