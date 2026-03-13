@@ -69,10 +69,8 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  // Null check ekle
-  if (children == null) {
-    return null;
-  }
+  // React 19 uyumluluğu - null children yerine boş Fragment kullan
+  const safeChildren = children ?? <></>;
   
   // Güvenli render
   try {
@@ -89,12 +87,25 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
           setMessage,
         }}
       >
-        {children}
+        {safeChildren}
       </LoadingContext.Provider>
     );
   } catch (error) {
     console.error("[LoadingProvider] Render hatası:", error);
-    return null;
+    return (
+      <LoadingContext.Provider
+        value={{
+          loading: false,
+          variant: "spinner",
+          startLoading,
+          stopLoading,
+          setProgress,
+          setMessage,
+        }}
+      >
+        <></>
+      </LoadingContext.Provider>
+    );
   }
 }
 

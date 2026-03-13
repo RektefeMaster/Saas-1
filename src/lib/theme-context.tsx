@@ -65,17 +65,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     [theme, setTheme, toggleTheme]
   );
 
-  // Null check ekle
-  if (children == null) {
-    return null;
-  }
+  // React 19 uyumluluğu - null children yerine boş Fragment kullan
+  const safeChildren = children ?? <></>;
   
   // Güvenli render
   try {
-    return <ThemeContext.Provider value={contextValue}>{children}</ThemeContext.Provider>;
+    return <ThemeContext.Provider value={contextValue}>{safeChildren}</ThemeContext.Provider>;
   } catch (error) {
     console.error("[ThemeProvider] Render hatası:", error);
-    return null;
+    return <ThemeContext.Provider value={contextValue}><></></ThemeContext.Provider>;
   }
 }
 

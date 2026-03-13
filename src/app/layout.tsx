@@ -53,15 +53,9 @@ export default function RootLayout({
 }>) {
   const supabaseOrigin = getSupabaseOrigin();
 
-  // Children null check - güvenlik için
-  // React.ReactNode zaten null olabilir, bu normaldir
-  const safeChildren = children ?? null;
-  
-  // Hydration sorunlarını önlemek için ekstra kontrol
-  if (typeof window === "undefined" && safeChildren == null) {
-    // SSR sırasında children null ise boş bir div döndür
-    // Bu, hydration mismatch'i önler
-  }
+  // Children null check - React 19'da null children sorun yaratabilir
+  // Null yerine boş Fragment kullan
+  const safeChildren = children ?? <></>;
 
   return (
     <html lang="tr" data-locale="tr" suppressHydrationWarning>

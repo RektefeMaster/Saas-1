@@ -9,14 +9,13 @@ export function ClientErrorBoundary({
   children: React.ReactNode;
   componentName?: string;
 }) {
-  // Güvenli children kontrolü
+  // Güvenli children kontrolü - React 19'da null children sorun yaratabilir
   try {
-    if (children == null) {
-      return null;
-    }
-    return <ErrorBoundary componentName={componentName}>{children}</ErrorBoundary>;
+    // Null children yerine boş Fragment kullan
+    const safeChildren = children ?? <></>;
+    return <ErrorBoundary componentName={componentName}>{safeChildren}</ErrorBoundary>;
   } catch (error) {
     console.error("[ClientErrorBoundary] Hata:", error, { componentName });
-    return null;
+    return <ErrorBoundary componentName={componentName}><></></ErrorBoundary>;
   }
 }

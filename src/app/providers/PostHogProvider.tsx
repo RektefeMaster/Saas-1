@@ -104,11 +104,7 @@ export function PostHogProvider({ children }: { children: React.ReactNode }) {
   // );
 
   // Geçici olarak sadece children döndür
-  // Null check ekle
-  if (children == null) {
-    return null;
-  }
-  
-  // React 19 uyumluluğu için güvenli Fragment kullanımı
-  return <React.Fragment>{children}</React.Fragment>;
+  // React 19 uyumluluğu - null children yerine boş Fragment kullan
+  const safeChildren = children ?? <></>;
+  return <React.Fragment>{safeChildren}</React.Fragment>;
 }

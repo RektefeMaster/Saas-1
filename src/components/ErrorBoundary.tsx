@@ -72,21 +72,23 @@ export class ErrorBoundary extends Component<Props, State> {
     }
 
     // Güvenli children erişimi - props ve children kontrolü
+    // React 19'da null children sorun yaratabilir, boş Fragment kullan
     try {
       if (!this.props) {
         console.warn("[ErrorBoundary] Props is null or undefined");
-        return null;
+        return <></>;
       }
       
       const children = this.props.children;
+      // React 19 uyumluluğu - null children yerine boş Fragment kullan
       if (children == null) {
-        return null;
+        return <></>;
       }
 
       return children;
     } catch (error) {
       console.error("[ErrorBoundary] Render hatası:", error);
-      return null;
+      return <></>;
     }
   }
 }

@@ -24,18 +24,13 @@ function LoadingContent() {
 }
 
 export function LoadingWrapper({ children }: { children: React.ReactNode }) {
-  // Null check ekle
-  if (children == null) {
-    return (
-      <LoadingProvider>
-        <LoadingContent />
-      </LoadingProvider>
-    );
-  }
+  // React 19 uyumluluğu - null children yerine boş Fragment kullan
+  const safeChildren = children ?? <></>;
+  
   return (
     <LoadingProvider>
       <LoadingContent />
-      {children}
+      {safeChildren}
     </LoadingProvider>
   );
 }

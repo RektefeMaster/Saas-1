@@ -73,21 +73,23 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     [locale, setLocale, toggleLocale]
   );
 
-  // Null check ekle
-  if (children == null) {
-    return null;
-  }
+  // React 19 uyumluluğu - null children yerine boş Fragment kullan
+  const safeChildren = children ?? <></>;
   
   // Güvenli render
   try {
     return (
       <LocaleContext.Provider value={contextValue}>
-        {children}
+        {safeChildren}
       </LocaleContext.Provider>
     );
   } catch (error) {
     console.error("[LocaleProvider] Render hatası:", error);
-    return null;
+    return (
+      <LocaleContext.Provider value={contextValue}>
+        <></>
+      </LocaleContext.Provider>
+    );
   }
 }
 
