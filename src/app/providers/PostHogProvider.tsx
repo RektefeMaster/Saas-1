@@ -67,18 +67,20 @@ class PostHogErrorBoundary extends Component<ErrorBoundaryProps, { hasError: boo
   }
 }
 
-export function PostHogProvider(props: { children?: React.ReactNode }) {
+export function PostHogProvider(props: { children?: React.ReactNode } = {}) {
   // React 19 uyumluluğu - props null/undefined olabilir, bu yüzden güvenli kontrol
   // useState hook'u sırasında props null/undefined ise sorun çıkabilir
   // ÖNEMLİ: props kontrolünü useState'ten ÖNCE yap
-  // == null kontrolü hem null hem undefined'ı yakalar
+  // Default parameter ile props'un her zaman bir obje olduğundan emin ol
+  const safeProps = props || {};
+  
+  // Debug: props durumunu kontrol et
   if (props == null) {
-    console.warn("[PostHogProvider] Props is null or undefined");
-    return <></>;
+    console.warn("[PostHogProvider] Props is null or undefined, using default");
   }
   
   // Children prop'unu güvenli şekilde al
-  const safeChildren = props.children != null ? props.children : <></>;
+  const safeChildren = safeProps.children != null ? safeProps.children : <></>;
   
   const [Client, setClient] = useState<React.ComponentType<any> | null>(null);
   const [posthog, setPosthog] = useState<any>(null);
@@ -104,7 +106,9 @@ export function PostHogProvider(props: { children?: React.ReactNode }) {
         const PHProvider = reactModule.PostHogProvider;
 
         setPosthog(ph);
-        setClient(PHProvider);
+        // React treats bare functions passed to setState as updaters.
+        // Wrap the provider so it is stored instead of being invoked with the previous state.
+        setClient(() => PHProvider);
       } catch (err) {
         console.error("PostHog initialization error:", err);
         setError(err instanceof Error ? err : new Error(String(err)));
