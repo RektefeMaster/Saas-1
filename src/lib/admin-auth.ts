@@ -1,14 +1,24 @@
 import { createHash, timingSafeEqual } from "crypto";
 import { SignJWT, jwtVerify } from "jose";
+import type { NextRequest } from "next/server";
 
 const COOKIE_NAME = "admin_session";
 const SESSION_DURATION = 60 * 60 * 8; // 8 saat
 const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 256;
+
+function isWeakSecret(secret: string): boolean {
+  return /(your-|placeholder|changeme|change-this|example|xxx|test-secret|at-least-32)/i.test(
+    secret
+  );
+}
 
 function getSecret(): Uint8Array {
-  const secret = process.env.ADMIN_SESSION_SECRET;
-  if (!secret || secret.length < 32) {
-    throw new Error("ADMIN_SESSION_SECRET en az 32 karakter olmalı (.env)");
+  const secret = process.env.ADMIN_SESSION_SECRET?.trim() || "";
+  if (!secret || secret.length < 32 || isWeakSecret(secret)) {
+    throw new Error(
+      "ADMIN_SESSION_SECRET en az 32 karakter olmalı ve placeholder olmamalı (.env)"
+    );
   }
   return new TextEncoder().encode(secret);
 }
@@ -40,7 +50,7 @@ export function isAdminPasswordValid(password: string): boolean {
   if (!expected || typeof expected !== "string" || expected.length < MIN_PASSWORD_LENGTH) {
     return false;
   }
-  if (password.length < MIN_PASSWORD_LENGTH) {
+  if (password.length < MIN_PASSWORD_LENGTH || password.length > MAX_PASSWORD_LENGTH) {
     return false;
   }
   const a = sha256(password);
@@ -61,4 +71,12 @@ export function getAdminCookieOpts() {
     path: "/",
     maxAge: SESSION_DURATION,
   };
+}
+
+/** Stable client id for admin login rate limits (IP from proxy headers). */
+export function getAdminClientIdentifier(request: NextRequest): string {
+  const forwarded = request.headers.get("x-forwarded-for");
+  const realIp = request.headers.get("x-real-ip");
+  const ip = forwarded?.split(",")[0]?.trim() || realIp || "unknown";
+  return ip.replace(/[^a-zA-Z0-9.:-]/g, "_");
 }

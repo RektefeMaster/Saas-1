@@ -2,14 +2,28 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { supabase } from "@/lib/supabase";
 import { deleteOtpChallenge, getOtpChallenge, updateOtpChallengeAttempts } from "@/lib/redis";
-import { getTwilioVerifyStatus, verifySmsCode } from "@/lib/twilio";
+import { getTwilioVerifyStatus, verifySmsCodeDetailed } from "@/lib/twilio";
 import {
   DASHBOARD_OTP_COOKIE,
   OTP_MAX_ATTEMPTS,
   OTP_VERIFIED_TTL_SECONDS,
   cookieSecure,
+  createDashboardOtpCookieValue,
   isSms2faEnabledFlag,
 } from "@/lib/otp-auth";
+
+function setSignedOtpCookie(res: NextResponse, userId: string): boolean {
+  const value = createDashboardOtpCookieValue(userId, OTP_VERIFIED_TTL_SECONDS);
+  if (!value) return false;
+  res.cookies.set(DASHBOARD_OTP_COOKIE, value, {
+    httpOnly: true,
+    secure: cookieSecure(),
+    sameSite: "strict",
+    path: "/",
+    maxAge: OTP_VERIFIED_TTL_SECONDS,
+  });
+  return true;
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -30,13 +44,12 @@ export async function POST(request: NextRequest) {
 
     if (!isSms2faEnabledFlag()) {
       const res = NextResponse.json({ success: true });
-      res.cookies.set(DASHBOARD_OTP_COOKIE, user.id, {
-        httpOnly: true,
-        secure: cookieSecure(),
-        sameSite: "strict",
-        path: "/",
-        maxAge: OTP_VERIFIED_TTL_SECONDS,
-      });
+      if (!setSignedOtpCookie(res, user.id)) {
+        return NextResponse.json(
+          { error: "OTP çerez imzası için ADMIN_SESSION_SECRET gerekli" },
+          { status: 503 }
+        );
+      }
       return res;
     }
 
@@ -69,15 +82,20 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Maksimum deneme aşıldı" }, { status: 429 });
     }
 
-    const ok = await verifySmsCode(challenge.phone, code);
-    if (!ok) {
+    const verifyResult = await verifySmsCodeDetailed(challenge.phone, code);
+    if (!verifyResult.ok) {
+      if (verifyResult.reason === "upstream_error") {
+        return NextResponse.json(
+          { error: "SMS doğrulama servisi geçici olarak kullanılamıyor" },
+          { status: 503 }
+        );
+      }
       await updateOtpChallengeAttempts(challengeId, challenge.attempts + 1);
       return NextResponse.json({ error: "Kod doğrulanamadı" }, { status: 401 });
     }
 
     await deleteOtpChallenge(challengeId);
 
-    // İlk OTP doğrulamasında phone_verified_at set et
     await supabase
       .from("tenants")
       .update({ phone_verified_at: new Date().toISOString() })
@@ -85,16 +103,15 @@ export async function POST(request: NextRequest) {
       .is("phone_verified_at", null);
 
     const res = NextResponse.json({ success: true });
-    res.cookies.set(DASHBOARD_OTP_COOKIE, user.id, {
-      httpOnly: true,
-      secure: cookieSecure(),
-      sameSite: "strict",
-      path: "/",
-      maxAge: OTP_VERIFIED_TTL_SECONDS,
-    });
+    if (!setSignedOtpCookie(res, user.id)) {
+      return NextResponse.json(
+        { error: "OTP çerez imzası için ADMIN_SESSION_SECRET gerekli" },
+        { status: 503 }
+      );
+    }
     return res;
   } catch (err) {
-    const msg = err instanceof Error ? err.message : "OTP doğrulama hatası";
-    return NextResponse.json({ error: msg }, { status: 500 });
+    console.error("[dashboard otp verify]", err);
+    return NextResponse.json({ error: "OTP doğrulama hatası" }, { status: 500 });
   }
 }

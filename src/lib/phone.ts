@@ -37,3 +37,41 @@ export function normalizePhoneDigits(
   if (input == null || typeof input !== "string") return "";
   return input.replace(/\D/g, "");
 }
+
+/**
+ * Lookup-compatible phone variants without rewriting stored history.
+ * Covers +905…, 905…, and digits-only forms used across WA / CRM / hold.
+ */
+export function phoneVariants(
+  input: string | null | undefined,
+  defaultCountry: CountryCode = DEFAULT_COUNTRY
+): string[] {
+  const variants = new Set<string>();
+  if (input == null || typeof input !== "string") return [];
+  const trimmed = input.trim();
+  if (trimmed) variants.add(trimmed);
+
+  const e164 = normalizePhoneE164(trimmed, defaultCountry);
+  if (e164) {
+    variants.add(e164);
+    variants.add(e164.replace(/\D/g, ""));
+    if (e164.startsWith("+")) variants.add(e164.slice(1));
+  }
+
+  const digits = normalizePhoneDigits(trimmed, defaultCountry);
+  if (digits) {
+    variants.add(digits);
+    variants.add(`+${digits}`);
+  }
+
+  return [...variants].filter(Boolean);
+}
+
+export function phonesMatch(
+  a: string | null | undefined,
+  b: string | null | undefined
+): boolean {
+  const av = phoneVariants(a);
+  const bv = new Set(phoneVariants(b));
+  return av.some((v) => bv.has(v));
+}

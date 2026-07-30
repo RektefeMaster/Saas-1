@@ -5,6 +5,7 @@
  */
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 const DAY_NAMES: Record<number, string> = {
   0: "Pazar",
@@ -52,6 +53,8 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: tenantId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const { searchParams } = new URL(request.url);
   const staffId = searchParams.get("staff_id");
   const body = await request.json();
@@ -102,6 +105,18 @@ export async function PUT(
   } else {
     deleteQuery = deleteQuery.is("staff_id", null);
   }
+  // Snapshot existing rows so insert failure can restore (delete-then-insert is not transactional).
+  let existingQuery = supabase
+    .from("availability_slots")
+    .select("tenant_id, staff_id, day_of_week, start_time, end_time")
+    .eq("tenant_id", tenantId);
+  if (staffId) {
+    existingQuery = existingQuery.eq("staff_id", staffId);
+  } else {
+    existingQuery = existingQuery.is("staff_id", null);
+  }
+  const { data: existingRows } = await existingQuery;
+
   const { error: delError } = await deleteQuery;
 
   if (delError) {
@@ -114,6 +129,12 @@ export async function PUT(
       .insert(toInsert);
 
     if (insError) {
+      if (existingRows && existingRows.length > 0) {
+        const restore = await supabase.from("availability_slots").insert(existingRows);
+        if (restore.error) {
+          console.error("[availability/slots] restore failed:", restore.error.message);
+        }
+      }
       return NextResponse.json({ error: insError.message }, { status: 500 });
     }
   }

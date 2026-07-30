@@ -433,9 +433,34 @@ export async function downloadWhatsAppMedia(mediaId: string): Promise<WhatsAppMe
     console.error("[whatsapp media] download error", res.status, raw);
     return null;
   }
-  const arrayBuffer = await res.arrayBuffer();
+  const MAX_MEDIA_BYTES = 8 * 1024 * 1024; // 8MB
+  const contentLength = Number(res.headers.get("content-length") || 0);
+  if (contentLength > MAX_MEDIA_BYTES) {
+    console.error("[whatsapp media] too large", contentLength);
+    return null;
+  }
+  // Stream with early abort so missing Content-Length cannot inflate memory.
+  if (!res.body) {
+    console.error("[whatsapp media] empty body");
+    return null;
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > MAX_MEDIA_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      console.error("[whatsapp media] stream exceeded limit", total);
+      return null;
+    }
+    chunks.push(value);
+  }
   return {
-    buffer: Buffer.from(arrayBuffer),
+    buffer: Buffer.concat(chunks.map((c) => Buffer.from(c))),
     mimeType: meta.mimeType,
   };
 }

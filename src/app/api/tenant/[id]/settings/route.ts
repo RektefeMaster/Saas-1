@@ -6,7 +6,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
+import { isSms2faEnabledFlag } from "@/lib/otp-auth";
 import { logTenantEvent } from "@/services/eventLog.service";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 const REMINDER_OPTIONS = ["off", "customer_only", "merchant_only", "both"] as const;
 
@@ -16,6 +18,8 @@ export async function PATCH(
 ) {
   try {
     const { id } = await params;
+    const auth = await requireTenantApiAccess(request, id);
+    if (!auth.ok) return auth.response;
     const body = await request.json();
     const {
       reminder_preference,
@@ -63,11 +67,16 @@ export async function PATCH(
       );
     }
 
-    let fetchColumns = ["config_override", "ui_preferences"];
+    let fetchColumns = [
+      "config_override",
+      "ui_preferences",
+      "contact_phone",
+      "owner_phone_e164",
+    ];
     const missingColumns = new Set<string>();
     let tenant: Record<string, unknown> | null = null;
     let fetchErr: { message: string } | null = null;
-    for (let i = 0; i < 4; i++) {
+    for (let i = 0; i < 6; i++) {
       const result = await supabase
         .from("tenants")
         .select(fetchColumns.join(", "))
@@ -143,7 +152,7 @@ export async function PATCH(
       typeof review_request_delay_hours === "number" &&
       review_request_delay_hours >= 0
     ) {
-      newConfig.review_request_delay_hours = Math.min(24, review_request_delay_hours);
+      newConfig.review_request_delay_hours = Math.min(48, review_request_delay_hours);
     }
 
     const updatePayload: Record<string, unknown> = {
@@ -161,7 +170,22 @@ export async function PATCH(
         ...(ui_preferences as Record<string, unknown>),
       };
     }
-    if (contact_phone !== undefined) updatePayload.contact_phone = contact_phone;
+    if (contact_phone !== undefined) {
+      const nextPhone = typeof contact_phone === "string" ? contact_phone.trim() : "";
+      const ownerPhone =
+        !missingColumns.has("owner_phone_e164") &&
+        typeof tenant.owner_phone_e164 === "string"
+          ? tenant.owner_phone_e164.trim()
+          : "";
+      // Global SMS 2FA açıkken telefonsuz bırakmak dashboard OTP bypass'ına yol açar.
+      if (isSms2faEnabledFlag() && !nextPhone && !ownerPhone) {
+        return NextResponse.json(
+          { error: "SMS 2FA açıkken işletme telefonu boş bırakılamaz" },
+          { status: 400 }
+        );
+      }
+      updatePayload.contact_phone = nextPhone || null;
+    }
     if (working_hours_text !== undefined) updatePayload.working_hours_text = working_hours_text;
 
     const patchPayload = { ...updatePayload };

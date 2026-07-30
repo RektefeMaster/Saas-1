@@ -1,18 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 import { purgeExpiredTemporaryMedia } from "@/lib/redis";
 import { logBotMessageAudit } from "@/services/botAudit.service";
-
-const CRON_SECRET = process.env.CRON_SECRET?.trim() || "";
+import { assertCronAuthorized } from "@/lib/cron-auth";
 
 export async function GET(request: NextRequest) {
-  if (!CRON_SECRET) {
-    return NextResponse.json({ error: "CRON_SECRET tanımlı değil" }, { status: 503 });
-  }
-
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${CRON_SECRET}` && request.nextUrl.searchParams.get("key") !== CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const denied = assertCronAuthorized(request);
+  if (denied) return denied;
 
   try {
     const result = await purgeExpiredTemporaryMedia(500);

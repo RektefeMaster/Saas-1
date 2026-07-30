@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 import { consumeCustomerPackageSession } from "@/services/package.service";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 interface CustomerPackagePatchPayload {
   remaining_sessions?: number;
@@ -15,6 +16,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; customerPackageId: string }> }
 ) {
   const { id: tenantId, customerPackageId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => ({}))) as CustomerPackagePatchPayload;
 
   if (body.consume_one) {
@@ -107,10 +110,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; customerPackageId: string }> }
 ) {
   const { id: tenantId, customerPackageId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
 
   const result = await supabase
     .from("customer_packages")

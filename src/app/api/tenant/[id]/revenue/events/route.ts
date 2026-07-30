@@ -1,7 +1,8 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 import { logTenantEvent } from "@/services/eventLog.service";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 const VALID_SOURCES = ["appointment", "manual", "package", "adjustment"] as const;
 
@@ -46,10 +47,12 @@ export async function GET(
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: tenantId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => ({}))) as {
     appointment_id?: string | null;
     customer_phone?: string | null;

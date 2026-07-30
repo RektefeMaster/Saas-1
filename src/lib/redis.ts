@@ -75,7 +75,7 @@ const RATE_LIMIT_HOURLY_MAX = 35; // saatte max mesaj
 const RATE_LIMIT_DAILY_TTL_SECONDS = 60 * 60 * 24; // 24 saat
 const RATE_LIMIT_DAILY_MAX = 180; // günde max mesaj
 const RATE_LIMIT_COOLDOWN_SECONDS = 60 * 60 * 3; // yoğun suistimalde 3 saat soğutma
-const BOOKING_LOCK_TTL_SECONDS = 10; // Aynı slot onayı için kısa kilit
+const BOOKING_LOCK_TTL_SECONDS = 45; // Availability + insert süresini kapsar
 const BOOKING_HOLD_TTL_SECONDS = 180; // 3 dk sepet tutma
 
 /** [YENİ] Tenant cache in-memory fallback (Redis yoksa). */
@@ -93,7 +93,10 @@ const botProcessLockMemory = new Map<string, { owner: string; expiry: number }>(
 const webhookDebugMemory = new Map<string, { value: WebhookDebugRecord; expiry: number }>();
 const runtimeWhatsAppMemory = new Map<string, { value: RuntimeWhatsAppConfig; expiry: number }>();
 let globalKillSwitchMemory: GlobalKillSwitchState | null = null;
-const webhookMessageDedupeMemory = new Map<string, { expiry: number }>();
+const webhookMessageDedupeMemory = new Map<
+  string,
+  { expiry: number; state?: "processing" | "done"; claimedAt?: number }
+>();
 const tempMediaMemory = new Map<string, { value: string; expiry: number }>();
 
 /**
@@ -521,7 +524,7 @@ function botLockKey(lockKey: string): string {
 export async function acquireBotProcessingLock(
   lockKey: string,
   owner: string,
-  ttlSeconds = 20
+  ttlSeconds = 90
 ): Promise<boolean> {
   const key = botLockKey(lockKey);
   if (redis) {
@@ -689,30 +692,122 @@ function webhookMessageDedupeKey(messageId: string): string {
  * true  -> ilk kez görüldü, işlenebilir
  * false -> daha önce işlendi, tekrar işlenmemeli
  */
+export type WebhookMessageClaimResult =
+  | "acquired"
+  | "already_done"
+  | "in_progress"
+  | "unavailable";
+
+// Must exceed bot processing lock (90s) + LLM/booking headroom so Inngest retries
+// cannot reclaim while the first attempt is still running.
+const WEBHOOK_CLAIM_STALE_MS = 180 * 1000;
+
+function allowMemoryIdempotencyFallback(): boolean {
+  return process.env.NODE_ENV !== "production";
+}
+
+function parseWebhookClaimValue(raw: unknown): { state: "processing" | "done"; at: number } | null {
+  if (raw == null) return null;
+  const value = typeof raw === "string" ? raw : String(raw);
+  if (value === "1" || value === "done") {
+    return { state: "done", at: 0 };
+  }
+  if (value === "processing") {
+    return { state: "processing", at: 0 };
+  }
+  const m = value.match(/^processing:(\d+)$/);
+  if (m) {
+    return { state: "processing", at: Number(m[1]) || 0 };
+  }
+  return { state: "done", at: 0 };
+}
+
+/**
+ * Claim inbound WA message for processing.
+ * States: processing:<ts> while in-flight/failed; done when fully processed.
+ * Redis errors / missing Redis in production → unavailable (fail-closed).
+ */
 export async function claimWebhookMessageId(
   messageId: string,
   ttlSeconds = 60 * 60 * 24
-): Promise<boolean> {
+): Promise<WebhookMessageClaimResult> {
   const normalized = messageId.trim();
-  if (!normalized) return true;
+  if (!normalized) return "unavailable";
   const key = webhookMessageDedupeKey(normalized);
+  const now = Date.now();
+  const processingValue = `processing:${now}`;
 
   if (redis) {
     try {
-      const result = await redis.set(key, "1", { nx: true, ex: ttlSeconds });
-      return result === "OK";
+      const result = await redis.set(key, processingValue, { nx: true, ex: ttlSeconds });
+      if (result === "OK") return "acquired";
+
+      const current = parseWebhookClaimValue(await redis.get(key));
+      if (!current || current.state === "done") return "already_done";
+
+      const stale =
+        !current.at || now - current.at >= WEBHOOK_CLAIM_STALE_MS;
+      if (stale) {
+        // CAS-ish: only overwrite if value unchanged (avoid dual reclaim).
+        const previous =
+          current.at > 0 ? `processing:${current.at}` : current.state === "processing" ? "processing" : null;
+        if (previous) {
+          const swapped = await redis.eval(
+            `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) else return nil end`,
+            [key],
+            [previous, processingValue, String(ttlSeconds)]
+          );
+          if (swapped === "OK") return "acquired";
+          return "in_progress";
+        }
+        await redis.set(key, processingValue, { ex: ttlSeconds });
+        return "acquired";
+      }
+      return "in_progress";
     } catch (err) {
       logRedisFallback("claimWebhookMessageId", err);
+      return "unavailable";
     }
   }
 
-  const now = Date.now();
+  if (!allowMemoryIdempotencyFallback()) return "unavailable";
+
   const mem = webhookMessageDedupeMemory.get(key);
-  if (mem && mem.expiry > now) return false;
+  if (mem && mem.expiry > now) {
+    const age = now - (mem.claimedAt || 0);
+    if (mem.state === "done") return "already_done";
+    if (age < WEBHOOK_CLAIM_STALE_MS) return "in_progress";
+  }
   webhookMessageDedupeMemory.set(key, {
     expiry: now + ttlSeconds * 1000,
+    state: "processing",
+    claimedAt: now,
   });
-  return true;
+  return "acquired";
+}
+
+export async function markWebhookMessageProcessed(
+  messageId: string,
+  ttlSeconds = 60 * 60 * 24
+): Promise<void> {
+  const normalized = messageId.trim();
+  if (!normalized) return;
+  const key = webhookMessageDedupeKey(normalized);
+  if (redis) {
+    try {
+      await redis.set(key, "done", { ex: ttlSeconds });
+      return;
+    } catch (err) {
+      logRedisFallback("markWebhookMessageProcessed", err);
+    }
+  }
+  if (!allowMemoryIdempotencyFallback()) return;
+  const now = Date.now();
+  webhookMessageDedupeMemory.set(key, {
+    expiry: now + ttlSeconds * 1000,
+    state: "done",
+    claimedAt: now,
+  });
 }
 
 export async function setWebhookDebugRecord(
@@ -939,6 +1034,33 @@ function incrementMemoryCounter(key: string, ttlSeconds: number): number {
   }
   mem.count += 1;
   return mem.count;
+}
+
+/** Generic fixed-window counter for non-WA endpoints (OTP SMS, etc.). */
+export async function checkSimpleRateLimit(
+  key: string,
+  max: number,
+  windowSeconds: number
+): Promise<{ allowed: boolean; count: number }> {
+  const namespaced = `${RATE_LIMIT_PREFIX}simple:${key}`;
+  if (redis) {
+    try {
+      const count = await redis.incr(namespaced);
+      if (count === 1) {
+        await redis.expire(namespaced, windowSeconds);
+      }
+      return { allowed: count <= max, count };
+    } catch (err) {
+      logRedisFallback("checkSimpleRateLimit", err);
+      if (process.env.NODE_ENV === "production") {
+        return { allowed: false, count: max + 1 };
+      }
+    }
+  } else if (process.env.NODE_ENV === "production") {
+    return { allowed: false, count: max + 1 };
+  }
+  const count = incrementMemoryCounter(namespaced, windowSeconds);
+  return { allowed: count <= max, count };
 }
 
 // @upstash/ratelimit: Redis varsa kullan (spam koruması)
@@ -1171,8 +1293,26 @@ function bookingLockKey(tenantId: string, date: string, time: string): string {
   return `${BOOKING_LOCK_PREFIX}${tenantId}:${date}:${time}`;
 }
 
-function bookingHoldKey(tenantId: string, date: string, time: string): string {
-  return `${BOOKING_HOLD_PREFIX}${tenantId}:${date}:${time}`;
+function bookingDayLockKey(tenantId: string, date: string): string {
+  return `${BOOKING_LOCK_PREFIX}day:${tenantId}:${date}`;
+}
+
+function bookingHoldStaffPart(staffId?: string | null): string {
+  const trimmed = typeof staffId === "string" ? staffId.trim() : "";
+  return trimmed || "_";
+}
+
+function bookingHoldDayPrefix(tenantId: string, date: string): string {
+  return `${BOOKING_HOLD_PREFIX}${tenantId}:${date}:`;
+}
+
+function bookingHoldKey(
+  tenantId: string,
+  date: string,
+  time: string,
+  staffId?: string | null
+): string {
+  return `${bookingHoldDayPrefix(tenantId, date)}${time}:s:${bookingHoldStaffPart(staffId)}`;
 }
 
 function normalizeHoldPhone(phone: string): string {
@@ -1192,8 +1332,11 @@ export async function acquireBookingSlotLock(
       return result === "OK";
     } catch (err) {
       logRedisFallback("acquireBookingSlotLock", err);
+      // Fail-closed: multi-instance memory fallback cannot serialize bookings.
+      return false;
     }
   }
+  if (process.env.NODE_ENV === "production") return false;
   const now = Date.now();
   const mem = bookingLockMemory.get(key);
   if (mem && mem.expiry > now) return false;
@@ -1218,11 +1361,51 @@ export async function releaseBookingSlotLock(
   bookingLockMemory.delete(key);
 }
 
+/** Serializes all booking mutations for a tenant+date (cross-slot duration overlap races). */
+export async function acquireBookingDayLock(
+  tenantId: string,
+  date: string,
+  ttlSeconds = BOOKING_LOCK_TTL_SECONDS
+): Promise<boolean> {
+  const key = bookingDayLockKey(tenantId, date);
+  if (redis) {
+    try {
+      const result = await redis.set(key, "1", { nx: true, ex: ttlSeconds });
+      return result === "OK";
+    } catch (err) {
+      logRedisFallback("acquireBookingDayLock", err);
+      return false;
+    }
+  }
+  if (process.env.NODE_ENV === "production") return false;
+  const now = Date.now();
+  const mem = bookingLockMemory.get(key);
+  if (mem && mem.expiry > now) return false;
+  bookingLockMemory.set(key, { value: "1", expiry: now + ttlSeconds * 1000 });
+  return true;
+}
+
+export async function releaseBookingDayLock(
+  tenantId: string,
+  date: string
+): Promise<void> {
+  const key = bookingDayLockKey(tenantId, date);
+  if (redis) {
+    try {
+      await redis.del(key);
+      return;
+    } catch (err) {
+      logRedisFallback("releaseBookingDayLock", err);
+    }
+  }
+  bookingLockMemory.delete(key);
+}
+
 export async function setBookingSlotHold(
   hold: Omit<BookingHoldRecord, "expires_at">,
   ttlSeconds = BOOKING_HOLD_TTL_SECONDS
-): Promise<BookingHoldRecord> {
-  const key = bookingHoldKey(hold.tenant_id, hold.date, hold.time);
+): Promise<BookingHoldRecord | null> {
+  const key = bookingHoldKey(hold.tenant_id, hold.date, hold.time, hold.staff_id);
   const expiresAt = new Date(Date.now() + ttlSeconds * 1000).toISOString();
   const payload: BookingHoldRecord = {
     ...hold,
@@ -1232,11 +1415,59 @@ export async function setBookingSlotHold(
 
   if (redis) {
     try {
-      await redis.set(key, JSON.stringify(payload), { ex: ttlSeconds });
+      const existingRaw = await redis.get<unknown>(key);
+      let existing: BookingHoldRecord | null = null;
+      if (typeof existingRaw === "string") {
+        try {
+          existing = JSON.parse(existingRaw) as BookingHoldRecord;
+        } catch {
+          existing = null;
+        }
+      } else if (existingRaw && typeof existingRaw === "object") {
+        existing = existingRaw as BookingHoldRecord;
+      }
+
+      if (
+        existing?.customer_phone &&
+        existing.customer_phone !== payload.customer_phone
+      ) {
+        return null;
+      }
+
+      if (existing?.customer_phone === payload.customer_phone) {
+        // Refresh only while key still exists (XX). Re-read to detect TOCTOU
+        // where the hold expired and another phone claimed between GET and SET.
+        await redis.set(key, JSON.stringify(payload), { xx: true, ex: ttlSeconds });
+        const afterRaw = await redis.get<unknown>(key);
+        let after: BookingHoldRecord | null = null;
+        if (typeof afterRaw === "string") {
+          try {
+            after = JSON.parse(afterRaw) as BookingHoldRecord;
+          } catch {
+            after = null;
+          }
+        } else if (afterRaw && typeof afterRaw === "object") {
+          after = afterRaw as BookingHoldRecord;
+        }
+        if (after?.customer_phone === payload.customer_phone) return payload;
+        // Hold expired between GET and XX — fall through to NX reclaim.
+      }
+
+      const result = await redis.set(key, JSON.stringify(payload), {
+        nx: true,
+        ex: ttlSeconds,
+      });
+      if (result !== "OK") return null;
       return payload;
     } catch (err) {
       logRedisFallback("setBookingSlotHold", err);
+      return null;
     }
+  }
+  if (process.env.NODE_ENV === "production") return null;
+  const mem = bookingHoldMemory.get(key);
+  if (mem && mem.expiry > Date.now()) {
+    if (mem.value.customer_phone !== payload.customer_phone) return null;
   }
   bookingHoldMemory.set(key, {
     value: payload,
@@ -1248,9 +1479,10 @@ export async function setBookingSlotHold(
 export async function getBookingSlotHold(
   tenantId: string,
   date: string,
-  time: string
+  time: string,
+  staffId?: string | null
 ): Promise<BookingHoldRecord | null> {
-  const key = bookingHoldKey(tenantId, date, time);
+  const key = bookingHoldKey(tenantId, date, time, staffId);
   if (redis) {
     try {
       const raw = await redis.get<unknown>(key);
@@ -1268,9 +1500,10 @@ export async function getBookingSlotHold(
 export async function clearBookingSlotHold(
   tenantId: string,
   date: string,
-  time: string
+  time: string,
+  staffId?: string | null
 ): Promise<void> {
-  const key = bookingHoldKey(tenantId, date, time);
+  const key = bookingHoldKey(tenantId, date, time, staffId);
   if (redis) {
     try {
       await redis.del(key);
@@ -1286,7 +1519,7 @@ export async function getBookingHoldsForDate(
   tenantId: string,
   date: string
 ): Promise<BookingHoldRecord[]> {
-  const prefix = bookingHoldKey(tenantId, date, "");
+  const prefix = bookingHoldDayPrefix(tenantId, date);
   if (redis) {
     try {
       const keys = await scanKeys(`${prefix}*`, 500); // Günlük booking hold sayısı genelde 500'den az
@@ -1301,7 +1534,11 @@ export async function getBookingHoldsForDate(
       return holds;
     } catch (err) {
       logRedisFallback("getBookingHoldsForDate", err);
+      throw new Error("booking_holds_unavailable");
     }
+  }
+  if (process.env.NODE_ENV === "production") {
+    throw new Error("booking_holds_unavailable");
   }
   const now = Date.now();
   const holds: BookingHoldRecord[] = [];
@@ -1336,7 +1573,13 @@ export async function checkAdminLoginRateLimit(identifier: string): Promise<{ al
       return { allowed: true };
     } catch (err) {
       logRedisFallback("checkAdminLoginRateLimit", err);
+      // Fail-closed in production: memory fallback is per-instance and weak under serverless.
+      if (process.env.NODE_ENV === "production") {
+        return { allowed: false, retryAfterSeconds: 60 };
+      }
     }
+  } else if (process.env.NODE_ENV === "production") {
+    return { allowed: false, retryAfterSeconds: 60 };
   }
   const now = Date.now();
   const mem = adminLoginMemory.get(key);

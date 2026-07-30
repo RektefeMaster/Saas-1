@@ -5,8 +5,24 @@ import {
   hasReview,
   hasCustomerRatedService,
 } from "@/services/review.service";
+import { phoneVariants } from "@/lib/phone";
 import { RATING_MAP } from "./constants";
 import { normalizeIncomingText } from "./normalizers";
+
+/** Ambiguous tokens that must not rate alone / in long booking phrases. */
+const AMBIGUOUS_RATING_WORDS = new Set(["bir", "iki", "uc", "iyi", "guzel"]);
+
+const STRONG_RATING_WORDS = new Set([
+  "bes",
+  "dort",
+  "mukemmel",
+  "harika",
+  "super",
+  "orta",
+  "idare",
+  "kotu",
+  "berbat",
+]);
 
 function parseRating(text: string): number | null {
   const raw = String(text || "").trim();
@@ -30,53 +46,49 @@ function parseRating(text: string): number | null {
     );
     if (directDigit) return parseInt(directDigit[1], 10);
 
-    const trailingDigit = normalized.match(/(?:^|\s)([1-5])\s*$/);
-    if (trailingDigit) return parseInt(trailingDigit[1], 10);
-
+    const hasReviewKeyword = /\b(puan|yildiz|degerlendirme|rating)\b/.test(normalized);
     const words = normalized
       .replace(/\s*(?:yildiz|star|puan)\s*/g, " ")
       .split(/\s+/)
       .filter(Boolean);
-    const hasReviewKeyword = /\b(puan|yildiz|degerlendirme|rating)\b/.test(normalized);
+
+    // Short rating-focused messages only; never scan long sentences for ambiguous words.
+    if (words.length > 3 && !hasReviewKeyword) continue;
+
     for (const w of words) {
-      if (RATING_MAP[w] != null && (hasReviewKeyword || words.length <= 3)) {
+      if (AMBIGUOUS_RATING_WORDS.has(w)) {
+        if (hasReviewKeyword && words.length <= 3) return RATING_MAP[w] ?? null;
+        continue;
+      }
+      if (STRONG_RATING_WORDS.has(w) && RATING_MAP[w] != null) {
+        if (hasReviewKeyword || words.length <= 2) return RATING_MAP[w];
+      }
+      if (RATING_MAP[w] != null && hasReviewKeyword && words.length <= 3) {
         return RATING_MAP[w];
       }
-    }
-    if (words.length <= 2 && RATING_MAP[normalized] != null) {
-      return RATING_MAP[normalized];
     }
   }
   return null;
 }
 
-const REVIEW_SKIP_PHRASES = [
+/** Exact skip only when a review reminder is outstanding — bare "hayir"/"gec" must not hijack chat. */
+const REVIEW_SKIP_EXACT = new Set([
   "gec",
-  "geç",
   "atla",
-  "sonra",
-  "istemiyorum",
   "pas",
   "skip",
-  "hayır",
-  "vazgeçtim",
-  "yok",
-  "gerek yok",
-  "gerekmez",
-];
+  "puan vermek istemiyorum",
+  "degerlendirmek istemiyorum",
+  "degerlendirme istemiyorum",
+  "puan istemiyorum",
+]);
 
 function isReviewSkipMessage(normalizedText: string): boolean {
   if (!normalizedText) return false;
   const compact = normalizedText.replace(/[^\w\s]/g, " ").replace(/\s+/g, " ").trim();
-  return REVIEW_SKIP_PHRASES.some((phrase) => {
-    const normPhrase = normalizeIncomingText(phrase);
-    return (
-      compact === normPhrase ||
-      compact.startsWith(`${normPhrase} `) ||
-      compact.endsWith(` ${normPhrase}`) ||
-      compact.includes(` ${normPhrase} `)
-    );
-  });
+  if (!compact) return false;
+  if (REVIEW_SKIP_EXACT.has(compact)) return true;
+  return /^(?:puan|degerlendirme)\s+(?:istemiyorum|atla|gec)$/.test(compact);
 }
 
 function hasReviewKeyword(normalizedText: string): boolean {
@@ -87,7 +99,10 @@ function isStandaloneRatingMessage(normalizedText: string): boolean {
   if (!normalizedText) return false;
   if (/^[1-5]$/.test(normalizedText)) return true;
   if (/^[1-5]\s*(?:yildiz|star|puan)?$/.test(normalizedText)) return true;
-  if (/^(bir|iki|uc|dort|bes|harika|guzel|kotu|berbat)$/.test(normalizedText)) return true;
+  // Strong words only as standalone; exclude bir/iki/uc/iyi/guzel alone.
+  if (/^(bes|dort|harika|mukemmel|super|orta|kotu|berbat)$/.test(normalizedText)) {
+    return true;
+  }
   return false;
 }
 
@@ -106,20 +121,32 @@ export async function tryHandleReview(
     return { handled: false };
   }
 
+  // Cover cron delay up to 48h + reply buffer.
+  const lookbackStart = new Date(Date.now() - 72 * 60 * 60 * 1000);
   const thirtyMinutesAgo = new Date(Date.now() - 30 * 60 * 1000);
 
-  const { data: apt } = await supabase
+  const phoneKeys = phoneVariants(customerPhone);
+  let aptQuery = supabase
     .from("appointments")
-    .select("id, service_slug, extra_data")
+    .select("id, service_slug, extra_data, customer_phone")
     .eq("tenant_id", tenantId)
-    .eq("customer_phone", customerPhone)
     .lt("slot_start", thirtyMinutesAgo.toISOString())
+    .gte("slot_start", lookbackStart.toISOString())
     .in("status", ["completed", "confirmed"])
     .order("slot_start", { ascending: false })
-    .limit(1)
-    .single();
+    .limit(1);
+  if (phoneKeys.length > 0) {
+    aptQuery = aptQuery.in("customer_phone", phoneKeys);
+  } else {
+    aptQuery = aptQuery.eq("customer_phone", customerPhone);
+  }
+  const { data: apt } = await aptQuery.maybeSingle();
 
   if (!apt) {
+    // Don't hijack normal chat when there is no recent reviewable appointment.
+    if (!hasKeywordSignal && !hasStarSymbol && !wantsSkip) {
+      return { handled: false };
+    }
     return {
       handled: true,
       reply: "Aktif bir değerlendirme kaydı bulamadım, yine de teşekkürler.",
@@ -135,7 +162,8 @@ export async function tryHandleReview(
       ? appointmentExtra.review_reminder_sent_at
       : null;
 
-  if (!wantsSkip && !hasKeywordSignal && !hasStarSymbol && isStandaloneSignal && !reminderSentAt) {
+  // Standalone ratings AND skip phrases require an outstanding review reminder.
+  if (!hasKeywordSignal && !hasStarSymbol && !reminderSentAt) {
     return { handled: false };
   }
 

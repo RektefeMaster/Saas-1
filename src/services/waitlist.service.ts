@@ -1,5 +1,7 @@
 import { supabase } from "@/lib/supabase";
+import { clearBookingSlotHold } from "@/lib/redis";
 import { sendWhatsAppMessage } from "@/lib/whatsapp";
+import { reserveAppointment } from "@/services/booking.service";
 
 export async function addToWaitlist(
   tenantId: string,
@@ -38,23 +40,54 @@ export async function notifyWaitlist(
     .select("id, customer_phone, desired_time")
     .eq("tenant_id", tenantId)
     .eq("desired_date", date)
-    .eq("notified", false);
+    .eq("notified", false)
+    .limit(20);
 
   if (!entries || entries.length === 0) return 0;
 
   let notified = 0;
+  const remaining = [...availableSlots];
   for (const entry of entries) {
-    const slots = entry.desired_time
-      ? availableSlots.filter((s) => s === entry.desired_time)
-      : availableSlots;
-    if (slots.length === 0) continue;
+    const preferred = entry.desired_time
+      ? remaining.filter((s) => s === entry.desired_time)
+      : remaining;
+    if (preferred.length === 0) continue;
+    const slot = preferred[0];
 
-    await sendWhatsAppMessage({
-      to: entry.customer_phone,
-      text: `${tenantName} için ${date} tarihinde yer açıldı! Müsait saatler: ${slots.join(", ")}. Hemen yazmak ister misin?`,
+    // Claim waitlist row first so concurrent workers cannot double-notify.
+    const { data: claimed } = await supabase
+      .from("waitlist")
+      .update({ notified: true })
+      .eq("id", entry.id)
+      .eq("notified", false)
+      .select("id")
+      .maybeSingle();
+    if (!claimed) continue;
+
+    const hold = await reserveAppointment({
+      tenantId,
+      customerPhone: entry.customer_phone,
+      date,
+      time: slot,
+      holdOnly: true,
+      holdTtlSeconds: 180,
     });
+    if (!hold.ok) {
+      await supabase.from("waitlist").update({ notified: false }).eq("id", entry.id);
+      continue;
+    }
 
-    await supabase.from("waitlist").update({ notified: true }).eq("id", entry.id);
+    const sent = await sendWhatsAppMessage({
+      to: entry.customer_phone,
+      text: `${tenantName} için ${date} tarihinde yer açıldı! Önerilen saat: ${slot}. Hemen yazmak ister misin? (3 dk tutuluyor)`,
+    });
+    if (!sent) {
+      await clearBookingSlotHold(tenantId, date, slot, hold.staff_id).catch(() => undefined);
+      await supabase.from("waitlist").update({ notified: false }).eq("id", entry.id);
+      continue;
+    }
+
+    remaining.splice(remaining.indexOf(slot), 1);
     notified++;
   }
   return notified;

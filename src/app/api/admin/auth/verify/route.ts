@@ -1,46 +1,37 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createAdminToken, getAdminCookieName, getAdminCookieOpts, isAdminPasswordValid } from "@/lib/admin-auth";
-import { deleteOtpChallenge, getOtpChallenge, updateOtpChallengeAttempts } from "@/lib/redis";
-import { getTwilioVerifyStatus, verifySmsCode } from "@/lib/twilio";
 import {
-  ADMIN_OTP_COOKIE,
+  createAdminToken,
+  getAdminClientIdentifier,
+  getAdminCookieName,
+  getAdminCookieOpts,
+} from "@/lib/admin-auth";
+import {
+  deleteOtpChallenge,
+  getOtpChallenge,
+  resetAdminLoginRateLimit,
+  updateOtpChallengeAttempts,
+} from "@/lib/redis";
+import { getTwilioVerifyStatus, verifySmsCodeDetailed } from "@/lib/twilio";
+import {
   OTP_MAX_ATTEMPTS,
-  OTP_VERIFIED_TTL_SECONDS,
-  cookieSecure,
   isSms2faEnabledFlag,
 } from "@/lib/otp-auth";
 
 export async function POST(request: NextRequest) {
   try {
+    if (!isSms2faEnabledFlag()) {
+      return NextResponse.json(
+        { error: "OTP akışı kapalı. Gizli giriş (hidden login) kullanın." },
+        { status: 400 }
+      );
+    }
+
     const body = (await request.json().catch(() => ({}))) as {
       challenge_id?: string;
       code?: string;
-      password?: string;
     };
     const challengeId = body.challenge_id?.trim();
     const code = body.code?.trim();
-
-    if (!isSms2faEnabledFlag()) {
-      const password = body.password;
-      if (!password || typeof password !== "string") {
-        return NextResponse.json({ error: "password gerekli" }, { status: 400 });
-      }
-      if (!isAdminPasswordValid(password)) {
-        await new Promise((r) => setTimeout(r, 2000));
-        return NextResponse.json({ error: "Geçersiz şifre" }, { status: 401 });
-      }
-      const token = await createAdminToken();
-      const res = NextResponse.json({ success: true });
-      res.cookies.set(getAdminCookieName(), token, getAdminCookieOpts());
-      res.cookies.set(ADMIN_OTP_COOKIE, "ok", {
-        httpOnly: true,
-        secure: cookieSecure(),
-        sameSite: "strict",
-        path: "/",
-        maxAge: OTP_VERIFIED_TTL_SECONDS,
-      });
-      return res;
-    }
 
     const twilioStatus = getTwilioVerifyStatus();
     if (!twilioStatus.configReady) {
@@ -69,23 +60,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Maksimum deneme aşıldı" }, { status: 429 });
     }
 
-    const ok = await verifySmsCode(challenge.phone, code);
-    if (!ok) {
+    const verifyResult = await verifySmsCodeDetailed(challenge.phone, code);
+    if (!verifyResult.ok) {
+      if (verifyResult.reason === "upstream_error") {
+        return NextResponse.json(
+          { error: "SMS doğrulama servisi geçici olarak kullanılamıyor" },
+          { status: 503 }
+        );
+      }
       await updateOtpChallengeAttempts(challengeId, challenge.attempts + 1);
       return NextResponse.json({ error: "Kod doğrulanamadı" }, { status: 401 });
     }
 
     await deleteOtpChallenge(challengeId);
+    await resetAdminLoginRateLimit(getAdminClientIdentifier(request));
     const token = await createAdminToken();
     const res = NextResponse.json({ success: true });
     res.cookies.set(getAdminCookieName(), token, getAdminCookieOpts());
-    res.cookies.set(ADMIN_OTP_COOKIE, "ok", {
-      httpOnly: true,
-      secure: cookieSecure(),
-      sameSite: "strict",
-      path: "/",
-      maxAge: OTP_VERIFIED_TTL_SECONDS,
-    });
     return res;
   } catch (err) {
     const msg = err instanceof Error ? err.message : "OTP doğrulama hatası";

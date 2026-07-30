@@ -110,6 +110,17 @@ export async function executeToolCall(
       serviceSlug,
       customerPhone,
     });
+    if (daily.checkFailed) {
+      return {
+        result: {
+          date: dateStr,
+          date_readable: formatDateTr(dateStr),
+          status: "availability_check_failed",
+          available: [],
+          booked_count: 0,
+        },
+      };
+    }
     const availability = {
       available: daily.available,
       booked: daily.booked,
@@ -302,9 +313,7 @@ export async function executeToolCall(
         staffId: staffId || null,
         source: "bot",
       }).catch((e) => console.error("[ai] merchant notify error:", e));
-      checkAndNotifyWaitlist(tenantId, dateStr, configOverride).catch((e) =>
-        console.error("[ai] waitlist notify error:", e)
-      );
+      // Waitlist notify only on cancel (slot freed), not on create.
       await upsertCrmCustomer(tenantId, customerPhone, customerName);
       return {
         result: {
@@ -469,6 +478,7 @@ export async function executeToolCall(
       tenantId,
       appointmentId: aptId,
       cancelledBy: "customer",
+      customerPhone,
       reason: args.reason as string,
     });
     if (cancelResult.ok) {
@@ -613,6 +623,7 @@ export async function executeToolCall(
       tenantId,
       appointmentId: aptId,
       cancelledBy: "customer",
+      customerPhone,
       reason: "Yeniden planlama",
     });
     if (!cancelRes.ok) {

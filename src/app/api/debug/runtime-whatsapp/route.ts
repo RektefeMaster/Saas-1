@@ -6,21 +6,7 @@ import {
   setRuntimeWhatsAppConfig,
 } from "@/lib/redis";
 import { sendWhatsAppMessageDetailed } from "@/lib/whatsapp";
-
-function getDiagToken(): string {
-  return (
-    process.env.WHATSAPP_DIAG_TOKEN?.trim() ||
-    process.env.WHATSAPP_VERIFY_TOKEN?.trim() ||
-    ""
-  );
-}
-
-function isAuthorized(request: NextRequest): boolean {
-  const expected = getDiagToken();
-  if (!expected) return false;
-  const key = request.nextUrl.searchParams.get("key") || request.headers.get("x-diag-key") || "";
-  return key === expected;
-}
+import { requireDebugAccess } from "@/lib/debug-auth";
 
 function maskTail(value: string, keep = 4): string {
   if (!value) return "";
@@ -28,10 +14,9 @@ function maskTail(value: string, keep = 4): string {
   return `${"*".repeat(Math.max(0, value.length - keep))}${value.slice(-keep)}`;
 }
 
-export async function GET(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+export async function GET(_request: NextRequest) {
+  const blocked = await requireDebugAccess();
+  if (blocked) return blocked;
 
   const runtime = await getRuntimeWhatsAppConfig();
   const envPhone = (process.env.WHATSAPP_PHONE_NUMBER_ID || "").trim();
@@ -60,9 +45,8 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  if (!isAuthorized(request)) {
-    return NextResponse.json({ error: "forbidden" }, { status: 403 });
-  }
+  const blocked = await requireDebugAccess();
+  if (blocked) return blocked;
 
   const payload = (await request.json().catch(() => ({}))) as {
     action?: string;

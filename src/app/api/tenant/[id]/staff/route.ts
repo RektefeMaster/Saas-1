@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 import { normalizePhoneE164 } from "@/lib/phone";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 interface StaffRow {
   id: string;
@@ -98,6 +99,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: tenantId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => ({}))) as {
     name?: string;
     phone_e164?: string | null;

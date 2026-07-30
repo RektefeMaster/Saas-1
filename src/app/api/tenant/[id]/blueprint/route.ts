@@ -1,10 +1,11 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   getTenantBlueprint,
   listBlueprintCatalog,
   upsertTenantBlueprintOverride,
 } from "@/services/blueprint.service";
 import { logTenantEvent } from "@/services/eventLog.service";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 export async function GET(
   request: Request,
@@ -31,11 +32,13 @@ export async function GET(
 }
 
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: tenantId } = await params;
+    const auth = await requireTenantApiAccess(request, tenantId);
+    if (!auth.ok) return auth.response;
     const body = (await request.json().catch(() => ({}))) as {
       modules?: Record<string, unknown>;
       kpi_targets?: Record<string, unknown>;

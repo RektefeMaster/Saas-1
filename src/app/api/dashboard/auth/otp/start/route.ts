@@ -5,8 +5,16 @@ import { supabase } from "@/lib/supabase";
 import { loginEmailToUsernameDisplay, normalizeUsername } from "@/lib/username-auth";
 import { setOtpChallenge } from "@/lib/redis";
 import { getTwilioVerifyStatus, sendSmsVerification } from "@/lib/twilio";
-import { OTP_TTL_SECONDS, isSms2faEnabledFlag } from "@/lib/otp-auth";
+import {
+  DASHBOARD_OTP_COOKIE,
+  OTP_TTL_SECONDS,
+  OTP_VERIFIED_TTL_SECONDS,
+  cookieSecure,
+  createDashboardOtpCookieValue,
+  isSms2faEnabledFlag,
+} from "@/lib/otp-auth";
 import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
+import { checkSimpleRateLimit } from "@/lib/redis";
 
 async function findTenantByUserId(userId: string): Promise<{
   tenant: Record<string, unknown> | null;
@@ -102,6 +110,21 @@ async function syncTenantAuthLink(
   await supabase.from("tenants").update(updates).eq("id", tenantId);
 }
 
+function otpSkippedResponse(userId: string): NextResponse {
+  const res = NextResponse.json({ success: true, requires_otp: false });
+  const value = createDashboardOtpCookieValue(userId, OTP_VERIFIED_TTL_SECONDS);
+  if (value) {
+    res.cookies.set(DASHBOARD_OTP_COOKIE, value, {
+      httpOnly: true,
+      secure: cookieSecure(),
+      sameSite: "strict",
+      path: "/",
+      maxAge: OTP_VERIFIED_TTL_SECONDS,
+    });
+  }
+  return res;
+}
+
 export async function POST() {
   try {
     const supabaseClient = await createClient();
@@ -113,8 +136,20 @@ export async function POST() {
       return NextResponse.json({ error: "Oturum bulunamadı" }, { status: 401 });
     }
 
+    const otpStartLimit = await checkSimpleRateLimit(
+      `dashboard-otp-start:${user.id}`,
+      3,
+      60 * 15
+    );
+    if (!otpStartLimit.allowed) {
+      return NextResponse.json(
+        { error: "Çok fazla OTP isteği. Lütfen biraz sonra tekrar deneyin." },
+        { status: 429 }
+      );
+    }
+
     if (!isSms2faEnabledFlag()) {
-      return NextResponse.json({ success: true, requires_otp: false });
+      return otpSkippedResponse(user.id);
     }
 
     const twilioStatus = getTwilioVerifyStatus();
@@ -161,7 +196,7 @@ export async function POST() {
       missingColumns.has("security_config") ? {} : tenant.security_config || {}
     ) as Record<string, unknown>;
     if (securityConfig.sms_2fa_enabled === false) {
-      return NextResponse.json({ success: true, requires_otp: false });
+      return otpSkippedResponse(user.id);
     }
 
     const ownerPhone =
@@ -171,8 +206,14 @@ export async function POST() {
     const contactPhone = typeof tenant.contact_phone === "string" ? tenant.contact_phone : "";
     const phone = (ownerPhone || contactPhone || "").trim();
     if (!phone) {
-      // Telefon yoksa OTP atla; kullanıcı giriş yapabilsin (işletme sahibi panelde telefon ekleyebilir)
-      return NextResponse.json({ success: true, requires_otp: false });
+      // Global SMS 2FA açıkken telefonsuz skip = 2FA bypass. Zorunlu telefon iste.
+      return NextResponse.json(
+        {
+          error:
+            "SMS doğrulama için işletme telefonu gerekli. Lütfen yöneticinizden owner telefonu eklemesini isteyin.",
+        },
+        { status: 403 }
+      );
     }
 
     await sendSmsVerification(phone);

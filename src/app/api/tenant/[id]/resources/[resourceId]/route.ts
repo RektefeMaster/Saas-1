@@ -1,15 +1,18 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 import { logTenantEvent } from "@/services/eventLog.service";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 const VALID_STATUS = ["active", "inactive", "maintenance"] as const;
 
 export async function PATCH(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; resourceId: string }> }
 ) {
   const { id: tenantId, resourceId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => ({}))) as {
     name?: string;
     status?: string;
@@ -64,10 +67,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; resourceId: string }> }
 ) {
   const { id: tenantId, resourceId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
 
   const { error } = await supabase
     .from("tenant_resources")

@@ -5,6 +5,7 @@ import {
   type OpsAlertStatus,
 } from "@/services/opsAlert.service";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 export async function GET(
   request: NextRequest,
@@ -20,7 +21,7 @@ export async function GET(
     const alerts = await listOpsAlerts(tenantId, status, limitParam);
     return NextResponse.json(alerts, {
       headers: {
-        "Cache-Control": "s-maxage=30, stale-while-revalidate=60",
+        "Cache-Control": "private, no-store",
       },
     });
   } catch (err) {
@@ -41,6 +42,8 @@ export async function POST(
 ) {
   try {
     const { id: tenantId } = await params;
+    const auth = await requireTenantApiAccess(request, tenantId);
+    if (!auth.ok) return auth.response;
     const body = (await request.json().catch(() => ({}))) as {
       type?: "delay" | "cancellation" | "no_show" | "system";
       severity?: "low" | "medium" | "high";

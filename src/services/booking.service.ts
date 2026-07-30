@@ -1,13 +1,16 @@
 import { supabase } from "@/lib/supabase";
 import {
+  acquireBookingDayLock,
   acquireBookingSlotLock,
   clearBookingSlotHold,
   getBookingHoldsForDate,
+  releaseBookingDayLock,
   releaseBookingSlotLock,
   setBookingSlotHold,
 } from "@/lib/redis";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
-import { checkBlockedDate } from "@/services/blockedDates.service";
+import { checkBlockedDateDetailed } from "@/services/blockedDates.service";
+import { isCustomerBlocked } from "@/services/blacklist.service";
 import { normalizePhoneDigits } from "@/lib/phone";
 
 const DEFAULT_WORKING_HOURS = { start: "09:00", end: "18:00" };
@@ -61,6 +64,8 @@ export interface DailyAvailabilityResult {
   available: string[];
   booked: string[];
   blocked?: boolean;
+  /** True when blocked_dates (or related) lookup failed — do not treat as open or blocked. */
+  checkFailed?: boolean;
   closed?: boolean;
   noSchedule?: boolean;
   workingHours: { start: string; end: string } | null;
@@ -86,16 +91,19 @@ export interface ReserveAppointmentResult {
   suggested_time?: string;
   hold_expires_at?: string;
   duration_minutes?: number;
+  staff_id?: string | null;
 }
 
 function normalizeDateString(date: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
-  const parts = date.split("-").map(Number);
-  const d = new Date(parts[0], parts[1] - 1, parts[2]);
+  const [y, m, day] = date.split("-").map(Number);
+  const d = new Date(y, m - 1, day);
   if (isNaN(d.getTime())) return null;
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(
-    d.getDate()
-  ).padStart(2, "0")}`;
+  // Reject overflow dates like 2025-02-31 → March 3.
+  if (d.getFullYear() !== y || d.getMonth() !== m - 1 || d.getDate() !== day) {
+    return null;
+  }
+  return `${String(y).padStart(4, "0")}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
 }
 
 function localDateStr(date: Date, timeZone = APP_TIMEZONE): string {
@@ -198,10 +206,14 @@ async function getTenantScheduleContext(
   );
 
   const dayOfWeek = getDayOfWeek(normalizedDate);
-  const { data: slots } = await supabase
+  const { data: slots, error: slotsError } = await supabase
     .from("availability_slots")
     .select("day_of_week, start_time, end_time, staff_id")
     .eq("tenant_id", tenantId);
+
+  if (slotsError) {
+    throw new Error(`availability_slots_query_failed:${slotsError.message}`);
+  }
 
   if (!slots || slots.length === 0) {
     const defaultHours = (override.default_working_hours || null) as
@@ -284,11 +296,21 @@ async function getServiceDurationMinutes(
   return Math.min(240, Math.max(5, value));
 }
 
+async function resolveTenantTimezone(tenantId: string): Promise<string> {
+  const { data } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", tenantId)
+    .maybeSingle();
+  return (data?.timezone as string)?.trim() || APP_TIMEZONE;
+}
+
 async function getBookedIntervalsForDate(
   tenantId: string,
   date: string,
   fallbackDurationMinutes: number,
-  staffId?: string | null
+  staffId?: string | null,
+  timeZone: string = APP_TIMEZONE
 ): Promise<{ intervals: TimeInterval[]; starts: string[] }> {
   const window = getUtcSearchWindowForDate(date);
   let appointmentsQuery = supabase
@@ -302,7 +324,10 @@ async function getBookedIntervalsForDate(
     appointmentsQuery = appointmentsQuery.eq("staff_id", staffId);
   }
 
-  const { data: appointments } = await appointmentsQuery;
+  const { data: appointments, error: appointmentsError } = await appointmentsQuery;
+  if (appointmentsError) {
+    throw new Error(`appointments_query_failed:${appointmentsError.message}`);
+  }
 
   const rows = appointments || [];
   const slugs = [
@@ -330,9 +355,9 @@ async function getBookedIntervalsForDate(
   for (const row of rows) {
     const d = new Date(row.slot_start);
     if (isNaN(d.getTime())) continue;
-    if (localDateStr(d) !== date) continue;
+    if (localDateStr(d, timeZone) !== date) continue;
     const time = new Intl.DateTimeFormat("en-GB", {
-      timeZone: APP_TIMEZONE,
+      timeZone,
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,
@@ -362,6 +387,10 @@ async function getEligibleStaffIds(
     .eq("tenant_id", tenantId)
     .eq("active", true);
 
+  if (staffResult.error) {
+    throw new Error(`staff_query_failed:${staffResult.error.message}`);
+  }
+
   const staffRows = (staffResult.data || []) as Array<{ id: string }>;
   const activeStaffIds = staffRows.map((row) => row.id);
   if (activeStaffIds.length === 0) return [];
@@ -390,7 +419,7 @@ async function getEligibleStaffIds(
     return activeStaffIds;
   }
 
-  return activeStaffIds;
+  throw new Error(`staff_services_query_failed:${mappingResult.error.message}`);
 }
 
 async function getStaffLoadForDate(
@@ -401,6 +430,7 @@ async function getStaffLoadForDate(
   const counts = new Map<string, number>();
   if (staffIds.length === 0) return counts;
 
+  const timeZone = await resolveTenantTimezone(tenantId);
   const window = getUtcSearchWindowForDate(date);
   const result = await supabase
     .from("appointments")
@@ -411,11 +441,15 @@ async function getStaffLoadForDate(
     .lt("slot_start", window.to)
     .neq("status", "cancelled");
 
+  if (result.error) {
+    throw new Error(`staff_load_query_failed:${result.error.message}`);
+  }
+
   for (const row of result.data || []) {
     if (!row.staff_id) continue;
     const slot = new Date(row.slot_start);
     if (Number.isNaN(slot.getTime())) continue;
-    if (localDateStr(slot) !== date) continue;
+    if (localDateStr(slot, timeZone) !== date) continue;
     counts.set(row.staff_id, (counts.get(row.staff_id) || 0) + 1);
   }
 
@@ -450,6 +484,7 @@ async function findStaffForRequestedSlot(
   });
 
   const aggregate = new Set<string>();
+  let sawCheckFailed = false;
   for (const staffId of orderedStaffIds) {
     const daily = await getDailyAvailability(tenantId, date, {
       serviceSlug: options?.serviceSlug,
@@ -457,6 +492,10 @@ async function findStaffForRequestedSlot(
       configOverride: options?.configOverride,
       staffId,
     });
+    if (daily.checkFailed) {
+      sawCheckFailed = true;
+      continue;
+    }
     for (const slot of daily.available) {
       aggregate.add(slot);
     }
@@ -467,6 +506,10 @@ async function findStaffForRequestedSlot(
         hadEligibleStaff: true,
       };
     }
+  }
+
+  if (sawCheckFailed && aggregate.size === 0) {
+    throw new Error("availability_check_failed");
   }
 
   return {
@@ -535,8 +578,129 @@ export async function getDailyAvailability(
     };
   }
 
-  const blocked = await checkBlockedDate(tenantId, normalizedDate);
-  if (blocked) {
+  // Multi-staff: without a specific staffId, union slots any eligible staff can take
+  // (avoid treating every staff booking as a shared single-pool block).
+  if (!options?.staffId) {
+    let eligibleStaffIds: string[] = [];
+    try {
+      eligibleStaffIds = await getEligibleStaffIds(tenantId, options?.serviceSlug);
+    } catch (err) {
+      console.error("[getDailyAvailability] staff eligibility failed:", err);
+      return {
+        date: normalizedDate,
+        checkFailed: true,
+        available: [],
+        booked: [],
+        workingHours: null,
+        durationMinutes: 30,
+      };
+    }
+    if (eligibleStaffIds.length >= 1) {
+      const availableSet = new Set<string>();
+      const bookedSet = new Set<string>();
+      let workingHours: DailyAvailabilityResult["workingHours"] = null;
+      let durationMinutes = 30;
+      let sawOpen = false;
+      let sawBlocked = false;
+      let sawClosed = false;
+      let sawNoSchedule = false;
+      let sawCheckFailed = false;
+
+      for (const staffId of eligibleStaffIds) {
+        const daily = await getDailyAvailability(tenantId, normalizedDate, {
+          ...options,
+          staffId,
+        });
+        if (daily.checkFailed) {
+          sawCheckFailed = true;
+          continue;
+        }
+        if (daily.blocked) {
+          sawBlocked = true;
+          continue;
+        }
+        if (daily.closed) {
+          sawClosed = true;
+          continue;
+        }
+        if (daily.noSchedule) {
+          sawNoSchedule = true;
+          continue;
+        }
+        sawOpen = true;
+        durationMinutes = daily.durationMinutes;
+        workingHours = daily.workingHours;
+        for (const t of daily.available) availableSet.add(t);
+        for (const t of daily.booked) bookedSet.add(t);
+      }
+
+      if (!sawOpen) {
+        if (sawCheckFailed) {
+          return {
+            date: normalizedDate,
+            checkFailed: true,
+            available: [],
+            booked: [],
+            workingHours: null,
+            durationMinutes,
+          };
+        }
+        if (sawBlocked && !sawClosed && !sawNoSchedule) {
+          return {
+            date: normalizedDate,
+            blocked: true,
+            available: [],
+            booked: [],
+            workingHours: null,
+            durationMinutes,
+          };
+        }
+        if (sawClosed) {
+          return {
+            date: normalizedDate,
+            closed: true,
+            available: [],
+            booked: [],
+            workingHours,
+            durationMinutes,
+          };
+        }
+        return {
+          date: normalizedDate,
+          noSchedule: true,
+          available: [],
+          booked: [],
+          workingHours: null,
+          durationMinutes,
+        };
+      }
+
+      const sortTimes = (times: string[]) =>
+        [...times].sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+      return {
+        date: normalizedDate,
+        available: sortTimes([...availableSet]),
+        booked: sortTimes([...bookedSet]),
+        workingHours,
+        durationMinutes,
+      };
+    }
+  }
+
+  const tenantTimezone = await resolveTenantTimezone(tenantId);
+
+  const blockedCheck = await checkBlockedDateDetailed(tenantId, normalizedDate);
+  if (!blockedCheck.ok) {
+    return {
+      date: normalizedDate,
+      checkFailed: true,
+      available: [],
+      booked: [],
+      workingHours: null,
+      durationMinutes: 30,
+    };
+  }
+  if (blockedCheck.blocked) {
     return {
       date: normalizedDate,
       blocked: true,
@@ -547,12 +711,25 @@ export async function getDailyAvailability(
     };
   }
 
-  const schedule = await getTenantScheduleContext(
-    tenantId,
-    normalizedDate,
-    options?.configOverride,
-    options?.staffId
-  );
+  let schedule: Awaited<ReturnType<typeof getTenantScheduleContext>>;
+  try {
+    schedule = await getTenantScheduleContext(
+      tenantId,
+      normalizedDate,
+      options?.configOverride,
+      options?.staffId
+    );
+  } catch (err) {
+    console.error("[getDailyAvailability] schedule failed:", err);
+    return {
+      date: normalizedDate,
+      checkFailed: true,
+      available: [],
+      booked: [],
+      workingHours: null,
+      durationMinutes: 30,
+    };
+  }
   if (schedule.noSchedule) {
     return {
       date: normalizedDate,
@@ -580,14 +757,44 @@ export async function getDailyAvailability(
     schedule.baseSlotMinutes
   );
 
-  const { intervals: appointmentIntervals, starts } = await getBookedIntervalsForDate(
-    tenantId,
-    normalizedDate,
-    schedule.baseSlotMinutes,
-    options?.staffId
-  );
+  let appointmentIntervals: TimeInterval[];
+  let starts: string[];
+  try {
+    const booked = await getBookedIntervalsForDate(
+      tenantId,
+      normalizedDate,
+      schedule.baseSlotMinutes,
+      options?.staffId,
+      tenantTimezone
+    );
+    appointmentIntervals = booked.intervals;
+    starts = booked.starts;
+  } catch (err) {
+    console.error("[getDailyAvailability] booked intervals failed:", err);
+    return {
+      date: normalizedDate,
+      checkFailed: true,
+      available: [],
+      booked: [],
+      workingHours: { start: schedule.startTime, end: schedule.endTime },
+      durationMinutes,
+    };
+  }
 
-  const holds = await getBookingHoldsForDate(tenantId, normalizedDate);
+  let holds: Awaited<ReturnType<typeof getBookingHoldsForDate>>;
+  try {
+    holds = await getBookingHoldsForDate(tenantId, normalizedDate);
+  } catch (err) {
+    console.error("[getDailyAvailability] holds failed:", err);
+    return {
+      date: normalizedDate,
+      checkFailed: true,
+      available: [],
+      booked: [],
+      workingHours: { start: schedule.startTime, end: schedule.endTime },
+      durationMinutes,
+    };
+  }
   const ownPhone = options?.customerPhone ? normalizePhone(options.customerPhone) : "";
   const holdIntervals: TimeInterval[] = [];
   for (const hold of holds) {
@@ -606,13 +813,48 @@ export async function getDailyAvailability(
     holdIntervals.push({ start, end: start + holdDuration });
   }
 
-  const merged = mergeIntervals(appointmentIntervals, holdIntervals);
+  // Recurring appointments block availability (materialize cron is out of scope).
+  // Own customer's recurring slots do not block that customer from booking.
+  const recurringIntervals: TimeInterval[] = [];
+  const dayOfWeek = getDayOfWeek(normalizedDate);
+  const { data: recurringRows, error: recurringError } = await supabase
+    .from("recurring_appointments")
+    .select("time, customer_phone")
+    .eq("tenant_id", tenantId)
+    .eq("day_of_week", dayOfWeek)
+    .eq("active", true);
+  if (recurringError) {
+    return {
+      date: normalizedDate,
+      checkFailed: true,
+      available: [],
+      booked: [],
+      workingHours: { start: schedule.startTime, end: schedule.endTime },
+      durationMinutes,
+    };
+  }
+  for (const row of recurringRows || []) {
+    const recurringPhone = normalizePhone(String(row.customer_phone || ""));
+    if (ownPhone && recurringPhone && recurringPhone === ownPhone) continue;
+    const t = normalizeTimeString(String(row.time || ""));
+    if (!t) continue;
+    const start = timeToMinutes(t);
+    recurringIntervals.push({
+      start,
+      end: start + schedule.baseSlotMinutes,
+    });
+  }
+
+  const merged = mergeIntervals(
+    mergeIntervals(appointmentIntervals, holdIntervals),
+    recurringIntervals
+  );
   const workStart = timeToMinutes(schedule.startTime);
   const workEnd = timeToMinutes(schedule.endTime);
   const available: string[] = [];
   const now = new Date();
-  const todayLocal = localDateStr(now);
-  const nowMinutes = localTimeToMinutes(now);
+  const todayLocal = localDateStr(now, tenantTimezone);
+  const nowMinutes = localTimeToMinutes(now, tenantTimezone);
   const sameDayMinStart =
     normalizedDate === todayLocal
       ? nowMinutes + SAME_DAY_MIN_LEAD_MINUTES
@@ -651,12 +893,23 @@ export async function reserveAppointment(
     return { ok: false, error: "INVALID_DATE_OR_TIME" };
   }
 
+  if (await isCustomerBlocked(input.tenantId, input.customerPhone)) {
+    return { ok: false, error: "CUSTOMER_BLOCKED" };
+  }
+
+  // Day-level lock serializes cross-slot duration overlaps (10:00/60 vs 10:30).
+  const dayLockAcquired = await acquireBookingDayLock(input.tenantId, normalizedDate);
+  if (!dayLockAcquired) {
+    return { ok: false, error: "SLOT_PROCESSING" };
+  }
+
   const lockAcquired = await acquireBookingSlotLock(
     input.tenantId,
     normalizedDate,
     normalizedTime
   );
   if (!lockAcquired) {
+    await releaseBookingDayLock(input.tenantId, normalizedDate);
     return { ok: false, error: "SLOT_PROCESSING" };
   }
 
@@ -665,15 +918,24 @@ export async function reserveAppointment(
       typeof input.staffId === "string" && input.staffId.trim() ? input.staffId.trim() : null;
 
     if (!resolvedStaffId) {
-      const staffMatch = await findStaffForRequestedSlot(
-        input.tenantId,
-        normalizedDate,
-        normalizedTime,
-        {
-          serviceSlug: input.serviceSlug,
-          customerPhone: input.customerPhone,
+      let staffMatch: Awaited<ReturnType<typeof findStaffForRequestedSlot>>;
+      try {
+        staffMatch = await findStaffForRequestedSlot(
+          input.tenantId,
+          normalizedDate,
+          normalizedTime,
+          {
+            serviceSlug: input.serviceSlug,
+            customerPhone: input.customerPhone,
+          }
+        );
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        if (msg.includes("availability_check_failed") || msg.includes("_query_failed")) {
+          return { ok: false, error: "AVAILABILITY_CHECK_FAILED" };
         }
-      );
+        throw err;
+      }
 
       if (!resolvedStaffId && staffMatch.hadEligibleStaff && !staffMatch.staffId) {
         return {
@@ -692,6 +954,7 @@ export async function reserveAppointment(
       customerPhone: input.customerPhone,
     });
 
+    if (availability.checkFailed) return { ok: false, error: "AVAILABILITY_CHECK_FAILED" };
     if (availability.blocked) return { ok: false, error: "BLOCKED_DAY" };
     if (availability.closed) return { ok: false, error: "CLOSED_DAY" };
     if (availability.noSchedule) return { ok: false, error: "NO_SCHEDULE" };
@@ -717,10 +980,14 @@ export async function reserveAppointment(
         },
         input.holdTtlSeconds
       );
+      if (!hold) {
+        return { ok: false, error: "SLOT_TAKEN" };
+      }
       return {
         ok: true,
         hold_expires_at: hold.expires_at,
         duration_minutes: availability.durationMinutes,
+        staff_id: resolvedStaffId,
       };
     }
 
@@ -767,9 +1034,15 @@ export async function reserveAppointment(
       return { ok: false, error: error.message };
     }
 
-    await clearBookingSlotHold(input.tenantId, normalizedDate, normalizedTime);
-    return { ok: true, id: data?.id };
+    await clearBookingSlotHold(
+      input.tenantId,
+      normalizedDate,
+      normalizedTime,
+      resolvedStaffId
+    );
+    return { ok: true, id: data?.id, staff_id: resolvedStaffId };
   } finally {
     await releaseBookingSlotLock(input.tenantId, normalizedDate, normalizedTime);
+    await releaseBookingDayLock(input.tenantId, normalizedDate);
   }
 }

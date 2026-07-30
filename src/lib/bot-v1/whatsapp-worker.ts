@@ -13,6 +13,7 @@ import {
   getGlobalKillSwitch,
   getSession,
   getTenantIdByPhone,
+  markWebhookMessageProcessed,
   releaseBotProcessingLock,
   setPhoneTenantMapping,
   setSession,
@@ -142,7 +143,7 @@ export async function processWhatsAppInboundEvent(
   const customerPhone = event.phone;
   const lockKey = `${event.tenant_hint || "none"}:${digitsOnly(customerPhone)}`;
   const lockOwner = `${traceId}:${messageId}:${Date.now()}`;
-  const lockAcquired = await acquireBotProcessingLock(lockKey, lockOwner, 20);
+  const lockAcquired = await acquireBotProcessingLock(lockKey, lockOwner, 90);
   if (!lockAcquired) {
     throw new Error("processing_lock_not_acquired");
   }
@@ -187,8 +188,9 @@ export async function processWhatsAppInboundEvent(
         metadata: input.metadata || {},
       });
 
-    const isFirstSeen = await claimWebhookMessageId(messageId);
-    if (!isFirstSeen) {
+    // Single claim site for WA idempotency (do not also claim in the webhook ingress).
+    const claim = await claimWebhookMessageId(messageId);
+    if (claim === "already_done") {
       await logBotMessageAudit({
         traceId,
         tenantId: event.tenant_hint,
@@ -201,8 +203,95 @@ export async function processWhatsAppInboundEvent(
       });
       return;
     }
+    if (claim === "in_progress" || claim === "unavailable") {
+      // in_progress: another attempt still owns the claim (or failed recently).
+      // Throw so Inngest retries until stale reclaim (~3m) can re-acquire — do not
+      // soft-succeed or the message is silently dropped.
+      await logBotMessageAudit({
+        traceId,
+        tenantId: event.tenant_hint,
+        customerPhone,
+        direction: "inbound",
+        stage:
+          claim === "in_progress"
+            ? "message_claim_in_progress"
+            : "message_claim_unavailable",
+        messageId,
+        lockWaitMs: meta?.lockWaitMs ?? null,
+        queueLagMs: meta?.queueLagMs ?? null,
+      });
+      throw new Error(
+        claim === "in_progress"
+          ? "webhook_message_claim_in_progress"
+          : "webhook_message_claim_unavailable"
+      );
+    }
 
-    if (isLikelyOutboundEcho(event.message, event.value)) {
+    try {
+      await processClaimedWhatsAppInboundEvent(event, {
+        startedAt,
+        traceId,
+        messageId,
+        messageType,
+        customerPhone,
+        lockWaitMs: meta?.lockWaitMs,
+        queueLagMs: meta?.queueLagMs,
+        logInbound,
+        logOutbound,
+      });
+      await markWebhookMessageProcessed(messageId);
+    } catch (err) {
+      // Leave claim in processing:<ts>. Stale reclaim (~3m) can retry later;
+      // do not release immediately (side effects may already have committed).
+      console.error("[whatsapp-worker] claimed inbound failed; claim retained for stale reclaim", {
+        messageId,
+        traceId,
+        err: err instanceof Error ? err.message : String(err),
+      });
+      throw err;
+    }
+  } finally {
+    await releaseBotProcessingLock(lockKey, lockOwner);
+  }
+}
+
+async function processClaimedWhatsAppInboundEvent(
+  event: WhatsAppInboundEventData,
+  ctx: {
+    startedAt: number;
+    traceId: string;
+    messageId: string;
+    messageType: string;
+    customerPhone: string;
+    lockWaitMs?: number;
+    queueLagMs?: number;
+    logInbound: (input: {
+      tenantId?: string | null;
+      text?: string | null;
+      stage: string;
+      messageType?: string | null;
+      metadata?: Record<string, unknown>;
+    }) => Promise<unknown>;
+    logOutbound: (input: {
+      tenantId?: string | null;
+      text?: string | null;
+      stage: string;
+      messageType?: string | null;
+      metadata?: Record<string, unknown>;
+    }) => Promise<unknown>;
+  }
+): Promise<void> {
+  const {
+    startedAt,
+    traceId,
+    messageId,
+    messageType,
+    customerPhone,
+    logInbound,
+    logOutbound,
+  } = ctx;
+
+  if (isLikelyOutboundEcho(event.message, event.value)) {
       await logBotMessageAudit({
         traceId,
         tenantId: event.tenant_hint,
@@ -612,6 +701,10 @@ export async function processWhatsAppInboundEvent(
       },
     });
 
+    if (sendStage === "message_reply_failed" || sendStage === "template_recovery_failed") {
+      throw new Error(`whatsapp_reply_failed:${sendErrorCode || sendStage}`);
+    }
+
     await logBotMessageAudit({
       traceId,
       tenantId,
@@ -626,8 +719,8 @@ export async function processWhatsAppInboundEvent(
       latencyMs: Date.now() - startedAt,
       llmLatencyMs,
       dbLatencyMs: null,
-      lockWaitMs: meta?.lockWaitMs ?? null,
-      queueLagMs: meta?.queueLagMs ?? null,
+      lockWaitMs: ctx.lockWaitMs ?? null,
+      queueLagMs: ctx.queueLagMs ?? null,
       promptTokens: metrics?.prompt_tokens ?? null,
       completionTokens: metrics?.completion_tokens ?? null,
       totalTokens: metrics?.total_tokens ?? null,
@@ -636,7 +729,4 @@ export async function processWhatsAppInboundEvent(
       modelPricingVersion: MODEL_PRICING_VERSION,
       errorCode: sendErrorCode,
     });
-  } finally {
-    await releaseBotProcessingLock(lockKey, lockOwner);
-  }
 }

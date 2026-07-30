@@ -99,4 +99,11 @@ npm run dev
 
 ## Cron
 
-Vercel'de `vercel.json` ile günde bir kez (sabah 8) hatırlatma gönderilir. Alternatif: Kendi cron servisinizle `GET /api/cron/reminders?key=CRON_SECRET` çağrısı yapın.
+Vercel'de `vercel.json` ile günde bir kez (sabah 8) hatırlatma gönderilir (`/api/cron/reminders`; no-show mantığı bu route içinde de çalışır). Alternatif: kendi cron servisinizle Bearer auth kullanın (`?key=` artık kabul edilmez):
+
+```bash
+curl -H "Authorization: Bearer $CRON_SECRET" "https://www.aiahi.net/api/cron/reminders"
+curl -H "Authorization: Bearer $CRON_SECRET" "https://www.aiahi.net/api/cron/no-show"
+curl -H "Authorization: Bearer $CRON_SECRET" "https://www.aiahi.net/api/cron/review-reminder"
+curl -H "Authorization: Bearer $CRON_SECRET" "https://www.aiahi.net/api/cron/media-retention"
+```

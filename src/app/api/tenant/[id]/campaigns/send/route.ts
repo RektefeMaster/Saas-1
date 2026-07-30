@@ -9,6 +9,7 @@ import {
   resolveWhatsAppCredentials,
 } from "@/lib/whatsapp";
 import { normalizePhoneE164 } from "@/lib/phone";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 const CAMPAIGN_TEMPLATE = (process.env.WHATSAPP_CAMPAIGN_TEMPLATE_NAME || "").trim();
 const TEMPLATE_LANG = (process.env.WHATSAPP_TEMPLATE_LANG || "tr").trim();
@@ -19,6 +20,8 @@ export async function POST(
 ) {
   try {
     const { id: tenantId } = await params;
+    const auth = await requireTenantApiAccess(request, tenantId);
+    if (!auth.ok) return auth.response;
     const body = (await request.json().catch(() => ({}))) as {
       message_text?: string;
       channel?: "whatsapp" | "sms" | "both";

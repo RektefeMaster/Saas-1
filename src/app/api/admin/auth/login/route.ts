@@ -2,41 +2,45 @@ import { NextRequest, NextResponse } from "next/server";
 import { shortId } from "@/lib/id";
 import {
   createAdminToken,
+  getAdminClientIdentifier,
   getAdminCookieName,
   getAdminCookieOpts,
   isAdminPasswordValid,
 } from "@/lib/admin-auth";
-import { checkAdminLoginRateLimit, resetAdminLoginRateLimit, setOtpChallenge } from "@/lib/redis";
 import {
-  ADMIN_OTP_COOKIE,
+  checkAdminLoginRateLimit,
+  checkSimpleRateLimit,
+  resetAdminLoginRateLimit,
+  setOtpChallenge,
+} from "@/lib/redis";
+import {
   OTP_TTL_SECONDS,
-  cookieSecure,
   isSms2faEnabledFlag,
 } from "@/lib/otp-auth";
 import { getTwilioVerifyStatus, sendSmsVerification } from "@/lib/twilio";
 
-const DEFAULT_ADMIN_EMAIL = "nuronuro458@gmail.com";
-
-function getAdminEmail(): string {
-  return (
+function getAdminEmail(): string | null {
+  const raw = (
     process.env.ADMIN_EMAIL ||
     process.env.ADMIN_HIDDEN_LOGIN_IDENTIFIER ||
-    DEFAULT_ADMIN_EMAIL
+    ""
   )
     .trim()
     .toLowerCase();
-}
-
-function getClientIdentifier(request: NextRequest): string {
-  const forwarded = request.headers.get("x-forwarded-for");
-  const realIp = request.headers.get("x-real-ip");
-  const ip = forwarded?.split(",")[0]?.trim() || realIp || "unknown";
-  return ip.replace(/[^a-zA-Z0-9.:-]/g, "_");
+  return raw || null;
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const identifier = getClientIdentifier(request);
+    const adminEmail = getAdminEmail();
+    if (!adminEmail) {
+      return NextResponse.json(
+        { error: "ADMIN_EMAIL / ADMIN_HIDDEN_LOGIN_IDENTIFIER tanımlı değil" },
+        { status: 503 }
+      );
+    }
+
+    const identifier = getAdminClientIdentifier(request);
     const rateLimit = await checkAdminLoginRateLimit(identifier);
     if (!rateLimit.allowed) {
       return NextResponse.json(
@@ -59,39 +63,25 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "E-posta ve şifre gerekli" }, { status: 400 });
     }
 
-    const adminEmail = getAdminEmail();
-    
-    // E-posta kontrolü - sadece admin e-postası kabul edilir
-    // Normalize edilmiş e-posta karşılaştırması
     const normalizedEmail = email.replace(/\s+/g, "").toLowerCase();
     const normalizedAdminEmail = adminEmail.replace(/\s+/g, "").toLowerCase();
-    
-    if (normalizedEmail !== normalizedAdminEmail) {
-      await new Promise((r) => setTimeout(r, 600));
-      return NextResponse.json({
-        error: "Geçersiz e-posta veya şifre. Lütfen admin e-posta adresini ve şifresini kontrol edin.",
-      }, { status: 401 });
-    }
-
-    if (!isAdminPasswordValid(password)) {
+    const emailOk = normalizedEmail === normalizedAdminEmail;
+    const passwordOk = isAdminPasswordValid(password);
+    if (!emailOk || !passwordOk) {
+      // Uniform delay: avoid timing-based email enumeration.
       await new Promise((r) => setTimeout(r, 2000));
-      return NextResponse.json({ error: "Geçersiz e-posta veya şifre" }, { status: 401 });
+      return NextResponse.json(
+        { error: "Geçersiz e-posta veya şifre" },
+        { status: 401 }
+      );
     }
-
-    await resetAdminLoginRateLimit(identifier);
 
     const sms2faEnabled = isSms2faEnabledFlag();
     if (!sms2faEnabled) {
+      await resetAdminLoginRateLimit(identifier);
       const token = await createAdminToken();
       const res = NextResponse.json({ success: true, requires_otp: false });
       res.cookies.set(getAdminCookieName(), token, getAdminCookieOpts());
-      res.cookies.set(ADMIN_OTP_COOKIE, "ok", {
-        httpOnly: true,
-        secure: cookieSecure(),
-        sameSite: "strict",
-        path: "/",
-        maxAge: getAdminCookieOpts().maxAge,
-      });
       return res;
     }
 
@@ -113,6 +103,14 @@ export async function POST(request: NextRequest) {
       return NextResponse.json(
         { error: "ADMIN_2FA_PHONE_E164 ortam değişkeni tanımlanmalıdır." },
         { status: 500 }
+      );
+    }
+
+    const otpSendLimit = await checkSimpleRateLimit(`admin-otp-send:${identifier}`, 3, 60 * 15);
+    if (!otpSendLimit.allowed) {
+      return NextResponse.json(
+        { error: "Çok fazla OTP SMS isteği. Lütfen biraz sonra tekrar deneyin." },
+        { status: 429 }
       );
     }
 

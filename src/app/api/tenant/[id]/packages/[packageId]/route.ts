@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 interface PackagePatchPayload {
   name?: string;
@@ -17,6 +18,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; packageId: string }> }
 ) {
   const { id: tenantId, packageId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => ({}))) as PackagePatchPayload;
 
   const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
@@ -84,10 +87,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; packageId: string }> }
 ) {
   const { id: tenantId, packageId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
 
   const result = await supabase
     .from("packages")

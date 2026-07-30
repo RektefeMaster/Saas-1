@@ -14,56 +14,63 @@ import {
   REVIEW_LIST_BODY,
   REVIEW_LIST_SECTIONS,
 } from "@/lib/review-reminder";
+import {
+  assertCronAuthorized,
+  claimAppointmentExtraFlag,
+  clearAppointmentExtraFlag,
+} from "@/lib/cron-auth";
 
-const CRON_SECRET = process.env.CRON_SECRET?.trim() || "";
 const DEFAULT_DELAY_HOURS = 2;
+const MAX_DELAY_HOURS = 48;
+const LOOKBACK_BUFFER_HOURS = 6;
 
 export async function GET(request: NextRequest) {
-  if (!CRON_SECRET) {
-    return NextResponse.json({ error: "CRON_SECRET tanımlı değil" }, { status: 503 });
-  }
-
-  const auth = request.headers.get("authorization");
-  if (auth !== `Bearer ${CRON_SECRET}` && request.nextUrl.searchParams.get("key") !== CRON_SECRET) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
+  const denied = assertCronAuthorized(request);
+  if (denied) return denied;
 
   const now = new Date();
-  const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
-  const twoHoursAgo = new Date(now.getTime() - DEFAULT_DELAY_HOURS * 60 * 60 * 1000);
+
+  // Expand lookback from enabled tenant delays so delay>24h is not silently skipped.
+  const { data: reviewTenants } = await supabase
+    .from("tenants")
+    .select("id, config_override")
+    .is("deleted_at", null);
+
+  let maxDelayHours = DEFAULT_DELAY_HOURS;
+  const tenantConfig = new Map<
+    string,
+    { review_request_enabled: boolean; review_request_delay_hours: number }
+  >();
+  for (const t of reviewTenants || []) {
+    const cfg = (t.config_override as Record<string, unknown>) || {};
+    const enabled = cfg.review_request_enabled === true;
+    const rawDelay =
+      typeof cfg.review_request_delay_hours === "number" && cfg.review_request_delay_hours >= 0
+        ? cfg.review_request_delay_hours
+        : DEFAULT_DELAY_HOURS;
+    const delayHours = Math.min(MAX_DELAY_HOURS, rawDelay);
+    tenantConfig.set(t.id, {
+      review_request_enabled: enabled,
+      review_request_delay_hours: delayHours,
+    });
+    if (enabled && delayHours > maxDelayHours) maxDelayHours = delayHours;
+  }
+
+  const lookbackHours = Math.max(24, maxDelayHours + LOOKBACK_BUFFER_HOURS);
+  const lookbackStart = new Date(now.getTime() - lookbackHours * 60 * 60 * 1000);
 
   const { data: appointments, error } = await supabase
     .from("appointments")
     .select("id, tenant_id, customer_phone, slot_start, service_slug, extra_data")
-    .lt("slot_start", twoHoursAgo.toISOString())
-    .gte("slot_start", last24h.toISOString())
-    .in("status", ["completed", "confirmed"]);
+    .lt("slot_start", now.toISOString())
+    .gte("slot_start", lookbackStart.toISOString())
+    .in("status", ["completed", "confirmed"])
+    .order("slot_start", { ascending: true })
+    .limit(500);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
-
-  const tenantIds = [...new Set((appointments || []).map((a) => a.tenant_id))];
-  const { data: tenants } = await supabase
-    .from("tenants")
-    .select("id, config_override")
-    .in("id", tenantIds);
-
-  const tenantConfig = new Map(
-    (tenants || []).map((t) => {
-      const cfg = (t.config_override as Record<string, unknown>) || {};
-      return [
-        t.id,
-        {
-          review_request_enabled: cfg.review_request_enabled === true,
-          review_request_delay_hours:
-            typeof cfg.review_request_delay_hours === "number" && cfg.review_request_delay_hours >= 0
-              ? cfg.review_request_delay_hours
-              : DEFAULT_DELAY_HOURS,
-        },
-      ];
-    })
-  );
 
   let sent = 0;
   let skipped = 0;
@@ -111,6 +118,12 @@ export async function GET(request: NextRequest) {
       continue;
     }
 
+    const claim = await claimAppointmentExtraFlag(apt.id, extra, "review_reminder_sent_at");
+    if (!claim.claimed) {
+      skipped++;
+      continue;
+    }
+
     const result = await sendWhatsAppInteractiveList({
       to: apt.customer_phone,
       bodyText: REVIEW_LIST_BODY,
@@ -124,16 +137,15 @@ export async function GET(request: NextRequest) {
     }
     if (ok) {
       sent++;
+      // Flag already claimed; still mark visit completed so no-show cron won't reclaim it.
       await supabase
         .from("appointments")
-        .update({
-          status: "completed",
-          extra_data: {
-            ...extra,
-            review_reminder_sent_at: new Date().toISOString(),
-          },
-        })
-        .eq("id", apt.id);
+        .update({ status: "completed" })
+        .eq("id", apt.id)
+        .eq("tenant_id", apt.tenant_id)
+        .in("status", ["confirmed", "completed"]);
+    } else {
+      await clearAppointmentExtraFlag(apt.id, extra, "review_reminder_sent_at");
     }
   }
 
@@ -145,5 +157,6 @@ export async function GET(request: NextRequest) {
     disabled,
     alreadyReviewed,
     alreadyRatedService,
+    lookbackHours,
   });
 }

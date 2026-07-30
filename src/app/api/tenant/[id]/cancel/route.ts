@@ -7,6 +7,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { cancelAppointment } from "@/services/cancellation.service";
 import { logTenantEvent } from "@/services/eventLog.service";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
+import { getDailyAvailability } from "@/services/booking.service";
+import { notifyWaitlist } from "@/services/waitlist.service";
+import { supabase } from "@/lib/supabase";
 
 export async function POST(
   request: NextRequest,
@@ -14,8 +18,10 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const auth = await requireTenantApiAccess(request, id);
+    if (!auth.ok) return auth.response;
     const body = await request.json();
-    const { appointment_id, cancelled_by, reason } = body;
+    const { appointment_id, cancelled_by, reason, customer_phone } = body;
 
     if (!appointment_id || !cancelled_by) {
       return NextResponse.json(
@@ -31,12 +37,20 @@ export async function POST(
       );
     }
 
+    if (cancelled_by === "customer" && !customer_phone) {
+      return NextResponse.json(
+        { error: "customer_phone gerekli (müşteri iptali)" },
+        { status: 400 }
+      );
+    }
+
     const result = await cancelAppointment({
       tenantId: id,
       appointmentId: appointment_id,
       cancelledBy: cancelled_by as "customer" | "tenant",
+      customerPhone: typeof customer_phone === "string" ? customer_phone : undefined,
       reason,
-      source: "manual",
+      source: cancelled_by === "tenant" ? "dashboard" : "manual",
     });
 
     if (!result.ok) {
@@ -54,6 +68,32 @@ export async function POST(
         source: "cancel_api",
       },
     });
+
+    // Notify waitlist after a slot is freed (same behavior as bot cancel path).
+    void (async () => {
+      const { data: apt } = await supabase
+        .from("appointments")
+        .select("slot_start")
+        .eq("id", appointment_id)
+        .eq("tenant_id", id)
+        .maybeSingle();
+      if (!apt?.slot_start) return;
+      const { data: tenant } = await supabase
+        .from("tenants")
+        .select("name, timezone")
+        .eq("id", id)
+        .maybeSingle();
+      const tz =
+        (tenant?.timezone as string)?.trim() ||
+        process.env.APP_TIMEZONE?.trim() ||
+        "Europe/Istanbul";
+      const dateStr = new Date(apt.slot_start).toLocaleDateString("en-CA", {
+        timeZone: tz,
+      });
+      const daily = await getDailyAvailability(id, dateStr);
+      if (daily.checkFailed) return;
+      await notifyWaitlist(id, dateStr, daily.available, tenant?.name || "İşletme");
+    })().catch((e) => console.error("[cancel] waitlist notify error:", e));
 
     return NextResponse.json({ ok: true });
   } catch (err) {

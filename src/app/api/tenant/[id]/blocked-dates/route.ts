@@ -8,6 +8,8 @@ import {
   listBlockedDates,
   addBlockedDate,
 } from "@/services/blockedDates.service";
+import { createOpsAlert } from "@/services/opsAlert.service";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 export async function GET(
   _request: NextRequest,
@@ -18,7 +20,7 @@ export async function GET(
     const data = await listBlockedDates(id);
     return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control": "private, no-store",
       },
     });
   } catch (err) {
@@ -33,6 +35,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+  const auth = await requireTenantApiAccess(request, id);
+  if (!auth.ok) return auth.response;
     const body = await request.json();
     const { start_date, end_date, reason } = body;
 
@@ -47,6 +51,15 @@ export async function POST(
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: 400 });
     }
+    // Ops alert only — no automatic mass cancel (product risk).
+    await createOpsAlert({
+      tenantId: id,
+      type: "system",
+      severity: "medium",
+      message: `Kapalı gün eklendi: ${start_date} → ${end_date}${reason ? ` (${reason})` : ""}`,
+      meta: { start_date, end_date, reason: reason || null, block_id: result.id },
+      dedupeKey: `blocked_date:${id}:${start_date}:${end_date}`,
+    }).catch((e) => console.error("[blocked-dates] ops alert error:", e));
     return NextResponse.json({ id: result.id });
   } catch (err) {
     console.error("[blocked-dates POST]", err);

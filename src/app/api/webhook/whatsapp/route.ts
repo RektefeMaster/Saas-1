@@ -4,20 +4,22 @@ import { logger } from "@/lib/logger";
 import { inngest } from "@/lib/inngest/client";
 import type { IncomingWebhookValue, WhatsAppInboundEventData } from "@/lib/bot-v1/types";
 import { getWebhookSecret, verifyWebhookSignatureBody } from "@/middleware/webhookVerify.middleware";
-import {
-  getWebhookDebugRecord,
-  setRuntimeWhatsAppConfig,
-  setWebhookDebugRecord,
-} from "@/lib/redis";
+import { getWebhookDebugRecord, setWebhookDebugRecord } from "@/lib/redis";
 import { createMessageProcessingJob } from "@/services/messageProcessingJob.service";
 import { normalizePhoneE164 } from "@/lib/phone";
+import { createHash } from "crypto";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN?.trim() || "";
-const STRICT_WEBHOOK_SIGNATURE =
-  (process.env.WHATSAPP_STRICT_SIGNATURE || "").trim().toLowerCase() === "true";
+// Production defaults to strict; set WHATSAPP_STRICT_SIGNATURE=false only for local diagnostics.
+const STRICT_WEBHOOK_SIGNATURE = (() => {
+  const raw = (process.env.WHATSAPP_STRICT_SIGNATURE || "").trim().toLowerCase();
+  if (raw === "false" || raw === "0" || raw === "off") return false;
+  if (raw === "true" || raw === "1" || raw === "on") return true;
+  return process.env.NODE_ENV === "production";
+})();
 
 export async function GET(request: NextRequest) {
   if (!VERIFY_TOKEN) {
@@ -65,23 +67,12 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const userAgent = request.headers.get("user-agent") || "";
 
-  const runtimeTokenFromUrl = (request.nextUrl.searchParams.get("wa_token") || "").trim();
-  const runtimePhoneIdFromUrl = (
-    request.nextUrl.searchParams.get("wa_phone_id") ||
-    process.env.WHATSAPP_PHONE_NUMBER_ID ||
-    ""
-  ).trim();
-
-  if (runtimeTokenFromUrl && runtimePhoneIdFromUrl) {
-    await setRuntimeWhatsAppConfig(
-      {
-        token: runtimeTokenFromUrl,
-        phone_id: runtimePhoneIdFromUrl,
-        updated_at: new Date().toISOString(),
-        source: "webhook-query",
-      },
-      60 * 30
-    );
+  // Never accept WA credentials from query string (token injection risk).
+  if (
+    request.nextUrl.searchParams.has("wa_token") ||
+    request.nextUrl.searchParams.has("wa_phone_id")
+  ) {
+    console.warn("[webhook] rejected wa_token/wa_phone_id query credential injection attempt");
   }
 
   await setWebhookDebugRecord({
@@ -92,7 +83,7 @@ export async function POST(request: NextRequest) {
     has_secret: Boolean(secret),
     user_agent: userAgent.slice(0, 120),
     body_size: rawBody.length,
-    runtime_token_from_url: Boolean(runtimeTokenFromUrl),
+    runtime_token_from_url: false,
   });
 
   if (!secret) {
@@ -165,7 +156,26 @@ export async function POST(request: NextRequest) {
           normalizePhoneE164(msg.from) ?? (msg.from ? `+${msg.from}` : "");
         if (!from) continue;
 
-        const messageId = (msg.id || "").trim() || `gen_${nanoid(12)}`;
+        // Dedupe is owned by the worker via claimWebhookMessageId (single claim site).
+        // Claiming here AND in the worker would drop every inbound message.
+        // Missing Meta id: deterministic fallback so retries don't mint a new claim key.
+        const rawMetaId = (msg.id || "").trim();
+        const messageId =
+          rawMetaId ||
+          `gen_${createHash("sha256")
+            .update(
+              [
+                from,
+                String(msg.timestamp || ""),
+                String(msg.type || ""),
+                String(msg.text?.body || msg.button?.payload || msg.interactive?.button_reply?.id || ""),
+              ].join("|")
+            )
+            .digest("hex")
+            .slice(0, 24)}`;
+        if (!rawMetaId) {
+          logger.warn("[webhook] message missing id; using deterministic fallback id");
+        }
         const receivedAtIso = msg.timestamp
           ? new Date(Number(msg.timestamp) * 1000).toISOString()
           : new Date().toISOString();

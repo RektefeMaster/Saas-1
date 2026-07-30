@@ -4,10 +4,11 @@
  */
 
 import { supabase } from "@/lib/supabase";
-
-const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
 import { sendCustomerNotification } from "@/lib/notify";
 import { notifyCancelledAppointmentForMerchant } from "@/services/merchantNotification.service";
+import { phoneVariants, phonesMatch } from "@/lib/phone";
+
+const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
 
 export type CancelledBy = "customer" | "tenant";
 
@@ -16,6 +17,8 @@ export interface CancelAppointmentParams {
   appointmentId: string;
   cancelledBy: CancelledBy;
   reason?: string;
+  /** Required when cancelledBy=customer (ownership check). */
+  customerPhone?: string;
   /** İptal tetikleyen kaynak (esnaf bildirimi meta için). */
   source?: "bot" | "dashboard" | "cron" | "manual";
 }
@@ -33,11 +36,11 @@ export interface CancelAppointmentParams {
  */
 export async function cancelAppointment(params: CancelAppointmentParams): Promise<{ ok: boolean; error?: string }> {
   try {
-    const { tenantId, appointmentId, cancelledBy, reason } = params;
+    const { tenantId, appointmentId, cancelledBy, reason, customerPhone } = params;
 
     const { data: apt, error: fetchErr } = await supabase
       .from("appointments")
-      .select("id, tenant_id, customer_phone, slot_start, staff_id")
+      .select("id, tenant_id, customer_phone, slot_start, staff_id, status")
       .eq("id", appointmentId)
       .eq("tenant_id", tenantId)
       .single();
@@ -46,7 +49,17 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
       return { ok: false, error: "Randevu bulunamadı" };
     }
 
-    const { error: updateErr } = await supabase
+    if (apt.status === "cancelled" || apt.status === "completed" || apt.status === "no_show") {
+      return { ok: false, error: "Randevu zaten kapatılmış" };
+    }
+
+    if (cancelledBy === "customer") {
+      if (!customerPhone || !phonesMatch(customerPhone, apt.customer_phone)) {
+        return { ok: false, error: "Bu randevu için iptal yetkiniz yok" };
+      }
+    }
+
+    const { data: updatedRows, error: updateErr } = await supabase
       .from("appointments")
       .update({
         status: "cancelled",
@@ -55,10 +68,15 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
         cancellation_reason: reason || null,
       })
       .eq("id", appointmentId)
-      .eq("tenant_id", tenantId);
+      .eq("tenant_id", tenantId)
+      .in("status", ["confirmed", "pending"])
+      .select("id");
 
     if (updateErr) {
       return { ok: false, error: updateErr.message };
+    }
+    if (!updatedRows?.length) {
+      return { ok: false, error: "Randevu durumu iptal için uygun değil" };
     }
 
     const { data: tenant } = await supabase
@@ -122,31 +140,20 @@ export async function getCustomerLastActiveAppointment(
   tenantId: string,
   customerPhone: string
 ): Promise<{ id: string; slot_start: string } | null> {
+  const variants = phoneVariants(customerPhone);
+  if (variants.length === 0) return null;
+
   const { data, error } = await supabase
     .from("appointments")
-    .select("id, slot_start")
+    .select("id, slot_start, customer_phone")
     .eq("tenant_id", tenantId)
-    .eq("customer_phone", customerPhone)
+    .in("customer_phone", variants)
     .in("status", ["confirmed", "pending"])
     .gte("slot_start", new Date().toISOString())
     .order("slot_start", { ascending: true })
-    .limit(1)
-    .single();
+    .limit(5);
 
-  if (error || !data) return null;
-  return data;
+  if (error || !data?.length) return null;
+  const match = data.find((row) => phonesMatch(customerPhone, row.customer_phone)) || data[0];
+  return { id: match.id, slot_start: match.slot_start };
 }
-
-/*
- * Örnek kullanım:
- *
- * const result = await cancelAppointment({
- *   tenantId: "uuid",
- *   appointmentId: "apt-uuid",
- *   cancelledBy: "customer",
- *   reason: "Plan değişikliği"
- * });
- *
- * const lastApt = await getCustomerLastActiveAppointment(tenantId, customerPhone);
- * if (lastApt) { ... }
- */

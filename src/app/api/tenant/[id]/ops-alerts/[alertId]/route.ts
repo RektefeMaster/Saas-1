@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { resolveOpsAlert } from "@/services/opsAlert.service";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 export async function PATCH(
   request: NextRequest,
@@ -8,6 +9,8 @@ export async function PATCH(
 ) {
   try {
     const { id: tenantId, alertId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
     const body = (await request.json().catch(() => ({}))) as { status?: string };
     if ((body.status || "").toLowerCase() !== "resolved") {
       return NextResponse.json(

@@ -38,17 +38,20 @@ export function isCancelReject(message: string): boolean {
   const text = normalizeIncomingText(message);
   return (
     text === "hayir" ||
-    text === "hayır" ||
     text.includes("iptal etme") ||
     text.includes("vazgectim") ||
-    text.includes("vazgectım") ||
     text.includes("iptal istemiyorum")
   );
 }
 
 export function isAbusiveMessage(message: string): boolean {
   const text = normalizeIncomingText(message);
-  return ABUSIVE_KEYWORDS.some((word) => text.includes(word));
+  if (!text) return false;
+  // Word-boundary match avoids false positives ("almak", "normal", "plan").
+  return ABUSIVE_KEYWORDS.some((word) => {
+    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    return new RegExp(`(?:^|\\s)${escaped}(?:$|\\s|[!?.:,;])`).test(text);
+  });
 }
 
 export function isOutOfScopeMessage(message: string): boolean {
@@ -72,26 +75,28 @@ export function isNegotiationMessage(message: string): boolean {
   return NEGOTIATION_KEYWORDS.some((word) => text.includes(word));
 }
 
+function hasHumanEscalationToken(text: string): boolean {
+  // text is already normalizeIncomingText (ASCII-folded).
+  return (
+    /\b(yetkili|operator|canli\s*destek)\b/.test(text) ||
+    /\bgercek\s*kisi\b/.test(text) ||
+    /\bmusteri\s*hizmet/.test(text) ||
+    /\bbiriyle\s*gorusmek\b/.test(text) ||
+    /\binsan\s*(destek|mi|misiniz|misin|yonlendir)\b/.test(text)
+  );
+}
+
 export function isEscalationQuestion(message: string): boolean {
   const text = normalizeIncomingText(message);
-  if (!text.includes("usta") && !text.includes("yetkili") && !text.includes("insan")) {
+  if (!hasHumanEscalationToken(text) && !text.includes("usta") && !text.includes("yetkili")) {
     return false;
   }
   return text.includes("neden") || text.includes("bagla") || text.includes("aktar");
 }
 
 export function isHumanEscalationRequest(text: string): boolean {
-  const t = text.trim().toLowerCase();
-  const keywords = [
-    "insan",
-    "yetkili",
-    "sizi aramak istiyorum",
-    "gerçek kişi",
-    "operatör",
-    "müşteri hizmetleri",
-    "biriyle görüşmek",
-  ];
-  return keywords.some((k) => t.includes(k));
+  const t = normalizeIncomingText(text);
+  return hasHumanEscalationToken(t);
 }
 
 export type GlobalInterruptIntent =
@@ -104,12 +109,7 @@ export function detectGlobalInterruptIntent(message: string): GlobalInterruptInt
   const text = normalizeIncomingText(message);
   if (!text) return null;
 
-  if (
-    text.includes("insan") ||
-    text.includes("yetkili") ||
-    text.includes("operatör") ||
-    text.includes("operator")
-  ) {
+  if (hasHumanEscalationToken(text) || text.includes("yetkili")) {
     return "HUMAN_REQUEST";
   }
 

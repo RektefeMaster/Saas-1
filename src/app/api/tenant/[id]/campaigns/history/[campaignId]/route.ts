@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 export async function DELETE(
   request: NextRequest,
@@ -7,6 +8,8 @@ export async function DELETE(
 ) {
   try {
     const { id: tenantId, campaignId } = await params;
+    const auth = await requireTenantApiAccess(request, tenantId);
+    if (!auth.ok) return auth.response;
 
     const { data, error } = await supabase
       .from("campaign_messages")

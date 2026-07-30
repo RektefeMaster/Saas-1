@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getAdminCookieName } from "@/lib/admin-auth";
-import { ADMIN_OTP_COOKIE } from "@/lib/otp-auth";
 
 export async function POST() {
   const res = NextResponse.json({ success: true });
@@ -11,7 +10,8 @@ export async function POST() {
     path: "/",
     maxAge: 0,
   });
-  res.cookies.set(ADMIN_OTP_COOKIE, "", {
+  // Clear legacy unused admin OTP cookie if present.
+  res.cookies.set("admin_otp_verified", "", {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",
     sameSite: "strict",

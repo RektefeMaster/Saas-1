@@ -15,7 +15,7 @@ export async function GET(
     const data = await getTenantReviews(id);
     return NextResponse.json(data, {
       headers: {
-        "Cache-Control": "s-maxage=300, stale-while-revalidate=600",
+        "Cache-Control": "private, no-store",
       },
     });
   } catch (err) {

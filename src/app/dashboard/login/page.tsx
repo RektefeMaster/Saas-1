@@ -11,8 +11,6 @@ import { useLocale } from "@/lib/locale-context";
 import { isValidUsername, usernameToLoginEmail } from "@/lib/username-auth";
 import { Button, ContactModal, ThemeLocaleSwitch } from "@/components/ui";
 
-const ADMIN_LOGIN_EMAIL = "nuronuro458@gmail.com";
-
 const COPY = {
   tr: {
     title: "İşletme Paneli Girişi",
@@ -114,16 +112,9 @@ export default function DashboardLoginPage() {
       setError(locale === "tr" ? "Kullanıcı adınızı girin." : "Enter your username.");
       return false;
     }
-    const isAdminEmail = usernameTrim === ADMIN_LOGIN_EMAIL;
-    if (usernameTrim.includes("@") && !isAdminEmail) {
-      setError(
-        locale === "tr"
-          ? "Sadece admin hesabı e-posta ile giriş yapabilir."
-          : "Use username only, not email."
-      );
-      return false;
-    }
-    if (!isAdminEmail && !isValidUsername(usernameTrim)) {
+    const looksLikeEmail = usernameTrim.includes("@");
+    // Email-shaped identifiers are tried against hidden admin login server-side.
+    if (!looksLikeEmail && !isValidUsername(usernameTrim)) {
       setError(locale === "tr" ? "Geçerli bir kullanıcı adı girin." : "Enter a valid username.");
       return false;
     }
@@ -143,39 +134,36 @@ export default function DashboardLoginPage() {
 
     try {
       const identifier = username.trim().toLowerCase();
-      const isAdminEmail = identifier === ADMIN_LOGIN_EMAIL;
 
-      try {
-        const hiddenAdminRes = await fetch("/api/admin/auth/hidden", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ identifier, password }),
-        });
-        const hiddenAdminData = (await hiddenAdminRes.json().catch(() => ({}))) as {
-          requires_otp?: boolean;
-          challenge_id?: string;
-        };
-        if (hiddenAdminRes.ok) {
-          if (hiddenAdminData.requires_otp && hiddenAdminData.challenge_id) {
-            router.push(
-              `/admin/login?from=${encodeURIComponent(
-                "/admin"
-              )}&mode=otp&challenge=${encodeURIComponent(hiddenAdminData.challenge_id)}`
-            );
+      // Only probe hidden admin for email-shaped identifiers (avoids burning admin IP rate limit).
+      if (identifier.includes("@")) {
+        try {
+          const hiddenAdminRes = await fetch("/api/admin/auth/hidden", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ identifier, password }),
+          });
+          const hiddenAdminData = (await hiddenAdminRes.json().catch(() => ({}))) as {
+            requires_otp?: boolean;
+            challenge_id?: string;
+          };
+          if (hiddenAdminRes.ok) {
+            if (hiddenAdminData.requires_otp && hiddenAdminData.challenge_id) {
+              router.push(
+                `/admin/login?from=${encodeURIComponent(
+                  "/admin"
+                )}&mode=otp&challenge=${encodeURIComponent(hiddenAdminData.challenge_id)}`
+              );
+              return;
+            }
+            router.push("/admin");
+            router.refresh();
             return;
           }
-          router.push("/admin");
-          router.refresh();
-          return;
-        }
-        if (isAdminEmail) {
           setError(locale === "tr" ? "Admin giriş bilgileri doğrulanamadı." : "Admin login could not be verified.");
           setLoading(false);
           return;
-        }
-      } catch {
-        // hidden admin route unreachable, continue tenant login.
-        if (isAdminEmail) {
+        } catch {
           setError(locale === "tr" ? "Admin giriş servisine ulaşılamadı." : "Admin login service is unavailable.");
           setLoading(false);
           return;

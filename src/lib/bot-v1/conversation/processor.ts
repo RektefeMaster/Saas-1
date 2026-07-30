@@ -27,6 +27,7 @@ import {
 import { getDailyAvailability, reserveAppointment } from "@/services/booking.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
 import { detectDeterministicIntent } from "@/lib/intent";
+import { phonesMatch } from "@/lib/phone";
 import type {
   BotConfig,
   MergedConfig,
@@ -526,14 +527,13 @@ export async function processMessage(
       if (isCancelConfirmation(effectiveMessage)) {
         const { data: pendingApt } = await supabase
           .from("appointments")
-          .select("id, slot_start")
+          .select("id, slot_start, customer_phone")
           .eq("id", pendingCancelId)
           .eq("tenant_id", tenantId)
-          .eq("customer_phone", customerPhone)
           .in("status", ["confirmed", "pending"])
           .maybeSingle();
 
-        if (!pendingApt) {
+        if (!pendingApt || !phonesMatch(customerPhone, pendingApt.customer_phone)) {
           await setSession(tenantId, customerPhone, {
             ...state,
             step: "devam",
@@ -574,6 +574,7 @@ export async function processMessage(
           tenantId,
           appointmentId: pendingCancelId,
           cancelledBy: "customer",
+          customerPhone,
           reason: "Müşteri onaylı iptal",
         });
 
