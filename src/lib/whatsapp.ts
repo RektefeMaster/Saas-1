@@ -20,22 +20,36 @@ function normalizePlainValue(value: string | undefined): string {
   return trimmed.replace(/^['"]|['"]$/g, "");
 }
 
+const CREDENTIALS_CACHE_TTL_MS = 45_000;
+let credentialsCache: {
+  expiry: number;
+  value: { phoneId: string; token: string; source: "runtime" | "env" };
+} | null = null;
+
 export async function resolveWhatsAppCredentials(): Promise<{
   phoneId: string;
   token: string;
   source: "runtime" | "env";
 }> {
+  if (credentialsCache && credentialsCache.expiry > Date.now()) {
+    return credentialsCache.value;
+  }
+
   const runtime = await getRuntimeWhatsAppConfig();
   const runtimePhone = normalizePlainValue(runtime?.phone_id);
   const runtimeToken = normalizeSecretValue(runtime?.token);
 
+  let value: { phoneId: string; token: string; source: "runtime" | "env" };
   if (runtimePhone && runtimeToken) {
-    return { phoneId: runtimePhone, token: runtimeToken, source: "runtime" };
+    value = { phoneId: runtimePhone, token: runtimeToken, source: "runtime" };
+  } else {
+    const envPhone = normalizePlainValue(process.env.WHATSAPP_PHONE_NUMBER_ID);
+    const envToken = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
+    value = { phoneId: envPhone, token: envToken, source: "env" };
   }
 
-  const envPhone = normalizePlainValue(process.env.WHATSAPP_PHONE_NUMBER_ID);
-  const envToken = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
-  return { phoneId: envPhone, token: envToken, source: "env" };
+  credentialsCache = { value, expiry: Date.now() + CREDENTIALS_CACHE_TTL_MS };
+  return value;
 }
 
 export interface SendMessageParams {

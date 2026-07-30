@@ -258,7 +258,7 @@ export default function DashboardLoginPage() {
       </div>
 
       <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="hidden rounded-3xl border border-slate-200 bg-white/85 p-7 shadow-sm backdrop-blur lg:block dark:border-slate-800 dark:bg-slate-900/80">
+        <section className="hidden rounded-3xl border border-slate-200 bg-white p-7 shadow-sm lg:block dark:border-slate-800 dark:bg-slate-900">
           <Link href="/" className="inline-flex items-center gap-3">
             <Image
               src="/appicon.png"

@@ -109,11 +109,15 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "check_week_availability",
-      description: "Bu haftanın tüm günlerinin müsaitliğini kontrol et.",
+      description:
+        "Önümüzdeki en fazla 7 günün müsait saatlerini tek seferde kontrol et (haftalık özet).",
       parameters: {
         type: "object",
         properties: {
-          start_date: { type: "string", description: "Haftanın başlangıç YYYY-MM-DD" },
+          start_date: {
+            type: "string",
+            description: "Başlangıç YYYY-MM-DD (bugün veya sonrası; en fazla 7 gün taranır)",
+          },
         },
         required: ["start_date"],
       },

@@ -1,6 +1,10 @@
 import { supabase } from "../../../supabase";
 import { sendWhatsAppMessage } from "../../../whatsapp";
-import { getDailyAvailability, reserveAppointment } from "@/services/booking.service";
+import {
+  getAvailabilityRange,
+  getDailyAvailability,
+  reserveAppointment,
+} from "@/services/booking.service";
 import { getCustomerLastActiveAppointment, cancelAppointment } from "@/services/cancellation.service";
 import { addToWaitlist, notifyWaitlist } from "@/services/waitlist.service";
 import { createRecurringAppointment, dayOfWeekToTurkish } from "@/services/recurring.service";
@@ -496,47 +500,23 @@ export async function executeToolCall(
 
   if (name === "check_week_availability") {
     const startDate = args.start_date as string;
-    const weekResults: Record<string, string[]> = {};
-    const closedDays: string[] = [];
-    const parts = startDate.split("-").map(Number);
-    if (parts.length !== 3) {
-      return { result: { days: {}, message: "Geçersiz tarih formatı" } };
+    const range = await getAvailabilityRange(tenantId, startDate, {
+      configOverride,
+      customerPhone,
+      maxDays: 7,
+    });
+    const labeled: Record<string, string[]> = {};
+    for (const [ds, slots] of Object.entries(range.days)) {
+      labeled[`${ds} (${formatDateTr(ds)})`] = slots;
     }
-    const [y, m, day] = parts;
-    const todayStr = localDateStr(new Date());
-    const advanceDays =
-      mergedConfig?.advance_booking_days ??
-      (configOverride?.advance_booking_days as number) ??
-      14;
-    for (let i = 0; i < advanceDays; i++) {
-      const d = new Date(y, m - 1, day + i);
-      const ds = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-      if (ds < todayStr) continue;
-      const daily = await getDailyAvailability(tenantId, ds, {
-        configOverride,
-        customerPhone,
-      });
-      const avail = {
-        available: daily.available,
-        booked: daily.booked,
-        blocked: daily.blocked,
-        closed: daily.closed,
-        noSchedule: daily.noSchedule,
-      };
-      if (avail.blocked) continue;
-      if (avail.closed) { closedDays.push(ds); continue; }
-      if (avail.available.length > 0) {
-        weekResults[`${ds} (${formatDateTr(ds)})`] = avail.available;
-      }
-    }
-    if (Object.keys(weekResults).length > 0) {
-      return { result: { days: weekResults } };
+    if (Object.keys(labeled).length > 0) {
+      return { result: { days: labeled } };
     }
     return {
       result: {
         days: {},
-        message: `Önümüzdeki ${advanceDays} gün içinde müsait gün bulunamadı.`,
-        closed_day_count: closedDays.length,
+        message: range.message || "Önümüzdeki 7 gün içinde müsait gün bulunamadı.",
+        closed_day_count: range.closedDays.length,
       },
     };
   }

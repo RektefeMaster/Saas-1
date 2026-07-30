@@ -80,6 +80,53 @@ const DOMAIN_KEYWORDS: Record<IntentDomain, Array<{ term: string; weight: number
 
 let switchLogSchemaAvailable: boolean | null = null;
 
+const TENANT_NAME_LIST_TTL_MS = 5 * 60 * 1000;
+let tenantNameListCache: {
+  expiry: number;
+  rows: Array<{ id: string; name: string; status: string | null }>;
+} | null = null;
+
+const BOOKING_STOPWORDS = new Set([
+  "randevu",
+  "musait",
+  "müsait",
+  "iptal",
+  "yarin",
+  "yarın",
+  "bugun",
+  "bugün",
+  "saat",
+  "tarih",
+  "merhaba",
+  "selam",
+  "evet",
+  "hayir",
+  "hayır",
+  "tamam",
+  "lütfen",
+  "lutfen",
+  "istiyorum",
+  "alabilir",
+  "var",
+  "mi",
+  "mı",
+  "mu",
+  "mü",
+  "icin",
+  "için",
+  "hafta",
+  "pazartesi",
+  "sali",
+  "salı",
+  "carsamba",
+  "çarşamba",
+  "persembe",
+  "perşembe",
+  "cuma",
+  "cumartesi",
+  "pazar",
+]);
+
 function normalizeText(value: string): string {
   return value
     .toLocaleLowerCase("tr-TR")
@@ -139,9 +186,32 @@ function isTenantRoutable(status: string | null | undefined): boolean {
   return false;
 }
 
-async function getTenantSummaryByNameMention(message: string): Promise<TenantSummary | null> {
-  const canonicalMessage = canonicalize(message);
-  if (!canonicalMessage || canonicalMessage.length < 3) return null;
+/** True when message may contain a business name worth scanning for. */
+function looksLikeBusinessNameMention(message: string): boolean {
+  const norm = normalizeText(message);
+  if (!norm || norm.length < 4) return false;
+
+  const tokens = norm
+    .split(/[^a-z0-9çğıöşü]+/i)
+    .map((t) => t.trim())
+    .filter(Boolean);
+
+  const residual = tokens.filter((t) => {
+    if (t.length < 4) return false;
+    if (/^\d+$/.test(t)) return false;
+    if (BOOKING_STOPWORDS.has(t)) return false;
+    return true;
+  });
+
+  return residual.length >= 1;
+}
+
+async function getCachedTenantNameRows(): Promise<
+  Array<{ id: string; name: string; status: string | null }>
+> {
+  if (tenantNameListCache && tenantNameListCache.expiry > Date.now()) {
+    return tenantNameListCache.rows;
+  }
 
   const { data, error } = await supabase
     .from("tenants")
@@ -149,7 +219,29 @@ async function getTenantSummaryByNameMention(message: string): Promise<TenantSum
     .is("deleted_at", null)
     .limit(800);
 
-  if (error || !data || data.length === 0) return null;
+  if (error || !data) {
+    return tenantNameListCache?.rows || [];
+  }
+
+  const rows = data.map((t) => ({
+    id: t.id,
+    name: t.name,
+    status: t.status ?? null,
+  }));
+  tenantNameListCache = {
+    rows,
+    expiry: Date.now() + TENANT_NAME_LIST_TTL_MS,
+  };
+  return rows;
+}
+
+async function getTenantSummaryByNameMention(message: string): Promise<TenantSummary | null> {
+  const canonicalMessage = canonicalize(message);
+  if (!canonicalMessage || canonicalMessage.length < 3) return null;
+  if (!looksLikeBusinessNameMention(message)) return null;
+
+  const data = await getCachedTenantNameRows();
+  if (data.length === 0) return null;
 
   let best: TenantSummary | null = null;
   let bestScore = 0;
@@ -163,14 +255,12 @@ async function getTenantSummaryByNameMention(message: string): Promise<TenantSum
       continue;
     }
     if (score > 0 && score === bestScore && best) {
-      // Tie-break: prefer longer business name match.
       if (canonicalize(tenant.name).length > canonicalize(best.name).length) {
         best = { id: tenant.id, name: tenant.name, status: tenant.status };
       }
     }
   }
 
-  // Lower threshold allows natural phrases like "merhaba <işletme adı>" while avoiding noise.
   return bestScore >= 45 ? best : null;
 }
 
@@ -332,6 +422,53 @@ function pickBestNlpTenant(
   return null;
 }
 
+async function resolveStickyOrNlp(
+  previousTenantId: string,
+  customerPhone: string,
+  intentDomain: IntentDomain | null,
+  normalizedMessage: string,
+  tenantCode: string | null
+): Promise<RoutingDecision | null> {
+  if (intentDomain) {
+    const historyIds = await getRecentCustomerTenantIds(customerPhone, 12);
+    const candidateOrder = [...new Set([previousTenantId, ...historyIds])];
+    const profiles = await getTenantProfiles(candidateOrder);
+    const previousDomain = profiles.get(previousTenantId)
+      ? inferTenantDomain(profiles.get(previousTenantId)!)
+      : null;
+
+    if (previousDomain && previousDomain !== intentDomain) {
+      const nlpMatch = pickBestNlpTenant(
+        candidateOrder,
+        profiles,
+        intentDomain,
+        previousTenantId
+      );
+      if (nlpMatch) {
+        return {
+          tenantId: nlpMatch.id,
+          tenantName: nlpMatch.name,
+          reason: "nlp",
+          normalizedMessage,
+          intentDomain,
+          tenantCode,
+        };
+      }
+    }
+  }
+
+  const previous = await getTenantSummaryById(previousTenantId);
+  if (!previous) return null;
+  return {
+    tenantId: previous.id,
+    tenantName: previous.name,
+    reason: "session",
+    normalizedMessage,
+    intentDomain,
+    tenantCode,
+  };
+}
+
 export async function resolveTenantRouting(input: RoutingInput): Promise<RoutingDecision> {
   const { customerPhone, rawMessage, previousTenantId } = input;
 
@@ -342,6 +479,8 @@ export async function resolveTenantRouting(input: RoutingInput): Promise<Routing
     .replace(/\s+/g, " ")
     .trim();
   const normalizedMessage = sanitizedMessage || rawVisibleMessage;
+  const intentDomain = detectIntentDomain(normalizedMessage);
+  const mayMentionBusiness = looksLikeBusinessNameMention(normalizedMessage);
 
   if (tenantCode) {
     const byCode = await getTenantSummaryByCode(tenantCode);
@@ -351,22 +490,47 @@ export async function resolveTenantRouting(input: RoutingInput): Promise<Routing
         tenantName: byCode.name,
         reason: "marker",
         normalizedMessage,
-        intentDomain: detectIntentDomain(normalizedMessage),
+        intentDomain,
         tenantCode,
       };
     }
   }
 
-  const byName = await getTenantSummaryByNameMention(normalizedMessage);
-  if (byName) {
-    return {
-      tenantId: byName.id,
-      tenantName: byName.name,
-      reason: "name",
+  // Returning customers: sticky first unless message likely names a business.
+  if (previousTenantId && !mayMentionBusiness) {
+    const sticky = await resolveStickyOrNlp(
+      previousTenantId,
+      customerPhone,
+      intentDomain,
       normalizedMessage,
-      intentDomain: detectIntentDomain(normalizedMessage),
-      tenantCode,
-    };
+      tenantCode
+    );
+    if (sticky) return sticky;
+  }
+
+  if (mayMentionBusiness) {
+    const byName = await getTenantSummaryByNameMention(normalizedMessage);
+    if (byName) {
+      return {
+        tenantId: byName.id,
+        tenantName: byName.name,
+        reason: "name",
+        normalizedMessage,
+        intentDomain,
+        tenantCode,
+      };
+    }
+  }
+
+  if (previousTenantId) {
+    const sticky = await resolveStickyOrNlp(
+      previousTenantId,
+      customerPhone,
+      intentDomain,
+      normalizedMessage,
+      tenantCode
+    );
+    if (sticky) return sticky;
   }
 
   if (!previousTenantId) {
@@ -379,56 +543,10 @@ export async function resolveTenantRouting(input: RoutingInput): Promise<Routing
           tenantName: byHistory.name,
           reason: "customer_history",
           normalizedMessage,
-          intentDomain: detectIntentDomain(normalizedMessage),
+          intentDomain,
           tenantCode,
         };
       }
-    }
-  }
-
-  const intentDomain = detectIntentDomain(normalizedMessage);
-  if (previousTenantId) {
-    if (intentDomain) {
-      const historyIds = await getRecentCustomerTenantIds(customerPhone, 12);
-      const candidateOrder = [
-        ...new Set([previousTenantId, ...historyIds]),
-      ];
-      const profiles = await getTenantProfiles(candidateOrder);
-      const previousProfile = profiles.get(previousTenantId);
-      const previousDomain = previousProfile
-        ? inferTenantDomain(previousProfile)
-        : null;
-
-      if (previousDomain && previousDomain !== intentDomain) {
-        const nlpMatch = pickBestNlpTenant(
-          candidateOrder,
-          profiles,
-          intentDomain,
-          previousTenantId
-        );
-        if (nlpMatch) {
-          return {
-            tenantId: nlpMatch.id,
-            tenantName: nlpMatch.name,
-            reason: "nlp",
-            normalizedMessage,
-            intentDomain,
-            tenantCode,
-          };
-        }
-      }
-    }
-
-    const previous = await getTenantSummaryById(previousTenantId);
-    if (previous) {
-      return {
-        tenantId: previous.id,
-        tenantName: previous.name,
-        reason: "session",
-        normalizedMessage,
-        intentDomain,
-        tenantCode,
-      };
     }
   }
 

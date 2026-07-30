@@ -934,7 +934,7 @@ export default function CampaignsPage({
 
       {showRecipientsModal && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-sm"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           onClick={(e) => e.target === e.currentTarget && setShowRecipientsModal(false)}
           role="dialog"
           aria-modal="true"
@@ -1031,7 +1031,7 @@ export default function CampaignsPage({
 
       {showConfirm && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
           onClick={(e) => e.target === e.currentTarget && setShowConfirm(false)}
           role="dialog"
           aria-modal="true"

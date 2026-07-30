@@ -4,12 +4,13 @@ import {
   acquireBookingSlotLock,
   clearBookingSlotHold,
   getBookingHoldsForDate,
+  getBookingHoldsForDates,
   releaseBookingDayLock,
   releaseBookingSlotLock,
   setBookingSlotHold,
+  type BookingHoldRecord,
 } from "@/lib/redis";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
-import { checkBlockedDateDetailed } from "@/services/blockedDates.service";
 import { isCustomerBlocked } from "@/services/blacklist.service";
 import { normalizePhoneDigits } from "@/lib/phone";
 
@@ -17,6 +18,11 @@ const DEFAULT_WORKING_HOURS = { start: "09:00", end: "18:00" };
 const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5, 6];
 const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
 const DEFAULT_TZ_OFFSET = "+03:00";
+const WEEK_AVAILABILITY_MAX_DAYS = 7;
+const SAME_DAY_MIN_LEAD_MINUTES = Math.max(
+  1,
+  Number(process.env.SAME_DAY_MIN_LEAD_MINUTES || 1)
+);
 
 /** IANA timezone için UTC offset string döndürür (örn. "+03:00"). Verilen tarih için DST uyumlu. */
 function getTimezoneOffsetString(timezone: string, date: Date): string {
@@ -40,14 +46,30 @@ function getTimezoneOffsetString(timezone: string, date: Date): string {
   }
   return DEFAULT_TZ_OFFSET;
 }
-const SAME_DAY_MIN_LEAD_MINUTES = Math.max(
-  1,
-  Number(process.env.SAME_DAY_MIN_LEAD_MINUTES || 1)
-);
 
 interface TimeInterval {
   start: number;
   end: number;
+}
+
+interface SlotRow {
+  day_of_week: number;
+  start_time: string;
+  end_time: string;
+  staff_id?: string | null;
+}
+
+interface AppointmentRow {
+  slot_start: string;
+  service_slug: string | null;
+  extra_data: Record<string, unknown> | null;
+  staff_id: string | null;
+}
+
+interface RecurringRow {
+  day_of_week: number;
+  time: string;
+  customer_phone: string;
 }
 
 interface TenantScheduleContext {
@@ -82,6 +104,8 @@ export interface ReserveAppointmentInput {
   extraData?: Record<string, unknown>;
   holdOnly?: boolean;
   holdTtlSeconds?: number;
+  /** Caller already verified blacklist — skip repeat DB check. */
+  skipBlacklistCheck?: boolean;
 }
 
 export interface ReserveAppointmentResult {
@@ -94,12 +118,30 @@ export interface ReserveAppointmentResult {
   staff_id?: string | null;
 }
 
+/** Single-pass shared context for one or many local dates. */
+interface AvailabilityRangeContext {
+  tenantId: string;
+  timeZone: string;
+  configOverride: Record<string, unknown>;
+  baseSlotMinutes: number;
+  dates: string[];
+  blockedDates: Set<string>;
+  blockedCheckFailed: boolean;
+  slots: SlotRow[];
+  appointments: AppointmentRow[];
+  serviceDuration: Map<string, number>;
+  holdsByDate: Map<string, BookingHoldRecord[]>;
+  recurring: RecurringRow[];
+  eligibleStaffIds: string[];
+  customerPhone?: string;
+  serviceSlug?: string | null;
+}
+
 function normalizeDateString(date: string): string | null {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) return null;
   const [y, m, day] = date.split("-").map(Number);
   const d = new Date(y, m - 1, day);
   if (isNaN(d.getTime())) return null;
-  // Reject overflow dates like 2025-02-31 → March 3.
   if (d.getFullYear() !== y || d.getMonth() !== m - 1 || d.getDate() !== day) {
     return null;
   }
@@ -126,12 +168,33 @@ function localTimeToMinutes(date: Date, timeZone = APP_TIMEZONE): number {
   return hour * 60 + minute;
 }
 
-function getUtcSearchWindowForDate(localDate: string): { from: string; to: string } {
-  const [y, m, d] = localDate.split("-").map(Number);
-  return {
-    from: new Date(Date.UTC(y, m - 1, d - 1, 0, 0, 0)).toISOString(),
-    to: new Date(Date.UTC(y, m - 1, d + 2, 0, 0, 0)).toISOString(),
-  };
+/** Timezone-aware UTC window for a local calendar date (±14h covers all offsets). */
+function getUtcSearchWindowForDate(
+  localDate: string,
+  timeZone: string = APP_TIMEZONE
+): { from: string; to: string } {
+  const ref = new Date(`${localDate}T12:00:00`);
+  const offset = getTimezoneOffsetString(timeZone, ref);
+  const startLocal = new Date(`${localDate}T00:00:00${offset}`);
+  const endLocal = new Date(`${localDate}T23:59:59.999${offset}`);
+  if (Number.isNaN(startLocal.getTime()) || Number.isNaN(endLocal.getTime())) {
+    const [y, m, d] = localDate.split("-").map(Number);
+    return {
+      from: new Date(Date.UTC(y, m - 1, d - 1, 12, 0, 0)).toISOString(),
+      to: new Date(Date.UTC(y, m - 1, d + 1, 12, 0, 0)).toISOString(),
+    };
+  }
+  return { from: startLocal.toISOString(), to: endLocal.toISOString() };
+}
+
+function getUtcSearchWindowForRange(
+  fromDate: string,
+  toDate: string,
+  timeZone: string
+): { from: string; to: string } {
+  const start = getUtcSearchWindowForDate(fromDate, timeZone);
+  const end = getUtcSearchWindowForDate(toDate, timeZone);
+  return { from: start.from, to: end.to };
 }
 
 function getDayOfWeek(date: string): number {
@@ -172,48 +235,21 @@ function normalizePhone(phone: string): string {
   return normalizePhoneDigits(phone);
 }
 
-async function getTenantScheduleContext(
-  tenantId: string,
+function addDays(dateStr: string, days: number): string {
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(y, m - 1, d + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+}
+
+function resolveScheduleFromSlots(
+  slots: SlotRow[],
   date: string,
-  configOverride?: Record<string, unknown>,
+  configOverride: Record<string, unknown>,
+  baseSlotMinutes: number,
   staffId?: string | null
-): Promise<TenantScheduleContext> {
-  const normalizedDate = normalizeDateString(date);
-  if (!normalizedDate) {
-    return {
-      configOverride: configOverride || {},
-      startTime: DEFAULT_WORKING_HOURS.start,
-      endTime: DEFAULT_WORKING_HOURS.end,
-      closed: false,
-      noSchedule: true,
-      baseSlotMinutes: 30,
-    };
-  }
-
-  let override = configOverride || {};
-  if (!configOverride) {
-    const { data: tenant } = await supabase
-      .from("tenants")
-      .select("config_override")
-      .eq("id", tenantId)
-      .single();
-    override = (tenant?.config_override || {}) as Record<string, unknown>;
-  }
-
-  const slotMinutes = Math.min(
-    120,
-    Math.max(1, Number(override?.slot_duration_minutes) || 30)
-  );
-
-  const dayOfWeek = getDayOfWeek(normalizedDate);
-  const { data: slots, error: slotsError } = await supabase
-    .from("availability_slots")
-    .select("day_of_week, start_time, end_time, staff_id")
-    .eq("tenant_id", tenantId);
-
-  if (slotsError) {
-    throw new Error(`availability_slots_query_failed:${slotsError.message}`);
-  }
+): TenantScheduleContext {
+  const dayOfWeek = getDayOfWeek(date);
+  const override = configOverride || {};
 
   if (!slots || slots.length === 0) {
     const defaultHours = (override.default_working_hours || null) as
@@ -228,7 +264,7 @@ async function getTenantScheduleContext(
         endTime,
         closed: true,
         noSchedule: false,
-        baseSlotMinutes: slotMinutes,
+        baseSlotMinutes,
       };
     }
     return {
@@ -237,22 +273,15 @@ async function getTenantScheduleContext(
       endTime,
       closed: false,
       noSchedule: false,
-      baseSlotMinutes: slotMinutes,
+      baseSlotMinutes,
     };
   }
 
-  const rows = slots as Array<{
-    day_of_week: number;
-    start_time: string;
-    end_time: string;
-    staff_id?: string | null;
-  }>;
-
   const scoped =
-    staffId && rows.some((row) => row.staff_id === staffId)
-      ? rows.filter((row) => row.staff_id === staffId)
-      : rows.filter((row) => row.staff_id == null);
-  const fallbackRows = scoped.length > 0 ? scoped : rows;
+    staffId && slots.some((row) => row.staff_id === staffId)
+      ? slots.filter((row) => row.staff_id === staffId)
+      : slots.filter((row) => row.staff_id == null);
+  const fallbackRows = scoped.length > 0 ? scoped : slots;
   const daySlot = fallbackRows.find((s) => s.day_of_week === dayOfWeek);
   if (!daySlot) {
     return {
@@ -261,7 +290,7 @@ async function getTenantScheduleContext(
       endTime: DEFAULT_WORKING_HOURS.end,
       closed: true,
       noSchedule: false,
-      baseSlotMinutes: slotMinutes,
+      baseSlotMinutes,
     };
   }
 
@@ -271,110 +300,8 @@ async function getTenantScheduleContext(
     endTime: daySlot.end_time,
     closed: false,
     noSchedule: false,
-    baseSlotMinutes: slotMinutes,
+    baseSlotMinutes,
   };
-}
-
-async function getServiceDurationMinutes(
-  tenantId: string,
-  serviceSlug: string | null | undefined,
-  fallback: number
-): Promise<number> {
-  if (!serviceSlug) return fallback;
-  const slug = serviceSlug.trim();
-  if (!slug) return fallback;
-  const { data: service } = await supabase
-    .from("services")
-    .select("duration_minutes")
-    .eq("tenant_id", tenantId)
-    .eq("slug", slug)
-    .eq("is_active", true)
-    .limit(1)
-    .maybeSingle();
-  const value = Number(service?.duration_minutes || 0);
-  if (!Number.isFinite(value) || value <= 0) return fallback;
-  return Math.min(240, Math.max(5, value));
-}
-
-async function resolveTenantTimezone(tenantId: string): Promise<string> {
-  const { data } = await supabase
-    .from("tenants")
-    .select("timezone")
-    .eq("id", tenantId)
-    .maybeSingle();
-  return (data?.timezone as string)?.trim() || APP_TIMEZONE;
-}
-
-async function getBookedIntervalsForDate(
-  tenantId: string,
-  date: string,
-  fallbackDurationMinutes: number,
-  staffId?: string | null,
-  timeZone: string = APP_TIMEZONE
-): Promise<{ intervals: TimeInterval[]; starts: string[] }> {
-  const window = getUtcSearchWindowForDate(date);
-  let appointmentsQuery = supabase
-    .from("appointments")
-    .select("slot_start, service_slug, extra_data, staff_id")
-    .eq("tenant_id", tenantId)
-    .gte("slot_start", window.from)
-    .lt("slot_start", window.to)
-    .neq("status", "cancelled");
-  if (staffId) {
-    appointmentsQuery = appointmentsQuery.eq("staff_id", staffId);
-  }
-
-  const { data: appointments, error: appointmentsError } = await appointmentsQuery;
-  if (appointmentsError) {
-    throw new Error(`appointments_query_failed:${appointmentsError.message}`);
-  }
-
-  const rows = appointments || [];
-  const slugs = [
-    ...new Set(rows.map((r) => r.service_slug).filter(Boolean) as string[]),
-  ];
-
-  const serviceDuration = new Map<string, number>();
-  if (slugs.length > 0) {
-    const { data: services } = await supabase
-      .from("services")
-      .select("slug, duration_minutes")
-      .eq("tenant_id", tenantId)
-      .in("slug", slugs);
-    for (const svc of services || []) {
-      serviceDuration.set(
-        svc.slug,
-        Math.min(240, Math.max(5, Number(svc.duration_minutes || fallbackDurationMinutes)))
-      );
-    }
-  }
-
-  const intervals: TimeInterval[] = [];
-  const starts: string[] = [];
-
-  for (const row of rows) {
-    const d = new Date(row.slot_start);
-    if (isNaN(d.getTime())) continue;
-    if (localDateStr(d, timeZone) !== date) continue;
-    const time = new Intl.DateTimeFormat("en-GB", {
-      timeZone,
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: false,
-    }).format(d);
-    const start = timeToMinutes(time);
-    const extraDuration = Number(
-      ((row.extra_data as Record<string, unknown> | null)?.duration_minutes as number) || 0
-    );
-    const duration =
-      extraDuration > 0
-        ? Math.min(240, Math.max(5, extraDuration))
-        : serviceDuration.get(row.service_slug || "") || fallbackDurationMinutes;
-    intervals.push({ start, end: start + duration });
-    starts.push(time);
-  }
-
-  return { intervals, starts };
 }
 
 async function getEligibleStaffIds(
@@ -415,108 +342,10 @@ async function getEligibleStaffIds(
 
   const missingTable = extractMissingSchemaTable(mappingResult.error);
   if (missingTable === "staff_services") {
-    // staff-service mapping yoksa tüm aktif personeli aday kabul et.
     return activeStaffIds;
   }
 
   throw new Error(`staff_services_query_failed:${mappingResult.error.message}`);
-}
-
-async function getStaffLoadForDate(
-  tenantId: string,
-  date: string,
-  staffIds: string[]
-): Promise<Map<string, number>> {
-  const counts = new Map<string, number>();
-  if (staffIds.length === 0) return counts;
-
-  const timeZone = await resolveTenantTimezone(tenantId);
-  const window = getUtcSearchWindowForDate(date);
-  const result = await supabase
-    .from("appointments")
-    .select("staff_id, slot_start, status")
-    .eq("tenant_id", tenantId)
-    .in("staff_id", staffIds)
-    .gte("slot_start", window.from)
-    .lt("slot_start", window.to)
-    .neq("status", "cancelled");
-
-  if (result.error) {
-    throw new Error(`staff_load_query_failed:${result.error.message}`);
-  }
-
-  for (const row of result.data || []) {
-    if (!row.staff_id) continue;
-    const slot = new Date(row.slot_start);
-    if (Number.isNaN(slot.getTime())) continue;
-    if (localDateStr(slot, timeZone) !== date) continue;
-    counts.set(row.staff_id, (counts.get(row.staff_id) || 0) + 1);
-  }
-
-  return counts;
-}
-
-async function findStaffForRequestedSlot(
-  tenantId: string,
-  date: string,
-  requestedTime: string,
-  options?: {
-    serviceSlug?: string | null;
-    customerPhone?: string;
-    configOverride?: Record<string, unknown>;
-  }
-): Promise<{
-  staffId: string | null;
-  availableTimes: string[];
-  hadEligibleStaff: boolean;
-}> {
-  const eligibleStaffIds = await getEligibleStaffIds(tenantId, options?.serviceSlug);
-  if (eligibleStaffIds.length === 0) {
-    return { staffId: null, availableTimes: [], hadEligibleStaff: false };
-  }
-
-  const loadByStaff = await getStaffLoadForDate(tenantId, date, eligibleStaffIds);
-  const orderedStaffIds = [...eligibleStaffIds].sort((a, b) => {
-    const loadA = loadByStaff.get(a) || 0;
-    const loadB = loadByStaff.get(b) || 0;
-    if (loadA !== loadB) return loadA - loadB;
-    return a.localeCompare(b);
-  });
-
-  const aggregate = new Set<string>();
-  let sawCheckFailed = false;
-  for (const staffId of orderedStaffIds) {
-    const daily = await getDailyAvailability(tenantId, date, {
-      serviceSlug: options?.serviceSlug,
-      customerPhone: options?.customerPhone,
-      configOverride: options?.configOverride,
-      staffId,
-    });
-    if (daily.checkFailed) {
-      sawCheckFailed = true;
-      continue;
-    }
-    for (const slot of daily.available) {
-      aggregate.add(slot);
-    }
-    if (daily.available.includes(requestedTime)) {
-      return {
-        staffId,
-        availableTimes: [...aggregate],
-        hadEligibleStaff: true,
-      };
-    }
-  }
-
-  if (sawCheckFailed && aggregate.size === 0) {
-    throw new Error("availability_check_failed");
-  }
-
-  return {
-    staffId: null,
-    availableTimes: [...aggregate],
-    hadEligibleStaff: true,
-  };
 }
 
 function mergeIntervals(base: TimeInterval[], extra: TimeInterval[]): TimeInterval[] {
@@ -532,7 +361,6 @@ function findSuggestedTime(
   const sorted = [...candidates].sort(
     (a, b) => timeToMinutes(a) - timeToMinutes(b)
   );
-  // Önce istenen saatten sonraki en yakın zamanı dene
   let bestAfter: string | undefined;
   let bestAfterDiff = Number.POSITIVE_INFINITY;
   for (const t of sorted) {
@@ -543,7 +371,6 @@ function findSuggestedTime(
     }
   }
   if (bestAfter) return bestAfter;
-  // Sonraki yoksa en yakın önceki zamanı bul
   let bestBefore: string | undefined;
   let bestBeforeDiff = Number.POSITIVE_INFINITY;
   for (const t of sorted) {
@@ -554,6 +381,579 @@ function findSuggestedTime(
     }
   }
   return bestBefore ?? sorted[0];
+}
+
+async function loadAvailabilityRangeContext(
+  tenantId: string,
+  dates: string[],
+  options?: {
+    staffId?: string | null;
+    serviceSlug?: string | null;
+    customerPhone?: string;
+    configOverride?: Record<string, unknown>;
+  }
+): Promise<AvailabilityRangeContext> {
+  const normalizedDates = [
+    ...new Set(
+      dates
+        .map((d) => normalizeDateString(d))
+        .filter((d): d is string => Boolean(d))
+    ),
+  ].sort();
+
+  if (normalizedDates.length === 0) {
+    return {
+      tenantId,
+      timeZone: APP_TIMEZONE,
+      configOverride: options?.configOverride || {},
+      baseSlotMinutes: 30,
+      dates: [],
+      blockedDates: new Set(),
+      blockedCheckFailed: false,
+      slots: [],
+      appointments: [],
+      serviceDuration: new Map(),
+      holdsByDate: new Map(),
+      recurring: [],
+      eligibleStaffIds: [],
+      customerPhone: options?.customerPhone,
+      serviceSlug: options?.serviceSlug,
+    };
+  }
+
+  const fromDate = normalizedDates[0];
+  const toDate = normalizedDates[normalizedDates.length - 1];
+  const dayOfWeeks = [...new Set(normalizedDates.map((d) => getDayOfWeek(d)))];
+
+  const [tenantRes, blockedRes, slotsRes, eligibleStaffIds] = await Promise.all([
+    supabase
+      .from("tenants")
+      .select("timezone, config_override")
+      .eq("id", tenantId)
+      .maybeSingle(),
+    supabase
+      .from("blocked_dates")
+      .select("start_date, end_date")
+      .eq("tenant_id", tenantId)
+      .lte("start_date", toDate)
+      .gte("end_date", fromDate),
+    supabase
+      .from("availability_slots")
+      .select("day_of_week, start_time, end_time, staff_id")
+      .eq("tenant_id", tenantId)
+      .in("day_of_week", dayOfWeeks),
+    getEligibleStaffIds(tenantId, options?.serviceSlug).catch((err) => {
+      console.error("[loadAvailabilityRangeContext] staff eligibility failed:", err);
+      return null as string[] | null;
+    }),
+  ]);
+
+  if (tenantRes.error) {
+    throw new Error(`tenant_query_failed:${tenantRes.error.message}`);
+  }
+
+  const timeZone =
+    (tenantRes.data?.timezone as string | null | undefined)?.trim() || APP_TIMEZONE;
+  const configOverride =
+    options?.configOverride ||
+    ((tenantRes.data?.config_override as Record<string, unknown> | null) || {});
+  const baseSlotMinutes = Math.min(
+    120,
+    Math.max(1, Number(configOverride?.slot_duration_minutes) || 30)
+  );
+
+  const blockedCheckFailed = Boolean(blockedRes.error);
+  const blockedDates = new Set<string>();
+  if (!blockedRes.error) {
+    for (const row of blockedRes.data || []) {
+      const start = String(row.start_date || "");
+      const end = String(row.end_date || "");
+      for (const d of normalizedDates) {
+        if (d >= start && d <= end) blockedDates.add(d);
+      }
+    }
+  }
+
+  if (slotsRes.error) {
+    throw new Error(`availability_slots_query_failed:${slotsRes.error.message}`);
+  }
+  const slots = (slotsRes.data || []) as SlotRow[];
+
+  if (eligibleStaffIds === null) {
+    return {
+      tenantId,
+      timeZone,
+      configOverride,
+      baseSlotMinutes,
+      dates: normalizedDates,
+      blockedDates,
+      blockedCheckFailed: true,
+      slots,
+      appointments: [],
+      serviceDuration: new Map(),
+      holdsByDate: new Map(normalizedDates.map((d) => [d, []])),
+      recurring: [],
+      eligibleStaffIds: [],
+      customerPhone: options?.customerPhone,
+      serviceSlug: options?.serviceSlug,
+    };
+  }
+
+  const window = getUtcSearchWindowForRange(fromDate, toDate, timeZone);
+
+  const [appointmentsRes, holdsByDate, recurringRes, servicesRes] = await Promise.all([
+    supabase
+      .from("appointments")
+      .select("slot_start, service_slug, extra_data, staff_id")
+      .eq("tenant_id", tenantId)
+      .gte("slot_start", window.from)
+      .lte("slot_start", window.to)
+      .neq("status", "cancelled"),
+    getBookingHoldsForDates(tenantId, normalizedDates),
+    supabase
+      .from("recurring_appointments")
+      .select("day_of_week, time, customer_phone")
+      .eq("tenant_id", tenantId)
+      .eq("active", true)
+      .in("day_of_week", dayOfWeeks),
+    supabase
+      .from("services")
+      .select("slug, duration_minutes")
+      .eq("tenant_id", tenantId)
+      .eq("is_active", true),
+  ]);
+
+  if (appointmentsRes.error) {
+    throw new Error(`appointments_query_failed:${appointmentsRes.error.message}`);
+  }
+  if (recurringRes.error) {
+    throw new Error(`recurring_query_failed:${recurringRes.error.message}`);
+  }
+
+  const appointments = (appointmentsRes.data || []).map((row) => ({
+    slot_start: row.slot_start,
+    service_slug: row.service_slug ?? null,
+    extra_data: (row.extra_data as Record<string, unknown> | null) || null,
+    staff_id: (row.staff_id as string | null) || null,
+  }));
+
+  const serviceDuration = new Map<string, number>();
+  for (const svc of servicesRes.data || []) {
+    serviceDuration.set(
+      svc.slug,
+      Math.min(240, Math.max(5, Number(svc.duration_minutes || baseSlotMinutes)))
+    );
+  }
+
+  // Ensure service slug duration is known even if inactive filter missed it.
+  const serviceSlug = options?.serviceSlug?.trim();
+  if (serviceSlug && !serviceDuration.has(serviceSlug)) {
+    const { data: one } = await supabase
+      .from("services")
+      .select("duration_minutes")
+      .eq("tenant_id", tenantId)
+      .eq("slug", serviceSlug)
+      .limit(1)
+      .maybeSingle();
+    const value = Number(one?.duration_minutes || 0);
+    if (Number.isFinite(value) && value > 0) {
+      serviceDuration.set(serviceSlug, Math.min(240, Math.max(5, value)));
+    }
+  }
+
+  return {
+    tenantId,
+    timeZone,
+    configOverride,
+    baseSlotMinutes,
+    dates: normalizedDates,
+    blockedDates,
+    blockedCheckFailed,
+    slots,
+    appointments,
+    serviceDuration,
+    holdsByDate,
+    recurring: (recurringRes.data || []).map((r) => ({
+      day_of_week: Number(r.day_of_week),
+      time: String(r.time || ""),
+      customer_phone: String(r.customer_phone || ""),
+    })),
+    eligibleStaffIds,
+    customerPhone: options?.customerPhone,
+    serviceSlug: options?.serviceSlug,
+  };
+}
+
+function computeBookedForStaff(
+  ctx: AvailabilityRangeContext,
+  date: string,
+  staffId?: string | null
+): { intervals: TimeInterval[]; starts: string[] } {
+  const dateFmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ctx.timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const timeFmt = new Intl.DateTimeFormat("en-GB", {
+    timeZone: ctx.timeZone,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
+
+  const intervals: TimeInterval[] = [];
+  const starts: string[] = [];
+
+  for (const row of ctx.appointments) {
+    if (staffId && row.staff_id && row.staff_id !== staffId) continue;
+    if (staffId && !row.staff_id) {
+      // Unassigned appointment blocks the pool when filtering a specific staff.
+      // Keep previous behavior: staff filter uses eq staff_id, so skip null staff.
+      continue;
+    }
+    const d = new Date(row.slot_start);
+    if (isNaN(d.getTime())) continue;
+    if (dateFmt.format(d) !== date) continue;
+    const time = timeFmt.format(d);
+    const start = timeToMinutes(time);
+    const extraDuration = Number(
+      (row.extra_data as Record<string, unknown> | null)?.duration_minutes || 0
+    );
+    const duration =
+      extraDuration > 0
+        ? Math.min(240, Math.max(5, extraDuration))
+        : ctx.serviceDuration.get(row.service_slug || "") || ctx.baseSlotMinutes;
+    intervals.push({ start, end: start + duration });
+    starts.push(time);
+  }
+
+  return { intervals, starts };
+}
+
+function computeDailyAvailabilityFromContext(
+  ctx: AvailabilityRangeContext,
+  date: string,
+  staffId?: string | null
+): DailyAvailabilityResult {
+  const normalizedDate = normalizeDateString(date);
+  if (!normalizedDate) {
+    return {
+      date,
+      available: [],
+      booked: [],
+      noSchedule: true,
+      workingHours: null,
+      durationMinutes: ctx.baseSlotMinutes,
+    };
+  }
+
+  if (ctx.blockedCheckFailed) {
+    return {
+      date: normalizedDate,
+      checkFailed: true,
+      available: [],
+      booked: [],
+      workingHours: null,
+      durationMinutes: ctx.baseSlotMinutes,
+    };
+  }
+
+  if (ctx.blockedDates.has(normalizedDate)) {
+    return {
+      date: normalizedDate,
+      blocked: true,
+      available: [],
+      booked: [],
+      workingHours: null,
+      durationMinutes: ctx.baseSlotMinutes,
+    };
+  }
+
+  const schedule = resolveScheduleFromSlots(
+    ctx.slots,
+    normalizedDate,
+    ctx.configOverride,
+    ctx.baseSlotMinutes,
+    staffId
+  );
+
+  if (schedule.noSchedule) {
+    return {
+      date: normalizedDate,
+      available: [],
+      booked: [],
+      noSchedule: true,
+      workingHours: null,
+      durationMinutes: schedule.baseSlotMinutes,
+    };
+  }
+  if (schedule.closed) {
+    return {
+      date: normalizedDate,
+      available: [],
+      booked: [],
+      closed: true,
+      workingHours: { start: schedule.startTime, end: schedule.endTime },
+      durationMinutes: schedule.baseSlotMinutes,
+    };
+  }
+
+  const durationMinutes =
+    (ctx.serviceSlug && ctx.serviceDuration.get(ctx.serviceSlug.trim())) ||
+    schedule.baseSlotMinutes;
+
+  const booked = computeBookedForStaff(ctx, normalizedDate, staffId);
+  const ownPhone = ctx.customerPhone ? normalizePhone(ctx.customerPhone) : "";
+
+  const holdIntervals: TimeInterval[] = [];
+  for (const hold of ctx.holdsByDate.get(normalizedDate) || []) {
+    const holdStaffId =
+      typeof hold.staff_id === "string" ? hold.staff_id.trim() : "";
+    if (staffId && holdStaffId && holdStaffId !== staffId) continue;
+    const holdPhone = normalizePhone(hold.customer_phone);
+    if (ownPhone && holdPhone === ownPhone) continue;
+    const start = timeToMinutes(hold.time);
+    const holdDuration = Math.min(
+      240,
+      Math.max(5, Number(hold.duration_minutes || schedule.baseSlotMinutes))
+    );
+    holdIntervals.push({ start, end: start + holdDuration });
+  }
+
+  const recurringIntervals: TimeInterval[] = [];
+  const dayOfWeek = getDayOfWeek(normalizedDate);
+  for (const row of ctx.recurring) {
+    if (row.day_of_week !== dayOfWeek) continue;
+    const recurringPhone = normalizePhone(String(row.customer_phone || ""));
+    if (ownPhone && recurringPhone && recurringPhone === ownPhone) continue;
+    const t = normalizeTimeString(String(row.time || ""));
+    if (!t) continue;
+    const start = timeToMinutes(t);
+    recurringIntervals.push({
+      start,
+      end: start + schedule.baseSlotMinutes,
+    });
+  }
+
+  const merged = mergeIntervals(
+    mergeIntervals(booked.intervals, holdIntervals),
+    recurringIntervals
+  );
+  const workStart = timeToMinutes(schedule.startTime);
+  const workEnd = timeToMinutes(schedule.endTime);
+  const available: string[] = [];
+  const now = new Date();
+  const todayLocal = localDateStr(now, ctx.timeZone);
+  const nowMinutes = localTimeToMinutes(now, ctx.timeZone);
+  const sameDayMinStart =
+    normalizedDate === todayLocal
+      ? nowMinutes + SAME_DAY_MIN_LEAD_MINUTES
+      : Number.NEGATIVE_INFINITY;
+
+  for (
+    let cursor = workStart;
+    cursor + durationMinutes <= workEnd;
+    cursor += schedule.baseSlotMinutes
+  ) {
+    if (cursor < sameDayMinStart) continue;
+    const candidate: TimeInterval = {
+      start: cursor,
+      end: cursor + durationMinutes,
+    };
+    if (!merged.some((interval) => overlaps(interval, candidate))) {
+      available.push(minutesToTime(cursor));
+    }
+  }
+
+  return {
+    date: normalizedDate,
+    available,
+    booked: booked.starts,
+    workingHours: { start: schedule.startTime, end: schedule.endTime },
+    durationMinutes,
+  };
+}
+
+function unionStaffAvailability(
+  ctx: AvailabilityRangeContext,
+  date: string
+): DailyAvailabilityResult {
+  const staffIds = ctx.eligibleStaffIds;
+  if (staffIds.length === 0) {
+    return computeDailyAvailabilityFromContext(ctx, date, null);
+  }
+
+  const availableSet = new Set<string>();
+  const bookedSet = new Set<string>();
+  let workingHours: DailyAvailabilityResult["workingHours"] = null;
+  let durationMinutes = ctx.baseSlotMinutes;
+  let sawOpen = false;
+  let sawBlocked = false;
+  let sawClosed = false;
+  let sawNoSchedule = false;
+  let sawCheckFailed = false;
+
+  for (const staffId of staffIds) {
+    const daily = computeDailyAvailabilityFromContext(ctx, date, staffId);
+    if (daily.checkFailed) {
+      sawCheckFailed = true;
+      continue;
+    }
+    if (daily.blocked) {
+      sawBlocked = true;
+      continue;
+    }
+    if (daily.closed) {
+      sawClosed = true;
+      continue;
+    }
+    if (daily.noSchedule) {
+      sawNoSchedule = true;
+      continue;
+    }
+    sawOpen = true;
+    durationMinutes = daily.durationMinutes;
+    workingHours = daily.workingHours;
+    for (const t of daily.available) availableSet.add(t);
+    for (const t of daily.booked) bookedSet.add(t);
+  }
+
+  if (!sawOpen) {
+    if (sawCheckFailed) {
+      return {
+        date,
+        checkFailed: true,
+        available: [],
+        booked: [],
+        workingHours: null,
+        durationMinutes,
+      };
+    }
+    if (sawBlocked && !sawClosed && !sawNoSchedule) {
+      return {
+        date,
+        blocked: true,
+        available: [],
+        booked: [],
+        workingHours: null,
+        durationMinutes,
+      };
+    }
+    if (sawClosed) {
+      return {
+        date,
+        closed: true,
+        available: [],
+        booked: [],
+        workingHours,
+        durationMinutes,
+      };
+    }
+    return {
+      date,
+      noSchedule: true,
+      available: [],
+      booked: [],
+      workingHours: null,
+      durationMinutes,
+    };
+  }
+
+  const sortTimes = (times: string[]) =>
+    [...times].sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
+  return {
+    date,
+    available: sortTimes([...availableSet]),
+    booked: sortTimes([...bookedSet]),
+    workingHours,
+    durationMinutes,
+  };
+}
+
+function staffLoadFromContext(
+  ctx: AvailabilityRangeContext,
+  date: string,
+  staffIds: string[]
+): Map<string, number> {
+  const counts = new Map<string, number>();
+  const dateFmt = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ctx.timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const staffSet = new Set(staffIds);
+  for (const row of ctx.appointments) {
+    if (!row.staff_id || !staffSet.has(row.staff_id)) continue;
+    const d = new Date(row.slot_start);
+    if (Number.isNaN(d.getTime())) continue;
+    if (dateFmt.format(d) !== date) continue;
+    counts.set(row.staff_id, (counts.get(row.staff_id) || 0) + 1);
+  }
+  return counts;
+}
+
+function findStaffForRequestedSlotFromContext(
+  ctx: AvailabilityRangeContext,
+  date: string,
+  requestedTime: string
+): {
+  staffId: string | null;
+  availableTimes: string[];
+  hadEligibleStaff: boolean;
+  dailyByStaff: Map<string, DailyAvailabilityResult>;
+} {
+  const eligibleStaffIds = ctx.eligibleStaffIds;
+  if (eligibleStaffIds.length === 0) {
+    return {
+      staffId: null,
+      availableTimes: [],
+      hadEligibleStaff: false,
+      dailyByStaff: new Map(),
+    };
+  }
+
+  const loadByStaff = staffLoadFromContext(ctx, date, eligibleStaffIds);
+  const orderedStaffIds = [...eligibleStaffIds].sort((a, b) => {
+    const loadA = loadByStaff.get(a) || 0;
+    const loadB = loadByStaff.get(b) || 0;
+    if (loadA !== loadB) return loadA - loadB;
+    return a.localeCompare(b);
+  });
+
+  const aggregate = new Set<string>();
+  const dailyByStaff = new Map<string, DailyAvailabilityResult>();
+  let sawCheckFailed = false;
+
+  for (const staffId of orderedStaffIds) {
+    const daily = computeDailyAvailabilityFromContext(ctx, date, staffId);
+    dailyByStaff.set(staffId, daily);
+    if (daily.checkFailed) {
+      sawCheckFailed = true;
+      continue;
+    }
+    for (const slot of daily.available) aggregate.add(slot);
+    if (daily.available.includes(requestedTime)) {
+      return {
+        staffId,
+        availableTimes: [...aggregate],
+        hadEligibleStaff: true,
+        dailyByStaff,
+      };
+    }
+  }
+
+  if (sawCheckFailed && aggregate.size === 0) {
+    throw new Error("availability_check_failed");
+  }
+
+  return {
+    staffId: null,
+    availableTimes: [...aggregate],
+    hadEligibleStaff: true,
+    dailyByStaff,
+  };
 }
 
 export async function getDailyAvailability(
@@ -578,149 +978,20 @@ export async function getDailyAvailability(
     };
   }
 
-  // Multi-staff: without a specific staffId, union slots any eligible staff can take
-  // (avoid treating every staff booking as a shared single-pool block).
-  if (!options?.staffId) {
-    let eligibleStaffIds: string[] = [];
-    try {
-      eligibleStaffIds = await getEligibleStaffIds(tenantId, options?.serviceSlug);
-    } catch (err) {
-      console.error("[getDailyAvailability] staff eligibility failed:", err);
-      return {
-        date: normalizedDate,
-        checkFailed: true,
-        available: [],
-        booked: [],
-        workingHours: null,
-        durationMinutes: 30,
-      };
-    }
-    if (eligibleStaffIds.length >= 1) {
-      const availableSet = new Set<string>();
-      const bookedSet = new Set<string>();
-      let workingHours: DailyAvailabilityResult["workingHours"] = null;
-      let durationMinutes = 30;
-      let sawOpen = false;
-      let sawBlocked = false;
-      let sawClosed = false;
-      let sawNoSchedule = false;
-      let sawCheckFailed = false;
-
-      for (const staffId of eligibleStaffIds) {
-        const daily = await getDailyAvailability(tenantId, normalizedDate, {
-          ...options,
-          staffId,
-        });
-        if (daily.checkFailed) {
-          sawCheckFailed = true;
-          continue;
-        }
-        if (daily.blocked) {
-          sawBlocked = true;
-          continue;
-        }
-        if (daily.closed) {
-          sawClosed = true;
-          continue;
-        }
-        if (daily.noSchedule) {
-          sawNoSchedule = true;
-          continue;
-        }
-        sawOpen = true;
-        durationMinutes = daily.durationMinutes;
-        workingHours = daily.workingHours;
-        for (const t of daily.available) availableSet.add(t);
-        for (const t of daily.booked) bookedSet.add(t);
-      }
-
-      if (!sawOpen) {
-        if (sawCheckFailed) {
-          return {
-            date: normalizedDate,
-            checkFailed: true,
-            available: [],
-            booked: [],
-            workingHours: null,
-            durationMinutes,
-          };
-        }
-        if (sawBlocked && !sawClosed && !sawNoSchedule) {
-          return {
-            date: normalizedDate,
-            blocked: true,
-            available: [],
-            booked: [],
-            workingHours: null,
-            durationMinutes,
-          };
-        }
-        if (sawClosed) {
-          return {
-            date: normalizedDate,
-            closed: true,
-            available: [],
-            booked: [],
-            workingHours,
-            durationMinutes,
-          };
-        }
-        return {
-          date: normalizedDate,
-          noSchedule: true,
-          available: [],
-          booked: [],
-          workingHours: null,
-          durationMinutes,
-        };
-      }
-
-      const sortTimes = (times: string[]) =>
-        [...times].sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
-      return {
-        date: normalizedDate,
-        available: sortTimes([...availableSet]),
-        booked: sortTimes([...bookedSet]),
-        workingHours,
-        durationMinutes,
-      };
-    }
-  }
-
-  const tenantTimezone = await resolveTenantTimezone(tenantId);
-
-  const blockedCheck = await checkBlockedDateDetailed(tenantId, normalizedDate);
-  if (!blockedCheck.ok) {
-    return {
-      date: normalizedDate,
-      checkFailed: true,
-      available: [],
-      booked: [],
-      workingHours: null,
-      durationMinutes: 30,
-    };
-  }
-  if (blockedCheck.blocked) {
-    return {
-      date: normalizedDate,
-      blocked: true,
-      available: [],
-      booked: [],
-      workingHours: null,
-      durationMinutes: 30,
-    };
-  }
-
-  let schedule: Awaited<ReturnType<typeof getTenantScheduleContext>>;
   try {
-    schedule = await getTenantScheduleContext(
-      tenantId,
-      normalizedDate,
-      options?.configOverride,
-      options?.staffId
-    );
+    const ctx = await loadAvailabilityRangeContext(tenantId, [normalizedDate], options);
+    if (ctx.blockedCheckFailed && ctx.eligibleStaffIds.length === 0 && options?.staffId == null) {
+      // staff eligibility failed surfaced as checkFailed above
+    }
+    if (options?.staffId) {
+      return computeDailyAvailabilityFromContext(ctx, normalizedDate, options.staffId);
+    }
+    if (ctx.eligibleStaffIds.length >= 1) {
+      return unionStaffAvailability(ctx, normalizedDate);
+    }
+    return computeDailyAvailabilityFromContext(ctx, normalizedDate, null);
   } catch (err) {
-    console.error("[getDailyAvailability] schedule failed:", err);
+    console.error("[getDailyAvailability] failed:", err);
     return {
       date: normalizedDate,
       checkFailed: true,
@@ -730,158 +1001,94 @@ export async function getDailyAvailability(
       durationMinutes: 30,
     };
   }
-  if (schedule.noSchedule) {
-    return {
-      date: normalizedDate,
-      available: [],
-      booked: [],
-      noSchedule: true,
-      workingHours: null,
-      durationMinutes: schedule.baseSlotMinutes,
-    };
+}
+
+/**
+ * Next up to 7 days of availability in a single DB/Redis batch.
+ * Used by check_week_availability tool (never N× getDailyAvailability).
+ */
+export async function getAvailabilityRange(
+  tenantId: string,
+  startDate: string,
+  options?: {
+    serviceSlug?: string | null;
+    customerPhone?: string;
+    configOverride?: Record<string, unknown>;
+    maxDays?: number;
   }
-  if (schedule.closed) {
-    return {
-      date: normalizedDate,
-      available: [],
-      booked: [],
-      closed: true,
-      workingHours: { start: schedule.startTime, end: schedule.endTime },
-      durationMinutes: schedule.baseSlotMinutes,
-    };
+): Promise<{
+  days: Record<string, string[]>;
+  closedDays: string[];
+  message?: string;
+}> {
+  const normalizedStart = normalizeDateString(startDate);
+  if (!normalizedStart) {
+    return { days: {}, closedDays: [], message: "Geçersiz tarih formatı" };
   }
 
-  const durationMinutes = await getServiceDurationMinutes(
-    tenantId,
-    options?.serviceSlug,
-    schedule.baseSlotMinutes
+  const maxDays = Math.min(
+    WEEK_AVAILABILITY_MAX_DAYS,
+    Math.max(1, options?.maxDays ?? WEEK_AVAILABILITY_MAX_DAYS)
   );
+  const todayStr = localDateStr(new Date());
+  const dates: string[] = [];
+  for (let i = 0; i < maxDays; i++) {
+    const ds = addDays(normalizedStart, i);
+    if (ds < todayStr) continue;
+    dates.push(ds);
+  }
 
-  let appointmentIntervals: TimeInterval[];
-  let starts: string[];
+  if (dates.length === 0) {
+    return {
+      days: {},
+      closedDays: [],
+      message: `Önümüzdeki ${maxDays} gün içinde müsait gün bulunamadı.`,
+    };
+  }
+
   try {
-    const booked = await getBookedIntervalsForDate(
-      tenantId,
-      normalizedDate,
-      schedule.baseSlotMinutes,
-      options?.staffId,
-      tenantTimezone
-    );
-    appointmentIntervals = booked.intervals;
-    starts = booked.starts;
-  } catch (err) {
-    console.error("[getDailyAvailability] booked intervals failed:", err);
-    return {
-      date: normalizedDate,
-      checkFailed: true,
-      available: [],
-      booked: [],
-      workingHours: { start: schedule.startTime, end: schedule.endTime },
-      durationMinutes,
-    };
-  }
-
-  let holds: Awaited<ReturnType<typeof getBookingHoldsForDate>>;
-  try {
-    holds = await getBookingHoldsForDate(tenantId, normalizedDate);
-  } catch (err) {
-    console.error("[getDailyAvailability] holds failed:", err);
-    return {
-      date: normalizedDate,
-      checkFailed: true,
-      available: [],
-      booked: [],
-      workingHours: { start: schedule.startTime, end: schedule.endTime },
-      durationMinutes,
-    };
-  }
-  const ownPhone = options?.customerPhone ? normalizePhone(options.customerPhone) : "";
-  const holdIntervals: TimeInterval[] = [];
-  for (const hold of holds) {
-    const holdStaffId =
-      typeof (hold as { staff_id?: unknown }).staff_id === "string"
-        ? ((hold as { staff_id: string }).staff_id || "").trim()
-        : "";
-    if (options?.staffId && holdStaffId && holdStaffId !== options.staffId) continue;
-    const holdPhone = normalizePhone(hold.customer_phone);
-    if (ownPhone && holdPhone === ownPhone) continue;
-    const start = timeToMinutes(hold.time);
-    const holdDuration = Math.min(
-      240,
-      Math.max(5, Number(hold.duration_minutes || schedule.baseSlotMinutes))
-    );
-    holdIntervals.push({ start, end: start + holdDuration });
-  }
-
-  // Recurring appointments block availability (materialize cron is out of scope).
-  // Own customer's recurring slots do not block that customer from booking.
-  const recurringIntervals: TimeInterval[] = [];
-  const dayOfWeek = getDayOfWeek(normalizedDate);
-  const { data: recurringRows, error: recurringError } = await supabase
-    .from("recurring_appointments")
-    .select("time, customer_phone")
-    .eq("tenant_id", tenantId)
-    .eq("day_of_week", dayOfWeek)
-    .eq("active", true);
-  if (recurringError) {
-    return {
-      date: normalizedDate,
-      checkFailed: true,
-      available: [],
-      booked: [],
-      workingHours: { start: schedule.startTime, end: schedule.endTime },
-      durationMinutes,
-    };
-  }
-  for (const row of recurringRows || []) {
-    const recurringPhone = normalizePhone(String(row.customer_phone || ""));
-    if (ownPhone && recurringPhone && recurringPhone === ownPhone) continue;
-    const t = normalizeTimeString(String(row.time || ""));
-    if (!t) continue;
-    const start = timeToMinutes(t);
-    recurringIntervals.push({
-      start,
-      end: start + schedule.baseSlotMinutes,
+    const ctx = await loadAvailabilityRangeContext(tenantId, dates, {
+      serviceSlug: options?.serviceSlug,
+      customerPhone: options?.customerPhone,
+      configOverride: options?.configOverride,
     });
-  }
 
-  const merged = mergeIntervals(
-    mergeIntervals(appointmentIntervals, holdIntervals),
-    recurringIntervals
-  );
-  const workStart = timeToMinutes(schedule.startTime);
-  const workEnd = timeToMinutes(schedule.endTime);
-  const available: string[] = [];
-  const now = new Date();
-  const todayLocal = localDateStr(now, tenantTimezone);
-  const nowMinutes = localTimeToMinutes(now, tenantTimezone);
-  const sameDayMinStart =
-    normalizedDate === todayLocal
-      ? nowMinutes + SAME_DAY_MIN_LEAD_MINUTES
-      : Number.NEGATIVE_INFINITY;
+    const weekResults: Record<string, string[]> = {};
+    const closedDays: string[] = [];
 
-  for (
-    let cursor = workStart;
-    cursor + durationMinutes <= workEnd;
-    cursor += schedule.baseSlotMinutes
-  ) {
-    if (cursor < sameDayMinStart) continue;
-    const candidate: TimeInterval = {
-      start: cursor,
-      end: cursor + durationMinutes,
-    };
-    if (!merged.some((interval) => overlaps(interval, candidate))) {
-      available.push(minutesToTime(cursor));
+    for (const ds of dates) {
+      const daily =
+        ctx.eligibleStaffIds.length >= 1
+          ? unionStaffAvailability(ctx, ds)
+          : computeDailyAvailabilityFromContext(ctx, ds, null);
+
+      if (daily.checkFailed || daily.blocked) continue;
+      if (daily.closed) {
+        closedDays.push(ds);
+        continue;
+      }
+      if (daily.noSchedule) continue;
+      if (daily.available.length > 0) {
+        weekResults[ds] = daily.available;
+      }
     }
-  }
 
-  return {
-    date: normalizedDate,
-    available,
-    booked: starts,
-    workingHours: { start: schedule.startTime, end: schedule.endTime },
-    durationMinutes,
-  };
+    if (Object.keys(weekResults).length > 0) {
+      return { days: weekResults, closedDays };
+    }
+    return {
+      days: {},
+      closedDays,
+      message: `Önümüzdeki ${maxDays} gün içinde müsait gün bulunamadı.`,
+    };
+  } catch (err) {
+    console.error("[getAvailabilityRange] failed:", err);
+    return {
+      days: {},
+      closedDays: [],
+      message: "Müsaitlik kontrolü başarısız.",
+    };
+  }
 }
 
 export async function reserveAppointment(
@@ -893,11 +1100,12 @@ export async function reserveAppointment(
     return { ok: false, error: "INVALID_DATE_OR_TIME" };
   }
 
-  if (await isCustomerBlocked(input.tenantId, input.customerPhone)) {
-    return { ok: false, error: "CUSTOMER_BLOCKED" };
+  if (!input.skipBlacklistCheck) {
+    if (await isCustomerBlocked(input.tenantId, input.customerPhone)) {
+      return { ok: false, error: "CUSTOMER_BLOCKED" };
+    }
   }
 
-  // Day-level lock serializes cross-slot duration overlaps (10:00/60 vs 10:30).
   const dayLockAcquired = await acquireBookingDayLock(input.tenantId, normalizedDate);
   if (!dayLockAcquired) {
     return { ok: false, error: "SLOT_PROCESSING" };
@@ -914,30 +1122,52 @@ export async function reserveAppointment(
   }
 
   try {
+    let ctx: AvailabilityRangeContext;
+    try {
+      ctx = await loadAvailabilityRangeContext(input.tenantId, [normalizedDate], {
+        serviceSlug: input.serviceSlug,
+        customerPhone: input.customerPhone,
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      if (msg.includes("_query_failed") || msg.includes("booking_holds_unavailable")) {
+        return { ok: false, error: "AVAILABILITY_CHECK_FAILED" };
+      }
+      throw err;
+    }
+
+    // Refresh holds under lock (TOCTOU) — single date mget, cheap.
+    try {
+      const freshHolds = await getBookingHoldsForDate(input.tenantId, normalizedDate);
+      ctx.holdsByDate.set(normalizedDate, freshHolds);
+    } catch {
+      return { ok: false, error: "AVAILABILITY_CHECK_FAILED" };
+    }
+
     let resolvedStaffId =
-      typeof input.staffId === "string" && input.staffId.trim() ? input.staffId.trim() : null;
+      typeof input.staffId === "string" && input.staffId.trim()
+        ? input.staffId.trim()
+        : null;
+
+    let availability: DailyAvailabilityResult;
 
     if (!resolvedStaffId) {
-      let staffMatch: Awaited<ReturnType<typeof findStaffForRequestedSlot>>;
+      let staffMatch: ReturnType<typeof findStaffForRequestedSlotFromContext>;
       try {
-        staffMatch = await findStaffForRequestedSlot(
-          input.tenantId,
+        staffMatch = findStaffForRequestedSlotFromContext(
+          ctx,
           normalizedDate,
-          normalizedTime,
-          {
-            serviceSlug: input.serviceSlug,
-            customerPhone: input.customerPhone,
-          }
+          normalizedTime
         );
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
-        if (msg.includes("availability_check_failed") || msg.includes("_query_failed")) {
+        if (msg.includes("availability_check_failed")) {
           return { ok: false, error: "AVAILABILITY_CHECK_FAILED" };
         }
         throw err;
       }
 
-      if (!resolvedStaffId && staffMatch.hadEligibleStaff && !staffMatch.staffId) {
+      if (staffMatch.hadEligibleStaff && !staffMatch.staffId) {
         return {
           ok: false,
           error: "SLOT_TAKEN",
@@ -946,13 +1176,17 @@ export async function reserveAppointment(
       }
 
       resolvedStaffId = staffMatch.staffId;
+      availability = resolvedStaffId
+        ? staffMatch.dailyByStaff.get(resolvedStaffId) ||
+          computeDailyAvailabilityFromContext(ctx, normalizedDate, resolvedStaffId)
+        : computeDailyAvailabilityFromContext(ctx, normalizedDate, null);
+    } else {
+      availability = computeDailyAvailabilityFromContext(
+        ctx,
+        normalizedDate,
+        resolvedStaffId
+      );
     }
-
-    const availability = await getDailyAvailability(input.tenantId, normalizedDate, {
-      staffId: resolvedStaffId,
-      serviceSlug: input.serviceSlug,
-      customerPhone: input.customerPhone,
-    });
 
     if (availability.checkFailed) return { ok: false, error: "AVAILABILITY_CHECK_FAILED" };
     if (availability.blocked) return { ok: false, error: "BLOCKED_DAY" };
@@ -996,17 +1230,9 @@ export async function reserveAppointment(
       duration_minutes: availability.durationMinutes,
     };
 
-    const { data: tenantRow } = await supabase
-      .from("tenants")
-      .select("timezone")
-      .eq("id", input.tenantId)
-      .maybeSingle();
-    const tenantTimezone = (tenantRow?.timezone as string)?.trim() || APP_TIMEZONE;
+    const tenantTimezone = ctx.timeZone;
     const refDate = new Date(`${normalizedDate}T12:00:00`);
     const tzOffset = getTimezoneOffsetString(tenantTimezone, refDate);
-
-    // slot_start veritabanında TIMESTAMPTZ; normalizedDate ve normalizedTime değerlerini
-    // tenant timezone'a göre yorumlayıp UTC ISO string olarak kaydediyoruz.
     const localSlot = `${normalizedDate}T${normalizedTime}:00${tzOffset}`;
     const slotStartIso = new Date(localSlot).toISOString();
     const { data, error } = await supabase

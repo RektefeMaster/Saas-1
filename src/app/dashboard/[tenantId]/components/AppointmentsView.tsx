@@ -1,7 +1,6 @@
 "use client";
 
 import React, { memo, useState, useEffect, useCallback, useMemo } from "react";
-import dynamic from "next/dynamic";
 import Link from "next/link";
 import {
   Calendar,
@@ -26,10 +25,109 @@ import {
   type BlockedDate,
 } from "./dashboard.types";
 
-const ScrollReveal = dynamic(
-  () => import("@/components/ui/ScrollReveal").then((m) => ({ default: m.ScrollReveal })),
-  { ssr: false }
-);
+
+const APT_STATUS_STYLES: Record<string, string> = {
+  confirmed: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/30 dark:text-emerald-200",
+  pending: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200",
+  completed: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300",
+  cancelled: "border-red-100 bg-red-50 text-red-700 line-through opacity-75 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300",
+  no_show: "border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800/50 dark:bg-orange-950/30 dark:text-orange-200",
+};
+
+const AppointmentCard = memo(function AppointmentCard({
+  apt,
+  isUpdating,
+  onUpdateStatus,
+}: {
+  apt: Appointment;
+  isUpdating: boolean;
+  onUpdateStatus: (appointmentId: string, status: string) => void;
+}) {
+  const start = new Date(apt.slot_start);
+  const time = start.toLocaleTimeString("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: "Europe/Istanbul",
+  });
+  const durationMinutes = (apt.extra_data as { duration_minutes?: number })?.duration_minutes;
+  const timeLabel = durationMinutes && durationMinutes > 0 ? `${time} · ${durationMinutes} dk` : time;
+  const name = (apt.extra_data as { customer_name?: string })?.customer_name;
+  const cardClass = APT_STATUS_STYLES[apt.status] ?? "border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
+
+  return (
+    <div className={`flex flex-col gap-2 rounded-xl border-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:gap-4 ${cardClass}`}>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-center gap-2">
+          <Clock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
+          <span className="font-semibold">{timeLabel}</span>
+          <span className="text-slate-600 dark:text-slate-400">—</span>
+          <span className="truncate">{name || apt.customer_phone}</span>
+        </div>
+        <p className="mt-0.5 text-xs opacity-90">{getAppointmentServiceLabel(apt)}</p>
+      </div>
+      {(apt.status === "pending" || apt.status === "confirmed") && (
+        <div className="flex flex-wrap gap-2 shrink-0">
+          {apt.status === "pending" && (
+            <>
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={() => onUpdateStatus(apt.id, "confirmed")}
+                className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                title="Onayla"
+              >
+                {isUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5" /> Onayla</>}
+              </button>
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={() => onUpdateStatus(apt.id, "cancelled")}
+                className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/30"
+                title="İptal et"
+              >
+                <XOctagon className="h-3.5 w-3.5" />
+                İptal
+              </button>
+            </>
+          )}
+          {apt.status === "confirmed" && (
+            <>
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={() => onUpdateStatus(apt.id, "completed")}
+                className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white hover:bg-emerald-700 disabled:opacity-50"
+                title="Tamamlandı"
+              >
+                {isUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><CheckCircle2 className="h-3.5 w-3.5" /> Tamamlandı</>}
+              </button>
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={() => onUpdateStatus(apt.id, "no_show")}
+                className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
+                title="Gelmedi"
+              >
+                <UserX className="h-3.5 w-3.5" />
+                Gelmedi
+              </button>
+              <button
+                type="button"
+                disabled={isUpdating}
+                onClick={() => onUpdateStatus(apt.id, "cancelled")}
+                className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 hover:bg-red-50 dark:border-red-800 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/30"
+                title="İptal et"
+              >
+                <XOctagon className="h-3.5 w-3.5" />
+                İptal
+              </button>
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+});
 
 interface AppointmentsViewProps {
   tenantId: string;
@@ -204,8 +302,7 @@ function AppointmentsViewInner({
 
   return (
     <>
-      <ScrollReveal variant="fadeUp" delay={0.05} as="section" className="mb-6" reduceMotion>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
             <h3 className="text-sm font-semibold uppercase tracking-wide text-slate-600 dark:text-slate-400">Tarih seç</h3>
             <div className="flex gap-2">
@@ -277,11 +374,10 @@ function AppointmentsViewInner({
             })}
           </div>
         </section>
-      </ScrollReveal>
+      
 
       {selectedDate && (
-        <ScrollReveal variant="slideLeft" delay={0} as="section" className="mb-6" reduceMotion>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <h3 className="mb-4 text-base font-semibold text-slate-900 dark:text-slate-100">
               {new Date(selectedDate + "T12:00:00").toLocaleDateString("tr-TR", {
                 weekday: "long",
@@ -358,7 +454,7 @@ function AppointmentsViewInner({
               </div>
             )}
           </section>
-        </ScrollReveal>
+        
       )}
 
       {showAdd && (
@@ -485,8 +581,7 @@ function AppointmentsViewInner({
         </form>
       )}
 
-      <ScrollReveal variant="fadeUp" delay={0.1} as="section" className="mb-6" reduceMotion>
-        <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <section className="rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
             <div>
               <h3 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
@@ -523,7 +618,7 @@ function AppointmentsViewInner({
                 const dateInfo = new Date(date + "T12:00:00");
                 const isToday = date === todayIso;
                 return (
-                  <div key={date} className="px-5 py-4 transition hover:bg-slate-50/50 dark:hover:bg-slate-800/30">
+                  <div key={date} className="px-5 py-4 [content-visibility:auto] [contain-intrinsic-size:auto_180px]">
                     <div className="mb-3 flex items-center gap-3">
                       <div
                         className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${
@@ -540,99 +635,14 @@ function AppointmentsViewInner({
                       </div>
                     </div>
                     <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
-                      {(grouped[date] ?? []).map((apt) => {
-                        const start = new Date(apt.slot_start);
-                        const time = start.toLocaleTimeString("tr-TR", {
-                          hour: "2-digit",
-                          minute: "2-digit",
-                          timeZone: "Europe/Istanbul",
-                        });
-                        const durationMinutes = (apt.extra_data as { duration_minutes?: number })?.duration_minutes;
-                        const timeLabel = durationMinutes && durationMinutes > 0 ? `${time} · ${durationMinutes} dk` : time;
-                        const name = (apt.extra_data as { customer_name?: string })?.customer_name;
-                        const statusStyles: Record<string, string> = {
-                          confirmed: "border-emerald-200 bg-emerald-50 text-emerald-800 dark:border-emerald-800/50 dark:bg-emerald-950/30 dark:text-emerald-200",
-                          pending: "border-amber-200 bg-amber-50 text-amber-800 dark:border-amber-800/50 dark:bg-amber-950/30 dark:text-amber-200",
-                          completed: "border-slate-200 bg-slate-50 text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-300",
-                          cancelled: "border-red-100 bg-red-50 text-red-700 line-through opacity-75 dark:border-red-900/50 dark:bg-red-950/30 dark:text-red-300",
-                          no_show: "border-orange-200 bg-orange-50 text-orange-800 dark:border-orange-800/50 dark:bg-orange-950/30 dark:text-orange-200",
-                        };
-                        const cardClass = statusStyles[apt.status] ?? "border-slate-200 bg-slate-50 text-slate-800 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200";
-                        const isUpdating = updatingAptId === apt.id;
-                        return (
-                          <div key={apt.id} className={`flex flex-col gap-2 rounded-xl border-2 px-4 py-3 text-sm sm:flex-row sm:items-center sm:gap-4 ${cardClass}`}>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <Clock className="h-4 w-4 shrink-0 text-slate-500 dark:text-slate-400" />
-                                <span className="font-semibold">{timeLabel}</span>
-                                <span className="text-slate-600 dark:text-slate-400">—</span>
-                                <span className="truncate">{name || apt.customer_phone}</span>
-                              </div>
-                              <p className="mt-0.5 text-xs opacity-90">{getAppointmentServiceLabel(apt)}</p>
-                            </div>
-                            {(apt.status === "pending" || apt.status === "confirmed") && (
-                              <div className="flex flex-wrap gap-2 shrink-0">
-                                {apt.status === "pending" && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      disabled={isUpdating}
-                                      onClick={() => onUpdateAppointmentStatus(apt.id, "confirmed")}
-                                      className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                                      title="Onayla"
-                                    >
-                                      {isUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Check className="h-3.5 w-3.5" /> Onayla</>}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={isUpdating}
-                                      onClick={() => onUpdateAppointmentStatus(apt.id, "cancelled")}
-                                      className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/30"
-                                      title="İptal et"
-                                    >
-                                      <XOctagon className="h-3.5 w-3.5" />
-                                      İptal
-                                    </button>
-                                  </>
-                                )}
-                                {apt.status === "confirmed" && (
-                                  <>
-                                    <button
-                                      type="button"
-                                      disabled={isUpdating}
-                                      onClick={() => onUpdateAppointmentStatus(apt.id, "completed")}
-                                      className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-emerald-700 disabled:opacity-50"
-                                      title="Tamamlandı"
-                                    >
-                                      {isUpdating ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><CheckCircle2 className="h-3.5 w-3.5" /> Tamamlandı</>}
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={isUpdating}
-                                      onClick={() => onUpdateAppointmentStatus(apt.id, "no_show")}
-                                      className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800 transition hover:bg-amber-100 dark:border-amber-700 dark:bg-amber-950/30 dark:text-amber-200 dark:hover:bg-amber-900/50"
-                                      title="Gelmedi"
-                                    >
-                                      <UserX className="h-3.5 w-3.5" />
-                                      Gelmedi
-                                    </button>
-                                    <button
-                                      type="button"
-                                      disabled={isUpdating}
-                                      onClick={() => onUpdateAppointmentStatus(apt.id, "cancelled")}
-                                      className="inline-flex min-h-[40px] min-w-[40px] items-center justify-center gap-1.5 rounded-lg border border-red-200 bg-white px-3 py-2 text-xs font-semibold text-red-600 transition hover:bg-red-50 dark:border-red-800 dark:bg-slate-800 dark:text-red-400 dark:hover:bg-red-950/30"
-                                      title="İptal et"
-                                    >
-                                      <XOctagon className="h-3.5 w-3.5" />
-                                      İptal
-                                    </button>
-                                  </>
-                                )}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
+                      {(grouped[date] ?? []).map((apt) => (
+                        <AppointmentCard
+                          key={apt.id}
+                          apt={apt}
+                          isUpdating={updatingAptId === apt.id}
+                          onUpdateStatus={onUpdateAppointmentStatus}
+                        />
+                      ))}
                     </div>
                   </div>
                 );
@@ -640,10 +650,9 @@ function AppointmentsViewInner({
             </div>
           )}
         </section>
-      </ScrollReveal>
+      
 
-      <ScrollReveal variant="fadeUp" delay={0.06} as="section" className="mt-8" reduceMotion>
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
           <h3 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">🏖️ Tatil / İzin Günleri</h3>
           {blockedDates.length > 0 && (
             <ul className="mb-4 space-y-2">
@@ -711,7 +720,7 @@ function AppointmentsViewInner({
             </form>
           )}
         </section>
-      </ScrollReveal>
+      
     </>
   );
 }

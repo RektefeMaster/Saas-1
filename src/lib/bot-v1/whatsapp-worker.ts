@@ -149,14 +149,14 @@ export async function processWhatsAppInboundEvent(
   }
 
   try {
-    const logInbound = async (input: {
+    const logInbound = (input: {
       tenantId?: string | null;
       text?: string | null;
       stage: string;
       messageType?: string | null;
       metadata?: Record<string, unknown>;
-    }) =>
-      logConversationMessage({
+    }) => {
+      void logConversationMessage({
         traceId,
         tenantId: input.tenantId ?? event.tenant_hint,
         customerPhone,
@@ -167,16 +167,19 @@ export async function processWhatsAppInboundEvent(
         messageId,
         metadata: input.metadata || {},
         createdAt: event.received_at,
-      });
+      }).catch((err) =>
+        console.error("[whatsapp-worker] inbound log failed", err)
+      );
+    };
 
-    const logOutbound = async (input: {
+    const logOutbound = (input: {
       tenantId?: string | null;
       text?: string | null;
       stage: string;
       messageType?: string | null;
       metadata?: Record<string, unknown>;
-    }) =>
-      logConversationMessage({
+    }) => {
+      void logConversationMessage({
         traceId,
         tenantId: input.tenantId ?? event.tenant_hint,
         customerPhone,
@@ -186,12 +189,21 @@ export async function processWhatsAppInboundEvent(
         stage: input.stage,
         messageId,
         metadata: input.metadata || {},
-      });
+      }).catch((err) =>
+        console.error("[whatsapp-worker] outbound log failed", err)
+      );
+    };
+
+    const audit = (input: Parameters<typeof logBotMessageAudit>[0]) => {
+      void logBotMessageAudit(input).catch((err) =>
+        console.error("[whatsapp-worker] audit log failed", err)
+      );
+    };
 
     // Single claim site for WA idempotency (do not also claim in the webhook ingress).
     const claim = await claimWebhookMessageId(messageId);
     if (claim === "already_done") {
-      await logBotMessageAudit({
+      audit({
         traceId,
         tenantId: event.tenant_hint,
         customerPhone,
@@ -207,7 +219,7 @@ export async function processWhatsAppInboundEvent(
       // in_progress: another attempt still owns the claim (or failed recently).
       // Throw so Inngest retries until stale reclaim (~3m) can re-acquire — do not
       // soft-succeed or the message is silently dropped.
-      await logBotMessageAudit({
+      audit({
         traceId,
         tenantId: event.tenant_hint,
         customerPhone,
@@ -271,14 +283,14 @@ async function processClaimedWhatsAppInboundEvent(
       stage: string;
       messageType?: string | null;
       metadata?: Record<string, unknown>;
-    }) => Promise<unknown>;
+    }) => void;
     logOutbound: (input: {
       tenantId?: string | null;
       text?: string | null;
       stage: string;
       messageType?: string | null;
       metadata?: Record<string, unknown>;
-    }) => Promise<unknown>;
+    }) => void;
   }
 ): Promise<void> {
   const {
@@ -292,14 +304,14 @@ async function processClaimedWhatsAppInboundEvent(
   } = ctx;
 
   if (isLikelyOutboundEcho(event.message, event.value)) {
-      await logBotMessageAudit({
+      void logBotMessageAudit({
         traceId,
         tenantId: event.tenant_hint,
         customerPhone,
         direction: "inbound",
         stage: "outbound_echo_ignored",
         messageId,
-      });
+      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
       return;
     }
 
@@ -315,7 +327,7 @@ async function processClaimedWhatsAppInboundEvent(
         messageType: "text",
         metadata: { source: killSwitch.source || "unknown" },
       });
-      await logBotMessageAudit({
+      void logBotMessageAudit({
         traceId,
         tenantId: event.tenant_hint,
         customerPhone,
@@ -323,7 +335,7 @@ async function processClaimedWhatsAppInboundEvent(
         stage: "global_kill_switch_blocked",
         policyReason: "kill_switch",
         messageId,
-      });
+      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
       return;
     }
 
@@ -392,14 +404,14 @@ async function processClaimedWhatsAppInboundEvent(
         text: "Görsel analiz özelliği şu an sınırlı. Lütfen ne istediğinizi kısa bir metinle yazın.",
         stage: "image_fallback_requested_text_reply",
       });
-      await logBotMessageAudit({
+      void logBotMessageAudit({
         traceId,
         tenantId: event.tenant_hint,
         customerPhone,
         direction: "inbound",
         stage: "image_fallback_requested_text",
         messageId,
-      });
+      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
       return;
     } else {
       rawText = extractMessageText(event.message);
@@ -417,7 +429,7 @@ async function processClaimedWhatsAppInboundEvent(
           messageType: "text",
         });
       }
-      await logBotMessageAudit({
+      void logBotMessageAudit({
         traceId,
         tenantId: event.tenant_hint,
         customerPhone,
@@ -425,7 +437,7 @@ async function processClaimedWhatsAppInboundEvent(
         stage: "empty_or_unsupported_message",
         messageId,
         policyReason: messageType,
-      });
+      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
       return;
     }
 
@@ -447,14 +459,14 @@ async function processClaimedWhatsAppInboundEvent(
         text: rateLimitResult.message,
         stage: "rate_limited",
       });
-      await logBotMessageAudit({
+      void logBotMessageAudit({
         traceId,
         tenantId: event.tenant_hint,
         customerPhone,
         direction: "system",
         stage: "rate_limited",
         messageId,
-      });
+      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
       return;
     }
 
@@ -499,14 +511,14 @@ async function processClaimedWhatsAppInboundEvent(
           "Mesajınızı aldım. Hangi işletme için randevu almak istediğinizi anlayamadım. Lütfen işletme adını yazın (örn: Kuaför Ahmet).",
         stage: "tenant_not_found",
       });
-      await logBotMessageAudit({
+      void logBotMessageAudit({
         traceId,
         tenantId: null,
         customerPhone,
         direction: "outbound",
         stage: "tenant_not_found",
         messageId,
-      });
+      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
       return;
     }
 
@@ -530,7 +542,7 @@ async function processClaimedWhatsAppInboundEvent(
         updated_at: new Date().toISOString(),
       });
 
-      await logConversationMessage({
+      void logConversationMessage({
         traceId,
         tenantId,
         customerPhone,
@@ -544,9 +556,11 @@ async function processClaimedWhatsAppInboundEvent(
           pause_reason: existingSession.pause_reason || null,
         },
         createdAt: event.received_at,
-      });
+      }).catch((err) =>
+        console.error("[whatsapp-worker] takeover inbound log failed", err)
+      );
 
-      await logConversationMessage({
+      void logConversationMessage({
         traceId,
         tenantId,
         customerPhone,
@@ -559,7 +573,9 @@ async function processClaimedWhatsAppInboundEvent(
           routing_reason: routingReason,
           pause_reason: existingSession.pause_reason || null,
         },
-      });
+      }).catch((err) =>
+        console.error("[whatsapp-worker] takeover bypass log failed", err)
+      );
 
       const takeoverBucket = Math.floor(Date.now() / (10 * 60 * 1000));
       await createOpsAlert({
@@ -577,7 +593,7 @@ async function processClaimedWhatsAppInboundEvent(
         dedupeKey: `admin_takeover_inbound:${tenantId}:${digitsOnly(customerPhone)}:${takeoverBucket}`,
       }).catch(() => undefined);
 
-      await logBotMessageAudit({
+      void logBotMessageAudit({
         traceId,
         tenantId,
         customerPhone,
@@ -587,7 +603,7 @@ async function processClaimedWhatsAppInboundEvent(
         policyReason: "admin_takeover",
         fsmStateBefore: existingSession.step || "PAUSED_FOR_HUMAN",
         fsmStateAfter: existingSession.step || "PAUSED_FOR_HUMAN",
-      });
+      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
       return;
     }
 
@@ -659,7 +675,12 @@ async function processClaimedWhatsAppInboundEvent(
     }
 
     const aiStart = Date.now();
-    const { reply, metrics } = await processMessage(tenantId, customerPhone, normalizedText);
+    const { reply, metrics } = await processMessage(
+      tenantId,
+      customerPhone,
+      normalizedText,
+      { existingSession }
+    );
     const llmLatencyMs = Date.now() - aiStart;
     const safeReply = (reply && String(reply).trim()) || "Anlamadım, tekrar yazar mısınız?";
     const windowOpen = isWindowOpen(event.received_at);
@@ -705,7 +726,7 @@ async function processClaimedWhatsAppInboundEvent(
       throw new Error(`whatsapp_reply_failed:${sendErrorCode || sendStage}`);
     }
 
-    await logBotMessageAudit({
+    void logBotMessageAudit({
       traceId,
       tenantId,
       customerPhone,
@@ -728,5 +749,5 @@ async function processClaimedWhatsAppInboundEvent(
       model: metrics?.model ?? null,
       modelPricingVersion: MODEL_PRICING_VERSION,
       errorCode: sendErrorCode,
-    });
+    }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
 }

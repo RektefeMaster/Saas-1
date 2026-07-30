@@ -109,9 +109,12 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
     });
 
     const customerMessage = `${tenantName} randevunuz (${dateStr} ${timeStr}) iptal edildi. Başka bir saate almak ister misiniz?`;
-    await sendCustomerNotification(apt.customer_phone, customerMessage);
+    // Fire-and-forget: do not block bot/API reply on WhatsApp/SMS RTT.
+    void sendCustomerNotification(apt.customer_phone, customerMessage).catch((e) =>
+      console.error("[cancelAppointment] customer notify error:", e)
+    );
 
-    await notifyCancelledAppointmentForMerchant({
+    void notifyCancelledAppointmentForMerchant({
       tenantId,
       customerPhone: apt.customer_phone,
       date: dateIso,

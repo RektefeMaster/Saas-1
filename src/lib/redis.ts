@@ -257,13 +257,15 @@ export async function listPausedSessions(input?: {
       const pattern = tenantFilter
         ? `${SESSION_PREFIX}${tenantFilter}:*`
         : `${SESSION_PREFIX}*`;
-      const keys = await scanKeys(pattern, limit * 2); // Limit'ten fazla tarayalım ki filtreleme sonrası yeterli olsun
-      for (const key of keys) {
+      const keys = await scanKeys(pattern, limit * 2);
+      if (keys.length === 0) return [];
+      const values = (await redis.mget(...keys)) as Array<ConversationState | null>;
+      for (let i = 0; i < keys.length; i++) {
         if (collected.length >= limit) break;
-        const parsed = parseSessionStorageKey(key);
+        const parsed = parseSessionStorageKey(keys[i]);
         if (!parsed) continue;
-        const state = await redis.get<ConversationState>(key);
-        if (!state) continue;
+        const state = values[i];
+        if (!state || typeof state !== "object") continue;
         if (state.step !== "PAUSED_FOR_HUMAN") continue;
         collected.push({
           tenantId: parsed.tenantId,
@@ -355,6 +357,25 @@ export async function setPhoneTenantMapping(
   const digits = normalizePhoneDigits(customerPhone);
   if (!digits) return;
   const key = PHONE_TENANT_PREFIX + digits;
+
+  // Hot-path no-op: skip Redis/DB write when cache already has the same mapping.
+  if (redis) {
+    try {
+      const cached = await redis.get<string>(key);
+      if (cached === tenantId) {
+        phoneTenantStore.set(key, {
+          value: tenantId,
+          expiry: Date.now() + PHONE_TENANT_TTL_SECONDS * 1000,
+        });
+        return;
+      }
+    } catch (err) {
+      logRedisFallback("setPhoneTenantMapping(read)", err);
+    }
+  } else {
+    const mem = phoneTenantStore.get(key);
+    if (mem && mem.expiry > Date.now() && mem.value === tenantId) return;
+  }
 
   if (redis) {
     try {
@@ -552,10 +573,12 @@ export async function releaseBotProcessingLock(
   const key = botLockKey(lockKey);
   if (redis) {
     try {
-      const current = await redis.get<string>(key);
-      if (current !== owner) return false;
-      await redis.del(key);
-      return true;
+      const released = await redis.eval(
+        `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) else return 0 end`,
+        [key],
+        [owner]
+      );
+      return Number(released) > 0;
     } catch (err) {
       logRedisFallback("releaseBotProcessingLock", err);
     }
@@ -638,32 +661,34 @@ export async function purgeExpiredTemporaryMedia(
   if (redis) {
     try {
       const keys = await scanKeys(`${TEMP_MEDIA_PREFIX}*`, maxKeys);
-      for (const key of keys) {
-        scanned += 1;
-        const ttl = await redis.ttl(key);
-        if (typeof ttl === "number" && ttl <= 0) {
-          await redis.del(key);
-          removed += 1;
-          continue;
-        }
-        const raw = await redis.get<string>(key);
+      scanned = keys.length;
+      if (keys.length === 0) return { scanned, removed };
+          const values = (await redis.mget(...keys)) as Array<string | null>;
+          const toDelete: string[] = [];
+          const cutoff = Date.now() - 48 * 60 * 60 * 1000;
+          for (let i = 0; i < keys.length; i++) {
+            const raw = values[i];
         if (!raw) {
-          await redis.del(key);
-          removed += 1;
+          toDelete.push(keys[i]);
           continue;
         }
         let createdAt = 0;
         try {
-          const parsed = JSON.parse(raw) as { created_at?: string };
+          const parsed =
+            typeof raw === "string"
+              ? (JSON.parse(raw) as { created_at?: string })
+              : (raw as { created_at?: string });
           createdAt = parsed.created_at ? new Date(parsed.created_at).getTime() : 0;
         } catch {
           createdAt = 0;
         }
-        if (!Number.isFinite(createdAt) || createdAt <= 0) continue;
-        if (Date.now() - createdAt >= 48 * 60 * 60 * 1000) {
-          await redis.del(key);
-          removed += 1;
+        if (!Number.isFinite(createdAt) || createdAt <= 0 || createdAt <= cutoff) {
+          toDelete.push(keys[i]);
         }
+      }
+      if (toDelete.length > 0) {
+        await redis.del(...toDelete);
+        removed = toDelete.length;
       }
       return { scanned, removed };
     } catch (err) {
@@ -1519,21 +1544,41 @@ export async function getBookingHoldsForDate(
   tenantId: string,
   date: string
 ): Promise<BookingHoldRecord[]> {
-  const prefix = bookingHoldDayPrefix(tenantId, date);
+  const map = await getBookingHoldsForDates(tenantId, [date]);
+  return map.get(date) || [];
+}
+
+/** Batch holds for multiple dates (one SCAN+mget pattern per date, parallel). */
+export async function getBookingHoldsForDates(
+  tenantId: string,
+  dates: string[]
+): Promise<Map<string, BookingHoldRecord[]>> {
+  const uniqueDates = [...new Set(dates.filter(Boolean))];
+  const result = new Map<string, BookingHoldRecord[]>();
+  for (const d of uniqueDates) result.set(d, []);
+
+  if (uniqueDates.length === 0) return result;
+
   if (redis) {
     try {
-      const keys = await scanKeys(`${prefix}*`, 500); // Günlük booking hold sayısı genelde 500'den az
-      if (!keys || keys.length === 0) return [];
-      const holds: BookingHoldRecord[] = [];
-      for (const key of keys) {
-        const raw = await redis.get<unknown>(key);
-        if (!raw) continue;
-        const parsed = parseRedisJson<BookingHoldRecord>(raw);
-        if (parsed) holds.push(parsed);
-      }
-      return holds;
+      await Promise.all(
+        uniqueDates.map(async (date) => {
+          const prefix = bookingHoldDayPrefix(tenantId, date);
+          const keys = await scanKeys(`${prefix}*`, 500);
+          if (!keys || keys.length === 0) return;
+          const values = (await redis.mget(...keys)) as unknown[];
+          const holds: BookingHoldRecord[] = [];
+          for (const raw of values) {
+            if (!raw) continue;
+            const parsed = parseRedisJson<BookingHoldRecord>(raw);
+            if (parsed) holds.push(parsed);
+          }
+          result.set(date, holds);
+        })
+      );
+      return result;
     } catch (err) {
-      logRedisFallback("getBookingHoldsForDate", err);
+      logRedisFallback("getBookingHoldsForDates", err);
       throw new Error("booking_holds_unavailable");
     }
   }
@@ -1541,16 +1586,20 @@ export async function getBookingHoldsForDate(
     throw new Error("booking_holds_unavailable");
   }
   const now = Date.now();
-  const holds: BookingHoldRecord[] = [];
-  for (const [key, entry] of bookingHoldMemory.entries()) {
-    if (!key.startsWith(prefix)) continue;
-    if (entry.expiry <= now) {
-      bookingHoldMemory.delete(key);
-      continue;
+  for (const date of uniqueDates) {
+    const prefix = bookingHoldDayPrefix(tenantId, date);
+    const holds: BookingHoldRecord[] = [];
+    for (const [key, entry] of bookingHoldMemory.entries()) {
+      if (!key.startsWith(prefix)) continue;
+      if (entry.expiry <= now) {
+        bookingHoldMemory.delete(key);
+        continue;
+      }
+      holds.push(entry.value);
     }
-    holds.push(entry.value);
+    result.set(date, holds);
   }
-  return holds;
+  return result;
 }
 
 // --- Admin login rate limiting (brute-force koruması) ---

@@ -51,14 +51,22 @@ export async function processNoShowBatch(source: NoShowSource): Promise<{
   const updatedIdSet = new Set((updatedRows || []).map((r) => r.id));
   const markedAppointments = appointments.filter((a) => updatedIdSet.has(a.id));
 
-  for (const apt of markedAppointments) {
-    await markAppointmentNoShow({
-      appointmentId: apt.id,
-      tenantId: apt.tenant_id,
-      customerPhone: apt.customer_phone,
-      staffId: (apt.staff_id as string | null | undefined) || null,
-      source,
-    }).catch((e) => console.error(`[noShowCron] side effects error (${source}):`, e));
+  const SIDE_EFFECT_CONCURRENCY = 5;
+  for (let i = 0; i < markedAppointments.length; i += SIDE_EFFECT_CONCURRENCY) {
+    const chunk = markedAppointments.slice(i, i + SIDE_EFFECT_CONCURRENCY);
+    await Promise.allSettled(
+      chunk.map((apt) =>
+        markAppointmentNoShow({
+          appointmentId: apt.id,
+          tenantId: apt.tenant_id,
+          customerPhone: apt.customer_phone,
+          staffId: (apt.staff_id as string | null | undefined) || null,
+          source,
+        }).catch((e) =>
+          console.error(`[noShowCron] side effects error (${source}):`, e)
+        )
+      )
+    );
   }
 
   return { marked: markedAppointments.length };

@@ -347,9 +347,7 @@ export default function WorkflowPage({
 
   return (
     <div className="space-y-5 p-4 pb-28 sm:p-6 lg:p-8">
-      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white/90 p-5 shadow-sm backdrop-blur dark:border-slate-800 dark:bg-slate-900/85">
-        <div className="pointer-events-none absolute -right-8 -top-14 h-48 w-48 rounded-full bg-cyan-300/30 blur-3xl dark:bg-cyan-900/25" />
-        <div className="pointer-events-none absolute -bottom-14 -left-8 h-44 w-44 rounded-full bg-emerald-300/35 blur-3xl dark:bg-emerald-900/25" />
+      <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="relative space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div className="space-y-3">

@@ -35,12 +35,17 @@ export async function GET(request: NextRequest) {
   const windowStartIso = dayjs.tz(`${tomorrow}T00:00:00`, APP_TIMEZONE).toISOString();
   const windowEndIso = dayjs.tz(`${tomorrow}T00:00:00`, APP_TIMEZONE).add(1, "day").toISOString();
 
+  const REMINDER_BATCH_LIMIT = 200;
+  const SEND_CONCURRENCY = 5;
+
   const { data: appointments, error } = await supabase
     .from("appointments")
     .select("id, tenant_id, customer_phone, slot_start, extra_data")
     .gte("slot_start", windowStartIso)
     .lt("slot_start", windowEndIso)
-    .eq("status", "confirmed");
+    .eq("status", "confirmed")
+    .order("slot_start", { ascending: true })
+    .limit(REMINDER_BATCH_LIMIT);
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
@@ -65,33 +70,41 @@ export async function GET(request: NextRequest) {
     ])
   );
 
-  for (const apt of appointments || []) {
+  const candidates = (appointments || []).filter((apt) => {
     const extra = (apt.extra_data as Record<string, unknown>) || {};
-    if (typeof extra.reminder_2h_sent_at === "string") continue;
-
+    if (typeof extra.reminder_2h_sent_at === "string") return false;
     const pref = tenantMap.get(apt.tenant_id)?.reminder_preference ?? "customer_only";
-    if (pref === "off" || pref === "merchant_only") continue;
+    return pref !== "off" && pref !== "merchant_only";
+  });
 
-    const claim = await claimAppointmentExtraFlag(apt.id, extra, "reminder_2h_sent_at");
-    if (!claim.claimed) continue;
+  for (let i = 0; i < candidates.length; i += SEND_CONCURRENCY) {
+    const chunk = candidates.slice(i, i + SEND_CONCURRENCY);
+    const results = await Promise.all(
+      chunk.map(async (apt) => {
+        const extra = (apt.extra_data as Record<string, unknown>) || {};
+        const claim = await claimAppointmentExtraFlag(apt.id, extra, "reminder_2h_sent_at");
+        if (!claim.claimed) return false;
 
-    const tz = tenantMap.get(apt.tenant_id)?.timezone ?? APP_TIMEZONE;
-    const slotDate = new Date(apt.slot_start);
-    const timeStr = slotDate.toLocaleTimeString("tr-TR", {
-      hour: "2-digit",
-      minute: "2-digit",
-      timeZone: tz,
-    });
-    const dateStr = slotDate.toLocaleDateString("tr-TR", {
-      timeZone: tz,
-    });
-    const tenantName = tenantMap.get(apt.tenant_id)?.name || "İşletme";
-    const ok = await sendReminder(apt.customer_phone, tenantName, dateStr, timeStr);
-    if (ok) {
-      sent++;
-    } else {
-      await clearAppointmentExtraFlag(apt.id, extra, "reminder_2h_sent_at");
-    }
+        const tz = tenantMap.get(apt.tenant_id)?.timezone ?? APP_TIMEZONE;
+        const slotDate = new Date(apt.slot_start);
+        const timeStr = slotDate.toLocaleTimeString("tr-TR", {
+          hour: "2-digit",
+          minute: "2-digit",
+          timeZone: tz,
+        });
+        const dateStr = slotDate.toLocaleDateString("tr-TR", {
+          timeZone: tz,
+        });
+        const tenantName = tenantMap.get(apt.tenant_id)?.name || "İşletme";
+        const ok = await sendReminder(apt.customer_phone, tenantName, dateStr, timeStr);
+        if (!ok) {
+          await clearAppointmentExtraFlag(apt.id, extra, "reminder_2h_sent_at");
+          return false;
+        }
+        return true;
+      })
+    );
+    sent += results.filter(Boolean).length;
   }
 
   let noShowMarked = 0;

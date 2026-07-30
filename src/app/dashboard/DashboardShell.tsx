@@ -237,12 +237,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   return (
     <DashboardTenantProvider tenantId={extractedTenantId}>
     <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <div className="pointer-events-none fixed inset-0 opacity-50">
-        <div className="absolute -left-16 -top-20 h-72 w-72 rounded-full bg-slate-300/25 blur-3xl dark:bg-slate-700/20" />
-        <div className="absolute right-0 top-0 h-80 w-80 rounded-full bg-blue-200/20 blur-3xl dark:bg-blue-900/15" />
-      </div>
-
-      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/85 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             {isTenantPage && (
@@ -283,14 +278,14 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       {isTenantPage ? (
         <div className="relative">
           <div
-            className={`fixed inset-0 z-30 bg-slate-900/40 backdrop-blur-sm transition-opacity lg:hidden ${
+            className={`fixed inset-0 z-30 bg-slate-900/40 transition-opacity lg:hidden ${
               mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
             }`}
             onClick={() => setMobileOpen(false)}
           />
 
           <aside
-            className={`fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] w-72 border-r border-slate-200/80 bg-white/95 p-4 shadow-lg backdrop-blur transition-transform dark:border-slate-800 dark:bg-slate-900/95 lg:translate-x-0 ${
+            className={`fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] w-72 border-r border-slate-200 bg-white p-4 shadow-lg transition-transform dark:border-slate-800 dark:bg-slate-900 lg:translate-x-0 ${
               mobileOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
@@ -373,7 +368,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           )}
 
           {mobileNavItems.length > 0 && (
-            <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/98 px-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95 lg:hidden">
+            <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1 dark:border-slate-800 dark:bg-slate-900 lg:hidden">
               <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}>
                 {mobileNavItems.map(({ href, label, icon: Icon }) => {
                   const isRoot = href === `/dashboard/${tenantId}`;

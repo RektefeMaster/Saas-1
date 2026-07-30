@@ -18,11 +18,27 @@ export type TenantApiAuthResult =
   | { ok: true; actor: "admin" | "owner"; userId?: string }
   | { ok: false; response: NextResponse };
 
+const OWNERSHIP_CACHE_TTL_MS = 20_000;
+const ownershipCache = new Map<string, { owned: boolean; expiresAt: number }>();
+
+function ownershipCacheKey(
+  tenantId: string,
+  userId: string,
+  userEmail: string | null | undefined
+): string {
+  const loginUsername = normalizeUsername(loginEmailToUsernameDisplay(userEmail));
+  return `${tenantId}:${userId}:${loginUsername}`;
+}
+
 async function isTenantOwnedByUser(
   tenantId: string,
   userId: string,
   userEmail: string | null | undefined
 ): Promise<boolean> {
+  const key = ownershipCacheKey(tenantId, userId, userEmail);
+  const cached = ownershipCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return cached.owned;
+
   const { data, error } = await serviceSupabase
     .from("tenants")
     .select("id, user_id, owner_username")
@@ -34,16 +50,31 @@ async function isTenantOwnedByUser(
     console.error("[tenantApiAuth] ownership check failed:", error.message);
     return false;
   }
-  if (!data?.id) return false;
-
-  if (typeof data.user_id === "string" && data.user_id === userId) {
-    return true;
+  if (!data?.id) {
+    ownershipCache.set(key, { owned: false, expiresAt: Date.now() + OWNERSHIP_CACHE_TTL_MS });
+    return false;
   }
 
-  const ownerUsername =
-    typeof data.owner_username === "string" ? normalizeUsername(data.owner_username) : "";
-  const loginUsername = normalizeUsername(loginEmailToUsernameDisplay(userEmail));
-  return Boolean(ownerUsername && loginUsername && ownerUsername === loginUsername);
+  let owned = false;
+  if (typeof data.user_id === "string" && data.user_id === userId) {
+    owned = true;
+  } else {
+    const ownerUsername =
+      typeof data.owner_username === "string" ? normalizeUsername(data.owner_username) : "";
+    const loginUsername = normalizeUsername(loginEmailToUsernameDisplay(userEmail));
+    owned = Boolean(ownerUsername && loginUsername && ownerUsername === loginUsername);
+  }
+
+  ownershipCache.set(key, { owned, expiresAt: Date.now() + OWNERSHIP_CACHE_TTL_MS });
+  if (ownershipCache.size > 1000) {
+    const entries = [...ownershipCache.entries()].sort(
+      (a, b) => a[1].expiresAt - b[1].expiresAt
+    );
+    for (let i = 0; i < Math.floor(entries.length / 2); i++) {
+      ownershipCache.delete(entries[i][0]);
+    }
+  }
+  return owned;
 }
 
 export async function requireTenantApiAccess(

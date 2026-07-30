@@ -4,15 +4,8 @@ import React, { memo, useMemo } from "react";
 import dynamic from "next/dynamic";
 import { AlertCircle, CheckCircle2, Clock, Loader2 } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
-import { groupByDate } from "./dashboard.types";
-import { getWeekDates } from "./dashboard.types";
-
-const ScrollReveal = dynamic(
-  () => import("@/components/ui/ScrollReveal").then((m) => ({ default: m.ScrollReveal })),
-  { ssr: false }
-);
-import type { CommandCenterSnapshot, CommandCenterAction } from "./CommandCenterSection";
-import { DAY_NAMES, type Appointment, type OpsAlert, type ReviewData } from "./dashboard.types";
+import { groupByDate, getWeekDates, DAY_NAMES } from "./dashboard.types";
+import type { CommandCenterAction } from "./CommandCenterSection";
 
 const ChartBar = dynamic(
   () => import("@/components/charts/ChartBar").then((m) => ({ default: m.ChartBar })),
@@ -62,17 +55,15 @@ function OverviewViewInner({
 
   return (
     <>
-      <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6" reduceMotion>
-        <CommandCenterSection
+      <CommandCenterSection
           commandCenter={commandCenter}
           loading={commandCenterLoading}
           runningActionId={runningActionId}
           onRunAction={onRunAction}
         />
-      </ScrollReveal>
+      
 
-      <ScrollReveal variant="fadeUp" delay={0.08} as="section" className="mb-6" reduceMotion>
-        <section className="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-white to-red-50/30 p-5 shadow-lg dark:border-red-900/50 dark:from-slate-900 dark:to-red-950/20">
+      <section className="rounded-2xl border-2 border-red-200 bg-gradient-to-br from-white to-red-50/30 p-5 shadow-lg dark:border-red-900/50 dark:from-slate-900 dark:to-red-950/20">
           <div className="mb-4 flex items-center justify-between">
             <div>
               <h2 className="flex items-center gap-2 text-lg font-semibold text-red-900 dark:text-red-200">
@@ -155,11 +146,10 @@ function OverviewViewInner({
             </div>
           )}
         </section>
-      </ScrollReveal>
+      
 
       {hasAppointments && (
-        <ScrollReveal variant="fadeUp" delay={0.02} as="section" className="mb-6" reduceMotion>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <h3 className="mb-1 text-xs font-medium uppercase tracking-wider text-slate-500 dark:text-slate-400">
               Haftalık Randevu Özeti
             </h3>
@@ -172,12 +162,11 @@ function OverviewViewInner({
               height={280}
             />
           </section>
-        </ScrollReveal>
+        
       )}
 
       {reviews && (
-        <ScrollReveal variant="scale" delay={0} as="section" className="mt-6" reduceMotion>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+        <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
             <h3 className="mb-3 font-semibold text-slate-900 dark:text-slate-100">⭐ Değerlendirmeler</h3>
             <p className="mb-3 text-sm text-slate-600 dark:text-slate-300">
               Ortalama: <span className="font-semibold text-amber-600 dark:text-amber-400">{reviews.avgRating} ⭐</span> ({reviews.totalCount}{" "}
@@ -194,7 +183,7 @@ function OverviewViewInner({
               </ul>
             )}
           </section>
-        </ScrollReveal>
+        
       )}
     </>
   );
