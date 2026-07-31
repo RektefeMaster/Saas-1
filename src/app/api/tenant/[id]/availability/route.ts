@@ -34,6 +34,13 @@ export async function GET(
     customerPhone: customerPhone || undefined,
   });
 
+  if (daily.checkFailed) {
+    return NextResponse.json(
+      { error: "AVAILABILITY_CHECK_FAILED", date: daily.date },
+      { status: 503, headers: { "Cache-Control": "no-store" } }
+    );
+  }
+
   return NextResponse.json(
     {
       date: daily.date,
@@ -47,7 +54,7 @@ export async function GET(
     },
     {
       headers: {
-        "Cache-Control": "s-maxage=60, stale-while-revalidate=120",
+        "Cache-Control": "private, no-store",
       },
     }
   );

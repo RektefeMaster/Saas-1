@@ -27,6 +27,7 @@ import {
 import { getDailyAvailability, reserveAppointment } from "@/services/booking.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
 import { detectDeterministicIntent } from "@/lib/intent";
+import { phonesMatch } from "@/lib/phone";
 import type {
   BotConfig,
   MergedConfig,
@@ -291,10 +292,18 @@ export interface ProcessMessageMetrics {
 export async function processMessage(
   tenantId: string,
   customerPhone: string,
-  incomingMessage: string
+  incomingMessage: string,
+  options?: { existingSession?: ConversationState | null }
 ): Promise<{ reply: string; stateReset?: boolean; metrics?: ProcessMessageMetrics }> {
   try {
-    const tenant = await getTenantWithBusinessType(tenantId);
+    const [tenant, sessionPrefetch, blocked] = await Promise.all([
+      getTenantWithBusinessType(tenantId),
+      options && "existingSession" in options
+        ? Promise.resolve(options.existingSession ?? null)
+        : getSession(tenantId, customerPhone),
+      isCustomerBlocked(tenantId, customerPhone),
+    ]);
+
     if (!tenant) {
       return {
         reply: "Üzgünüm, işletme bulunamadı. Lütfen doğru kodu kullanın.",
@@ -318,7 +327,7 @@ export async function processMessage(
 
     if (isHumanEscalationRequest(effectiveMessage)) {
       const pausedState: ConversationState = {
-        ...(await getSession(tenantId, customerPhone) || {
+        ...(sessionPrefetch || {
           tenant_id: tenantId,
           customer_phone: customerPhone,
           flow_type: (bt?.config?.flow_type as FlowType) || "appointment",
@@ -351,8 +360,6 @@ export async function processMessage(
       return { reply: buildHumanEscalationMessage(tenant, tone) };
     }
 
-    // Kara liste kontrolu
-    const blocked = await isCustomerBlocked(tenantId, customerPhone);
     if (blocked) {
       return {
         reply: tone === "siz"
@@ -370,7 +377,7 @@ export async function processMessage(
       return { reply: reviewResult.reply };
     }
 
-    let state = await getSession(tenantId, customerPhone);
+    let state = sessionPrefetch;
     if (state?.step === "PAUSED_FOR_HUMAN") {
       if (isAdminTakeoverReason(state.pause_reason)) {
         return {
@@ -526,14 +533,13 @@ export async function processMessage(
       if (isCancelConfirmation(effectiveMessage)) {
         const { data: pendingApt } = await supabase
           .from("appointments")
-          .select("id, slot_start")
+          .select("id, slot_start, customer_phone")
           .eq("id", pendingCancelId)
           .eq("tenant_id", tenantId)
-          .eq("customer_phone", customerPhone)
           .in("status", ["confirmed", "pending"])
           .maybeSingle();
 
-        if (!pendingApt) {
+        if (!pendingApt || !phonesMatch(customerPhone, pendingApt.customer_phone)) {
           await setSession(tenantId, customerPhone, {
             ...state,
             step: "devam",
@@ -574,6 +580,7 @@ export async function processMessage(
           tenantId,
           appointmentId: pendingCancelId,
           cancelledBy: "customer",
+          customerPhone,
           reason: "Müşteri onaylı iptal",
         });
 
@@ -888,7 +895,8 @@ export async function processMessage(
       try {
         response = await callOpenAI(
           openaiMessages,
-          round === 0 ? TOOLS : TOOLS,
+          // Keep tools available every round so multi-step tool loops remain valid.
+          TOOLS,
           selectedModel
         );
       } catch {

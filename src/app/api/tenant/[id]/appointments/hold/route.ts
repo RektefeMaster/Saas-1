@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { reserveAppointment } from "@/services/booking.service";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 export async function POST(
   request: NextRequest,
@@ -7,6 +8,8 @@ export async function POST(
 ) {
   try {
     const { id: tenantId } = await params;
+    const auth = await requireTenantApiAccess(request, tenantId);
+    if (!auth.ok) return auth.response;
     const body = (await request.json().catch(() => ({}))) as {
       customer_phone?: string;
       date?: string;
@@ -45,7 +48,10 @@ export async function POST(
       const status =
         booking.error === "INVALID_DATE_OR_TIME"
           ? 400
-          : booking.error === "SLOT_PROCESSING"
+          : booking.error === "CUSTOMER_BLOCKED"
+          ? 403
+          : booking.error === "SLOT_PROCESSING" ||
+            booking.error === "AVAILABILITY_CHECK_FAILED"
           ? 409
           : booking.error === "SLOT_TAKEN"
           ? 409

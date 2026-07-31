@@ -4,6 +4,7 @@
  */
 
 import { supabase } from "@/lib/supabase";
+import { phoneVariants, phonesMatch } from "@/lib/phone";
 
 /**
  * Randevu için değerlendirme kaydeder.
@@ -24,6 +25,22 @@ export async function submitReview(
   try {
     if (rating < 1 || rating > 5) {
       return { ok: false, error: "Puan 1-5 arası olmalı" };
+    }
+
+    const { data: apt, error: aptErr } = await supabase
+      .from("appointments")
+      .select("id, tenant_id, customer_phone, status")
+      .eq("id", appointmentId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (aptErr || !apt) {
+      return { ok: false, error: "Randevu bulunamadı" };
+    }
+    if (!["confirmed", "completed"].includes(apt.status)) {
+      return { ok: false, error: "Bu randevu için değerlendirme açılamaz" };
+    }
+    if (!phonesMatch(apt.customer_phone, customerPhone)) {
+      return { ok: false, error: "Randevu sahipliği doğrulanamadı" };
     }
 
     const { error } = await supabase.from("reviews").insert({
@@ -50,6 +67,22 @@ export async function submitReviewSkipped(
   customerPhone: string
 ): Promise<{ ok: boolean; error?: string }> {
   try {
+    const { data: apt, error: aptErr } = await supabase
+      .from("appointments")
+      .select("id, tenant_id, customer_phone, status")
+      .eq("id", appointmentId)
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    if (aptErr || !apt) {
+      return { ok: false, error: "Randevu bulunamadı" };
+    }
+    if (!["confirmed", "completed"].includes(apt.status)) {
+      return { ok: false, error: "Bu randevu için değerlendirme açılamaz" };
+    }
+    if (!phonesMatch(apt.customer_phone, customerPhone)) {
+      return { ok: false, error: "Randevu sahipliği doğrulanamadı" };
+    }
+
     const { error } = await supabase.from("reviews").insert({
       tenant_id: tenantId,
       appointment_id: appointmentId,
@@ -74,7 +107,12 @@ export async function hasReview(appointmentId: string): Promise<boolean> {
     .select("id")
     .eq("appointment_id", appointmentId)
     .limit(1);
-  return !error && (data?.length ?? 0) > 0;
+  // Fail-closed: treat DB errors as "already reviewed" to avoid spam/duplicates.
+  if (error) {
+    console.error("[hasReview] query error:", error.message);
+    return true;
+  }
+  return (data?.length ?? 0) > 0;
 }
 
 /**
@@ -90,11 +128,14 @@ export async function hasCustomerRatedService(
   const slug = String(serviceSlug || "").trim();
   if (!slug) return false;
 
+  const phones = phoneVariants(customerPhone);
+  if (phones.length === 0) return false;
+
   const { data: appointments, error: aptError } = await supabase
     .from("appointments")
     .select("id")
     .eq("tenant_id", tenantId)
-    .eq("customer_phone", customerPhone)
+    .in("customer_phone", phones)
     .eq("service_slug", slug)
     .limit(200);
   if (aptError || !appointments || appointments.length === 0) return false;
@@ -108,7 +149,7 @@ export async function hasCustomerRatedService(
     .from("reviews")
     .select("id")
     .eq("tenant_id", tenantId)
-    .eq("customer_phone", customerPhone)
+    .in("customer_phone", phones)
     .not("rating", "is", null)
     .in("appointment_id", appointmentIds)
     .limit(1);

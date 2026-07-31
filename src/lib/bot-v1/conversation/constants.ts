@@ -72,13 +72,15 @@ export const OFFTOPIC_KEYWORDS = [
   "fikrin ne",
 ];
 
+/** Whole-token abusive words only (matched with word boundaries after normalize). */
 export const ABUSIVE_KEYWORDS = [
   "aptal",
   "salak",
   "gerizekali",
-  "gerizekalı",
   "mal",
   "lan",
+  "siktir",
+  "amk",
 ];
 
 export const GREETING_KEYWORDS = [
@@ -166,10 +168,20 @@ export const EN_DAY_TO_INDEX: Record<string, number> = {
   sat: 6,
 };
 
+/** Keys must match normalizeIncomingText output (ASCII-folded Turkish). */
 export const RATING_MAP: Record<string, number> = {
-  beş: 5, dort: 4, dört: 4, uc: 3, üç: 3, iki: 2, bir: 1,
-  mükemmel: 5, harika: 5, süper: 5,
-  iyi: 4, güzel: 4,
-  orta: 3, idare: 3,
-  kötü: 2, berbat: 1,
+  bes: 5,
+  dort: 4,
+  uc: 3,
+  iki: 2,
+  bir: 1,
+  mukemmel: 5,
+  harika: 5,
+  super: 5,
+  iyi: 4,
+  guzel: 4,
+  orta: 3,
+  idare: 3,
+  kotu: 2,
+  berbat: 1,
 };

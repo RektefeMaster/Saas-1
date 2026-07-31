@@ -1,9 +1,10 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import {
   listReactivationCandidates,
   queueReactivationCampaign,
 } from "@/services/reactivation.service";
 import { logTenantEvent } from "@/services/eventLog.service";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 export async function GET(
   request: Request,
@@ -36,11 +37,13 @@ export async function GET(
 }
 
 export async function POST(
-  request: Request,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: tenantId } = await params;
+    const auth = await requireTenantApiAccess(request, tenantId);
+    if (!auth.ok) return auth.response;
     const body = (await request.json().catch(() => ({}))) as {
       mode?: "preview" | "queue";
       days?: number;

@@ -2,7 +2,11 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { jwtVerify } from "jose";
-import { DASHBOARD_OTP_COOKIE, isSms2faEnabledFlag } from "@/lib/otp-auth";
+import {
+  DASHBOARD_OTP_COOKIE,
+  isSms2faEnabledFlag,
+  verifyDashboardOtpCookieValue,
+} from "@/lib/otp-auth";
 import { loginEmailToUsernameDisplay, normalizeUsername } from "@/lib/username-auth";
 
 const ADMIN_COOKIE = "admin_session";
@@ -191,7 +195,7 @@ export async function proxy(request: NextRequest) {
         return NextResponse.redirect(new URL("/dashboard", request.url));
       }
       const otpCookie = request.cookies.get(DASHBOARD_OTP_COOKIE)?.value;
-      const otpVerified = otpCookie === user.id;
+      const otpVerified = verifyDashboardOtpCookieValue(otpCookie, user.id);
       if (otpVerified && (isDashboardLogin || isDashboardVerify)) {
         return NextResponse.redirect(new URL("/dashboard", request.url));
       }
@@ -209,7 +213,7 @@ export async function proxy(request: NextRequest) {
 
     if (sms2faEnabled) {
       const otpCookie = request.cookies.get(DASHBOARD_OTP_COOKIE)?.value;
-      const otpVerified = otpCookie === user.id;
+      const otpVerified = verifyDashboardOtpCookieValue(otpCookie, user.id);
       if (!otpVerified) {
         return NextResponse.redirect(new URL("/dashboard/login/verify", request.url));
       }
@@ -241,7 +245,7 @@ export async function proxy(request: NextRequest) {
 
     if (sms2faEnabled) {
       const otpCookie = request.cookies.get(DASHBOARD_OTP_COOKIE)?.value;
-      const otpVerified = otpCookie === user.id;
+      const otpVerified = verifyDashboardOtpCookieValue(otpCookie, user.id);
       if (!otpVerified) {
         return NextResponse.json({ error: "SMS doğrulaması gerekli" }, { status: 403 });
       }

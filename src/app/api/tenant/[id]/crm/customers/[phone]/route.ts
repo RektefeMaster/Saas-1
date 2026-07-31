@@ -5,6 +5,7 @@ import {
   extractMissingSchemaTable,
 } from "@/lib/postgrest-schema";
 import { normalizePhoneE164, normalizePhoneDigits } from "@/lib/phone";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 function normalizePhoneForLookup(input: string): string {
   const e164 = normalizePhoneE164(decodeURIComponent(input || ""));
@@ -138,6 +139,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; phone: string }> }
 ) {
   const { id: tenantId, phone } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const customerPhone = normalizePhoneForLookup(phone);
   const body = (await request.json().catch(() => ({}))) as {
     customer_name?: string | null;

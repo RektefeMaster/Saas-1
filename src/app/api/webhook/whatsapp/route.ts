@@ -4,20 +4,33 @@ import { logger } from "@/lib/logger";
 import { inngest } from "@/lib/inngest/client";
 import type { IncomingWebhookValue, WhatsAppInboundEventData } from "@/lib/bot-v1/types";
 import { getWebhookSecret, verifyWebhookSignatureBody } from "@/middleware/webhookVerify.middleware";
-import {
-  getWebhookDebugRecord,
-  setRuntimeWhatsAppConfig,
-  setWebhookDebugRecord,
-} from "@/lib/redis";
+import { getWebhookDebugRecord, setWebhookDebugRecord } from "@/lib/redis";
 import { createMessageProcessingJob } from "@/services/messageProcessingJob.service";
 import { normalizePhoneE164 } from "@/lib/phone";
+import { createHash } from "crypto";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const VERIFY_TOKEN = process.env.WHATSAPP_VERIFY_TOKEN?.trim() || "";
-const STRICT_WEBHOOK_SIGNATURE =
-  (process.env.WHATSAPP_STRICT_SIGNATURE || "").trim().toLowerCase() === "true";
+// Production defaults to strict; set WHATSAPP_STRICT_SIGNATURE=false only for local diagnostics.
+const STRICT_WEBHOOK_SIGNATURE = (() => {
+  const raw = (process.env.WHATSAPP_STRICT_SIGNATURE || "").trim().toLowerCase();
+  if (raw === "false" || raw === "0" || raw === "off") return false;
+  if (raw === "true" || raw === "1" || raw === "on") return true;
+  return process.env.NODE_ENV === "production";
+})();
+
+/** Happy-path debug writes are sampled to keep ingress RTT low. Errors always write. */
+async function maybeSetWebhookDebug(
+  record: Parameters<typeof setWebhookDebugRecord>[0],
+  force = false
+): Promise<void> {
+  if (!force && process.env.NODE_ENV === "production" && Math.random() > 0.02) {
+    return;
+  }
+  await setWebhookDebugRecord(record);
+}
 
 export async function GET(request: NextRequest) {
   if (!VERIFY_TOKEN) {
@@ -65,26 +78,15 @@ export async function POST(request: NextRequest) {
   const rawBody = await request.text();
   const userAgent = request.headers.get("user-agent") || "";
 
-  const runtimeTokenFromUrl = (request.nextUrl.searchParams.get("wa_token") || "").trim();
-  const runtimePhoneIdFromUrl = (
-    request.nextUrl.searchParams.get("wa_phone_id") ||
-    process.env.WHATSAPP_PHONE_NUMBER_ID ||
-    ""
-  ).trim();
-
-  if (runtimeTokenFromUrl && runtimePhoneIdFromUrl) {
-    await setRuntimeWhatsAppConfig(
-      {
-        token: runtimeTokenFromUrl,
-        phone_id: runtimePhoneIdFromUrl,
-        updated_at: new Date().toISOString(),
-        source: "webhook-query",
-      },
-      60 * 30
-    );
+  // Never accept WA credentials from query string (token injection risk).
+  if (
+    request.nextUrl.searchParams.has("wa_token") ||
+    request.nextUrl.searchParams.has("wa_phone_id")
+  ) {
+    console.warn("[webhook] rejected wa_token/wa_phone_id query credential injection attempt");
   }
 
-  await setWebhookDebugRecord({
+  void maybeSetWebhookDebug({
     stage: "post_received",
     at: new Date().toISOString(),
     has_signature: Boolean(signature),
@@ -92,15 +94,18 @@ export async function POST(request: NextRequest) {
     has_secret: Boolean(secret),
     user_agent: userAgent.slice(0, 120),
     body_size: rawBody.length,
-    runtime_token_from_url: Boolean(runtimeTokenFromUrl),
+    runtime_token_from_url: false,
   });
 
   if (!secret) {
     if (STRICT_WEBHOOK_SIGNATURE) {
-      await setWebhookDebugRecord({
-        stage: "rejected_missing_secret",
-        at: new Date().toISOString(),
-      });
+      await maybeSetWebhookDebug(
+        {
+          stage: "rejected_missing_secret",
+          at: new Date().toISOString(),
+        },
+        true
+      );
       return new NextResponse("Webhook secret missing", { status: 503 });
     }
     logger.warn(
@@ -109,14 +114,17 @@ export async function POST(request: NextRequest) {
   } else if (!verifyWebhookSignatureBody(Buffer.from(rawBody, "utf8"), signature, secret)) {
     const likelyMeta = /facebook|meta|whatsapp/i.test(userAgent);
     if (STRICT_WEBHOOK_SIGNATURE) {
-      await setWebhookDebugRecord({
-        stage: "rejected_invalid_signature",
-        at: new Date().toISOString(),
-        likely_meta: likelyMeta,
-      });
+      await maybeSetWebhookDebug(
+        {
+          stage: "rejected_invalid_signature",
+          at: new Date().toISOString(),
+          likely_meta: likelyMeta,
+        },
+        true
+      );
       return new NextResponse("Unauthorized", { status: 401 });
     }
-    await setWebhookDebugRecord({
+    void maybeSetWebhookDebug({
       stage: "invalid_signature_but_allowed",
       at: new Date().toISOString(),
       likely_meta: likelyMeta,
@@ -128,10 +136,13 @@ export async function POST(request: NextRequest) {
   try {
     body = JSON.parse(rawBody) as IncomingWebhookBody;
   } catch {
-    await setWebhookDebugRecord({
-      stage: "invalid_json",
-      at: new Date().toISOString(),
-    });
+    await maybeSetWebhookDebug(
+      {
+        stage: "invalid_json",
+        at: new Date().toISOString(),
+      },
+      true
+    );
     return new NextResponse("Bad Request", { status: 400 });
   }
 
@@ -152,7 +163,7 @@ export async function POST(request: NextRequest) {
       const statuses = value?.statuses || [];
       const messages = value?.messages || [];
       if (messages.length === 0 && statuses.length > 0) {
-        await setWebhookDebugRecord({
+        void maybeSetWebhookDebug({
           stage: "status_only_event",
           at: new Date().toISOString(),
           status_count: statuses.length,
@@ -165,7 +176,26 @@ export async function POST(request: NextRequest) {
           normalizePhoneE164(msg.from) ?? (msg.from ? `+${msg.from}` : "");
         if (!from) continue;
 
-        const messageId = (msg.id || "").trim() || `gen_${nanoid(12)}`;
+        // Dedupe is owned by the worker via claimWebhookMessageId (single claim site).
+        // Claiming here AND in the worker would drop every inbound message.
+        // Missing Meta id: deterministic fallback so retries don't mint a new claim key.
+        const rawMetaId = (msg.id || "").trim();
+        const messageId =
+          rawMetaId ||
+          `gen_${createHash("sha256")
+            .update(
+              [
+                from,
+                String(msg.timestamp || ""),
+                String(msg.type || ""),
+                String(msg.text?.body || msg.button?.payload || msg.interactive?.button_reply?.id || ""),
+              ].join("|")
+            )
+            .digest("hex")
+            .slice(0, 24)}`;
+        if (!rawMetaId) {
+          logger.warn("[webhook] message missing id; using deterministic fallback id");
+        }
         const receivedAtIso = msg.timestamp
           ? new Date(Number(msg.timestamp) * 1000).toISOString()
           : new Date().toISOString();
@@ -183,27 +213,36 @@ export async function POST(request: NextRequest) {
           message: msg,
         };
 
-        await inngest.send({
-          name: "bot/whatsapp.message.received",
-          data: eventData,
-        });
-        await createMessageProcessingJob({
-          traceId,
-          provider: "whatsapp",
-          messageId,
-          tenantId: null,
-          customerPhone: from,
-          payload: {
-            message_type: eventData.message_type,
-            raw_ref: eventData.raw_ref,
-          },
-        });
+        const settled = await Promise.allSettled([
+          inngest.send({
+            name: "bot/whatsapp.message.received",
+            data: eventData,
+          }),
+          createMessageProcessingJob({
+            traceId,
+            provider: "whatsapp",
+            messageId,
+            tenantId: null,
+            customerPhone: from,
+            payload: {
+              message_type: eventData.message_type,
+              raw_ref: eventData.raw_ref,
+            },
+          }),
+        ]);
+        if (settled[0].status === "rejected") {
+          logger.error("[webhook] inngest.send failed", settled[0].reason);
+          throw settled[0].reason;
+        }
+        if (settled[1].status === "rejected") {
+          logger.warn("[webhook] message_processing_job insert failed", settled[1].reason);
+        }
         queuedCount += 1;
       }
     }
   }
 
-  await setWebhookDebugRecord({
+  void maybeSetWebhookDebug({
     stage: "events_queued",
     at: new Date().toISOString(),
     queued_count: queuedCount,

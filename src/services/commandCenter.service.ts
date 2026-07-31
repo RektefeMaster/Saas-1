@@ -102,12 +102,15 @@ async function listAtRiskCustomers(
 }
 
 async function getRevenueSummary(tenantId: string, startIso: string, endIso: string) {
+  const REVENUE_ROW_CAP = 2000;
   const revenueRes = await supabase
     .from("revenue_events")
     .select("net_amount, source, meta")
     .eq("tenant_id", tenantId)
     .gte("event_at", startIso)
-    .lte("event_at", endIso);
+    .lte("event_at", endIso)
+    .order("event_at", { ascending: false })
+    .limit(REVENUE_ROW_CAP);
 
   if (!revenueRes.error) {
     const rows = revenueRes.data || [];
@@ -137,11 +140,13 @@ async function getRevenueSummary(tenantId: string, startIso: string, endIso: str
       .eq("tenant_id", tenantId)
       .gte("slot_start", startIso)
       .lte("slot_start", endIso)
-      .in("status", ["confirmed", "completed"]),
+      .in("status", ["confirmed", "completed"])
+      .limit(5000),
     supabase
       .from("services")
       .select("slug, price")
-      .eq("tenant_id", tenantId),
+      .eq("tenant_id", tenantId)
+      .limit(200),
   ]);
 
   if (aptRes.error) throw new Error(aptRes.error.message);
@@ -179,7 +184,7 @@ async function getFillRatePct(
       .eq("tenant_id", tenantId),
     supabase
       .from("appointments")
-      .select("id")
+      .select("id", { count: "exact", head: true })
       .eq("tenant_id", tenantId)
       .neq("status", "cancelled")
       .gte("slot_start", now.toISOString())
@@ -217,7 +222,7 @@ async function getFillRatePct(
     }
   }
 
-  const booked = (appointmentsRes.data || []).length;
+  const booked = Number(appointmentsRes.count || 0);
   if (possibleSlots <= 0) return 0;
   return round((booked / possibleSlots) * 100, 1);
 }
@@ -242,18 +247,21 @@ export async function getCommandCenterSnapshot(
         .select("status")
         .eq("tenant_id", tenantId)
         .gte("slot_start", monthStart.toISOString())
-        .lte("slot_start", now.toISOString()),
+        .lte("slot_start", now.toISOString())
+        .limit(5000),
       supabase
         .from("reviews")
         .select("rating")
         .eq("tenant_id", tenantId)
         .gte("created_at", monthStart.toISOString())
-        .lte("created_at", now.toISOString()),
+        .lte("created_at", now.toISOString())
+        .limit(2000),
       supabase
         .from("ops_alerts")
         .select("id, type, message, meta")
         .eq("tenant_id", tenantId)
-        .eq("status", "open"),
+        .eq("status", "open")
+        .limit(100),
       listAtRiskCustomers(tenantId, 45, 100),
     ]);
 

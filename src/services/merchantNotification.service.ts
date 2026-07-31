@@ -71,19 +71,22 @@ async function getTenantNotifyTargets(
 async function notifyTargets(
   tenantId: string,
   text: string,
-  staffId?: string | null
+  staffId?: string | null,
+  preloaded?: { targets: NotifyTarget[]; name: string }
 ): Promise<void> {
-  const { targets } = await getTenantNotifyTargets(tenantId, staffId);
-  for (const target of targets) {
-    const delivery = await sendCustomerNotification(target.phone, text);
-    if (!delivery.whatsapp && !delivery.sms) {
-      console.warn("[merchant notify] delivery failed", {
-        tenantId,
-        to: target.phone,
-        kind: target.kind,
-      });
-    }
-  }
+  const { targets } = preloaded || (await getTenantNotifyTargets(tenantId, staffId));
+  await Promise.all(
+    targets.map(async (target) => {
+      const delivery = await sendCustomerNotification(target.phone, text);
+      if (!delivery.whatsapp && !delivery.sms) {
+        console.warn("[merchant notify] delivery failed", {
+          tenantId,
+          to: target.phone,
+          kind: target.kind,
+        });
+      }
+    })
+  );
 }
 
 /** date: YYYY-MM-DD, time: HH:mm (zaten tenant timezone'da). Çıktı: "DD.MM.YYYY HH:mm" */
@@ -110,22 +113,21 @@ export async function notifyNewAppointmentForMerchant(params: {
   source: AppointmentSource;
 }): Promise<void> {
   const { tenantId, customerPhone, date, time, source, staffId } = params;
-  const { name } = await getTenantNotifyTargets(tenantId, staffId);
+  const loaded = await getTenantNotifyTargets(tenantId, staffId);
   const dt = formatDateTimeTr(date, time);
-  const text = `Yeni randevu! ${customerPhone} müşterisi ${dt} için ${name} işletmesinde randevu aldı.`;
+  const text = `Yeni randevu! ${customerPhone} müşterisi ${dt} için ${loaded.name} işletmesinde randevu aldı.`;
 
-  await notifyTargets(tenantId, text, staffId).catch((e) =>
-    console.error("[merchant notify] new appointment notify error:", e)
-  );
-
-  await createOpsAlert({
-    tenantId,
-    type: "system",
-    severity: "low",
-    customerPhone,
-    message: `Yeni randevu (${dt}) - ${customerPhone}`,
-    meta: { source, kind: "new_appointment", date, time },
-  }).catch((e) => console.error("[merchant notify] new appointment ops_alert error:", e));
+  await Promise.allSettled([
+    notifyTargets(tenantId, text, staffId, loaded),
+    createOpsAlert({
+      tenantId,
+      type: "system",
+      severity: "low",
+      customerPhone,
+      message: `Yeni randevu (${dt}) - ${customerPhone}`,
+      meta: { source, kind: "new_appointment", date, time },
+    }),
+  ]);
 }
 
 export async function notifyCancelledAppointmentForMerchant(params: {

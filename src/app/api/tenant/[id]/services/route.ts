@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
 import { slugify } from "@/lib/slugify";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 export async function GET(
   _request: NextRequest,
@@ -63,6 +64,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: tenantId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => ({}))) as {
     name?: string;
     slug?: string;

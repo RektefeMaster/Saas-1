@@ -1,8 +1,16 @@
 import { NextRequest, NextResponse } from "next/server";
+import dayjs from "dayjs";
+import utc from "dayjs/plugin/utc";
+import timezone from "dayjs/plugin/timezone";
 import { supabase } from "@/lib/supabase";
+import { APP_TIMEZONE } from "@/lib/dayjs-utils";
 import { reserveAppointment } from "@/services/booking.service";
 import { logTenantEvent } from "@/services/eventLog.service";
 import { notifyNewAppointmentForMerchant } from "@/services/merchantNotification.service";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
+
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 const APPOINTMENT_LIST_COLUMNS =
   "id,customer_phone,slot_start,status,service_slug,staff_id,extra_data";
@@ -43,7 +51,7 @@ export async function GET(
 
   return NextResponse.json(data, {
     headers: {
-      "Cache-Control": "s-maxage=10, stale-while-revalidate=20",
+      "Cache-Control": "private, no-store",
     },
   });
 }
@@ -54,6 +62,8 @@ export async function POST(
 ) {
   try {
     const { id } = await params;
+    const auth = await requireTenantApiAccess(request, id);
+    if (!auth.ok) return auth.response;
     const body = (await request.json().catch(() => ({}))) as {
     customer_phone?: string;
     slot_start?: string;
@@ -74,18 +84,32 @@ export async function POST(
     );
   }
 
-  const parsed = new Date(slotStart);
-  if (isNaN(parsed.getTime())) {
-    return NextResponse.json({ error: "Geçersiz slot_start" }, { status: 400 });
-  }
+  const { data: tenantTzRow } = await supabase
+    .from("tenants")
+    .select("timezone")
+    .eq("id", id)
+    .maybeSingle();
+  const tenantTz = (tenantTzRow?.timezone as string)?.trim() || APP_TIMEZONE;
 
-  const date = `${parsed.getFullYear()}-${String(parsed.getMonth() + 1).padStart(
-    2,
-    "0"
-  )}-${String(parsed.getDate()).padStart(2, "0")}`;
-  const time = `${String(parsed.getHours()).padStart(2, "0")}:${String(
-    parsed.getMinutes()
-  ).padStart(2, "0")}`;
+  // Prefer explicit calendar components when slot_start is local-like without Z/offset.
+  const hasExplicitOffset = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(slotStart.trim());
+  const localMatch = slotStart
+    .trim()
+    .match(/^(\d{4}-\d{2}-\d{2})[T\s](\d{2}):(\d{2})(?::\d{2})?/);
+  let date: string;
+  let time: string;
+  if (!hasExplicitOffset && localMatch) {
+    date = localMatch[1];
+    time = `${localMatch[2]}:${localMatch[3]}`;
+  } else {
+    const parsed = dayjs(slotStart);
+    if (!parsed.isValid()) {
+      return NextResponse.json({ error: "Geçersiz slot_start" }, { status: 400 });
+    }
+    const zoned = parsed.tz(tenantTz);
+    date = zoned.format("YYYY-MM-DD");
+    time = zoned.format("HH:mm");
+  }
 
   const booking = await reserveAppointment({
     tenantId: id,
@@ -101,7 +125,10 @@ export async function POST(
     const status =
       booking.error === "INVALID_DATE_OR_TIME"
         ? 400
-        : booking.error === "SLOT_PROCESSING"
+        : booking.error === "CUSTOMER_BLOCKED"
+        ? 403
+        : booking.error === "SLOT_PROCESSING" ||
+          booking.error === "AVAILABILITY_CHECK_FAILED"
         ? 409
         : booking.error === "SLOT_TAKEN"
         ? 409
@@ -167,13 +194,13 @@ export async function POST(
   try {
     const slotDate = new Date(data.slot_start);
     const date = slotDate.toLocaleDateString("en-CA", {
-      timeZone: "Europe/Istanbul",
+      timeZone: tenantTz,
       year: "numeric",
       month: "2-digit",
       day: "2-digit",
     });
     const time = slotDate.toLocaleTimeString("en-GB", {
-      timeZone: "Europe/Istanbul",
+      timeZone: tenantTz,
       hour: "2-digit",
       minute: "2-digit",
       hour12: false,

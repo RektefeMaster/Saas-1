@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaColumn } from "@/lib/postgrest-schema";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string; serviceId: string }> }
 ) {
   const { id: tenantId, serviceId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>;
 
   const updates: Record<string, unknown> = {};
@@ -81,10 +84,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; serviceId: string }> }
 ) {
   const { id: tenantId, serviceId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const { error } = await supabase
     .from("services")
     .delete()

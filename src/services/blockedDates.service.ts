@@ -5,21 +5,23 @@
 
 import { supabase } from "@/lib/supabase";
 
+export type BlockedDateCheck =
+  | { ok: true; blocked: boolean }
+  | { ok: false; error: string };
+
 /**
  * Verilen tarihin tenant için bloklu (tatil/izin) olup olmadığını kontrol eder.
- *
- * @param tenantId - Tenant ID
- * @param dateStr - YYYY-MM-DD formatında tarih
- * @returns true = bloklu, false = müsait
- *
- * @example
- * const blocked = await checkBlockedDate("tenant-id", "2025-01-15");
- * if (blocked) return "O tarihler kapalı";
+ * DB hatalarında "blocked=true" uydurmak yerine hard error döner (yanlış tatil yayılımı engellenir).
  */
-export async function checkBlockedDate(tenantId: string, dateStr: string): Promise<boolean> {
+export async function checkBlockedDateDetailed(
+  tenantId: string,
+  dateStr: string
+): Promise<BlockedDateCheck> {
   try {
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return false;
+    if (isNaN(date.getTime())) {
+      return { ok: true, blocked: false };
+    }
 
     const { data, error } = await supabase
       .from("blocked_dates")
@@ -29,10 +31,17 @@ export async function checkBlockedDate(tenantId: string, dateStr: string): Promi
       .gte("end_date", dateStr)
       .limit(1);
 
-    if (error) return false;
-    return (data?.length ?? 0) > 0;
-  } catch {
-    return false;
+    if (error) {
+      console.error("[blockedDates] check error:", error.message);
+      return { ok: false, error: error.message };
+    }
+    return { ok: true, blocked: (data?.length ?? 0) > 0 };
+  } catch (err) {
+    console.error("[blockedDates] check exception:", err);
+    return {
+      ok: false,
+      error: err instanceof Error ? err.message : "blocked_dates_check_failed",
+    };
   }
 }
 

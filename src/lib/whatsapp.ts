@@ -20,22 +20,36 @@ function normalizePlainValue(value: string | undefined): string {
   return trimmed.replace(/^['"]|['"]$/g, "");
 }
 
+const CREDENTIALS_CACHE_TTL_MS = 45_000;
+let credentialsCache: {
+  expiry: number;
+  value: { phoneId: string; token: string; source: "runtime" | "env" };
+} | null = null;
+
 export async function resolveWhatsAppCredentials(): Promise<{
   phoneId: string;
   token: string;
   source: "runtime" | "env";
 }> {
+  if (credentialsCache && credentialsCache.expiry > Date.now()) {
+    return credentialsCache.value;
+  }
+
   const runtime = await getRuntimeWhatsAppConfig();
   const runtimePhone = normalizePlainValue(runtime?.phone_id);
   const runtimeToken = normalizeSecretValue(runtime?.token);
 
+  let value: { phoneId: string; token: string; source: "runtime" | "env" };
   if (runtimePhone && runtimeToken) {
-    return { phoneId: runtimePhone, token: runtimeToken, source: "runtime" };
+    value = { phoneId: runtimePhone, token: runtimeToken, source: "runtime" };
+  } else {
+    const envPhone = normalizePlainValue(process.env.WHATSAPP_PHONE_NUMBER_ID);
+    const envToken = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
+    value = { phoneId: envPhone, token: envToken, source: "env" };
   }
 
-  const envPhone = normalizePlainValue(process.env.WHATSAPP_PHONE_NUMBER_ID);
-  const envToken = normalizeSecretValue(process.env.WHATSAPP_ACCESS_TOKEN);
-  return { phoneId: envPhone, token: envToken, source: "env" };
+  credentialsCache = { value, expiry: Date.now() + CREDENTIALS_CACHE_TTL_MS };
+  return value;
 }
 
 export interface SendMessageParams {
@@ -433,9 +447,34 @@ export async function downloadWhatsAppMedia(mediaId: string): Promise<WhatsAppMe
     console.error("[whatsapp media] download error", res.status, raw);
     return null;
   }
-  const arrayBuffer = await res.arrayBuffer();
+  const MAX_MEDIA_BYTES = 8 * 1024 * 1024; // 8MB
+  const contentLength = Number(res.headers.get("content-length") || 0);
+  if (contentLength > MAX_MEDIA_BYTES) {
+    console.error("[whatsapp media] too large", contentLength);
+    return null;
+  }
+  // Stream with early abort so missing Content-Length cannot inflate memory.
+  if (!res.body) {
+    console.error("[whatsapp media] empty body");
+    return null;
+  }
+  const reader = res.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    if (!value) continue;
+    total += value.byteLength;
+    if (total > MAX_MEDIA_BYTES) {
+      await reader.cancel().catch(() => undefined);
+      console.error("[whatsapp media] stream exceeded limit", total);
+      return null;
+    }
+    chunks.push(value);
+  }
   return {
-    buffer: Buffer.from(arrayBuffer),
+    buffer: Buffer.concat(chunks.map((c) => Buffer.from(c))),
     mimeType: meta.mimeType,
   };
 }

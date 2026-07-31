@@ -9,9 +9,12 @@ import {
   resolveWhatsAppCredentials,
 } from "@/lib/whatsapp";
 import { normalizePhoneE164 } from "@/lib/phone";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 const CAMPAIGN_TEMPLATE = (process.env.WHATSAPP_CAMPAIGN_TEMPLATE_NAME || "").trim();
 const TEMPLATE_LANG = (process.env.WHATSAPP_TEMPLATE_LANG || "tr").trim();
+const CAMPAIGN_MAX_RECIPIENTS = 200;
+const CAMPAIGN_SEND_CONCURRENCY = 5;
 
 export async function POST(
   request: NextRequest,
@@ -19,6 +22,8 @@ export async function POST(
 ) {
   try {
     const { id: tenantId } = await params;
+    const auth = await requireTenantApiAccess(request, tenantId);
+    if (!auth.ok) return auth.response;
     const body = (await request.json().catch(() => ({}))) as {
       message_text?: string;
       channel?: "whatsapp" | "sms" | "both";
@@ -86,7 +91,8 @@ export async function POST(
       const { data: crmList } = await supabase
         .from("crm_customers")
         .select("customer_phone, tags")
-        .eq("tenant_id", tenantId);
+        .eq("tenant_id", tenantId)
+        .limit(CAMPAIGN_MAX_RECIPIENTS);
 
       let fromCrm = (crmList || []).map((row) => row.customer_phone);
       if (filterTags.length > 0) {
@@ -99,7 +105,9 @@ export async function POST(
         .from("appointments")
         .select("customer_phone")
         .eq("tenant_id", tenantId)
-        .neq("status", "cancelled");
+        .neq("status", "cancelled")
+        .order("slot_start", { ascending: false })
+        .limit(CAMPAIGN_MAX_RECIPIENTS);
 
       const aptSet = new Set((aptPhones || []).map((row) => row.customer_phone));
       const merged = new Set([...fromCrm, ...aptSet]);
@@ -113,6 +121,10 @@ export async function POST(
         { error: "Gönderilecek alıcı bulunamadı. CRM veya randevu kayıtlarını kontrol edin." },
         { status: 400 }
       );
+    }
+
+    if (phones.length > CAMPAIGN_MAX_RECIPIENTS) {
+      phones = phones.slice(0, CAMPAIGN_MAX_RECIPIENTS);
     }
 
     if (channel === "whatsapp" || channel === "both") {
@@ -131,38 +143,50 @@ export async function POST(
     let successCount = 0;
     let lastError: string | null = null;
 
-    for (const to of phones) {
-      try {
-        if (channel === "sms") {
-          const ok = await sendInfoSms(to, messageText);
-          if (ok) successCount++;
-          else lastError = "SMS gönderilemedi";
-          continue;
-        }
-
-        if (channel === "whatsapp") {
-          if (CAMPAIGN_TEMPLATE) {
-            const ok = await sendWhatsAppTemplateMessage({
-              to,
-              templateName: CAMPAIGN_TEMPLATE,
-              languageCode: TEMPLATE_LANG,
-              bodyParams: [messageText],
-            });
-            if (ok) successCount++;
-            else lastError = "Şablon mesajı gönderilemedi";
-          } else {
-            const res = await sendWhatsAppMessageDetailed({ to, text: messageText });
-            if (res.ok) successCount++;
-            else lastError = res.errorMessage || `HTTP ${res.status}`;
+    for (let i = 0; i < phones.length; i += CAMPAIGN_SEND_CONCURRENCY) {
+      const chunk = phones.slice(i, i + CAMPAIGN_SEND_CONCURRENCY);
+      const chunkResults = await Promise.all(
+        chunk.map(async (to) => {
+          try {
+            if (channel === "sms") {
+              const ok = await sendInfoSms(to, messageText);
+              return ok ? ({ ok: true } as const) : ({ ok: false, error: "SMS gönderilemedi" } as const);
+            }
+            if (channel === "whatsapp") {
+              if (CAMPAIGN_TEMPLATE) {
+                const ok = await sendWhatsAppTemplateMessage({
+                  to,
+                  templateName: CAMPAIGN_TEMPLATE,
+                  languageCode: TEMPLATE_LANG,
+                  bodyParams: [messageText],
+                });
+                return ok
+                  ? ({ ok: true } as const)
+                  : ({ ok: false, error: "Şablon mesajı gönderilemedi" } as const);
+              }
+              const res = await sendWhatsAppMessageDetailed({ to, text: messageText });
+              return res.ok
+                ? ({ ok: true } as const)
+                : ({
+                    ok: false,
+                    error: res.errorMessage || `HTTP ${res.status}`,
+                  } as const);
+            }
+            const delivery = await sendCustomerNotification(to, messageText);
+            return delivery.whatsapp || delivery.sms
+              ? ({ ok: true } as const)
+              : ({ ok: false, error: "Bildirim gönderilemedi" } as const);
+          } catch (err) {
+            return {
+              ok: false as const,
+              error: err instanceof Error ? err.message : "Gönderim hatası",
+            };
           }
-          continue;
-        }
-
-        const delivery = await sendCustomerNotification(to, messageText);
-        if (delivery.whatsapp || delivery.sms) successCount++;
-        else lastError = "Bildirim gönderilemedi";
-      } catch (err) {
-        lastError = err instanceof Error ? err.message : "Gönderim hatası";
+        })
+      );
+      for (const r of chunkResults) {
+        if (r.ok) successCount++;
+        else lastError = r.error;
       }
     }
 

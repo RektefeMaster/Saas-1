@@ -5,12 +5,13 @@ import { isValidEmail } from "@/lib/validation";
 
 const resend = new Resend(process.env.RESEND_API_KEY);
 
-function getContactEmail(): string {
-  return (
+function getContactEmail(): string | null {
+  const raw = (
     process.env.CONTACT_EMAIL ||
     process.env.ADMIN_HIDDEN_LOGIN_IDENTIFIER ||
-    "nuronuro458@gmail.com"
-  );
+    ""
+  ).trim();
+  return raw || null;
 }
 
 export async function POST(request: NextRequest) {
@@ -45,6 +46,13 @@ export async function POST(request: NextRequest) {
     }
 
     const toEmail = getContactEmail();
+    if (!toEmail) {
+      logger.error("CONTACT_EMAIL / ADMIN_HIDDEN_LOGIN_IDENTIFIER tanımlı değil");
+      return NextResponse.json(
+        { error: "İletişim alıcı adresi yapılandırılmamış." },
+        { status: 503 }
+      );
+    }
     const subject = `[Ahi AI İletişim] ${name}`;
     const html = `
       <div style="font-family: system-ui, sans-serif; max-width: 560px; margin: 0 auto;">

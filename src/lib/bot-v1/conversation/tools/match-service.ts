@@ -7,6 +7,14 @@ import { supabase } from "../../../supabase";
 import { fuzzySearchBest } from "@/lib/fuse-search";
 
 const SCORE_THRESHOLD = 0.5; // 0 = perfect match, 1 = no match. Altında kabul edilir.
+const SERVICES_CACHE_TTL_MS = 3 * 60 * 1000;
+const servicesCache = new Map<
+  string,
+  {
+    expiry: number;
+    rows: Array<{ name: string; slug: string; searchText: string }>;
+  }
+>();
 
 export interface MatchServiceResult {
   ok: true;
@@ -73,6 +81,9 @@ export async function matchServiceToSlug(
 async function fetchServices(
   tenantId: string
 ): Promise<Array<{ name: string; slug: string; searchText: string }>> {
+  const cached = servicesCache.get(tenantId);
+  if (cached && cached.expiry > Date.now()) return cached.rows;
+
   let res = await supabase
     .from("services")
     .select("name, slug, description")
@@ -86,7 +97,12 @@ async function fetchServices(
       .eq("tenant_id", tenantId);
   }
   if (res.error) return [];
-  return (res.data || []).map(toSearchItem);
+  const rows = (res.data || []).map(toSearchItem);
+  servicesCache.set(tenantId, {
+    rows,
+    expiry: Date.now() + SERVICES_CACHE_TTL_MS,
+  });
+  return rows;
 }
 
 function toSearchItem(row: {

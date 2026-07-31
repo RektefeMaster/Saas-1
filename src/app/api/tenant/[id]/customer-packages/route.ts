@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 function normalizePhone(input: string): string {
   return input.replace(/\s+/g, "").trim();
@@ -52,6 +53,8 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: tenantId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => ({}))) as CustomerPackageCreatePayload;
 
   const customerPhone = normalizePhone(body.customer_phone || "");

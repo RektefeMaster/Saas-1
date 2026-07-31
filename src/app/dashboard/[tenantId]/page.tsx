@@ -30,11 +30,6 @@ const SettingsView = dynamic(
   { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
 );
 
-const ScrollReveal = dynamic(
-  () => import("@/components/ui/ScrollReveal").then((m) => ({ default: m.ScrollReveal })),
-  { ssr: false }
-);
-
 const DashboardModals = dynamic(
   () => import("./components/DashboardModals").then((m) => ({ default: m.DashboardModals })),
   { ssr: false }
@@ -455,89 +450,87 @@ export default function EsnafDashboard({
       </header>
 
       <main className="mx-auto max-w-5xl px-4 py-6 pb-28 sm:px-6 lg:px-8 lg:pb-8">
-        <ScrollReveal variant="fadeUp" delay={0} as="section" className="mb-6" reduceMotion>
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-            <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
-              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                <button
-                  type="button"
-                  onClick={() => setActiveView("overview")}
-                  className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                    activeView === "overview"
-                      ? "border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900"
-                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <BarChart3 className="h-4 w-4" />
-                  Genel Bakış
-                  {opsAlerts.length > 0 && (
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
-                        activeView === "overview"
-                          ? "bg-white/20 text-white"
-                          : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
-                      }`}
-                    >
-                      {opsAlerts.length}
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveView("appointments")}
-                  className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                    activeView === "appointments"
-                      ? "border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900"
-                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <CalendarDays className="h-4 w-4" />
-                  Randevular
-                  {weekCount > 0 && (
-                    <span
-                      className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
-                        activeView === "appointments"
-                          ? "bg-white/20 text-white"
-                          : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
-                      }`}
-                    >
-                      {weekCount}
-                    </span>
-                  )}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setActiveView("settings")}
-                  className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
-                    activeView === "settings"
-                      ? "border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900"
-                      : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-                  }`}
-                >
-                  <Settings2 className="h-4 w-4" />
-                  Ayarlar
-                </button>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-800/60">
-                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  Sıradaki Randevu
-                </p>
-                {nextAppointmentDisplay ? (
-                  <>
-                    <p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
-                      {nextAppointmentDisplay.formattedTime} · {nextAppointmentDisplay.customerName}
-                    </p>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                      {nextAppointmentDisplay.serviceLabel}
-                    </p>
-                  </>
-                ) : (
-                  <p className="mt-1 font-medium text-slate-600 dark:text-slate-400">Planlanmış yaklaşan randevu yok.</p>
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => setActiveView("overview")}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                  activeView === "overview"
+                    ? "border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                }`}
+              >
+                <BarChart3 className="h-4 w-4" />
+                Genel Bakış
+                {opsAlerts.length > 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
+                      activeView === "overview"
+                        ? "bg-white/20 text-white"
+                        : "bg-red-100 text-red-700 dark:bg-red-900/50 dark:text-red-300"
+                    }`}
+                  >
+                    {opsAlerts.length}
+                  </span>
                 )}
-              </div>
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveView("appointments")}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                  activeView === "appointments"
+                    ? "border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                }`}
+              >
+                <CalendarDays className="h-4 w-4" />
+                Randevular
+                {weekCount > 0 && (
+                  <span
+                    className={`rounded-full px-1.5 py-0.5 text-[11px] font-bold ${
+                      activeView === "appointments"
+                        ? "bg-white/20 text-white"
+                        : "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300"
+                    }`}
+                  >
+                    {weekCount}
+                  </span>
+                )}
+              </button>
+              <button
+                type="button"
+                onClick={() => setActiveView("settings")}
+                className={`inline-flex items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-semibold transition ${
+                  activeView === "settings"
+                    ? "border-slate-900 bg-slate-900 text-white shadow-sm dark:border-slate-200 dark:bg-slate-200 dark:text-slate-900"
+                    : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                }`}
+              >
+                <Settings2 className="h-4 w-4" />
+                Ayarlar
+              </button>
             </div>
-          </section>
-        </ScrollReveal>
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm dark:border-slate-700 dark:bg-slate-800/60">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                Sıradaki Randevu
+              </p>
+              {nextAppointmentDisplay ? (
+                <>
+                  <p className="mt-1 font-semibold text-slate-800 dark:text-slate-200">
+                    {nextAppointmentDisplay.formattedTime} · {nextAppointmentDisplay.customerName}
+                  </p>
+                  <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                    {nextAppointmentDisplay.serviceLabel}
+                  </p>
+                </>
+              ) : (
+                <p className="mt-1 font-medium text-slate-600 dark:text-slate-400">Planlanmış yaklaşan randevu yok.</p>
+              )}
+            </div>
+          </div>
+        </section>
 
         {activeView === "overview" && (
           <OverviewView

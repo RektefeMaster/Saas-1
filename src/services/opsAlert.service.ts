@@ -81,7 +81,9 @@ export async function listOpsAlerts(
   const fetchLimit = Math.min(100, safeLimit * 3);
   const { data, error } = await supabase
     .from("ops_alerts")
-    .select("*")
+    .select(
+      "id, tenant_id, type, severity, customer_phone, message, meta, dedupe_key, status, created_at, resolved_at"
+    )
     .eq("tenant_id", tenantId)
     .eq("status", status)
     .order("created_at", { ascending: false })

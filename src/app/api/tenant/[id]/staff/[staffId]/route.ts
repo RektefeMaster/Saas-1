@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 function normalizeServiceSlugs(input: unknown): string[] {
   if (!Array.isArray(input)) return [];
@@ -28,6 +29,8 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string; staffId: string }> }
 ) {
   const { id: tenantId, staffId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const body = (await request.json().catch(() => ({}))) as {
     name?: string;
     phone_e164?: string | null;
@@ -133,10 +136,12 @@ export async function PATCH(
 }
 
 export async function DELETE(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; staffId: string }> }
 ) {
   const { id: tenantId, staffId } = await params;
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
 
   const result = await supabase
     .from("staff")

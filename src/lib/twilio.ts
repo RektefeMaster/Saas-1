@@ -1,3 +1,6 @@
+import { createHmac, timingSafeEqual } from "crypto";
+import { getAppBaseUrl } from "@/lib/app-url";
+
 const TWILIO_API_BASE = "https://verify.twilio.com/v2";
 
 function isTruthy(value: string | undefined): boolean {
@@ -116,30 +119,122 @@ export async function sendSmsVerification(phoneE164: string): Promise<void> {
   }
 }
 
-export async function verifySmsCode(phoneE164: string, code: string): Promise<boolean> {
+export type VerifySmsCodeResult =
+  | { ok: true }
+  | { ok: false; reason: "invalid_code" | "upstream_error" };
+
+export async function verifySmsCodeDetailed(
+  phoneE164: string,
+  code: string
+): Promise<VerifySmsCodeResult> {
   const { accountSid, authToken, serviceSid } = getTwilioConfig();
-  const response = await fetch(
-    `${TWILIO_API_BASE}/Services/${serviceSid}/VerificationCheck`,
-    {
-      method: "POST",
-      headers: {
-        Authorization: buildAuthHeader(accountSid, authToken),
-        "Content-Type": "application/x-www-form-urlencoded",
-      },
-      body: new URLSearchParams({
-        To: phoneE164,
-        Code: code,
-      }),
-    }
-  );
+  let response: Response;
+  try {
+    response = await fetch(
+      `${TWILIO_API_BASE}/Services/${serviceSid}/VerificationCheck`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: buildAuthHeader(accountSid, authToken),
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: new URLSearchParams({
+          To: phoneE164,
+          Code: code,
+        }),
+      }
+    );
+  } catch {
+    return { ok: false, reason: "upstream_error" };
+  }
+
+  if (response.status >= 500) {
+    return { ok: false, reason: "upstream_error" };
+  }
 
   if (!response.ok) {
-    return false;
+    return { ok: false, reason: "invalid_code" };
   }
 
   const payload = (await response.json().catch(() => ({}))) as {
     status?: string;
     valid?: boolean;
   };
-  return payload.status === "approved" || payload.valid === true;
+  if (payload.status === "approved" || payload.valid === true) {
+    return { ok: true };
+  }
+  return { ok: false, reason: "invalid_code" };
+}
+
+export async function verifySmsCode(phoneE164: string, code: string): Promise<boolean> {
+  const result = await verifySmsCodeDetailed(phoneE164, code);
+  return result.ok;
+}
+
+/** Validates X-Twilio-Signature for webhook requests. */
+export function validateTwilioSignature(input: {
+  authToken: string;
+  signature: string;
+  url: string;
+  params: Record<string, string>;
+}): boolean {
+  const { authToken, signature, url, params } = input;
+  if (!authToken || !signature) return false;
+
+  const sortedKeys = Object.keys(params).sort();
+  let data = url;
+  for (const key of sortedKeys) {
+    data += key + params[key];
+  }
+  const expected = createHmac("sha1", authToken).update(Buffer.from(data, "utf8")).digest("base64");
+  try {
+    const a = Buffer.from(expected);
+    const b = Buffer.from(signature);
+    if (a.length !== b.length) return false;
+    return timingSafeEqual(a, b);
+  } catch {
+    return false;
+  }
+}
+
+export function buildTwilioWebhookUrl(path: string): string {
+  return `${getAppBaseUrl()}${path.startsWith("/") ? path : `/${path}`}`;
+}
+
+export async function assertValidTwilioWebhook(
+  request: Request,
+  form: FormData | null,
+  path: string
+): Promise<{ ok: true } | { ok: false; status: number; error: string }> {
+  const authToken = process.env.TWILIO_AUTH_TOKEN?.trim() || "";
+  if (!authToken) {
+    return { ok: false, status: 503, error: "TWILIO_AUTH_TOKEN missing" };
+  }
+  const signature = request.headers.get("x-twilio-signature") || "";
+  const params: Record<string, string> = {};
+  if (form) {
+    form.forEach((value, key) => {
+      params[key] = String(value);
+    });
+  }
+  // Twilio signs the exact URL it requested (incl. query string). Prefer the
+  // public base + path/search from the incoming request when available.
+  let search = "";
+  try {
+    search = new URL(request.url).search || "";
+  } catch {
+    search = "";
+  }
+  const urlCandidates = [
+    `${buildTwilioWebhookUrl(path)}${search}`,
+    buildTwilioWebhookUrl(path),
+  ];
+  const ok = urlCandidates.some((url) =>
+    validateTwilioSignature({ authToken, signature, url, params })
+  );
+  if (!ok) {
+    console.warn("[twilio] invalid signature for", path);
+    return { ok: false, status: 403, error: "Invalid Twilio signature" };
+  }
+  return { ok: true };
 }
