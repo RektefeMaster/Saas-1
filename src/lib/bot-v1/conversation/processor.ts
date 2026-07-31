@@ -247,6 +247,40 @@ export async function createAppointment(
 
 // ── OpenAI call with retry ──────────────────────────────────────────────────────
 
+/**
+ * Reasoning modellerinde (gpt-5.x ailesi) chat/completions üzerinden function
+ * tool kullanmak için reasoning_effort "none" olmalı; aksi halde API 400 döner:
+ * "Function tools with reasoning_effort are not supported ... set reasoning_effort to 'none'".
+ * Farklı bir davranış istenirse OPENAI_REASONING_EFFORT ile ayarlanabilir.
+ */
+const REASONING_EFFORT = (process.env.OPENAI_REASONING_EFFORT?.trim() ||
+  "none") as OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming["reasoning_effort"];
+
+const CHAT_TEMPERATURE = (() => {
+  const raw = Number(process.env.OPENAI_TEMPERATURE);
+  return Number.isFinite(raw) ? raw : 0.4;
+})();
+
+function buildChatParams(
+  model: string,
+  messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
+  tools?: OpenAI.Chat.Completions.ChatCompletionTool[],
+  options?: { withTemperature?: boolean }
+): OpenAI.Chat.Completions.ChatCompletionCreateParamsNonStreaming {
+  return {
+    model,
+    messages,
+    ...(options?.withTemperature === false ? {} : { temperature: CHAT_TEMPERATURE }),
+    ...(REASONING_EFFORT ? { reasoning_effort: REASONING_EFFORT } : {}),
+    ...(tools ? { tools, tool_choice: "auto" as const } : {}),
+  };
+}
+
+/** Model bu parametreyi desteklemiyor mu? (400 mesajından anlaşılır) */
+function mentionsUnsupportedTemperature(message: string): boolean {
+  return /temperature/i.test(message) && /unsupported|not support|does not support/i.test(message);
+}
+
 async function callOpenAI(
   messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[],
   tools?: OpenAI.Chat.Completions.ChatCompletionTool[],
@@ -255,29 +289,26 @@ async function callOpenAI(
   return withRetry(
     async () => {
       try {
-        return await openai!.chat.completions.create({
-          model,
-          messages,
-          temperature: 0.4,
-          ...(tools ? { tools, tool_choice: "auto" as const } : {}),
-        });
+        return await openai!.chat.completions.create(
+          buildChatParams(model, messages, tools)
+        );
       } catch (err: unknown) {
         const e = err as { status?: number; error?: { message?: string }; message?: string };
-        console.error(
-          "[ai] OpenAI error",
-          "status:",
-          e?.status,
-          "message:",
-          e?.error?.message ?? e?.message
-        );
+        const errorMessage = e?.error?.message ?? e?.message ?? "";
+        console.error("[ai] OpenAI error", "status:", e?.status, "message:", errorMessage);
+
+        // Bazı modeller temperature kabul etmiyor; parametresiz tek bir tekrar dene.
+        if (e?.status === 400 && mentionsUnsupportedTemperature(errorMessage)) {
+          return await openai!.chat.completions.create(
+            buildChatParams(model, messages, tools, { withTemperature: false })
+          );
+        }
+
         if (e?.status === 429) {
           await new Promise((r) => setTimeout(r, 1500));
-          return await openai!.chat.completions.create({
-            model,
-            messages,
-            temperature: 0.4,
-            ...(tools ? { tools, tool_choice: "auto" as const } : {}),
-          });
+          return await openai!.chat.completions.create(
+            buildChatParams(model, messages, tools)
+          );
         }
         throw err;
       }

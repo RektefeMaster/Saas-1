@@ -106,6 +106,8 @@ export async function describeImage(input: {
   try {
     const response = await input.client.chat.completions.create({
       model: input.model,
+      // Reasoning modellerinde gereksiz düşünme adımını kapatır (gecikme + maliyet).
+      reasoning_effort: "none",
       messages: [
         { role: "system", content: VISION_SYSTEM_PROMPT },
         {

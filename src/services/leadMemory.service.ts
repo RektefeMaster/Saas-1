@@ -261,6 +261,7 @@ export async function refreshLeadMemoryFromConversation(input: {
   try {
     const response = await client.chat.completions.create({
       model,
+      reasoning_effort: "none",
       messages: [
         { role: "system", content: LEAD_MEMORY_SYSTEM_PROMPT },
         {
