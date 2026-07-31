@@ -170,6 +170,8 @@ export function ChartBar({
   className = "",
 }: ChartBarProps) {
   const { ref, inView } = useInView({ triggerOnce: true, threshold: 0.05 });
+  const containerRef = useRef<HTMLDivElement>(null);
+  const [dimensions, setDimensions] = useState({ width: 800, height });
   const barKeys = Array.isArray(bars) ? bars : [bars];
   const isHorizontal = layout === "horizontal";
 
@@ -195,6 +197,36 @@ export function ChartBar({
   );
   const yDomain = [0, Math.ceil(maxVal * 1.15) || 1];
 
+  const debounce = useCallback((func: () => void, wait: number) => {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    return () => {
+      if (timeout) clearTimeout(timeout);
+      timeout = setTimeout(func, wait);
+    };
+  }, []);
+
+  // Hooks must run unconditionally — early return below would change hook order.
+  useEffect(() => {
+    if (!inView || !containerRef.current) return;
+
+    const updateDimensions = () => {
+      if (containerRef.current) {
+        const rect = containerRef.current.getBoundingClientRect();
+        setDimensions({
+          width: rect.width || 800,
+          height: rect.height || height,
+        });
+      }
+    };
+
+    updateDimensions();
+    const debouncedResize = debounce(updateDimensions, 250);
+    window.addEventListener("resize", debouncedResize);
+    return () => {
+      window.removeEventListener("resize", debouncedResize);
+    };
+  }, [height, debounce, inView]);
+
   if (!inView) {
     return (
       <div
@@ -209,58 +241,17 @@ export function ChartBar({
     ? { top: 8, right: 60, left: 8, bottom: 8 }
     : { top: 20, right: 16, left: 8, bottom: 12 };
 
-  // Debounced resize için container ref ve state
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height });
-
-  // Debounce function
-  const debounce = useCallback((func: () => void, wait: number) => {
-    let timeout: ReturnType<typeof setTimeout> | null = null;
-    return () => {
-      if (timeout) clearTimeout(timeout);
-      timeout = setTimeout(func, wait);
-    };
-  }, []);
-
-  // Resize handler - debounced (250ms)
-  useEffect(() => {
-    if (!containerRef.current) return;
-
-    const updateDimensions = () => {
-      if (containerRef.current) {
-        const rect = containerRef.current.getBoundingClientRect();
-        setDimensions({
-          width: rect.width || 800,
-          height: rect.height || height,
-        });
-      }
-    };
-
-    // İlk yüklemede boyutları al
-    updateDimensions();
-
-    // Debounced resize handler
-    const debouncedResize = debounce(updateDimensions, 250);
-
-    window.addEventListener("resize", debouncedResize);
-    return () => {
-      window.removeEventListener("resize", debouncedResize);
-    };
-  }, [height, debounce]);
-
   return (
-    <div 
+    <div
       ref={(node) => {
-        // Intersection observer ref'i
         if (typeof ref === "function") {
           ref(node);
         } else if (ref) {
           (ref as React.MutableRefObject<HTMLDivElement | null>).current = node;
         }
-        // Container ref'i
         containerRef.current = node;
       }}
-      className={`w-full ${className}`} 
+      className={`w-full ${className}`}
       style={{ height }}
     >
       <RechartsBarChart
