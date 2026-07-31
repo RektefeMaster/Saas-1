@@ -574,6 +574,13 @@ export default function Home() {
           >
             {t.nav.contact}
           </button>
+          <span className="hidden sm:inline">·</span>
+          <Link
+            href="/gizlilik"
+            className="font-medium text-emerald-700 hover:text-emerald-800 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
+          >
+            Gizlilik
+          </Link>
         </p>
       </footer>
 
