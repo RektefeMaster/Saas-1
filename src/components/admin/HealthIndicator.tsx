@@ -22,10 +22,13 @@ export function HealthIndicator() {
     dedupingInterval: 30_000,
   });
 
-  const status = data?.status ?? "unknown";
+  const rawStatus = data?.status ?? "unknown";
   const sentryCount = data?.sentryCount ?? 0;
 
-  const config = {
+  const config: Record<
+    HealthStatus,
+    { color: string; icon: typeof Activity; label: string }
+  > = {
     ok: {
       color: "bg-emerald-500",
       icon: CheckCircle,
@@ -53,6 +56,7 @@ export function HealthIndicator() {
     },
   };
 
+  const status: HealthStatus = rawStatus in config ? (rawStatus as HealthStatus) : "unknown";
   const cfg = config[status];
   const Icon = cfg.icon;
 
