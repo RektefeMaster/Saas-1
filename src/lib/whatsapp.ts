@@ -247,7 +247,7 @@ export async function sendWhatsAppMessageDetailed({
           ? "test_number_allowed_list"
           : parsedError?.code === 131047
             ? "outside_24h_window"
-            : parsedError?.code === 190
+            : parsedError?.code === 190 || res.status === 401
               ? "token_expired"
               : undefined,
       isTestNumber: phoneProfile?.isTestNumber,
@@ -349,13 +349,14 @@ export async function sendWhatsAppInteractiveList({
   return { ok: true, status: res.status, to: normalizedTo, source };
 }
 
-export async function sendWhatsAppTemplateMessage({
+export async function sendWhatsAppTemplateMessageDetailed({
   to,
   templateName,
   languageCode = "tr",
   bodyParams = [],
-}: SendTemplateMessageParams): Promise<boolean> {
-  const { phoneId, token } = await resolveWhatsAppCredentials();
+}: SendTemplateMessageParams): Promise<WhatsAppSendResult> {
+  const { phoneId, token, source } = await resolveWhatsAppCredentials();
+  const normalizedTo = to.replace(/\D/g, "");
   if (!phoneId || !token) {
     console.error(
       "[whatsapp template] credentials missing - phoneId:",
@@ -363,10 +364,15 @@ export async function sendWhatsAppTemplateMessage({
       "token:",
       !!token
     );
-    return false;
+    return {
+      ok: false,
+      status: 0,
+      errorMessage: "credentials_missing",
+      to: normalizedTo,
+      source,
+    };
   }
 
-  const normalizedTo = to.replace(/\D/g, "");
   const url = `${WHATSAPP_API}/${phoneId}/messages`;
   const payload: Record<string, unknown> = {
     messaging_product: "whatsapp",
@@ -409,18 +415,41 @@ export async function sendWhatsAppTemplateMessage({
     }
     const maybeExpired =
       res.status === 401 &&
-      parsedError?.code === 190 &&
-      (parsedError.error_subcode === 463 ||
-        /session has expired/i.test(parsedError.message || ""));
-    if (maybeExpired) {
+      (parsedError?.code === 190 ||
+        parsedError?.error_subcode === 463 ||
+        /session has expired|invalid oauth/i.test(parsedError?.message || ""));
+    if (maybeExpired || res.status === 401) {
       console.error(
-        "[whatsapp template] access token expired - refresh WHATSAPP_ACCESS_TOKEN"
+        "[whatsapp template] access token expired or unauthorized - refresh WHATSAPP_ACCESS_TOKEN"
       );
     }
     console.error("[whatsapp template] send error", res.status, "to", normalizedTo, raw);
-    return false;
+    return {
+      ok: false,
+      status: res.status,
+      errorCode: parsedError?.code,
+      errorSubcode: parsedError?.error_subcode,
+      errorMessage: parsedError?.message || raw,
+      blockedReason:
+        maybeExpired || res.status === 401 || parsedError?.code === 190
+          ? "token_expired"
+          : parsedError?.code === 131030
+            ? "test_number_allowed_list"
+            : parsedError?.code === 131047
+              ? "outside_24h_window"
+              : undefined,
+      to: normalizedTo,
+      source,
+    };
   }
-  return true;
+  return { ok: true, status: res.status, to: normalizedTo, source };
+}
+
+export async function sendWhatsAppTemplateMessage(
+  params: SendTemplateMessageParams
+): Promise<boolean> {
+  const result = await sendWhatsAppTemplateMessageDetailed(params);
+  return result.ok;
 }
 
 async function getWhatsAppMediaUrl(mediaId: string): Promise<{ url: string; mimeType: string } | null> {

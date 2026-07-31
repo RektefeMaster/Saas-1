@@ -4,9 +4,10 @@ import {
   downloadWhatsAppMedia,
   sendWhatsAppMessage,
   sendWhatsAppMessageDetailed,
-  sendWhatsAppTemplateMessage,
+  sendWhatsAppTemplateMessageDetailed,
   type WhatsAppSendResult,
 } from "@/lib/whatsapp";
+import { isMetaSampleWhatsAppInbound } from "@/lib/bot-v1/meta-sample-webhook";
 import {
   acquireBotProcessingLock,
   claimWebhookMessageId,
@@ -138,12 +139,22 @@ async function resolveDefaultTenant(): Promise<string | null> {
   return null;
 }
 
-async function sendWindowRecoveryTemplate(to: string): Promise<boolean> {
-  return sendWhatsAppTemplateMessage({
+async function sendWindowRecoveryTemplate(to: string): Promise<WhatsAppSendResult> {
+  return sendWhatsAppTemplateMessageDetailed({
     to,
     templateName: WHATSAPP_RESUME_TEMPLATE_NAME,
     languageCode: "tr",
   });
+}
+
+function isPermanentWhatsAppSendFailure(result: WhatsAppSendResult | null): boolean {
+  if (!result) return false;
+  if (result.blockedReason === "token_expired") return true;
+  if (result.blockedReason === "test_number_allowed_list") return true;
+  if (result.status === 401) return true;
+  if (result.errorCode === 190 || result.errorCode === 131030) return true;
+  if (result.errorMessage === "credentials_missing") return true;
+  return false;
 }
 
 export async function processWhatsAppInboundEvent(
@@ -213,6 +224,29 @@ export async function processWhatsAppInboundEvent(
         console.error("[whatsapp-worker] audit log failed", err)
       );
     };
+
+    if (
+      isMetaSampleWhatsAppInbound({
+        phone: customerPhone,
+        messageId,
+        phoneNumberId: event.value?.metadata?.phone_number_id,
+        displayPhoneNumber: event.value?.metadata?.display_phone_number,
+      })
+    ) {
+      // Meta Console "Test" payload — not a real customer. Ack + mark done; never send.
+      audit({
+        traceId,
+        tenantId: event.tenant_hint,
+        customerPhone,
+        direction: "inbound",
+        stage: "meta_sample_webhook_ignored",
+        messageId,
+        lockWaitMs: meta?.lockWaitMs ?? null,
+        queueLagMs: meta?.queueLagMs ?? null,
+      });
+      await markWebhookMessageProcessed(messageId);
+      return;
+    }
 
     // Single claim site for WA idempotency (do not also claim in the webhook ingress).
     // ownerToken=trace_id: Inngest retries keep the same event payload, so the same
@@ -786,13 +820,30 @@ async function processClaimedWhatsAppInboundEvent(
     });
     if (!sendResult.ok) {
       sendErrorCode = sendResult.errorCode ? String(sendResult.errorCode) : null;
-      if (
+      const closedWindow =
         sendResult.blockedReason === "outside_24h_window" ||
-        sendResult.errorCode === 131047
-      ) {
-        const templateSent = await sendWindowRecoveryTemplate(customerPhone);
-        sendStage = templateSent ? "template_recovery_sent" : "template_recovery_failed";
-        if (!templateSent) sendErrorCode = "window_closed_template_failed";
+        sendResult.errorCode === 131047;
+      // Same token/recipient that just failed auth or allow-list will fail template too.
+      const skipTemplate = isPermanentWhatsAppSendFailure(sendResult);
+
+      if (closedWindow && !skipTemplate) {
+        const templateResult = await sendWindowRecoveryTemplate(customerPhone);
+        if (templateResult.ok) {
+          sendStage = "template_recovery_sent";
+        } else {
+          sendStage = "template_recovery_failed";
+          sendErrorCode =
+            templateResult.blockedReason === "token_expired" || templateResult.status === 401
+              ? "190"
+              : "window_closed_template_failed";
+          sendResult = {
+            ...sendResult,
+            status: templateResult.status ?? sendResult.status,
+            errorCode: templateResult.errorCode ?? sendResult.errorCode,
+            blockedReason: templateResult.blockedReason ?? sendResult.blockedReason,
+            errorMessage: templateResult.errorMessage ?? sendResult.errorMessage,
+          };
+        }
       } else {
         sendStage = "message_reply_failed";
       }
@@ -817,8 +868,7 @@ async function processClaimedWhatsAppInboundEvent(
       const errMsg = `whatsapp_reply_failed:${sendErrorCode || sendStage}`;
       const permanent =
         sendStage === "template_recovery_failed" ||
-        sendResult?.blockedReason === "token_expired" ||
-        sendResult?.blockedReason === "test_number_allowed_list";
+        isPermanentWhatsAppSendFailure(sendResult);
       if (permanent) {
         // Config / Meta policy won't change within Inngest backoff — mark done
         // (caller) and exit cleanly instead of burning retries + claim storms.
@@ -827,6 +877,7 @@ async function processClaimedWhatsAppInboundEvent(
           traceId,
           err: errMsg,
           blockedReason: sendResult?.blockedReason ?? null,
+          status: sendResult?.status ?? null,
         });
         return;
       }

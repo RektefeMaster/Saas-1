@@ -77,6 +77,7 @@ export const processWhatsAppMessageFn = inngest.createFunction(
       if (
         errorMessage.startsWith("whatsapp_reply_failed:window_closed_template_failed") ||
         errorMessage.startsWith("whatsapp_reply_failed:190") ||
+        errorMessage.includes("whatsapp_reply_failed:131030") ||
         /token_expired|test_number_allowed_list/i.test(errorMessage)
       ) {
         throw new NonRetriableError(errorMessage, { cause: err });

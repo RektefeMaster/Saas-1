@@ -8,6 +8,7 @@ import { getWebhookDebugRecord, setWebhookDebugRecord } from "@/lib/redis";
 import { createMessageProcessingJob } from "@/services/messageProcessingJob.service";
 import { normalizePhoneE164 } from "@/lib/phone";
 import { createHash } from "crypto";
+import { isMetaSampleWhatsAppInbound } from "@/lib/bot-v1/meta-sample-webhook";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -196,6 +197,32 @@ export async function POST(request: NextRequest) {
         if (!rawMetaId) {
           logger.warn("[webhook] message missing id; using deterministic fallback id");
         }
+
+        // Meta Console "Test" button sends a fixed fake payload. Ack 200 but do
+        // not enqueue AI/send — that path only produces 401/claim storms.
+        if (
+          isMetaSampleWhatsAppInbound({
+            phone: from,
+            messageId,
+            phoneNumberId: value?.metadata?.phone_number_id,
+            displayPhoneNumber: value?.metadata?.display_phone_number,
+          })
+        ) {
+          logger.info(
+            { messageId, from },
+            "[webhook] meta sample Test payload acknowledged; not queued"
+          );
+          void maybeSetWebhookDebug(
+            {
+              stage: "meta_sample_webhook_ignored",
+              at: new Date().toISOString(),
+              message_id: messageId,
+            },
+            true
+          );
+          continue;
+        }
+
         const receivedAtIso = msg.timestamp
           ? new Date(Number(msg.timestamp) * 1000).toISOString()
           : new Date().toISOString();
@@ -215,8 +242,6 @@ export async function POST(request: NextRequest) {
 
         // Idempotency key: Meta redeliveries share message_id. Dedupes Inngest
         // function starts for ~24h so parallel foreign runs don't fight the claim.
-        // Meta's static Test payload id will not re-fire until the id window expires —
-        // real validation needs a live WhatsApp message (or a new message id).
         const settled = await Promise.allSettled([
           inngest.send({
             id: `whatsapp-inbound-${messageId}`,
