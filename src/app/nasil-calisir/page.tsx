@@ -23,37 +23,37 @@ const COPY = {
       login: "Giriş",
     },
     hero: {
-      eyebrow: "Dürüst anlatım",
-      title: "Ne yapar?\nNasıl yürür?",
+      eyebrow: "Açık anlatım",
+      title: "Ahi AI ne yapar, nasıl çalışır?",
       lead:
-        "Kısaca: Müşteri WhatsApp’tan yazınca işiniz aksamadan ilerlesin diye kurulan bir işletme paneli. Aşağıda abartmadan, günlük dille anlattık.",
+        "Kısaca: Müşteri WhatsApp’tan yazınca işiniz aksamadan yürüsün diye yapılan bir işletme paneli. Aşağıda abartısız, günlük dille anlattık.",
     },
     what: {
       title: "Ne işe yarar?",
       body: [
-        "Telefon, mesaj, defter, “şu saatte yer var mı?” — gün boyu aynı dağınıklık. Ahi AI bunu toparlar.",
-        "Müşteri WhatsApp’tan gelir. Sistem sizin saat, hizmet ve doluluğunuza göre yardımcı olur. Siz panelden günü, müşteriyi ve aksayan işi görürsünüz.",
-        "Amaç süslü demo değil: sabah açıp akşam kapatırken işin net durması.",
+        "Telefon çalıyor, mesaj yağıyor, defter karışıyor, “şu saatte yer var mı?” sorusu gün boyu geliyor. Ahi AI bu dağınıklığı toparlar.",
+        "Müşteri sizi WhatsApp’tan bulur, randevu ister veya soru sorar. Sistem işletmenizin saatlerine, hizmetlerine ve doluluğuna göre yanıtlar; siz panelden günü, müşteriyi ve aksayan işleri görürsünüz.",
+        "Amaç “süslü bir yapay zeka demosu” değil. Amaç: sabah açıp akşam kapatırken işin net durması.",
       ],
     },
     how: {
       title: "Nasıl çalışır?",
       steps: [
         {
-          title: "Müşteri size ulaşır",
-          text: "WhatsApp, kısa link veya QR. Yeni uygulama indirmez.",
+          title: "1) Müşteri size ulaşır",
+          text: "WhatsApp numaranız, kısa bağlantı veya QR ile gelir. Yeni bir uygulama indirmek zorunda kalmaz.",
         },
         {
-          title: "Kurallarınız işler",
-          text: "Çalışma saatleri, hizmet süreleri, fiyat ve personel tercihi sizin tanımladığınız gibidir.",
+          title: "2) İşletme kurallarınız devreye girer",
+          text: "Çalışma saatleri, hizmet süreleri, fiyat listesi, personel tercihi gibi sizin tanımladığınız kurallar uygulanır.",
         },
         {
-          title: "Kayıt oluşur",
-          text: "Uygunsa randevu takvime düşer. Not ve geçmiş müşteri defterinde kalır.",
+          title: "3) Randevu ve kayıt oluşur",
+          text: "Uygunsa randevu takvime düşer. Müşteri notu ve geçmişi defterde kalır. Hatırlatmalar planlanabilir.",
         },
         {
-          title: "Panelden yönetirsiniz",
-          text: "Bugünkü iş, bekleyenler, iptaller ve kampanyalar tek yerde.",
+          title: "4) Siz panelden yönetirsiniz",
+          text: "Bugünkü randevular, bekleyen yanıtlar, iptaller ve kampanya işleri tek ekranda.",
         },
       ],
     },
@@ -61,55 +61,55 @@ const COPY = {
       title: "İçinde neler var?",
       items: [
         { title: "Randevu paneli", text: "Takvim, onay / iptal / gelmedi, kapasite." },
-        { title: "WhatsApp link & QR", text: "Direkt sohbet ve vitrin kodu." },
+        { title: "WhatsApp bağlantısı ve QR", text: "Direkt sohbet ve vitrin kodu." },
         { title: "Müşteri defteri", text: "Kim geldi, ne yaptırdı, ne not bırakıldı." },
-        { title: "Fiyat & paket", text: "Sohbet ve panel aynı bilgiyi kullansın." },
-        { title: "Kampanya / hatırlatma", text: "Dönüş ve randevu hatırlatması." },
-        { title: "İş akışı & uyarı", text: "Gecikme ve kritik konular öncelikli." },
+        { title: "Fiyat listesi ve paketler", text: "Sohbet ve panel aynı bilgiyi kullansın." },
+        { title: "Kampanya ve hatırlatma", text: "Dönüş mesajı ve randevu hatırlatması." },
+        { title: "İş akışı ve uyarılar", text: "Gecikme ve kritik konular öncelikli." },
       ],
     },
     forWhom: {
-      title: "Kimler için?",
-      text: "Randevu ile çalışan, WhatsApp’tan yoğun yazışan işletmeler: kuaför, klinik, servis, danışmanlık… Excel + üç kişiye sorup cevap düzeninden çıkmak isteyenler.",
+      title: "Kimler için mantıklı?",
+      text: "Randevu ile çalışan, WhatsApp’tan yoğun yazışan işletmeler: kuaför, güzellik, klinik, tamir / servis, danışmanlık… Excel + üç kişiye sorup cevap düzeninden çıkmak isteyenler için.",
     },
     faqTitle: "Aklınıza takılanlar",
     faqs: [
       {
         q: "WhatsApp hesabımı değiştirmek zorunda mıyım?",
-        a: "Hayır. Müşteri alışkanlığını bozmamak için işletmenize tanımlı hat üzerinden devam edilir.",
+        a: "Hayır. Amaç mevcut müşteri alışkanlığını bozmamak. İşletmenize tanımlı WhatsApp hattı üzerinden devam edilir.",
       },
       {
         q: "Her mesajı yapay zeka mı cevaplıyor?",
-        a: "Kurallarınıza göre hız kazandırır; özel durumlarda siz panelden görür ve müdahale edersiniz. Kontrol sizde.",
+        a: "Sistem kurallarınıza göre yardımcı olur; randevu ve sık sorularda hız kazandırır. Özel durumlarda siz panelden görür ve müdahale edersiniz.",
       },
       {
-        q: "Yanlış saat vermez mi?",
-        a: "Cevaplar sizin girdiğiniz saat, hizmet ve doluluktan üretilir. Ayarlar boşsa önce onu düzeltmek gerekir — sihir değil, düzenli kurulan sistem.",
+        q: "Yanlış saat veya yanlış bilgi vermez mi?",
+        a: "Cevaplar sizin girdiğiniz çalışma saatleri, hizmetler ve doluluk üzerinden üretilir. Ayarlar boşsa önce onu düzeltmek gerekir — sihirli değnek değil, düzenli kurulan bir sistem.",
       },
       {
-        q: "Personelim bilgisayardan anlamıyor?",
-        a: "Günlük kullanım sade: kim gelecek, durum ne, ne yapılacak. Kısa alıştırmayla genelde oturur.",
+        q: "Personelim bilgisayardan anlamıyor, kullanabilir mi?",
+        a: "Panel sade tutulur: bugün kim gelecek, durum ne, ne yapılacak. Kısa bir alıştırmayla ekip genelde rahat geçer.",
       },
       {
-        q: "Eski defter / Excel ne olacak?",
-        a: "Kurulumda aktarım veya temiz başlangıç konuşulur. Tek tık mucize vaat etmiyoruz; yeni düzenin tutarlı işlemesi önemli.",
+        q: "Eski defterim / Excel’im ne olacak?",
+        a: "Kurulumda aktarım veya temiz başlangıç konuşulur. Zorunlu “tek tıkta her şeyi taşı” vaadi vermiyoruz; önemli olan yeni düzenin ilk günden tutarlı işlemesi.",
       },
       {
-        q: "İnternet kesilirse?",
-        a: "Panel ve WhatsApp bulutta çalışır; bağlantı yokken canlı yönetim durur, gelince devam eder. Offline kasa değildir.",
+        q: "İnternet kesilirse ne olur?",
+        a: "Panel ve WhatsApp bulut üzerinden çalışır; bağlantı yokken canlı yönetim durur. Bağlantı gelince kaldığı yerden devam eder.",
       },
       {
-        q: "Kurulum ve ücret?",
-        a: "İletişim sonrası işletmenize göre WhatsApp, saatler, hizmetler ve panel erişimi planlanır. Kapsam netleştirilir.",
+        q: "Kurulum ve ücret nasıl ilerler?",
+        a: "İletişim kurunca işletmenize uygun kurulum konuşulur: WhatsApp bağlantısı, saatler, hizmetler, panel erişimi. Fiyat ve kapsam netleştirilir.",
       },
       {
-        q: "Verilerim güvende mi?",
-        a: "Her işletme kendi alanında çalışır. Giriş kullanıcı adı/şifre ile; gerektiğinde ek doğrulama açılır.",
+        q: "Müşteri verilerim güvende mi?",
+        a: "Her işletme kendi alanında çalışır. Giriş kullanıcı adı / şifre ile yapılır, gerektiğinde ek doğrulama açılır.",
       },
     ],
     cta: {
-      title: "Uygun mu, birlikte bakalım.",
-      text: "Temponuzu anlatın; neyin işe yarayıp neyin gereksiz olduğunu net söyleyelim.",
+      title: "Uygun olup olmadığını birlikte bakalım.",
+      text: "İşletmenizin temposunu anlatın; neyin işe yarayıp neyin gereksiz olduğunu net söyleyelim.",
       primary: "İletişime geç",
       secondary: "İşletme girişi",
     },
@@ -124,36 +124,36 @@ const COPY = {
     },
     hero: {
       eyebrow: "Plain-spoken guide",
-      title: "What it does.\nHow it runs.",
+      title: "What Ahi AI does — and how it works",
       lead:
-        "In short: an operations panel so WhatsApp demand doesn’t break your day. Honest answers below — no hype.",
+        "In short: an operations panel so WhatsApp demand doesn’t break your day. Below is the honest version, without hype.",
     },
     what: {
       title: "What is it for?",
       body: [
-        "Phones, chats, notebooks, “got a slot?” — the same scatter all day. Ahi AI tidies that.",
-        "Customers reach you on WhatsApp. The system helps using your hours, services, and capacity. You see the day, customers, and blockers in one panel.",
-        "Not a flashy demo — a day that stays clear from open to close.",
+        "Phones ring, chats pile up, notebooks get messy, and “do you have a slot?” never stops. Ahi AI is built to tidy that chaos.",
+        "Customers reach you on WhatsApp to book or ask questions. The system answers using your hours, services, and capacity — while you see the day in one panel.",
+        "The goal isn’t a flashy AI demo. It’s a day that stays clear from open to close.",
       ],
     },
     how: {
       title: "How does it work?",
       steps: [
         {
-          title: "Customer reaches you",
-          text: "WhatsApp, short link, or QR. No new app for them.",
+          title: "1) The customer reaches you",
+          text: "Via your WhatsApp number, a short link, or QR. They don’t install a new app.",
         },
         {
-          title: "Your rules apply",
-          text: "Hours, durations, pricing, staff preference — as you defined.",
+          title: "2) Your business rules apply",
+          text: "Hours, service durations, pricing, staff preference — your rules.",
         },
         {
-          title: "Records update",
-          text: "If available, bookings land on the calendar. Notes stay in the book.",
+          title: "3) Booking and records update",
+          text: "If available, the appointment lands on the calendar. Notes stay in the customer book.",
         },
         {
-          title: "You run the panel",
-          text: "Today’s work, pending items, cancels, and campaigns in one place.",
+          title: "4) You run the day from the panel",
+          text: "Today’s bookings, pending replies, cancellations, and campaigns in one place.",
         },
       ],
     },
@@ -164,52 +164,52 @@ const COPY = {
         { title: "WhatsApp link & QR", text: "Direct chat and storefront code." },
         { title: "Customer book", text: "Who came, what they booked, what was noted." },
         { title: "Pricing & packages", text: "Chat and panel share the same truth." },
-        { title: "Campaigns / reminders", text: "Win-back and appointment nudges." },
+        { title: "Campaigns & reminders", text: "Win-back and appointment nudges." },
         { title: "Workflow & alerts", text: "Delays and critical items first." },
       ],
     },
     forWhom: {
       title: "Who is it for?",
-      text: "Appointment businesses living on WhatsApp: salons, clinics, service shops, consultancies — teams tired of Excel plus asking three people.",
+      text: "Appointment-based teams that live on WhatsApp: salons, clinics, repair shops, consultancies — teams tired of Excel plus asking three people.",
     },
-    faqTitle: "Real questions",
+    faqTitle: "Questions people actually ask",
     faqs: [
       {
         q: "Do I have to change my WhatsApp number?",
-        a: "No. Messaging continues on the line configured for your business.",
+        a: "No. Messaging continues on the WhatsApp line configured for your business.",
       },
       {
         q: "Does AI answer every message?",
-        a: "It speeds common work within your rules. Special cases stay visible so you can step in. Control stays with you.",
+        a: "It helps within your rules — especially bookings and common questions. For special cases you see it in the panel and step in.",
       },
       {
-        q: "Won’t it give a wrong time?",
-        a: "Answers come from hours, services, and availability you set. Empty settings need fixing first — it’s a configured system, not magic.",
+        q: "Won’t it give a wrong time or wrong info?",
+        a: "Answers come from the hours, services, and availability you set. Empty settings need fixing first — it’s a system you configure, not magic.",
       },
       {
-        q: "Can non-tech staff use it?",
-        a: "Daily use stays plain: who’s coming, what’s the status, what to do. Most teams settle after a short walkthrough.",
+        q: "Can staff who aren’t “computer people” use it?",
+        a: "The panel stays plain: who’s coming today, what’s the status, what to do next. Most teams settle in after a short walkthrough.",
       },
       {
         q: "What about my old notebook / Excel?",
-        a: "We discuss import vs clean start during setup. No one-click miracle promise — consistency from day one matters more.",
+        a: "During setup we talk through import versus a clean start. We don’t promise a one-click miracle migration.",
       },
       {
-        q: "If the internet drops?",
-        a: "Cloud tools pause offline and resume when you’re back. Not a local offline till.",
+        q: "What if the internet drops?",
+        a: "The panel and WhatsApp run in the cloud, so live management pauses offline and continues when you’re back.",
       },
       {
-        q: "Setup and pricing?",
-        a: "After contact we plan WhatsApp, hours, services, and panel access for your business. Scope is made clear.",
+        q: "How do setup and pricing work?",
+        a: "You contact us, we scope WhatsApp connection, hours, services, and panel access. Price and scope are made clear for your business.",
       },
       {
-        q: "Is my data safe?",
-        a: "Each business works in its own space. Username/password sign-in, with extra verification when needed.",
+        q: "Is my customer data safe?",
+        a: "Each business works in its own space. Sign-in uses username/password, with extra verification when needed.",
       },
     ],
     cta: {
       title: "Let’s see if it fits.",
-      text: "Tell us your tempo. We’ll say what’s useful — and what you don’t need.",
+      text: "Tell us how your day runs. We’ll say clearly what’s useful — and what you don’t need.",
       primary: "Contact us",
       secondary: "Business sign-in",
     },
@@ -223,29 +223,36 @@ export default function HowItWorksPage() {
   const [showContact, setShowContact] = useState(false);
 
   return (
-    <div className="site-signal min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-white/8 bg-[#0c0e12]/75 backdrop-blur-xl">
-        <div className="mx-auto flex h-[4.25rem] w-full max-w-3xl items-center justify-between px-4 sm:max-w-6xl sm:px-6">
+    <div className="relative min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_45%_at_15%_0%,rgba(5,150,105,0.12),transparent_65%)]" />
+
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+        <div className="relative mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-4 sm:max-w-7xl sm:px-6">
           <Link href="/" className="inline-flex items-center gap-3">
-            <span className="inline-flex h-10 w-10 overflow-hidden rounded-xl ring-1 ring-[var(--brand)]/40">
-              <Image src="/appicon.png" alt="" width={40} height={40} priority />
-            </span>
-            <span className="font-display text-xl font-semibold">Ahi AI</span>
+            <Image
+              src="/appicon.png"
+              alt="Ahi AI"
+              width={34}
+              height={34}
+              className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700"
+              priority
+            />
+            <span className="text-lg font-semibold tracking-tight">Ahi AI</span>
           </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-[var(--muted-foreground)] md:flex">
-            <Link href="/" className="hover:text-[var(--foreground)]">
+          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300 md:flex">
+            <Link href="/" className="hover:text-slate-900 dark:hover:text-white">
               {t.nav.home}
             </Link>
-            <span className="text-[var(--brand)]">{t.nav.guide}</span>
-            <Link href="/isletmeler" className="hover:text-[var(--foreground)]">
+            <span className="text-emerald-700 dark:text-emerald-400">{t.nav.guide}</span>
+            <Link href="/isletmeler" className="hover:text-slate-900 dark:hover:text-white">
               {t.nav.businesses}
             </Link>
-            <button type="button" onClick={() => setShowContact(true)} className="hover:text-[var(--foreground)]">
+            <button type="button" onClick={() => setShowContact(true)} className="hover:text-slate-900 dark:hover:text-white">
               {t.nav.contact}
             </button>
             <Link
               href="/dashboard/login"
-              className="rounded-full bg-[var(--primary)] px-4 py-2 font-semibold text-[var(--primary-foreground)]"
+              className="rounded-xl bg-emerald-600 px-3.5 py-2 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950"
             >
               {t.nav.login}
             </Link>
@@ -254,7 +261,7 @@ export default function HowItWorksPage() {
             <ThemeLocaleSwitch compact />
             <button
               type="button"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-[var(--card)] md:hidden"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white md:hidden dark:border-slate-700 dark:bg-slate-900"
               onClick={() => setMobileOpen((v) => !v)}
             >
               {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
@@ -262,16 +269,16 @@ export default function HowItWorksPage() {
           </div>
         </div>
         {mobileOpen && (
-          <div className="grid gap-1 border-t border-white/8 bg-[var(--card)] px-4 py-3 md:hidden">
-            <Link href="/" className="rounded-lg px-3 py-2.5 text-sm" onClick={() => setMobileOpen(false)}>
+          <div className="grid gap-1 border-t border-slate-200 bg-white px-4 py-3 md:hidden dark:border-slate-800 dark:bg-slate-900">
+            <Link href="/" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" onClick={() => setMobileOpen(false)}>
               {t.nav.home}
             </Link>
-            <Link href="/isletmeler" className="rounded-lg px-3 py-2.5 text-sm" onClick={() => setMobileOpen(false)}>
+            <Link href="/isletmeler" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" onClick={() => setMobileOpen(false)}>
               {t.nav.businesses}
             </Link>
             <button
               type="button"
-              className="rounded-lg px-3 py-2.5 text-left text-sm"
+              className="rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm"
               onClick={() => {
                 setShowContact(true);
                 setMobileOpen(false);
@@ -281,7 +288,7 @@ export default function HowItWorksPage() {
             </button>
             <Link
               href="/dashboard/login"
-              className="rounded-full bg-[var(--primary)] px-3 py-2.5 text-center text-sm font-semibold text-[var(--primary-foreground)]"
+              className="rounded-xl bg-emerald-600 px-3 py-2.5 text-center text-sm font-semibold text-white"
               onClick={() => setMobileOpen(false)}
             >
               {t.nav.login}
@@ -290,91 +297,87 @@ export default function HowItWorksPage() {
         )}
       </header>
 
-      <main className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
-        <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--brand)]">{t.hero.eyebrow}</p>
-        <h1 className="font-display mt-4 whitespace-pre-line text-4xl font-semibold leading-[1.05] tracking-tight sm:text-6xl">
-          {t.hero.title}
-        </h1>
-        <p className="mt-5 text-base leading-7 text-[var(--muted-foreground)] sm:text-lg">{t.hero.lead}</p>
+      <main className="relative mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
+        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">{t.hero.eyebrow}</p>
+        <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">{t.hero.title}</h1>
+        <p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300 sm:text-lg">{t.hero.lead}</p>
 
-        <section className="mt-12 overflow-hidden rounded-[1.75rem] border border-white/10 bg-[var(--card)] p-6 shadow-[var(--shadow-md)] sm:p-8">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">{t.what.title}</h2>
-          <div className="mt-4 space-y-4 text-[0.98rem] leading-7 text-[var(--muted-foreground)]">
+        <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-8">
+          <h2 className="text-2xl font-bold tracking-tight">{t.what.title}</h2>
+          <div className="mt-4 space-y-4 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-[0.98rem]">
             {t.what.body.map((p) => (
-              <p key={p.slice(0, 28)}>{p}</p>
+              <p key={p.slice(0, 24)}>{p}</p>
             ))}
           </div>
         </section>
 
-        <section className="mt-12">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">{t.how.title}</h2>
-          <ol className="mt-6 grid gap-3">
-            {t.how.steps.map((step, i) => (
+        <section className="mt-10">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.how.title}</h2>
+          <ol className="mt-5 space-y-3">
+            {t.how.steps.map((step) => (
               <li
                 key={step.title}
-                className="grid gap-3 rounded-2xl border border-white/10 bg-white/[0.03] p-5 sm:grid-cols-[3rem_1fr]"
+                className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
               >
-                <span className="font-display text-2xl font-semibold text-[var(--brand)]">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <div>
-                  <h3 className="font-display text-lg font-semibold">{step.title}</h3>
-                  <p className="mt-1 text-sm leading-6 text-[var(--muted-foreground)]">{step.text}</p>
-                </div>
+                <h3 className="text-base font-semibold">{step.title}</h3>
+                <p className="mt-1.5 text-sm leading-6 text-slate-600 dark:text-slate-300">{step.text}</p>
               </li>
             ))}
           </ol>
         </section>
 
-        <section className="mt-12">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">{t.includes.title}</h2>
-          <div className="mt-6 grid gap-3 sm:grid-cols-2">
+        <section className="mt-10">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.includes.title}</h2>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2">
             {t.includes.items.map((item) => (
-              <article key={item.title} className="rounded-2xl border border-white/10 bg-[var(--card)] p-5">
-                <h3 className="font-display text-lg font-semibold">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-[var(--muted-foreground)]">{item.text}</p>
+              <article
+                key={item.title}
+                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
+              >
+                <h3 className="font-semibold">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{item.text}</p>
               </article>
             ))}
           </div>
         </section>
 
-        <section className="mt-12 rounded-[1.75rem] border border-[var(--brand)]/30 bg-[var(--brand-soft)] p-6 sm:p-8">
-          <h2 className="font-display text-2xl font-semibold">{t.forWhom.title}</h2>
-          <p className="mt-3 text-[0.98rem] leading-7 text-[var(--foreground)]/90">{t.forWhom.text}</p>
+        <section className="mt-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 dark:border-emerald-900 dark:bg-emerald-950/40 sm:p-8">
+          <h2 className="text-2xl font-bold tracking-tight">{t.forWhom.title}</h2>
+          <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-slate-200 sm:text-[0.98rem]">{t.forWhom.text}</p>
         </section>
 
-        <section className="mt-12">
-          <h2 className="font-display text-2xl font-semibold sm:text-3xl">{t.faqTitle}</h2>
-          <div className="mt-6 divide-y divide-white/8 overflow-hidden rounded-[1.5rem] border border-white/10 bg-[var(--card)]">
+        <section className="mt-10">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.faqTitle}</h2>
+          <div className="mt-5 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
             {t.faqs.map((item) => (
-              <details key={item.q} className="group px-5 py-4 open:bg-white/[0.03]">
-                <summary className="cursor-pointer list-none font-display text-[0.98rem] font-semibold [&::-webkit-details-marker]:hidden">
+              <details key={item.q} className="group px-5 py-4 open:bg-slate-50 dark:open:bg-slate-800/50">
+                <summary className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden">
                   <span className="flex items-start justify-between gap-3">
                     <span>{item.q}</span>
-                    <span className="text-[var(--brand)] transition group-open:rotate-45">+</span>
+                    <span className="text-emerald-600 transition group-open:rotate-45">+</span>
                   </span>
                 </summary>
-                <p className="mt-3 text-sm leading-7 text-[var(--muted-foreground)]">{item.a}</p>
+                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">{item.a}</p>
               </details>
             ))}
           </div>
         </section>
 
-        <section className="mt-14 rounded-[1.75rem] border border-white/10 bg-[var(--card)] p-7 sm:p-9">
-          <h2 className="font-display text-3xl font-semibold tracking-tight">{t.cta.title}</h2>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-[var(--muted-foreground)]">{t.cta.text}</p>
+        <section className="mt-12 rounded-2xl bg-emerald-700 p-7 text-white sm:p-9">
+          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.cta.title}</h2>
+          <p className="mt-3 max-w-xl text-sm leading-6 text-emerald-50">{t.cta.text}</p>
           <div className="mt-6 flex flex-col gap-3 sm:flex-row">
             <button
               type="button"
               onClick={() => setShowContact(true)}
-              className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[var(--primary)] px-6 text-sm font-bold text-[var(--primary-foreground)]"
+              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-emerald-900"
             >
               {t.cta.primary}
               <ArrowRight className="h-4 w-4" aria-hidden />
             </button>
             <Link
               href="/dashboard/login"
-              className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 px-6 text-sm font-semibold"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/30 px-5 text-sm font-semibold"
             >
               {t.cta.secondary}
             </Link>

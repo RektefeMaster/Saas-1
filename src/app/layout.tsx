@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { DM_Sans, Syne } from "next/font/google";
+import { Manrope, Space_Grotesk } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/lib/theme-context";
 import { LocaleProvider } from "@/lib/locale-context";
@@ -10,15 +10,15 @@ import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 import "./globals.css";
 import { getDefaultAppUrl } from "@/lib/app-url";
 
-const dmSans = DM_Sans({
-  variable: "--font-dm-sans",
+const manrope = Manrope({
+  variable: "--font-manrope",
   subsets: ["latin"],
   display: "swap",
   adjustFontFallback: true,
 });
 
-const syne = Syne({
-  variable: "--font-syne",
+const spaceGrotesk = Space_Grotesk({
+  variable: "--font-space-grotesk",
   subsets: ["latin"],
   display: "swap",
   adjustFontFallback: true,
@@ -77,7 +77,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${dmSans.variable} ${syne.variable} antialiased`}>
+      <body className={`${manrope.variable} ${spaceGrotesk.variable} antialiased`}>
         <ClientErrorBoundary>
           <SWRProvider>
             <ThemeProvider>

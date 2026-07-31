@@ -3,10 +3,26 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Menu, X } from "lucide-react";
+import {
+  ArrowRight,
+  Bot,
+  BrainCircuit,
+  CalendarDays,
+  CheckCircle2,
+  CircleGauge,
+  Globe,
+  MessageCircle,
+  MessageSquareText,
+  Rocket,
+  ShieldCheck,
+  Workflow,
+  Menu,
+  X,
+} from "lucide-react";
 import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
 import { ThemeLocaleSwitch } from "@/components/ui";
+import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 const ContactModal = dynamic(
   () => import("@/components/ui/ContactModal").then((m) => ({ default: m.ContactModal })),
@@ -16,422 +32,510 @@ const ContactModal = dynamic(
 const COPY = {
   tr: {
     nav: {
-      solutions: "Neler var",
-      guide: "Nasıl çalışır",
+      solutions: "Neler Sunuyor",
+      flow: "Nasıl Çalışır",
       businesses: "İşletmeler",
       contact: "İletişim",
       login: "Giriş",
     },
     hero: {
-      eyebrow: "WhatsApp → panel → net gün",
-      title: "İşletmenin temposunu\ntek ekranda tut.",
+      badge: "Ahi AI · İşletme paneli",
+      titleA: "İşletmenizi büyüten dijital vitrin.",
+      titleB: "Randevu, iletişim ve takip tek panelde.",
       desc:
-        "Mesajlar, randevular ve müşteri notları dağılmasın. Ahi AI, WhatsApp talebini takvime ve ekip işine bağlar.",
-      primary: "Panele gir",
+        "Müşteri mesajından randevuya, hatırlatmadan değerlendirmeye kadar tüm süreci tek yerden yönetirsiniz. Ekip daha az yorulur, müşteri daha hızlı yanıt alır.",
+      primary: "Paneli İncele",
       secondary: "Nasıl çalışır?",
-      tertiary: "Canlı işletmeler",
-    },
-    stats: [
-      { value: "1", label: "panel" },
-      { value: "7", label: "ana akış" },
-      { value: "24/7", label: "mesaj kapısı" },
-    ],
-    preview: {
-      title: "Bugün",
-      open: "3 açık",
-      rows: [
-        { time: "10:00", name: "Ayşe Y.", service: "Kesim", status: "Onaylı" },
-        { time: "11:30", name: "Mehmet K.", service: "Bakım", status: "Bekliyor" },
-        { time: "14:00", name: "Zeynep A.", service: "Paket", status: "Onaylı" },
+      tertiary: "İşletmeleri Gör",
+      points: [
+        "Randevu, müşteri notu ve hatırlatma aynı ekranda",
+        "İşletmeye özel güvenli altyapı ve yetki kontrolü",
+        "Telefonda da masaüstünde de hızlı kullanım",
       ],
     },
-    solutionsTitle: "Günün içinde ne işe yarar",
+    preview: {
+      title: "Bugünün programı",
+      rows: [
+        { time: "10:00", name: "Ayşe Y.", service: "Kesim", ok: true },
+        { time: "11:30", name: "Mehmet K.", service: "Bakım", ok: false },
+        { time: "14:00", name: "Zeynep A.", service: "Paket", ok: true },
+      ],
+    },
+    metrics: [
+      { label: "Günlük Yanıt Hızı", value: "Dakikalar içinde" },
+      { label: "Tek Panelde Yönetim", value: "7 ana akış" },
+      { label: "Uygun Sektör Yapısı", value: "5 farklı alan" },
+    ],
+    solutionsTitle: "İşletmenizi Baştan Sona Güçlendiren Yapı",
     solutions: [
       {
-        title: "Randevu",
-        text: "Uygun saat, iptal, gelmeme — takvim net kalsın.",
-        wide: true,
+        title: "Randevu ve Kapasite Yönetimi",
+        text: "Takvim, uygun saat, iptal ve gelmeme durumlarını tek ekranda yönetin.",
+        icon: CalendarDays,
       },
       {
-        title: "Müşteri defteri",
-        text: "Not ve geçmiş bir sonraki ziyarette hazır.",
-        wide: false,
+        title: "Müşteri Hafızası ve Akıllı Gruplama",
+        text: "Müşteri notlarını, etiketleri ve geçmiş davranışları hızlı aksiyona dönüştürün.",
+        icon: BrainCircuit,
       },
       {
-        title: "Kampanya",
-        text: "Uzaklaşanı kısa mesajla geri çağır.",
-        wide: false,
+        title: "Kampanya ve Geri Kazanım",
+        text: "Doğru kitleye doğru mesajı planlayın, uzaklaşan müşteriyi yeniden kazanın.",
+        icon: MessageSquareText,
       },
       {
-        title: "Kontrol",
-        text: "Gecikme ve kritik işler öncelik sırasıyla.",
-        wide: true,
+        title: "Günlük Yönetim Merkezi",
+        text: "Gecikme, iptal ve kritik bildirimleri tek bakışta görün, ekibe net görev verin.",
+        icon: CircleGauge,
+      },
+      {
+        title: "Yapay Zeka Destekli Asistan",
+        text: "İşletme tipinize göre çalışan asistanla daha doğru ve tutarlı yanıtlar verin.",
+        icon: Bot,
+      },
+      {
+        title: "Güvenli ve Büyüyebilir Altyapı",
+        text: "İki adımlı doğrulama, işlem kayıtları ve güvenli erişimle işletmenizi rahatça büyütün.",
+        icon: ShieldCheck,
       },
     ],
-    flowTitle: "Akış kısa",
+    flowTitle: "Müşteri Yolculuğu Baştan Sona Tek Akışta",
     flow: [
-      { step: "01", title: "Yazar", text: "WhatsApp / link / QR" },
-      { step: "02", title: "Kurallar", text: "Saat, hizmet, doluluk" },
-      { step: "03", title: "Kayıt", text: "Randevu + not" },
-      { step: "04", title: "Panel", text: "Ekip ne yapacağını görür" },
+      {
+        step: "01",
+        title: "Müşteri size ulaşır",
+        text: "Mesaj veya bağlantı üzerinden gelen talep anında yakalanır.",
+      },
+      {
+        step: "02",
+        title: "Sistem talebi yorumlar",
+        text: "İşletme kuralları, uygun saatler ve geçmiş veriler birlikte değerlendirilir.",
+      },
+      {
+        step: "03",
+        title: "Süreç otomatik ilerler",
+        text: "Randevu, hatırlatma ve müşteri notları anında güncellenir.",
+      },
+      {
+        step: "04",
+        title: "Yönetici net tabloyu görür",
+        text: "Performans göstergeleri, riskler ve fırsatlar tek ekranda net şekilde görünür.",
+      },
     ],
     cta: {
-      title: "Dağınık araçları bırak.",
-      text: "Kurulumla birlikte başlarız. Abartısız anlatırız.",
-      primary: "İletişime geç",
-      secondary: "Detaylı anlatım",
+      title: "İşinizi büyütürken yönetimi sadeleştirin.",
+      text: "Dağınık araçlardan kurtulup tek, anlaşılır ve ölçülebilir bir düzene geçin.",
+      primary: "İşletme Girişi",
+      secondary: "İşletmeleri İncele",
     },
-    footer: "Ahi AI — işletme operasyon yazılımı",
+    footer: "Ahi AI · İşletmeler için yapay zeka destekli yönetim platformu",
+    copyright: "© 2026 Ahi AI. Tüm hakları saklıdır.",
   },
   en: {
     nav: {
-      solutions: "What's inside",
-      guide: "How it works",
+      solutions: "Solutions",
+      flow: "How it works",
       businesses: "Businesses",
       contact: "Contact",
-      login: "Sign in",
+      login: "Login",
     },
     hero: {
-      eyebrow: "WhatsApp → panel → clear day",
-      title: "Keep the shop’s tempo\non one screen.",
+      badge: "Ahi AI · Business panel",
+      titleA: "Smart infrastructure for your business.",
+      titleB: "Booking, messaging, and follow-up in one place.",
       desc:
-        "Chats, bookings, and customer notes shouldn’t scatter. Ahi AI ties WhatsApp demand to your calendar and team work.",
-      primary: "Open panel",
+        "Ahi AI brings booking, CRM, campaigns, and day-to-day operations together so your team works with less friction.",
+      primary: "Explore the Panel",
       secondary: "How it works",
-      tertiary: "Live businesses",
-    },
-    stats: [
-      { value: "1", label: "panel" },
-      { value: "7", label: "core flows" },
-      { value: "24/7", label: "message door" },
-    ],
-    preview: {
-      title: "Today",
-      open: "3 open",
-      rows: [
-        { time: "10:00", name: "Ayse Y.", service: "Cut", status: "Confirmed" },
-        { time: "11:30", name: "Mehmet K.", service: "Care", status: "Pending" },
-        { time: "14:00", name: "Zeynep A.", service: "Package", status: "Confirmed" },
+      tertiary: "Live Businesses",
+      points: [
+        "Booking + CRM + reminders in a single panel",
+        "Multi-tenant architecture and role-based security",
+        "Mobile-first, fast operations",
       ],
     },
-    solutionsTitle: "What it helps with today",
+    preview: {
+      title: "Today’s schedule",
+      rows: [
+        { time: "10:00", name: "Ayse Y.", service: "Cut", ok: true },
+        { time: "11:30", name: "Mehmet K.", service: "Care", ok: false },
+        { time: "14:00", name: "Zeynep A.", service: "Package", ok: true },
+      ],
+    },
+    metrics: [
+      { label: "Intelligent Flow Modules", value: "12+" },
+      { label: "Panel Response Time", value: "<120ms" },
+      { label: "Supported Business Models", value: "5 sectors" },
+    ],
+    solutionsTitle: "What the Platform Brings Together",
     solutions: [
       {
-        title: "Booking",
-        text: "Slots, cancels, no-shows — keep the calendar honest.",
-        wide: true,
+        title: "Booking and Capacity Management",
+        text: "Manage calendar, availability, cancellation, no-show and rebooking flows from one place.",
+        icon: CalendarDays,
       },
       {
-        title: "Customer book",
-        text: "Notes and history ready for the next visit.",
-        wide: false,
+        title: "Customer Memory and Segmentation",
+        text: "Turn customer notes, tags, reminders and behavior history into action.",
+        icon: BrainCircuit,
       },
       {
-        title: "Campaigns",
-        text: "Bring quiet customers back with short messages.",
-        wide: false,
+        title: "Campaigns and Win-Back",
+        text: "Plan the right message for the right audience and win back lost customers.",
+        icon: MessageSquareText,
       },
       {
-        title: "Control",
-        text: "Delays and critical work, ordered by priority.",
-        wide: true,
+        title: "Operations Command Center",
+        text: "See delays, cancellations and critical alerts at a glance and assign clear ownership in the team.",
+        icon: CircleGauge,
+      },
+      {
+        title: "AI Assistants",
+        text: "Use business-type specific assistant profiles for more accurate answers.",
+        icon: Bot,
+      },
+      {
+        title: "Security and Scale",
+        text: "Grow with 2FA, audit logs, tenant isolation and secure API access.",
+        icon: ShieldCheck,
       },
     ],
-    flowTitle: "Short flow",
+    flowTitle: "Customer Journey and Internal Operations in One Chain",
     flow: [
-      { step: "01", title: "Message", text: "WhatsApp / link / QR" },
-      { step: "02", title: "Rules", text: "Hours, service, capacity" },
-      { step: "03", title: "Record", text: "Booking + notes" },
-      { step: "04", title: "Panel", text: "Team sees next steps" },
+      {
+        step: "01",
+        title: "Customer initiates contact",
+        text: "Intent is captured through message, link, or form.",
+      },
+      {
+        step: "02",
+        title: "AI processes context",
+        text: "Business rules, availability and historical data are evaluated together.",
+      },
+      {
+        step: "03",
+        title: "Action becomes automatic",
+        text: "Booking, reminders, customer notes and alerts are updated in sync.",
+      },
+      {
+        step: "04",
+        title: "Clear visibility in the dashboard",
+        text: "KPIs, risks, opportunities and tasks are presented for decision-making.",
+      },
     ],
     cta: {
-      title: "Leave the scattered tools.",
-      text: "We start with setup. We explain without hype.",
-      primary: "Contact us",
-      secondary: "Full guide",
+      title: "Simplify operations while growing the business.",
+      text: "Move from scattered tools to a single intelligent and measurable system with Ahi AI.",
+      primary: "Business Login",
+      secondary: "Live Businesses",
     },
-    footer: "Ahi AI — business operations software",
+    footer: "Ahi AI · AI-powered software platform for businesses",
+    copyright: "© 2026 Ahi AI. All rights reserved.",
   },
 } as const;
-
-function ProductStage({
-  title,
-  open,
-  rows,
-}: {
-  title: string;
-  open: string;
-  rows: readonly { time: string; name: string; service: string; status: string }[];
-}) {
-  return (
-    <div className="relative">
-      <div
-        aria-hidden
-        className="absolute -left-6 top-10 hidden h-40 w-40 rounded-full bg-[var(--brand)]/20 blur-3xl lg:block"
-      />
-      <div
-        aria-hidden
-        className="absolute -right-4 bottom-0 hidden h-32 w-32 rounded-full bg-sky-400/10 blur-3xl lg:block"
-      />
-      <div className="relative overflow-hidden rounded-[1.75rem] border border-white/10 bg-[var(--card)] shadow-[var(--shadow-lg)] ring-1 ring-[var(--brand)]/25">
-        <div className="flex items-center justify-between border-b border-white/8 px-5 py-4">
-          <div>
-            <p className="font-display text-lg font-semibold tracking-tight">{title}</p>
-            <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">WhatsApp · panel</p>
-          </div>
-          <span className="rounded-full bg-[var(--brand)] px-3 py-1 text-xs font-bold text-[var(--brand-foreground)]">
-            {open}
-          </span>
-        </div>
-        <ul>
-          {rows.map((row, i) => (
-            <li
-              key={`${row.time}-${row.name}`}
-              className={`grid grid-cols-[4.75rem_1fr_auto] items-center gap-3 px-5 py-4 ${
-                i !== rows.length - 1 ? "border-b border-white/6" : ""
-              } ${i === 1 ? "bg-[var(--brand-soft)]" : ""}`}
-            >
-              <span className="font-display text-base font-semibold tabular-nums">{row.time}</span>
-              <div className="min-w-0">
-                <p className="truncate text-sm font-semibold">{row.name}</p>
-                <p className="truncate text-xs text-[var(--muted-foreground)]">{row.service}</p>
-              </div>
-              <span
-                className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                  row.status === "Onaylı" || row.status === "Confirmed"
-                    ? "bg-[var(--brand)] text-[var(--brand-foreground)]"
-                    : "bg-white/8 text-[var(--muted-foreground)]"
-                }`}
-              >
-                {row.status}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </div>
-    </div>
-  );
-}
 
 export default function Home() {
   const { locale } = useLocale();
   const t = COPY[locale];
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [showContact, setShowContact] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [showContactModal, setShowContactModal] = useState(false);
 
   return (
-    <div className="site-signal min-h-screen">
-      <header className="sticky top-0 z-40 border-b border-white/8 bg-[#0c0e12]/75 backdrop-blur-xl">
-        <div className="mx-auto flex h-[4.25rem] w-full max-w-6xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="inline-flex items-center gap-3">
-            <span className="relative inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-xl bg-[var(--card)] ring-1 ring-[var(--brand)]/40">
-              <Image src="/appicon.png" alt="" width={40} height={40} className="object-cover" priority />
-            </span>
-            <span className="font-display text-xl font-semibold tracking-tight">Ahi AI</span>
-          </Link>
+    <div className="relative min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_45%_at_15%_0%,rgba(5,150,105,0.14),transparent_65%),radial-gradient(40%_35%_at_85%_10%,rgba(16,185,129,0.08),transparent_55%)]" />
 
-          <nav className="hidden items-center gap-8 text-sm font-medium text-[var(--muted-foreground)] md:flex">
-            <a href="#solutions" className="hover:text-[var(--foreground)]">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="inline-flex items-center gap-3">
+            <Image
+              src="/appicon.png"
+              alt="Ahi AI"
+              width={34}
+              height={34}
+              sizes="34px"
+              className="rounded-lg border border-slate-200 bg-white p-0.5 shadow-sm dark:border-slate-700 dark:bg-slate-800"
+              priority
+            />
+            <span className="text-lg font-semibold tracking-tight">Ahi AI</span>
+          </Link>
+          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300 md:flex">
+            <a href="#solutions" className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white">
               {t.nav.solutions}
             </a>
-            <Link href="/nasil-calisir" className="hover:text-[var(--foreground)]">
-              {t.nav.guide}
+            <Link href="/nasil-calisir" className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white">
+              {t.nav.flow}
             </Link>
-            <Link href="/isletmeler" className="hover:text-[var(--foreground)]">
+            <Link href="/isletmeler" className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white">
               {t.nav.businesses}
             </Link>
-            <button type="button" onClick={() => setShowContact(true)} className="hover:text-[var(--foreground)]">
+            <button
+              type="button"
+              onClick={() => setShowContactModal(true)}
+              className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white"
+            >
               {t.nav.contact}
             </button>
             <Link
               href="/dashboard/login"
-              className="rounded-full bg-[var(--primary)] px-4 py-2 font-semibold text-[var(--primary-foreground)] transition hover:bg-[var(--primary-hover)]"
+              className="rounded-xl bg-emerald-600 px-3.5 py-2 text-white shadow-sm transition-colors duration-150 hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
               {t.nav.login}
             </Link>
           </nav>
-
           <div className="flex items-center gap-2">
             <ThemeLocaleSwitch compact />
             <button
               type="button"
-              className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-white/10 bg-[var(--card)] md:hidden"
-              onClick={() => setMobileOpen((v) => !v)}
-              aria-label="Menu"
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 md:hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              aria-label={locale === "tr" ? "Menüyü aç veya kapat" : "Toggle menu"}
             >
-              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+              {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
         </div>
-        {mobileOpen && (
-          <div className="grid gap-1 border-t border-white/8 bg-[var(--card)] px-4 py-3 md:hidden">
-            <a href="#solutions" className="rounded-lg px-3 py-2.5 text-sm" onClick={() => setMobileOpen(false)}>
-              {t.nav.solutions}
-            </a>
-            <Link href="/nasil-calisir" className="rounded-lg px-3 py-2.5 text-sm" onClick={() => setMobileOpen(false)}>
-              {t.nav.guide}
-            </Link>
-            <Link href="/isletmeler" className="rounded-lg px-3 py-2.5 text-sm" onClick={() => setMobileOpen(false)}>
-              {t.nav.businesses}
-            </Link>
-            <button
-              type="button"
-              className="rounded-lg px-3 py-2.5 text-left text-sm"
-              onClick={() => {
-                setShowContact(true);
-                setMobileOpen(false);
-              }}
-            >
-              {t.nav.contact}
-            </button>
-            <Link
-              href="/dashboard/login"
-              className="mt-1 rounded-full bg-[var(--primary)] px-3 py-2.5 text-center text-sm font-semibold text-[var(--primary-foreground)]"
-              onClick={() => setMobileOpen(false)}
-            >
-              {t.nav.login}
-            </Link>
+        {mobileMenuOpen && (
+          <div className="border-t border-slate-200 bg-white px-4 py-3 md:hidden dark:border-slate-800 dark:bg-slate-900">
+            <div className="mobile-card-stack">
+              <a
+                href="#solutions"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              >
+                {t.nav.solutions}
+              </a>
+              <Link
+                href="/nasil-calisir"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              >
+                {t.nav.flow}
+              </Link>
+              <Link
+                href="/isletmeler"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              >
+                {t.nav.businesses}
+              </Link>
+              <button
+                type="button"
+                onClick={() => {
+                  setShowContactModal(true);
+                  setMobileMenuOpen(false);
+                }}
+                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+              >
+                {t.nav.contact}
+              </button>
+              <Link
+                href="/dashboard/login"
+                onClick={() => setMobileMenuOpen(false)}
+                className="rounded-xl bg-emerald-600 px-3 py-2.5 text-center text-sm font-semibold text-white dark:bg-emerald-500 dark:text-slate-950"
+              >
+                {t.nav.login}
+              </Link>
+            </div>
           </div>
         )}
       </header>
 
       <main>
-        <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pb-16 pt-14 sm:px-6 lg:grid-cols-[1.15fr_0.85fr] lg:gap-10 lg:pb-24 lg:pt-20">
-          <div>
-            <div className="inline-flex items-center gap-2 rounded-full border border-[var(--brand)]/30 bg-[var(--brand-soft)] px-3 py-1.5">
-              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[var(--brand)]" />
-              <span className="text-xs font-semibold tracking-wide text-[var(--brand)]">{t.hero.eyebrow}</span>
-            </div>
-            <h1 className="font-display mt-6 whitespace-pre-line text-[2.7rem] font-semibold leading-[1.02] tracking-tight sm:text-6xl lg:text-[4.1rem]">
-              {t.hero.title}
+        <section className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-4 pb-16 pt-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:pb-20 lg:pt-20">
+          <div className="animate-hero-in opacity-0">
+            <p className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300">
+              {t.hero.badge}
+            </p>
+            <h1 className="mt-5 text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.4rem]">
+              {t.hero.titleA}{" "}
+              <span className="text-emerald-700 dark:text-emerald-400">{t.hero.titleB}</span>
             </h1>
-            <p className="mt-5 max-w-xl text-base leading-7 text-[var(--muted-foreground)] sm:text-lg">
+            <p className="mt-5 max-w-xl text-base leading-7 text-slate-600 dark:text-slate-300 sm:text-lg">
               {t.hero.desc}
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <Link
                 href="/dashboard/login"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[var(--primary)] px-6 text-sm font-bold text-[var(--primary-foreground)] shadow-[0_0_40px_-8px_rgb(212_245_103_/_0.55)] transition hover:bg-[var(--primary-hover)]"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-emerald-700/20 transition-colors duration-150 hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
               >
                 {t.hero.primary}
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
               <Link
                 href="/nasil-calisir"
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 bg-white/5 px-6 text-sm font-semibold backdrop-blur transition hover:bg-white/10"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
                 {t.hero.secondary}
               </Link>
               <Link
                 href="/isletmeler"
-                className="inline-flex min-h-12 items-center justify-center px-2 text-sm font-semibold text-[var(--muted-foreground)] underline-offset-4 hover:text-[var(--foreground)] hover:underline"
+                className="inline-flex min-h-12 items-center justify-center gap-2 px-2 text-sm font-semibold text-slate-500 underline-offset-4 hover:text-slate-800 hover:underline dark:text-slate-400 dark:hover:text-slate-200"
               >
+                <Globe className="h-4 w-4" aria-hidden />
                 {t.hero.tertiary}
               </Link>
             </div>
-            <div className="mt-10 grid grid-cols-3 gap-3 max-w-md">
-              {t.stats.map((stat) => (
-                <div
-                  key={stat.label}
-                  className="rounded-2xl border border-white/10 bg-white/[0.03] px-3 py-3 text-center"
+            <ul className="mt-8 grid max-w-xl gap-2.5">
+              {t.hero.points.map((point) => (
+                <li
+                  key={point}
+                  className="flex items-start gap-2.5 rounded-xl border border-slate-200/80 bg-white/80 px-3 py-2.5 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300"
                 >
-                  <p className="font-display text-2xl font-semibold text-[var(--brand)]">{stat.value}</p>
-                  <p className="mt-0.5 text-[11px] font-medium uppercase tracking-wide text-[var(--muted-foreground)]">
-                    {stat.label}
-                  </p>
-                </div>
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
+                  {point}
+                </li>
               ))}
-            </div>
+            </ul>
           </div>
 
-          <ProductStage title={t.preview.title} open={t.preview.open} rows={t.preview.rows} />
+          <div className="animate-hero-in relative opacity-0" style={{ animationDelay: "80ms" }}>
+            <div
+              aria-hidden
+              className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-emerald-200/40 to-transparent blur-sm dark:from-emerald-900/30"
+            />
+            <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/30">
+              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
+                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{t.preview.title}</p>
+                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                  3
+                </span>
+              </div>
+              <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+                {t.preview.rows.map((row) => (
+                  <li key={`${row.time}-${row.name}`} className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-3 px-5 py-3.5">
+                    <span className="text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">{row.time}</span>
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{row.name}</p>
+                      <p className="truncate text-xs text-slate-500">{row.service}</p>
+                    </div>
+                    <span
+                      className={`rounded-md px-2 py-1 text-[11px] font-semibold ${
+                        row.ok
+                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                          : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                      }`}
+                    >
+                      {row.ok ? (locale === "tr" ? "Onaylı" : "OK") : locale === "tr" ? "Bekliyor" : "Pending"}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
         </section>
 
-        <section id="solutions" className="border-y border-white/8 bg-black/20">
-          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
-            <h2 className="font-display max-w-xl text-3xl font-semibold tracking-tight sm:text-5xl">
-              {t.solutionsTitle}
-            </h2>
-            <div className="mt-10 grid gap-4 md:grid-cols-2">
-              {t.solutions.map((item) => (
-                <article
-                  key={item.title}
-                  className={`group relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-[var(--card)] p-6 shadow-[var(--shadow-md)] transition hover:border-[var(--brand)]/40 ${
-                    item.wide ? "md:min-h-[11rem]" : ""
-                  }`}
-                >
-                  <div
-                    aria-hidden
-                    className="absolute -right-8 -top-8 h-28 w-28 rounded-full bg-[var(--brand)]/10 transition group-hover:bg-[var(--brand)]/20"
-                  />
-                  <h3 className="font-display relative text-2xl font-semibold tracking-tight">{item.title}</h3>
-                  <p className="relative mt-3 max-w-sm text-sm leading-6 text-[var(--muted-foreground)]">
-                    {item.text}
-                  </p>
+        <section id="solutions" className="border-y border-slate-200/80 bg-white/70 dark:border-slate-800 dark:bg-slate-900/40">
+          <div className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6">
+          <ScrollReveal variant="fadeUp">
+            <div className="mb-8 flex items-center gap-3">
+              <Workflow className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.solutionsTitle}</h2>
+            </div>
+          </ScrollReveal>
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {t.solutions.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <ScrollReveal key={item.title} delay={0.04 + index * 0.06} variant="fadeUp">
+                  <article className="h-full rounded-2xl border border-slate-200 bg-white p-5 shadow-sm transition-shadow hover:shadow-md dark:border-slate-800 dark:bg-slate-900">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      <Icon className="h-5 w-5" aria-hidden />
+                    </span>
+                    <h3 className="mt-4 text-lg font-semibold tracking-tight">{item.title}</h3>
+                    <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                      {item.text}
+                    </p>
+                  </article>
+                </ScrollReveal>
+              );
+            })}
+          </div>
+          <div className="mt-8">
+            <Link
+              href="/nasil-calisir"
+              className="inline-flex items-center gap-2 text-sm font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+            >
+              {locale === "tr" ? "Sık sorulanlar ve detaylı anlatım" : "FAQs and full guide"}
+              <ArrowRight className="h-4 w-4" aria-hidden />
+            </Link>
+          </div>
+          </div>
+        </section>
+
+        <section id="flow" className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6">
+          <ScrollReveal variant="fadeUp">
+            <div className="mb-6 flex items-center gap-3">
+              <Rocket className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
+              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.flowTitle}</h2>
+            </div>
+          </ScrollReveal>
+          <div className="grid gap-3 md:grid-cols-2">
+            {t.flow.map((item, index) => (
+              <ScrollReveal key={item.step} delay={0.05 + index * 0.05} variant="scale">
+                <article className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
+                  <span className="font-mono text-xs font-bold tracking-[0.14em] text-emerald-700 dark:text-emerald-400">
+                    {item.step}
+                  </span>
+                  <h3 className="mt-1.5 text-base font-semibold">{item.title}</h3>
+                  <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-300">{item.text}</p>
                 </article>
-              ))}
-            </div>
-          </div>
-        </section>
-
-        <section className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
-          <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">{t.flowTitle}</h2>
-          <ol className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {t.flow.map((item) => (
-              <li
-                key={item.step}
-                className="rounded-[1.35rem] border border-white/10 bg-gradient-to-b from-white/[0.06] to-transparent p-5"
-              >
-                <span className="font-display text-sm font-bold text-[var(--brand)]">{item.step}</span>
-                <h3 className="font-display mt-3 text-xl font-semibold">{item.title}</h3>
-                <p className="mt-1 text-sm text-[var(--muted-foreground)]">{item.text}</p>
-              </li>
+              </ScrollReveal>
             ))}
-          </ol>
+          </div>
         </section>
 
-        <section className="px-4 pb-20 sm:px-6">
-          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 overflow-hidden rounded-[2rem] border border-[var(--brand)]/25 bg-[var(--card)] p-8 shadow-[var(--shadow-lg)] sm:flex-row sm:items-end sm:justify-between sm:p-10">
-            <div className="max-w-xl">
-              <p className="text-xs font-bold uppercase tracking-[0.2em] text-[var(--brand)]">Ahi AI</p>
-              <h2 className="font-display mt-3 text-3xl font-semibold tracking-tight sm:text-5xl">{t.cta.title}</h2>
-              <p className="mt-3 text-sm leading-6 text-[var(--muted-foreground)] sm:text-base">{t.cta.text}</p>
+        <section className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6">
+          <ScrollReveal variant="fadeUp">
+            <div className="rounded-2xl border border-emerald-700/20 bg-emerald-700 p-8 text-white dark:border-emerald-500/30 dark:bg-emerald-800 sm:p-10">
+              <h2 className="max-w-2xl text-2xl font-bold tracking-tight sm:text-3xl">{t.cta.title}</h2>
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-emerald-50 sm:text-base">
+                {t.cta.text}
+              </p>
+              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
+                <Link
+                  href="/dashboard/login"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-emerald-900 transition-colors duration-150 hover:bg-emerald-50"
+                >
+                  <ArrowRight className="h-4 w-4" aria-hidden />
+                  {t.cta.primary}
+                </Link>
+                <Link
+                  href="/isletmeler"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-white/20"
+                >
+                  <Globe className="h-4 w-4" aria-hidden />
+                  {t.cta.secondary}
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => setShowContactModal(true)}
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-white/20"
+                >
+                  <MessageCircle className="h-4 w-4" aria-hidden />
+                  {t.nav.contact}
+                </button>
+              </div>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row">
-              <button
-                type="button"
-                onClick={() => setShowContact(true)}
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-full bg-[var(--primary)] px-6 text-sm font-bold text-[var(--primary-foreground)]"
-              >
-                {t.cta.primary}
-                <ArrowRight className="h-4 w-4" aria-hidden />
-              </button>
-              <Link
-                href="/nasil-calisir"
-                className="inline-flex min-h-12 items-center justify-center rounded-full border border-white/15 px-6 text-sm font-semibold"
-              >
-                {t.cta.secondary}
-              </Link>
-            </div>
-          </div>
+          </ScrollReveal>
         </section>
       </main>
 
-      <footer className="border-t border-white/8 px-4 py-8 text-sm text-[var(--muted-foreground)] sm:px-6">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-          <p>{t.footer}</p>
-          <div className="flex gap-4">
-            <Link href="/nasil-calisir" className="hover:text-[var(--foreground)]">
-              {t.nav.guide}
-            </Link>
-            <button type="button" onClick={() => setShowContact(true)} className="hover:text-[var(--foreground)]">
-              {t.nav.contact}
-            </button>
-          </div>
-        </div>
+      <footer className="border-t border-slate-200/80 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+        <p>{t.footer}</p>
+        <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
+          <span>{t.copyright}</span>
+          <span className="hidden sm:inline">·</span>
+          <button
+            type="button"
+            onClick={() => setShowContactModal(true)}
+            className="font-medium text-emerald-700 hover:text-emerald-800 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
+          >
+            {t.nav.contact}
+          </button>
+        </p>
       </footer>
 
-      <ContactModal isOpen={showContact} onClose={() => setShowContact(false)} />
+      <ContactModal isOpen={showContactModal} onClose={() => setShowContactModal(false)} />
     </div>
   );
 }

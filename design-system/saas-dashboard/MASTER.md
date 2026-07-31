@@ -1,22 +1,10 @@
 # Design System — Ahi AI
 
-## Marketing language: **Gece Vitrin (site-signal)**
+Base language (restored & lightly refined from first redesign):
 
-Used on `/` and `/nasil-calisir` via `.site-signal`.
+- Light canvas `#f8fafc`, emerald primary `#059669`
+- Fonts: Manrope + Space Grotesk
+- Marketing: soft emerald glow, clear cards, product schedule preview
+- Guide page: `/nasil-calisir` — natural-language FAQ in the same light language
 
-| Token | Value |
-|-------|-------|
-| Canvas | `#0c0e12` |
-| Surface | `#151922` |
-| Accent / CTA | `#d4f567` (lime signal) |
-| Text | `#f2f3f0` |
-| Display | Syne |
-| Body | DM Sans |
-
-**Signature:** dark full-bleed atmosphere, lime pulse CTAs, oversized Syne headlines, product stage with accent ring.
-
-**Avoid:** purple gradients, Inter, centered soft SaaS checklists, emoji icons.
-
-## App / dashboard
-
-Light operational UI remains for productivity: teal brand actions (`#0f766e`), DM Sans body, Syne only where `font-display` is used.
+Avoid: dark “neon” marketing skins, purple AI gradients, emoji icons.
