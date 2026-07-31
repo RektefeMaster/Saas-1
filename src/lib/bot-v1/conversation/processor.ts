@@ -49,7 +49,6 @@ import {
   APP_TIMEZONE,
   isValidStep,
   MODEL_SIMPLE,
-  MODEL_COMPLEX,
 } from "./constants";
 import {
   normalizeHalfHourRequest,
@@ -66,7 +65,6 @@ import {
   isEscalationQuestion,
   isHumanEscalationRequest,
   detectGlobalInterruptIntent,
-  classifyIntentForRouting,
 } from "./intent-detection";
 import {
   getMergedMessages,
@@ -866,9 +864,8 @@ export async function processMessage(
       };
     }
 
-    // ── Kademeli zeka: basit niyet → mini, karmaşık → 4o ──
-    const routingIntent = await classifyIntentForRouting(effectiveMessage);
-    const selectedModel = routingIntent === "complex" ? MODEL_COMPLEX : MODEL_SIMPLE;
+    // Tek model: gpt-5.6-luna. Zeka artışı prompt/tool ile.
+    const selectedModel = MODEL_SIMPLE;
 
     // ── Build OpenAI messages: state summary zaten system prompt'ta; sadece son N tur (bağlam sıkıştırma) ──
     const openaiMessages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] =

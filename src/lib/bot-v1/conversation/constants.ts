@@ -118,43 +118,16 @@ export const NEGOTIATION_KEYWORDS = [
   "son fiyat",
 ];
 
-export const COMPLEX_KEYWORDS = [
-  "iptal",
-  "iptal et",
-  "değiştir",
-  "ertelemek",
-  "ertele",
-  "her hafta",
-  "her salı",
-  "her pazartesi",
-  "yan dükkan",
-  "iki randevu",
-  "ve eşim",
-  "ve oğlum",
-  "randevumu iptal",
-  "randevumu değiştir",
-  "yeniden planla",
-  "başka güne al",
-  "farklı gün",
-  "bekleme listesi",
-  "yer açılırsa",
-  "3 arkadas",
-  "3 arkadaş",
-  "yanimda",
-  "yanımda",
-  "ve ben",
-  "fiyatta",
-  "indirim",
-  "pazarlik",
-  "pazarlık",
-];
+/** @deprecated Kademeli routing kaldırıldı; Luna-only. */
+export const COMPLEX_KEYWORDS: string[] = [];
+/** @deprecated Kademeli routing kaldırıldı; Luna-only. */
+export const COMPLEX_PATTERN = /$a/;
 
-export const COMPLEX_PATTERN = /\b(\d{1,2}[:.]?\d{0,2})\b.*\b(\d{1,2}[:.]?\d{0,2})\b/;
-
+/** Tek model: tüm sohbet trafiği Luna. COMPLEX alias geriye uyum için aynı default. */
 export const MODEL_SIMPLE =
-  process.env.OPENAI_CHAT_MODEL_SIMPLE?.trim() || "gpt-4o-mini";
+  process.env.OPENAI_CHAT_MODEL_SIMPLE?.trim() || "gpt-5.6-luna";
 export const MODEL_COMPLEX =
-  process.env.OPENAI_CHAT_MODEL_COMPLEX?.trim() || "gpt-4o";
+  process.env.OPENAI_CHAT_MODEL_COMPLEX?.trim() || MODEL_SIMPLE;
 
 export const TR_DAY_NAMES_FULL = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 
