@@ -266,6 +266,17 @@ export default function GizlilikPage() {
           </p>
         </Section>
 
+        <p className="mt-10 text-[15px] leading-relaxed text-slate-700 dark:text-slate-300">
+          Verilerinizin silinmesini talep etmek için{" "}
+          <Link
+            href="/veri-silme"
+            className="text-emerald-700 hover:underline dark:text-emerald-400"
+          >
+            Veri Silme Talebi
+          </Link>{" "}
+          sayfasına bakabilirsiniz.
+        </p>
+
         <p className="mt-12 border-t border-slate-200 pt-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
           Sorularınız için:{" "}
           <a
