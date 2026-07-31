@@ -242,13 +242,8 @@ export default function AdminPage() {
       <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
         {statItems.map((item) => {
           const Icon = item.icon;
-          const card = (
-            <article
-              key={item.label}
-              className={`rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 ${
-                item.href ? "hover:border-slate-300 dark:hover:border-slate-600" : ""
-              }`}
-            >
+          const body = (
+            <>
               <div className="flex items-start justify-between">
                 <div>
                   <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{item.label}</p>
@@ -260,22 +255,24 @@ export default function AdminPage() {
                 <Icon className="h-5 w-5 text-slate-400" />
               </div>
               {item.href && (
-                <Link
-                  href={item.href}
-                  className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100"
-                >
+                <span className="mt-3 inline-flex items-center gap-1 text-xs font-medium text-slate-600 dark:text-slate-300">
                   Görüntüle
                   <ArrowUpRight className="h-3.5 w-3.5" />
-                </Link>
+                </span>
               )}
-            </article>
+            </>
           );
+          const className = `rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 ${
+            item.href ? "block transition hover:border-slate-300 dark:hover:border-slate-600" : ""
+          }`;
           return item.href ? (
-            <Link key={item.label} href={item.href}>
-              {card}
+            <Link key={item.label} href={item.href} className={className}>
+              {body}
             </Link>
           ) : (
-            <div key={item.label}>{card}</div>
+            <article key={item.label} className={className}>
+              {body}
+            </article>
           );
         })}
       </section>

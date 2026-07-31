@@ -46,6 +46,40 @@ const redis: Redis | null =
       })
     : null;
 
+/** After a timeout/unreachable host, skip Redis briefly so admin/UI don't hang ~5s. */
+const REDIS_OP_TIMEOUT_MS = 700;
+const REDIS_CIRCUIT_COOLDOWN_MS = 60_000;
+let redisCircuitOpenUntil = 0;
+
+function isRedisCircuitOpen(): boolean {
+  return Date.now() < redisCircuitOpenUntil;
+}
+
+function tripRedisCircuit(): void {
+  redisCircuitOpenUntil = Date.now() + REDIS_CIRCUIT_COOLDOWN_MS;
+}
+
+async function withRedisTimeout<T>(operation: Promise<T>, label: string): Promise<T> {
+  if (!redis || isRedisCircuitOpen()) {
+    throw new Error("redis_unavailable");
+  }
+  try {
+    return await Promise.race([
+      operation,
+      new Promise<T>((_, reject) => {
+        setTimeout(() => reject(new Error("redis_timeout")), REDIS_OP_TIMEOUT_MS);
+      }),
+    ]);
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    if (msg.includes("redis_timeout") || msg.includes("fetch failed") || msg.includes("ENOTFOUND")) {
+      tripRedisCircuit();
+    }
+    logRedisFallback(label, err);
+    throw err;
+  }
+}
+
 // Development fallback: Redis yoksa in-memory (server restart'ta silinir)
 const memoryStore = new Map<string, { value: ConversationState; expiry: number }>();
 const phoneTenantStore = new Map<string, { value: string; expiry: number }>();
@@ -938,16 +972,19 @@ export async function setGlobalKillSwitch(
 }
 
 export async function getGlobalKillSwitch(): Promise<GlobalKillSwitchState> {
-  if (redis) {
+  if (redis && !isRedisCircuitOpen()) {
     try {
-      const raw = await redis.get<unknown>(GLOBAL_KILL_SWITCH_KEY);
+      const raw = await withRedisTimeout(
+        redis.get<unknown>(GLOBAL_KILL_SWITCH_KEY),
+        "getGlobalKillSwitch"
+      );
       const parsed = parseGlobalKillSwitchState(raw);
       if (parsed) {
         globalKillSwitchMemory = parsed;
         return parsed;
       }
-    } catch (err) {
-      logRedisFallback("getGlobalKillSwitch", err);
+    } catch {
+      // Fallback below
     }
   }
 
@@ -1611,19 +1648,19 @@ const adminLoginMemory = new Map<string, { count: number; expiry: number }>();
 
 export async function checkAdminLoginRateLimit(identifier: string): Promise<{ allowed: boolean; retryAfterSeconds?: number }> {
   const key = `${ADMIN_LOGIN_PREFIX}${identifier}`;
-  if (redis) {
+  if (redis && !isRedisCircuitOpen()) {
     try {
-      const count = await redis.incr(key);
-      if (count === 1) await redis.expire(key, ADMIN_LOGIN_WINDOW_SECONDS);
+      const count = await withRedisTimeout(redis.incr(key), "checkAdminLoginRateLimit");
+      if (count === 1) {
+        await withRedisTimeout(redis.expire(key, ADMIN_LOGIN_WINDOW_SECONDS), "checkAdminLoginRateLimit.expire");
+      }
       if (count > ADMIN_LOGIN_MAX_ATTEMPTS) {
-        const ttl = await redis.ttl(key);
+        const ttl = await withRedisTimeout(redis.ttl(key), "checkAdminLoginRateLimit.ttl");
         return { allowed: false, retryAfterSeconds: Math.max(1, ttl) };
       }
       return { allowed: true };
-    } catch (err) {
-      logRedisFallback("checkAdminLoginRateLimit", err);
-      // Fall through to in-memory limiter. Hard-deny previously locked all admin
-      // logins whenever Upstash URL/token was missing or invalid.
+    } catch {
+      // Fall through to in-memory limiter.
     }
   }
   const now = Date.now();
