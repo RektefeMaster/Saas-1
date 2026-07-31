@@ -1,24 +1,22 @@
-# Design System Master — Ahi AI
+# Design System — Ahi AI
 
-**Direction:** Calm operational B2B. Ink primary, teal brand accent, editorial type.
-**Avoid:** AI badges, cyan/purple gradients, icon-card grids, centered marketing heroes, emoji.
+## Marketing language: **Gece Vitrin (site-signal)**
 
-## Typography
-- Display: Sora (`font-display`)
-- Body: Source Sans 3 / Manrope fallback (`font-sans`)
+Used on `/` and `/nasil-calisir` via `.site-signal`.
 
-## Color
-| Role | Token | Hex (light) |
-|------|-------|-------------|
-| Ink / primary CTA | `--primary` | `#0b1220` |
-| Brand accent | `--brand` | `#0f766e` |
-| Background | `--background` | `#f5f6f8` |
-| Card | `--card` | `#ffffff` |
-| Border | `--border` | `#dde2ea` |
+| Token | Value |
+|-------|-------|
+| Canvas | `#0c0e12` |
+| Surface | `#151922` |
+| Accent / CTA | `#d4f567` (lime signal) |
+| Text | `#f2f3f0` |
+| Display | Syne |
+| Body | DM Sans |
 
-Product actions (save, run, WhatsApp) use `--brand`. Marketing primary CTAs use `--primary` (ink).
+**Signature:** dark full-bleed atmosphere, lime pulse CTAs, oversized Syne headlines, product stage with accent ring.
 
-## Layout
-- Landing: left-aligned hero + product preview (not centered checklist)
-- Sections: dividers over card grids
-- Radius: 8–12px (not 24px pill SaaS)
+**Avoid:** purple gradients, Inter, centered soft SaaS checklists, emoji icons.
+
+## App / dashboard
+
+Light operational UI remains for productivity: teal brand actions (`#0f766e`), DM Sans body, Syne only where `font-display` is used.

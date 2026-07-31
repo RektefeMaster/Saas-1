@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Manrope, Sora, Source_Sans_3 } from "next/font/google";
+import { DM_Sans, Syne } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/lib/theme-context";
 import { LocaleProvider } from "@/lib/locale-context";
@@ -10,22 +10,15 @@ import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 import "./globals.css";
 import { getDefaultAppUrl } from "@/lib/app-url";
 
-const manrope = Manrope({
-  variable: "--font-manrope",
+const dmSans = DM_Sans({
+  variable: "--font-dm-sans",
   subsets: ["latin"],
   display: "swap",
   adjustFontFallback: true,
 });
 
-const sora = Sora({
-  variable: "--font-sora",
-  subsets: ["latin"],
-  display: "swap",
-  adjustFontFallback: true,
-});
-
-const sourceSans = Source_Sans_3({
-  variable: "--font-source-sans",
+const syne = Syne({
+  variable: "--font-syne",
   subsets: ["latin"],
   display: "swap",
   adjustFontFallback: true,
@@ -84,7 +77,7 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${sourceSans.variable} ${sora.variable} ${manrope.variable} antialiased`}>
+      <body className={`${dmSans.variable} ${syne.variable} antialiased`}>
         <ClientErrorBoundary>
           <SWRProvider>
             <ThemeProvider>
