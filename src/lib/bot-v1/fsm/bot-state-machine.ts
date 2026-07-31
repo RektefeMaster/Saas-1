@@ -16,9 +16,32 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
     "PAUSED_FOR_HUMAN",
     "COMPLETED",
   ],
-  tarih_saat_bekleniyor: ["saat_secimi_bekleniyor", "devam"],
-  saat_secimi_bekleniyor: ["EXECUTING", "devam"],
-  iptal_onay_bekleniyor: ["EXECUTING", "devam"],
+  // Müşteri akış ortasında fikir değiştirebilir; sohbet adımları birbirine
+  // serbestçe geçebilmeli. Eskiden bu geçişler sessizce bloke ediliyordu.
+  tarih_saat_bekleniyor: [
+    "saat_secimi_bekleniyor",
+    "iptal_onay_bekleniyor",
+    "EXECUTING",
+    "COMPLETED",
+    "PAUSED_FOR_HUMAN",
+    "devam",
+  ],
+  saat_secimi_bekleniyor: [
+    "tarih_saat_bekleniyor",
+    "iptal_onay_bekleniyor",
+    "EXECUTING",
+    "COMPLETED",
+    "PAUSED_FOR_HUMAN",
+    "devam",
+  ],
+  iptal_onay_bekleniyor: [
+    "tarih_saat_bekleniyor",
+    "saat_secimi_bekleniyor",
+    "EXECUTING",
+    "COMPLETED",
+    "PAUSED_FOR_HUMAN",
+    "devam",
+  ],
   EXECUTING: ["devam", "COMPLETED"],
   COMPLETED: ["devam", "INIT"],
   PAUSED_FOR_HUMAN: ["RECOVERY_CHECK", "devam"],
@@ -64,6 +87,8 @@ export const botConversationMachine = createMachine({
  * Geçerli geçiş mi kontrol eder.
  */
 export function canTransition(currentStep: string, nextStep: string): boolean {
+  // Aynı adımda kalmak her zaman geçerli (ör. müşteri ikinci bir gün soruyor).
+  if (currentStep === nextStep) return true;
   const allowed = VALID_TRANSITIONS[currentStep];
   if (!allowed) return true; // Bilinmeyen state → izin ver (eski davranış)
   return allowed.includes(nextStep);

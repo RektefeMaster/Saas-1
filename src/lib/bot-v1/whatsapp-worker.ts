@@ -30,6 +30,19 @@ import { logConversationMessage } from "@/services/conversationMessages.service"
 import { createOpsAlert } from "@/services/opsAlert.service";
 import type { IncomingMessage, IncomingWebhookValue, WhatsAppInboundEventData } from "./types";
 import { extractSafeEntities, maskSensitivePII } from "./pii";
+import {
+  getLeadMemory,
+  refreshLeadMemoryFromConversation,
+  shouldRefreshLeadMemory,
+} from "@/services/leadMemory.service";
+import { openai } from "@/lib/bot-v1/conversation/client";
+import {
+  describeImage,
+  buildImageMessageText,
+  getVisionModel,
+  isImageUnderstandingEnabled,
+} from "@/lib/vision";
+import { MODEL_SIMPLE } from "@/lib/bot-v1/conversation/constants";
 
 const ENABLE_QUICK_ACK =
   (process.env.WHATSAPP_QUICK_ACK || "").trim().toLowerCase() === "true";
@@ -103,9 +116,16 @@ function isWindowOpen(receivedAt: string): boolean {
   return Date.now() - parsed < MESSAGE_WINDOW_MS;
 }
 
+/**
+ * Yaklaşık maliyet. Aktif model için fiyatı MODEL_PRICE_USD_PER_MTOK ile ver;
+ * tanımlı değilse tablodaki eşleşme, o da yoksa muhafazakâr bir varsayılan.
+ */
 function estimateCostUsd(model: string | null | undefined, totalTokens: number): number {
   if (!model || totalTokens <= 0) return 0;
-  // Güvenli yaklaşık maliyet (model fiyat tablosu versiyonlanabilir).
+  const configured = Number(process.env.MODEL_PRICE_USD_PER_MTOK);
+  if (Number.isFinite(configured) && configured > 0) {
+    return (totalTokens / 1_000_000) * configured;
+  }
   if (model.includes("4o-mini")) return (totalTokens / 1_000_000) * 0.6;
   if (model.includes("4o")) return (totalTokens / 1_000_000) * 8;
   return (totalTokens / 1_000_000) * 2;
@@ -339,6 +359,37 @@ async function processClaimedWhatsAppInboundEvent(
       return;
     }
 
+    // Rate limit medya indirme/AI çağrılarından ÖNCE. Eskiden ses transkripsiyonu
+    // (ve şimdi görsel analizi) limit kontrolünden ÖNCE çalışıyordu; tek numaradan
+    // sınırsız pahalı çağrı tetiklenebiliyordu.
+    const rateLimitResult = await enforceRateLimit(customerPhone);
+    if (!rateLimitResult.allowed) {
+      await sendWhatsAppMessage({
+        to: customerPhone,
+        text: rateLimitResult.message,
+      });
+      // Rate limit artık medya işlemeden önce çalıştığı için mesaj metnini
+      // henüz bilmiyoruz; yine de temasın kaydı düşsün (panelde boşluk olmasın).
+      await logInbound({
+        text: null,
+        stage: "rate_limited_inbound",
+        messageType,
+      });
+      await logOutbound({
+        text: rateLimitResult.message,
+        stage: "rate_limited",
+      });
+      void logBotMessageAudit({
+        traceId,
+        tenantId: event.tenant_hint,
+        customerPhone,
+        direction: "system",
+        stage: "rate_limited",
+        messageId,
+      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
+      return;
+    }
+
     let rawText = "";
     if (messageType === "audio") {
       const mediaId = event.message.audio?.id;
@@ -391,28 +442,68 @@ async function processClaimedWhatsAppInboundEvent(
       }
       rawText = transcript;
     } else if (messageType === "image") {
-      await sendWhatsAppMessage({
-        to: customerPhone,
-        text: "Görsel analiz özelliği şu an sınırlı. Lütfen ne istediğinizi kısa bir metinle yazın.",
+      const askForText = async (stage: string) => {
+        const text =
+          "Görseli şu an okuyamadım. Ne istediğini kısa bir metinle yazar mısın?";
+        await sendWhatsAppMessage({ to: customerPhone, text });
+        await logInbound({ text: null, stage, messageType: "image" });
+        await logOutbound({ text, stage: `${stage}_reply` });
+        void logBotMessageAudit({
+          traceId,
+          tenantId: event.tenant_hint,
+          customerPhone,
+          direction: "inbound",
+          stage,
+          messageId,
+        }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
+      };
+
+      const caption = (event.message.image?.caption || "").trim();
+
+      if (!isImageUnderstandingEnabled()) {
+        await askForText("image_understanding_disabled");
+        return;
+      }
+      const imageMediaId = event.message.image?.id;
+      if (!imageMediaId) {
+        await askForText("image_missing_media_id");
+        return;
+      }
+      const imageMedia = await downloadWhatsAppMedia(imageMediaId);
+      if (!imageMedia) {
+        await askForText("image_media_download_failed");
+        return;
+      }
+      // Ses mesajlarıyla aynı retention politikası: şifreli, süreli saklama.
+      await storeTemporaryEncryptedMedia(
+        {
+          traceId,
+          messageId,
+          mimeType: imageMedia.mimeType,
+          buffer: imageMedia.buffer,
+        },
+        60 * 60 * 48
+      );
+      const vision = await describeImage({
+        buffer: imageMedia.buffer,
+        mimeType: imageMedia.mimeType,
+        client: openai,
+        model: getVisionModel(MODEL_SIMPLE),
+        caption,
       });
+      if (!vision.ok || !vision.description) {
+        await askForText(`image_vision_${vision.reason || "failed"}`);
+        return;
+      }
+      // DİKKAT: görsel içeriği VERİDİR. buildImageMessageText onu açıkça
+      // "talimat değildir" etiketiyle sarar; bot akışı normal metin gibi işler.
+      rawText = buildImageMessageText(vision.description, caption);
       await logInbound({
-        text: null,
-        stage: "image_fallback_requested_text",
+        text: rawText,
+        stage: "image_described",
         messageType: "image",
+        metadata: { has_caption: Boolean(caption) },
       });
-      await logOutbound({
-        text: "Görsel analiz özelliği şu an sınırlı. Lütfen ne istediğinizi kısa bir metinle yazın.",
-        stage: "image_fallback_requested_text_reply",
-      });
-      void logBotMessageAudit({
-        traceId,
-        tenantId: event.tenant_hint,
-        customerPhone,
-        direction: "inbound",
-        stage: "image_fallback_requested_text",
-        messageId,
-      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
-      return;
     } else {
       rawText = extractMessageText(event.message);
     }
@@ -448,27 +539,6 @@ async function processClaimedWhatsAppInboundEvent(
         message_type: messageType,
       },
     });
-
-    const rateLimitResult = await enforceRateLimit(customerPhone);
-    if (!rateLimitResult.allowed) {
-      await sendWhatsAppMessage({
-        to: customerPhone,
-        text: rateLimitResult.message,
-      });
-      await logOutbound({
-        text: rateLimitResult.message,
-        stage: "rate_limited",
-      });
-      void logBotMessageAudit({
-        traceId,
-        tenantId: event.tenant_hint,
-        customerPhone,
-        direction: "system",
-        stage: "rate_limited",
-        messageId,
-      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
-      return;
-    }
 
     const previousTenantId = await getTenantIdByPhone(customerPhone);
     let tenantId: string | null = null;
@@ -607,6 +677,12 @@ async function processClaimedWhatsAppInboundEvent(
       return;
     }
 
+    // DİKKAT: processMessage'a bu değişken geçilir. Eskiden Redis'e yazılan güncel
+    // state yerine yazma ÖNCESİ okunan `existingSession` geçiliyordu; processor
+    // kendi setSession'ını yapınca burada yakalanan isim ve tenant değişimindeki
+    // sıfırlama geri alınıyordu.
+    let sessionForProcessing: ConversationState | null = existingSession;
+
     const nextExtracted = {
       ...(existingSession?.extracted || {}),
       ...(extractedEntities.customer_name
@@ -618,8 +694,15 @@ async function processClaimedWhatsAppInboundEvent(
         tenant_id: tenantId,
         customer_phone: customerPhone,
         flow_type: "appointment",
-        extracted: nextExtracted,
+        // Tenant değiştiyse önceki işletmenin bağlamı taşınmamalı.
+        extracted: hasTenantSwitched
+          ? extractedEntities.customer_name
+            ? { customer_name: extractedEntities.customer_name }
+            : {}
+          : nextExtracted,
         step: "devam",
+        message_count: hasTenantSwitched ? 0 : existingSession?.message_count ?? 0,
+        chat_history: hasTenantSwitched ? [] : existingSession?.chat_history ?? [],
         updated_at: new Date().toISOString(),
         window_status: "OPEN",
         last_customer_message_at: event.received_at,
@@ -627,15 +710,18 @@ async function processClaimedWhatsAppInboundEvent(
         timezone: "Europe/Istanbul",
       };
       await setSession(tenantId, customerPhone, newState);
+      sessionForProcessing = newState;
     } else if (nextExtracted.customer_name) {
-      await setSession(tenantId, customerPhone, {
+      const updatedState: ConversationState = {
         ...existingSession,
         extracted: nextExtracted,
         last_customer_message_at: event.received_at,
         window_status: "OPEN",
         timezone: existingSession.timezone || "Europe/Istanbul",
         updated_at: new Date().toISOString(),
-      });
+      };
+      await setSession(tenantId, customerPhone, updatedState);
+      sessionForProcessing = updatedState;
     }
 
     if ((hasTenantSwitched || isFirstTenantBinding) && routingReason !== "none") {
@@ -679,7 +765,7 @@ async function processClaimedWhatsAppInboundEvent(
       tenantId,
       customerPhone,
       normalizedText,
-      { existingSession }
+      { existingSession: sessionForProcessing }
     );
     const llmLatencyMs = Date.now() - aiStart;
     const safeReply = (reply && String(reply).trim()) || "Anlamadım, tekrar yazar mısınız?";
@@ -724,6 +810,25 @@ async function processClaimedWhatsAppInboundEvent(
 
     if (sendStage === "message_reply_failed" || sendStage === "template_recovery_failed") {
       throw new Error(`whatsapp_reply_failed:${sendErrorCode || sendStage}`);
+    }
+
+    // Kalıcı lead hafızasını tazele. Cevap zaten gönderildi; müşteri beklemez.
+    try {
+      const finalSession = await getSession(tenantId, customerPhone);
+      const turnCount = finalSession?.message_count ?? 0;
+      if (shouldRefreshLeadMemory(turnCount, false)) {
+        const existingMemory = await getLeadMemory(tenantId, customerPhone);
+        await refreshLeadMemoryFromConversation({
+          tenantId,
+          customerPhone,
+          history: finalSession?.chat_history ?? [],
+          existing: existingMemory,
+          client: openai,
+          model: MODEL_SIMPLE,
+        });
+      }
+    } catch (err) {
+      console.warn("[whatsapp-worker] lead memory refresh failed", err);
     }
 
     void logBotMessageAudit({

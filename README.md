@@ -37,6 +37,8 @@ cp .env.example .env
 6. Kullanıcı adıyla giriş için `012_owner_username_login.sql` migrationını çalıştırın
 7. Faz 1 routing audit log için `013_tenant_switch_logs.sql` migrationını çalıştırın
 8. Faz 3 operasyon uyarıları için `014_ops_alerts.sql` migrationını çalıştırın
+9. Lead hafızası (randevusuz konuşmaların CRM'e düşmesi + kalıcı bot hafızası) için `034_lead_memory.sql` migrationını çalıştırın
+10. Pazarlama mesajlarından çıkma ("DUR") için `035_marketing_opt_out.sql` migrationını çalıştırın
 
 
 ### 4. WhatsApp (Meta Cloud API)
@@ -87,6 +89,7 @@ npm run dev
 - `/api/tenant/[id]/reputation/summary` - Yorum/itibar ve kurtarma aksiyon özeti
 - `/api/cron/reminders` - 24 saat önce randevu hatırlatma (cron)
 - `/api/cron/media-retention` - Geçici şifreli medya retention cleanup (saatlik cron)
+- `/api/cron/lead-followup` - Randevuya dönüşmeyen leadleri panele hatırlatma olarak düşürür (otomatik gönderim opsiyonel)
 - `/api/debug/env-check` - Çalışma ortamı değişken kontrolü
 - `/api/debug/whatsapp-health` - WhatsApp token/phone-id canlı sağlık kontrolü
 

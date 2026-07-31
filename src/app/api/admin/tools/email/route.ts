@@ -2,7 +2,16 @@ import { NextRequest, NextResponse } from "next/server";
 import { Resend } from "resend";
 import { isValidEmail } from "@/lib/validation";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+/**
+ * Lazy init: modül seviyesinde `new Resend(undefined)` çağrısı, RESEND_API_KEY
+ * tanımlı olmayan ortamlarda "Missing API key" fırlatıp `next build` sırasında
+ * page-data toplamayı komple çökertiyordu.
+ */
+function getResend(): Resend {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error("RESEND_API_KEY tanımlı değil");
+  return new Resend(key);
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -21,7 +30,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const { error } = await resend.emails.send({
+    const { error } = await getResend().emails.send({
       from: "Ahi AI Test <onboarding@resend.dev>",
       to: [to],
       subject: "[Ahi AI] Test E-postası",

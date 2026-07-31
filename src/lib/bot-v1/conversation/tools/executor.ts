@@ -9,7 +9,7 @@ import { getCustomerLastActiveAppointment, cancelAppointment } from "@/services/
 import { addToWaitlist, notifyWaitlist } from "@/services/waitlist.service";
 import { createRecurringAppointment, dayOfWeekToTurkish } from "@/services/recurring.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
-import { isCancelConfirmation } from "../intent-detection";
+import { isCancelConfirmation, isSoftAffirmation } from "../intent-detection";
 import { formatDateTr, formatDateReadableTr } from "../helpers";
 import {
   localDateStr,
@@ -25,11 +25,13 @@ import {
   notifyRescheduledAppointmentForMerchant,
 } from "@/services/merchantNotification.service";
 import { upsertCrmCustomer } from "@/services/crmCustomer.service";
+import { markLeadConverted } from "@/services/leadMemory.service";
 import {
   checkCustomerPackage,
   consumeCustomerPackageSession,
 } from "@/services/package.service";
 import { matchServiceToSlug } from "./match-service";
+import { phoneVariants } from "@/lib/phone";
 
 export interface ToolExecResult {
   result: Record<string, unknown>;
@@ -319,6 +321,10 @@ export async function executeToolCall(
       }).catch((e) => console.error("[ai] merchant notify error:", e));
       // Waitlist notify only on cancel (slot freed), not on create.
       await upsertCrmCustomer(tenantId, customerPhone, customerName);
+      // Randevu alan lead artık müşteri.
+      void markLeadConverted(tenantId, customerPhone).catch((e) =>
+        console.warn("[ai] lead convert:", e)
+      );
       return {
         result: {
           ok: true,
@@ -411,11 +417,15 @@ export async function executeToolCall(
           date: dateStr,
           time: timeStr,
         },
+        // DİKKAT: Burada pending_cancel_appointment_id SET EDİLMEZ.
+        // Bu tool "randevum ne zamandı?" gibi masum sorularda da çağrılıyor;
+        // bayrağı burada set etmek müşteriyi iptal onayı moduna sokup sonraki
+        // "tamam"/"evet" mesajında randevunun silinmesine yol açıyordu.
+        // İptal beklemesi yalnızca açık iptal talebinde (processor) başlatılır.
         sessionUpdate: {
-          step: "iptal_onay_bekleniyor",
           extracted: {
             ...(state?.extracted || {}),
-            pending_cancel_appointment_id: last.id,
+            last_appointment_id: last.id,
           },
         },
       };
@@ -424,7 +434,16 @@ export async function executeToolCall(
   }
 
   if (name === "cancel_appointment") {
-    if (!isCancelConfirmation(lastUserMessage)) {
+    // Kısa onay ("evet"/"tamam") yalnızca açık iptal talebiyle başlatılmış bir
+    // onay beklemesinde geçerli; aksi halde açık onay kalıbı şart.
+    const cancelPending = Boolean(
+      (state?.extracted as { pending_cancel_appointment_id?: string })
+        ?.pending_cancel_appointment_id
+    );
+    const cancelConfirmed =
+      isCancelConfirmation(lastUserMessage) ||
+      (cancelPending && isSoftAffirmation(lastUserMessage));
+    if (!cancelConfirmed) {
       return {
         result: {
           ok: false,
@@ -446,7 +465,8 @@ export async function executeToolCall(
       .select("id, slot_start")
       .eq("id", aptId)
       .eq("tenant_id", tenantId)
-      .eq("customer_phone", customerPhone)
+      // Panelden farklı formatta girilmiş numaralar da eşleşsin (+90 / 90 / 0…).
+      .in("customer_phone", phoneVariants(customerPhone))
       .in("status", ["confirmed", "pending"])
       .maybeSingle();
     if (!apt) {
@@ -531,10 +551,10 @@ export async function executeToolCall(
     }
     const { data: currentApt } = await supabase
       .from("appointments")
-      .select("id")
+      .select("id, service_slug, staff_id, extra_data")
       .eq("id", aptId)
       .eq("tenant_id", tenantId)
-      .eq("customer_phone", customerPhone)
+      .in("customer_phone", phoneVariants(customerPhone))
       .in("status", ["confirmed", "pending"])
       .maybeSingle();
     if (!currentApt) {
@@ -568,14 +588,44 @@ export async function executeToolCall(
         },
       };
     }
+    // Eski randevunun hizmeti/adı/personeli taşınır. Aksi halde yeni randevu
+    // hizmetsiz ve isimsiz oluşuyor, süre de varsayılan slota düşüyordu.
+    const previousExtra =
+      (currentApt.extra_data as Record<string, unknown> | null) || {};
+    const carriedServiceSlug =
+      (currentApt.service_slug as string | null) ||
+      resolveSelectedServiceSlug(args, state) ||
+      null;
+    const carriedStaffId = (currentApt.staff_id as string | null) || null;
+    const carriedExtraData: Record<string, unknown> = { ...previousExtra };
+    delete carriedExtraData.duration_minutes; // yeni hizmet süresine göre baştan hesaplanır
+    const carriedName =
+      (previousExtra.customer_name as string | undefined) ||
+      ((state?.extracted as { customer_name?: string })?.customer_name ?? undefined);
+    if (carriedName) carriedExtraData.customer_name = carriedName;
+
     let createRes: { ok: boolean; id?: string; error?: string; suggested_time?: string };
     try {
-      const reserveResult = await reserveAppointment({
+      let reserveResult = await reserveAppointment({
         tenantId,
         customerPhone,
         date: newDate,
         time: newTime,
+        staffId: carriedStaffId,
+        serviceSlug: carriedServiceSlug,
+        extraData: carriedExtraData,
       });
+      // Aynı personel yeni saatte doluysa havuzdan başka personelle dene.
+      if (!reserveResult.ok && reserveResult.error === "SLOT_TAKEN" && carriedStaffId) {
+        reserveResult = await reserveAppointment({
+          tenantId,
+          customerPhone,
+          date: newDate,
+          time: newTime,
+          serviceSlug: carriedServiceSlug,
+          extraData: carriedExtraData,
+        });
+      }
       if (!reserveResult.ok) {
         createRes = {
           ok: false,

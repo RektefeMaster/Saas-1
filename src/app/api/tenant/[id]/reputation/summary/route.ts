@@ -47,7 +47,7 @@ export async function GET(
       }
     }
 
-    let openAlertsByType: Record<string, number> = {};
+    const openAlertsByType: Record<string, number> = {};
     if (!alertsRes.error) {
       for (const alert of alertsRes.data || []) {
         openAlertsByType[alert.type] = (openAlertsByType[alert.type] || 0) + 1;

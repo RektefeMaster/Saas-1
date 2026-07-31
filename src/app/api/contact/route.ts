@@ -3,7 +3,16 @@ import { Resend } from "resend";
 import { logger } from "@/lib/logger";
 import { isValidEmail } from "@/lib/validation";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+/**
+ * Lazy init: modül seviyesinde `new Resend(undefined)` çağrısı, RESEND_API_KEY
+ * tanımlı olmayan ortamlarda "Missing API key" fırlatıp `next build` sırasında
+ * page-data toplamayı komple çökertiyordu.
+ */
+function getResend(): Resend {
+  const key = process.env.RESEND_API_KEY;
+  if (!key) throw new Error("RESEND_API_KEY tanımlı değil");
+  return new Resend(key);
+}
 
 function getContactEmail(): string | null {
   const raw = (
@@ -65,7 +74,7 @@ export async function POST(request: NextRequest) {
       </div>
     `;
 
-    const { error } = await resend.emails.send({
+    const { error } = await getResend().emails.send({
       from: "Ahi AI İletişim <onboarding@resend.dev>",
       to: [toEmail],
       replyTo: email,

@@ -10,6 +10,23 @@ import {
   NEGOTIATION_KEYWORDS,
 } from "./constants";
 
+/**
+ * Kelime sınırıyla eşleşme. `text.includes(word)` Türkçede sık yanlış eşleşir
+ * ("başka" ve "maske" içinde "ask" geçer). Çok kelimeli ifadelerde ifadenin
+ * tamamı kelime sınırları arasında aranır.
+ */
+export function containsWord(text: string, words: readonly string[]): boolean {
+  if (!text) return false;
+  return words.some((word) => {
+    const escaped = word
+      .trim()
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/\s+/g, "\\s+");
+    if (!escaped) return false;
+    return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}(?:$|[^\\p{L}\\p{N}])`, "u").test(text);
+  });
+}
+
 export function isAskNameIntent(message: string): boolean {
   const text = normalizeIncomingText(message);
   return (
@@ -20,25 +37,57 @@ export function isAskNameIntent(message: string): boolean {
   );
 }
 
+/**
+ * AÇIK iptal onayı. Çıplak "evet"/"tamam" BURAYA GİRMEZ — yanlışlıkla randevu
+ * iptaline sebep oluyordu. Kısa onaylar için isSoftAffirmation kullanılır ve o da
+ * yalnızca açık iptal talebiyle başlatılmış bir onay beklemesinde geçerlidir.
+ */
 export function isCancelConfirmation(message: string): boolean {
   const text = normalizeIncomingText(message);
+  if (!text) return false;
+  if (isCancelReject(text)) return false;
   return (
-    text === "evet" ||
-    text === "onay" ||
-    text === "tamam" ||
-    text.includes("evet iptal") ||
-    text.includes("iptali onayliyorum") ||
-    text.includes("iptal onay")
+    /\biptal\s*(et|edin|edelim|ediyorum|olsun)\b/.test(text) ||
+    /\b(evet|tamam|olur|onay(li)?)\s*,?\s*iptal\b/.test(text) ||
+    /\biptal[ie]?\s*(onayliyorum|onay)\b/.test(text) ||
+    text === "iptal onay" ||
+    text === "onayliyorum"
   );
 }
 
+/**
+ * "evet / tamam / olur" gibi kısa onaylar. Tek başına yıkıcı bir işlem
+ * tetiklememeli; yalnızca açık bir onay bekleme bağlamında anlamlıdır.
+ */
+export function isSoftAffirmation(message: string): boolean {
+  const text = normalizeIncomingText(message).replace(/[!.?]+$/g, "").trim();
+  if (!text) return false;
+  return [
+    "evet",
+    "e",
+    "he",
+    "hee",
+    "tamam",
+    "tamamdir",
+    "olur",
+    "onay",
+    "onayliyorum",
+    "ok",
+    "okey",
+    "peki",
+    "kabul",
+  ].includes(text);
+}
+
 export function isCancelReject(message: string): boolean {
-  const text = normalizeIncomingText(message);
+  const text = normalizeIncomingText(message).replace(/[!.?]+$/g, "").trim();
+  if (!text) return false;
+  if (["hayir", "yok", "kalsin", "bosver", "vazgectim"].includes(text)) return true;
   return (
-    text === "hayir" ||
-    text.includes("iptal etme") ||
-    text.includes("vazgectim") ||
-    text.includes("iptal istemiyorum")
+    /\biptal\s*(etme|etmek\s*istemiyorum|istemiyorum)\b/.test(text) ||
+    /\bvazgectim\b/.test(text) ||
+    /\b(gerek\s*yok|kalsin|dursun|devam\s*etsin)\b/.test(text) ||
+    /\bistemiyorum\b/.test(text)
   );
 }
 
@@ -46,31 +95,50 @@ export function isAbusiveMessage(message: string): boolean {
   const text = normalizeIncomingText(message);
   if (!text) return false;
   // Word-boundary match avoids false positives ("almak", "normal", "plan").
-  return ABUSIVE_KEYWORDS.some((word) => {
-    const escaped = word.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-    return new RegExp(`(?:^|\\s)${escaped}(?:$|\\s|[!?.:,;])`).test(text);
-  });
+  return containsWord(text, ABUSIVE_KEYWORDS);
 }
 
 export function isOutOfScopeMessage(message: string): boolean {
   const text = normalizeIncomingText(message);
   if (!text) return false;
-  if (BUSINESS_SCOPE_KEYWORDS.some((word) => text.includes(word))) return false;
-  return OFFTOPIC_KEYWORDS.some((word) => text.includes(word));
+  if (containsWord(text, BUSINESS_SCOPE_KEYWORDS)) return false;
+  return containsWord(text, OFFTOPIC_KEYWORDS);
 }
 
+/**
+ * Mesaj SADECE selam/hatır sorma mı? "Merhaba, yarın yer var mı?" gibi içinde
+ * gerçek bir talep olan mesajlar buraya girmemeli — eskiden giriyordu ve talep
+ * tamamen düşüyordu.
+ */
 export function isGreetingOrSmallTalkOnly(message: string): boolean {
   const text = normalizeIncomingText(message);
   if (!text) return false;
-  if (BUSINESS_SCOPE_KEYWORDS.some((word) => text.includes(word))) return false;
-  const hasGreeting = GREETING_KEYWORDS.some((word) => text.includes(word));
-  const hasSmallTalk = SMALLTALK_KEYWORDS.some((word) => text.includes(word));
-  return hasGreeting || hasSmallTalk;
+  if (containsWord(text, BUSINESS_SCOPE_KEYWORDS)) return false;
+
+  const hadGreeting =
+    containsWord(text, GREETING_KEYWORDS) || containsWord(text, SMALLTALK_KEYWORDS);
+  if (!hadGreeting) return false;
+
+  const stripped = text
+    .replace(
+      new RegExp(
+        [...GREETING_KEYWORDS, ...SMALLTALK_KEYWORDS]
+          .map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&").replace(/\s+/g, "\\s+"))
+          .join("|"),
+        "gu"
+      ),
+      " "
+    )
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+  // Selamlamadan geriye anlamlı içerik kaldıysa bu "sadece selam" değildir.
+  return stripped.length === 0;
 }
 
 export function isNegotiationMessage(message: string): boolean {
   const text = normalizeIncomingText(message);
-  return NEGOTIATION_KEYWORDS.some((word) => text.includes(word));
+  return containsWord(text, NEGOTIATION_KEYWORDS);
 }
 
 function hasHumanEscalationToken(text: string): boolean {

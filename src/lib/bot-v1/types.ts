@@ -5,7 +5,7 @@ export type IncomingMessage = {
   timestamp?: string;
   text?: { body?: string };
   audio?: { id?: string };
-  image?: { id?: string; mime_type?: string };
+  image?: { id?: string; mime_type?: string; caption?: string };
   button?: { text?: string; payload?: string };
   interactive?: {
     button_reply?: { title?: string; id?: string };

@@ -190,7 +190,8 @@ export async function tryHandleReview(
           review_closed_reason: "service_already_rated",
         },
       })
-      .eq("id", apt.id);
+      .eq("id", apt.id)
+      .eq("tenant_id", tenantId);
     return {
       handled: true,
       reply: "Bu hizmet için puanın zaten kayıtlı. Tekrar puan almıyoruz, teşekkürler.",
@@ -209,7 +210,8 @@ export async function tryHandleReview(
           review_closed_reason: "skipped",
         },
       })
-      .eq("id", apt.id);
+      .eq("id", apt.id)
+      .eq("tenant_id", tenantId);
     return { handled: true, reply: "Tamam, değerlendirmeyi kapattım. Teşekkürler!" };
   }
 
@@ -234,7 +236,8 @@ export async function tryHandleReview(
         review_rating: rating,
       },
     })
-    .eq("id", apt.id);
+    .eq("id", apt.id)
+    .eq("tenant_id", tenantId);
 
   return {
     handled: true,

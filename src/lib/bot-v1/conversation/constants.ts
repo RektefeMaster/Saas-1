@@ -3,9 +3,18 @@ import type { TenantMessagesConfig } from "../../database.types";
 export const HUMAN_ESCALATION_TAG = "[[INSAN]]";
 export const MAX_MESSAGES_BEFORE_ESCALATION = 20;
 export const MAX_CHAT_HISTORY_TURNS = 15;
-/** API'ye gönderilen sohbet turu sayısı (bağlam sıkıştırma: token tasarrufu). */
-export const CONTEXT_TURNS_TO_SEND = 4;
+/**
+ * API'ye gönderilen sohbet turu sayısı. Erken dönüşler artık geçmişe yazıldığı
+ * için pencere 4'ten 8'e çıkarıldı: konuşma belirgin şekilde daha akıcı, maliyet
+ * artışı sınırlı (durum özeti zaten sıkıştırılmış halde prompt'ta).
+ */
+export const CONTEXT_TURNS_TO_SEND = 8;
 export const MAX_TOOL_ROUNDS = 5;
+/**
+ * İptal onayı bekleme süresi. Süre dolunca bayrak düşer; müşteri günler sonra
+ * yazdığı "tamam" ile randevusunu kaybetmez.
+ */
+export const PENDING_CANCEL_TTL_MS = 10 * 60 * 1000;
 export const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
 
 export const VALID_STEPS = [
@@ -58,29 +67,51 @@ export const BUSINESS_SCOPE_KEYWORDS = [
   "sac",
   "sakal",
   "gec kal",
+  // Randevu niyetini keyword listesi yüzünden kaçırmamak için genişletildi.
+  "yer var",
+  "bos var",
+  "bos yer",
+  "gelebilir",
+  "gelsem",
+  "ugrasam",
+  "ugrayabilir",
+  "bakabilir",
+  "alabilir",
+  "ne kadar",
+  "kac para",
+  "acik mi",
+  "kapali mi",
+  "calisiyor",
 ];
 
+/**
+ * Kapsam dışı sinyaller. Substring değil, KELİME SINIRI ile eşleşir
+ * (bkz. containsWord). "aşk" gibi kısa tokenlar "başka"/"maske" içinde yanlış
+ * eşleştiği için buradan kaldırıldı.
+ */
 export const OFFTOPIC_KEYWORDS = [
-  "kac yas",
-  "kaç yaş",
+  "kac yasindasin",
   "allah",
   "dolar",
   "siyaset",
-  "ask",
-  "aşk",
-  "sohbet",
+  "borsa",
+  "futbol",
   "fikrin ne",
 ];
 
-/** Whole-token abusive words only (matched with word boundaries after normalize). */
+/**
+ * Whole-token abusive words only (matched with word boundaries after normalize).
+ * "mal" ve "lan" günlük Türkçede nötr kullanıldığı için listede değil.
+ */
 export const ABUSIVE_KEYWORDS = [
   "aptal",
   "salak",
   "gerizekali",
-  "mal",
-  "lan",
   "siktir",
   "amk",
+  "orospu",
+  "pic",
+  "yavsak",
 ];
 
 export const GREETING_KEYWORDS = [

@@ -125,7 +125,7 @@ export async function GET(request: NextRequest) {
   let skipped = (appointments?.length ?? 0) - eligible.length;
   let alreadyReviewed = 0;
   let alreadyRatedService = 0;
-  let disabled = (appointments ?? []).filter(
+  const disabled = (appointments ?? []).filter(
     (a) => !tenantConfig.get(a.tenant_id)?.review_request_enabled
   ).length;
 

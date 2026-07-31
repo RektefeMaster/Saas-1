@@ -1030,12 +1030,11 @@ export async function getAvailabilityRange(
     WEEK_AVAILABILITY_MAX_DAYS,
     Math.max(1, options?.maxDays ?? WEEK_AVAILABILITY_MAX_DAYS)
   );
-  const todayStr = localDateStr(new Date());
+  // Geçmiş gün filtresi tenant timezone'u bilinmeden yapılamaz; adaylar burada
+  // üretilir, ctx yüklendikten sonra ctx.timeZone ile elenir.
   const dates: string[] = [];
   for (let i = 0; i < maxDays; i++) {
-    const ds = addDays(normalizedStart, i);
-    if (ds < todayStr) continue;
-    dates.push(ds);
+    dates.push(addDays(normalizedStart, i));
   }
 
   if (dates.length === 0) {
@@ -1055,8 +1054,10 @@ export async function getAvailabilityRange(
 
     const weekResults: Record<string, string[]> = {};
     const closedDays: string[] = [];
+    const todayLocal = localDateStr(new Date(), ctx.timeZone);
 
     for (const ds of dates) {
+      if (ds < todayLocal) continue;
       const daily =
         ctx.eligibleStaffIds.length >= 1
           ? unionStaffAvailability(ctx, ds)

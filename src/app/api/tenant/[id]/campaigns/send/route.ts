@@ -10,6 +10,10 @@ import {
 } from "@/lib/whatsapp";
 import { normalizePhoneE164 } from "@/lib/phone";
 import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
+import {
+  filterOptedOutPhones,
+  appendOptOutFooter,
+} from "@/services/marketingConsent.service";
 
 const CAMPAIGN_TEMPLATE = (process.env.WHATSAPP_CAMPAIGN_TEMPLATE_NAME || "").trim();
 const TEMPLATE_LANG = (process.env.WHATSAPP_TEMPLATE_LANG || "tr").trim();
@@ -116,9 +120,35 @@ export async function POST(
         .filter((phone): phone is string => phone != null);
     }
 
+    // "DUR" yazmış müşterilere kampanya gönderilmez (KVKK + WhatsApp politikası).
+    // Randevu hatırlatmaları bu filtreden etkilenmez, onlar işlemsel mesajdır.
+    let optOutBlocked = 0;
+    try {
+      const consent = await filterOptedOutPhones(tenantId, phones);
+      optOutBlocked = consent.blocked.length;
+      phones = consent.allowed;
+    } catch (err) {
+      // Kolon var ama kontrol edilemiyorsa gönderme: yanlışlıkla opt-out edene
+      // mesaj atmaktansa kampanyayı durdurmak doğru taraftır.
+      return NextResponse.json(
+        {
+          error:
+            "Pazarlama izni kontrolü yapılamadı, kampanya gönderilmedi. Lütfen tekrar deneyin.",
+          detail: err instanceof Error ? err.message : String(err),
+        },
+        { status: 503 }
+      );
+    }
+
     if (phones.length === 0) {
       return NextResponse.json(
-        { error: "Gönderilecek alıcı bulunamadı. CRM veya randevu kayıtlarını kontrol edin." },
+        {
+          error:
+            optOutBlocked > 0
+              ? "Tüm alıcılar kampanya mesajlarından çıkmış görünüyor."
+              : "Gönderilecek alıcı bulunamadı. CRM veya randevu kayıtlarını kontrol edin.",
+          opt_out_blocked: optOutBlocked,
+        },
         { status: 400 }
       );
     }
@@ -126,6 +156,9 @@ export async function POST(
     if (phones.length > CAMPAIGN_MAX_RECIPIENTS) {
       phones = phones.slice(0, CAMPAIGN_MAX_RECIPIENTS);
     }
+
+    // Her kampanya mesajında çıkış talimatı bulunmalı.
+    const campaignText = appendOptOutFooter(messageText);
 
     if (channel === "whatsapp" || channel === "both") {
       const creds = await resolveWhatsAppCredentials();
@@ -149,7 +182,7 @@ export async function POST(
         chunk.map(async (to) => {
           try {
             if (channel === "sms") {
-              const ok = await sendInfoSms(to, messageText);
+              const ok = await sendInfoSms(to, campaignText);
               return ok ? ({ ok: true } as const) : ({ ok: false, error: "SMS gönderilemedi" } as const);
             }
             if (channel === "whatsapp") {
@@ -158,13 +191,13 @@ export async function POST(
                   to,
                   templateName: CAMPAIGN_TEMPLATE,
                   languageCode: TEMPLATE_LANG,
-                  bodyParams: [messageText],
+                  bodyParams: [campaignText],
                 });
                 return ok
                   ? ({ ok: true } as const)
                   : ({ ok: false, error: "Şablon mesajı gönderilemedi" } as const);
               }
-              const res = await sendWhatsAppMessageDetailed({ to, text: messageText });
+              const res = await sendWhatsAppMessageDetailed({ to, text: campaignText });
               return res.ok
                 ? ({ ok: true } as const)
                 : ({
@@ -172,7 +205,7 @@ export async function POST(
                     error: res.errorMessage || `HTTP ${res.status}`,
                   } as const);
             }
-            const delivery = await sendCustomerNotification(to, messageText);
+            const delivery = await sendCustomerNotification(to, campaignText);
             return delivery.whatsapp || delivery.sms
               ? ({ ok: true } as const)
               : ({ ok: false, error: "Bildirim gönderilemedi" } as const);

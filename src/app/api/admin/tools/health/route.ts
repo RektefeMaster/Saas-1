@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getGlobalKillSwitch } from "@/lib/redis";
+import { getGlobalKillSwitch, getRedisHealth } from "@/lib/redis";
 
 export const dynamic = "force-dynamic";
 
@@ -46,20 +46,26 @@ export async function GET() {
     // Redis yoksa kill switch kapalı say
   }
 
+  // Redis kapalıysa oturum hafızası/idempotency/lock yok — bu sessiz kalmamalı.
+  const redis = await getRedisHealth();
+
   const status = killSwitchEnabled
     ? "paused"
-    : !sentryOk
-      ? "unknown"
-      : sentryCount > 5
-        ? "degraded"
-        : sentryCount > 0
-          ? "warning"
-          : "ok";
+    : !redis.reachable
+      ? "degraded"
+      : !sentryOk
+        ? "unknown"
+        : sentryCount > 5
+          ? "degraded"
+          : sentryCount > 0
+            ? "warning"
+            : "ok";
 
   return NextResponse.json({
     status,
     killSwitchEnabled,
     sentryCount,
     sentryConfigured: Boolean(token && org && project),
+    redis,
   });
 }

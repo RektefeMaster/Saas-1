@@ -11,6 +11,7 @@ import {
 import {
   SERVICE_FIRST_FLOW_RULE,
   SERVICE_SELECTED_CONTINUE_RULE,
+  IMAGE_CONTENT_RULE,
 } from "@/lib/bot-v1/conversation/prompt-rules";
 
 export interface PromptBuilderContext {
@@ -26,6 +27,8 @@ export interface PromptBuilderContext {
   selectedServiceName?: string;
   pendingCancelId?: string;
   customerHistory?: string;
+  /** Önceki konuşmalardan kalıcı hafıza (crm_customers.bot_memory). */
+  leadMemory?: string;
   misunderstandingCount: number;
   /** Kayan hafıza: tek cümlelik durum özeti (legacy path ile tutarlılık). */
   stateSummary?: string;
@@ -114,6 +117,7 @@ function buildToolUsageInstructions(): string {
 Araç kullanımı (ne zaman hangi fonksiyonu çağır):
 - RANDEVU AKIŞINDA ÖNCE HİZMET: ${serviceFirstRuleLine}
 - ${SERVICE_SELECTED_CONTINUE_RULE}
+- ${IMAGE_CONTENT_RULE}
 - Tarih belli değilse veya müşteri "müsait mi?", "boş var mı?" derse → check_availability(date) (YYYY-MM-DD). service_slug ile çağır (hizmete göre süre hesaplanır).
 - Müşteri belirli bir personel isterse (Ayşe, belirli uzman vb.) uygun staff_id ile check_availability ve create_appointment çağır.
 - Hizmet seçildiyse ve paketli kullanım ihtimali varsa önce check_customer_package(service_slug) çağır.
@@ -144,6 +148,13 @@ Saat dilimi: ${context.timeZone || "Europe/Istanbul"}`;
 
   if (context.customerHistory) {
     block += `\n\nMüşteri geçmişi:\n${context.customerHistory}`;
+  }
+
+  if (context.leadMemory) {
+    block += `\n\nÖnceki konuşmalardan hatırladıkların:
+${context.leadMemory}
+Not: Bunları doğal biçimde kullan, "kayıtlarımda şöyle yazıyor" gibi konuşma.
+Emin olmadığın bir şeyi buradan varsayma; gerekirse kısaca teyit et.`;
   }
 
   if (context.selectedServiceSlug || context.selectedServiceName) {

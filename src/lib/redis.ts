@@ -189,6 +189,53 @@ function logRedisFallback(action: string, err: unknown) {
   console.warn(`[redis] ${action} failed, in-memory fallback active: ${msg}`);
 }
 
+/**
+ * Redis gerçekten kullanılıyor mu? Kritik: yapılandırma eksikse kod sessizce
+ * in-memory fallback'e düşer ve serverless'ta her invocation'da hafıza sıfırlanır.
+ * Bu fonksiyon durumu görünür kılar (admin health endpoint'i kullanır).
+ */
+export async function getRedisHealth(): Promise<{
+  configured: boolean;
+  reachable: boolean;
+  mode: "redis" | "in-memory";
+  latencyMs: number | null;
+  error?: string;
+}> {
+  if (!redis) {
+    return {
+      configured: false,
+      reachable: false,
+      mode: "in-memory",
+      latencyMs: null,
+      error:
+        "UPSTASH_REDIS_REST_URL / UPSTASH_REDIS_REST_TOKEN tanımlı değil veya placeholder. Oturum hafızası, webhook idempotency ve booking lock çalışmaz.",
+    };
+  }
+  const startedAt = Date.now();
+  try {
+    // Session namespace DIŞINDA: paused-session taramalarını kirletmesin.
+    const key = "ahi-ai:health:ping";
+    await redis.set(key, "ok", { ex: 30 });
+    const value = await redis.get<string>(key);
+    const reachable = value === "ok";
+    return {
+      configured: true,
+      reachable,
+      mode: reachable ? "redis" : "in-memory",
+      latencyMs: Date.now() - startedAt,
+      ...(reachable ? {} : { error: "Yazma başarılı görünüyor ama okuma doğrulanamadı." }),
+    };
+  } catch (err) {
+    return {
+      configured: true,
+      reachable: false,
+      mode: "in-memory",
+      latencyMs: Date.now() - startedAt,
+      error: err instanceof Error ? err.message : String(err),
+    };
+  }
+}
+
 function parseRedisJson<T>(raw: unknown): T | null {
   if (raw == null) return null;
   if (typeof raw === "string") {

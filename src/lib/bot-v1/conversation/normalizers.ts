@@ -1,12 +1,3 @@
-import {
-  BUSINESS_SCOPE_KEYWORDS,
-  OFFTOPIC_KEYWORDS,
-  ABUSIVE_KEYWORDS,
-  GREETING_KEYWORDS,
-  SMALLTALK_KEYWORDS,
-  NEGOTIATION_KEYWORDS,
-} from "./constants";
-
 export function normalizeIncomingText(value: string): string {
   return value
     .toLocaleLowerCase("tr-TR")

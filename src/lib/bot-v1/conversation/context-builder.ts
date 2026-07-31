@@ -88,7 +88,8 @@ export function buildSystemContext(
   state: ConversationState | null,
   historySummary?: string,
   lastUserMessage?: string,
-  customerProfile?: CrmCustomerProfile | null
+  customerProfile?: CrmCustomerProfile | null,
+  leadMemoryText?: string
 ): string {
   const today = new Date();
   const todayStr = localDateStr(today);
@@ -155,6 +156,9 @@ export function buildSystemContext(
 
   if (historySummary) {
     ctx += ` ${historySummary}`;
+  }
+  if (leadMemoryText) {
+    ctx += ` Önceki konuşmalardan hatırladıkların: ${leadMemoryText.replace(/\n/g, " ")}`;
   }
   return ctx;
 }

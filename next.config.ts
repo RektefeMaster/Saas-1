@@ -4,6 +4,10 @@ import { withSentryConfig } from "@sentry/nextjs";
 
 const nextConfig: NextConfig = {
   typescript: { ignoreBuildErrors: false },
+  // Next 16'da Turbopack varsayılan. Sentry bir `webpack` config eklediği için
+  // Turbopack "webpack config var ama turbopack config yok" diyip build'i
+  // durduruyordu. Boş turbopack config bu çakışmayı çözer.
+  turbopack: {},
   // Webpack fallback için cache (build:webpack kullanıldığında)
   webpack: (config, { dev, isServer }) => {
     if (!dev && !isServer) {

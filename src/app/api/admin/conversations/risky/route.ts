@@ -218,7 +218,7 @@ export async function GET(request: NextRequest) {
   // Öncelik: RPC function kullan (migration 030 çalıştırılmışsa)
   // Fallback: Optimize edilmiş client-side aggregation
   
-  let summaries = new Map<string, RiskSummary>();
+  const summaries = new Map<string, RiskSummary>();
   
   // RPC function'ı dene (opsiyonel - migration 030 gerekli)
   try {

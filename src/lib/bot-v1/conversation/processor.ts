@@ -11,6 +11,11 @@ import { sendWhatsAppMessage } from "../../whatsapp";
 import { getCustomerHistory, formatHistoryForPrompt } from "@/services/customerHistory.service";
 import { getCrmCustomer } from "@/services/crmCustomer.service";
 import {
+  touchLeadContact,
+  getLeadMemory,
+  formatLeadMemoryForPrompt,
+} from "@/services/leadMemory.service";
+import {
   getCustomerLastActiveAppointment,
   cancelAppointment,
 } from "@/services/cancellation.service";
@@ -27,6 +32,10 @@ import {
 import { getDailyAvailability, reserveAppointment } from "@/services/booking.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
 import { detectDeterministicIntent } from "@/lib/intent";
+import {
+  detectConsentIntent,
+  setMarketingOptOut,
+} from "@/services/marketingConsent.service";
 import { phonesMatch } from "@/lib/phone";
 import type {
   BotConfig,
@@ -49,6 +58,7 @@ import {
   APP_TIMEZONE,
   isValidStep,
   MODEL_SIMPLE,
+  PENDING_CANCEL_TTL_MS,
 } from "./constants";
 import {
   normalizeHalfHourRequest,
@@ -58,10 +68,9 @@ import {
   isAskNameIntent,
   isCancelConfirmation,
   isCancelReject,
+  isSoftAffirmation,
   isAbusiveMessage,
-  isOutOfScopeMessage,
   isGreetingOrSmallTalkOnly,
-  isNegotiationMessage,
   isEscalationQuestion,
   isHumanEscalationRequest,
   detectGlobalInterruptIntent,
@@ -322,29 +331,117 @@ export async function processMessage(
     const msgs = getMergedMessages(tenant);
     const tone = msgs.tone ?? "sen";
     const effectiveMessage = normalizeHalfHourRequest(incomingMessage);
+    const flowType = (bt?.config?.flow_type as FlowType) || "appointment";
 
-    if (isHumanEscalationRequest(effectiveMessage)) {
-      const pausedState: ConversationState = {
-        ...(sessionPrefetch || {
-          tenant_id: tenantId,
-          customer_phone: customerPhone,
-          flow_type: (bt?.config?.flow_type as FlowType) || "appointment",
-          extracted: {},
-          step: "PAUSED_FOR_HUMAN",
-          updated_at: new Date().toISOString(),
-        }),
+    // ── Oturum başlatma (tek yerde, her erken dönüşten ÖNCE) ───────────────────
+    let state: ConversationState | null = sessionPrefetch;
+
+    if (state && !isValidStep(state.step)) {
+      console.warn("[session] Geçersiz step, sıfırlanıyor:", state.step);
+      await deleteSession(tenantId, customerPhone);
+      state = null;
+    }
+
+    // tenant_bulundu adımı sadece tenant bağlama içindir; müşteriye her seferinde
+    // "hoş geldiniz" dönmemek için konuşmayı "devam" moduna geçir.
+    if (state?.step === "tenant_bulundu") {
+      state = { ...state, step: "devam" };
+    }
+
+    if (!state) {
+      state = {
         tenant_id: tenantId,
         customer_phone: customerPhone,
-        step: "PAUSED_FOR_HUMAN",
-        pause_reason: "human_request",
+        step: "devam",
+        extracted: {},
+        flow_type: flowType,
+        message_count: 0,
+        consecutive_misunderstandings: 0,
+        retry_count: 0,
         window_status: "OPEN",
         last_customer_message_at: new Date().toISOString(),
         timezone: APP_TIMEZONE,
+        chat_history: [],
         updated_at: new Date().toISOString(),
       };
-      await setSession(tenantId, customerPhone, pausedState);
+    }
+
+    const messageCount = (state.message_count ?? 0) + 1;
+    const isFirstMessage = messageCount === 1 && (state.chat_history?.length ?? 0) === 0;
+
+    // Randevu alsın almasın konuşan herkes CRM'e lead olarak düşer.
+    // Kara listedekiler hariç: onlar pazarlama havuzuna girmemeli.
+    // Bloklamaz: hata olursa sohbet normal devam eder.
+    if (!blocked) {
+      void touchLeadContact(tenantId, customerPhone, {
+        customerName:
+          ((state.extracted as { customer_name?: string } | undefined)?.customer_name) ?? null,
+        newConversation: isFirstMessage,
+      }).catch((e) => console.warn("[ai] lead touch:", e));
+    }
+
+    /**
+     * Tek çıkış noktası: cevabı döndürmeden önce oturumu ve sohbet geçmişini yazar.
+     * Eskiden ~12 erken `return` geçmişe hiç yazmıyordu; bot o turları yaşanmamış
+     * sayıp kendini tekrar ediyor ve söylediklerini inkâr ediyordu.
+     */
+    const persistAndReply = async (
+      replyText: string,
+      patch: Partial<ConversationState> = {},
+      options: { recordHistory?: boolean } = {}
+    ): Promise<{ reply: string }> => {
+      const nowIso = new Date().toISOString();
+      const base = state as ConversationState;
+      const history = base.chat_history || [];
+      const nextHistory =
+        options.recordHistory === false
+          ? history
+          : trimChatHistory([
+              ...history,
+              { role: "user" as const, content: incomingMessage },
+              { role: "assistant" as const, content: replyText },
+            ]);
+
+      const nextState: ConversationState = {
+        ...base,
+        ...patch,
+        tenant_id: tenantId,
+        customer_phone: customerPhone,
+        flow_type: base.flow_type || flowType,
+        extracted: patch.extracted ?? base.extracted ?? {},
+        step: patch.step ?? base.step ?? "devam",
+        message_count: messageCount,
+        window_status: "OPEN",
+        last_customer_message_at: nowIso,
+        timezone: base.timezone || APP_TIMEZONE,
+        chat_history: nextHistory,
+        updated_at: nowIso,
+      };
+      state = nextState;
+      await setSession(tenantId, customerPhone, nextState);
+      return { reply: replyText };
+    };
+
+    // Pazarlama izni: "DUR" / "BAŞLA". Tam eşleşme arar, LLM'e gitmez.
+    // Randevu hatırlatmaları bundan etkilenmez (işlemsel mesaj).
+    const consentIntent = detectConsentIntent(effectiveMessage);
+    if (consentIntent) {
+      const optOut = consentIntent === "opt_out";
+      const consentResult = await setMarketingOptOut(tenantId, customerPhone, optOut);
+      if (!consentResult.ok && consentResult.error !== "migration_missing") {
+        console.warn("[ai] opt-out kaydedilemedi:", consentResult.error);
+      }
+      return persistAndReply(
+        optOut
+          ? "Tamam, bundan sonra kampanya mesajı göndermeyeceğim. Randevu hatırlatmaların devam eder. Tekrar açmak istersen \"BAŞLA\" yaz."
+          : "Tamam, kampanya mesajlarını tekrar açtım."
+      );
+    }
+
+    if (isHumanEscalationRequest(effectiveMessage)) {
+      let escalationReply = "";
       if (mergedConfig) {
-        const msg = buildConfigMessage(
+        escalationReply = buildConfigMessage(
           mergedConfig,
           "human_escalation",
           {
@@ -353,17 +450,22 @@ export async function processMessage(
           },
           tenant.name
         );
-        if (msg) return { reply: msg };
       }
-      return { reply: buildHumanEscalationMessage(tenant, tone) };
+      if (!escalationReply) escalationReply = buildHumanEscalationMessage(tenant, tone);
+      return persistAndReply(escalationReply, {
+        step: "PAUSED_FOR_HUMAN",
+        pause_reason: "human_request",
+      });
     }
 
     if (blocked) {
-      return {
-        reply: tone === "siz"
+      return persistAndReply(
+        tone === "siz"
           ? "Üzgünüz, şu an randevu hizmeti veremiyoruz. Lütfen işletmeyi doğrudan arayın."
           : "Üzgünüm, şu an randevu hizmeti veremiyorum. Lütfen işletmeyi doğrudan ara.",
-      };
+        {},
+        { recordHistory: false }
+      );
     }
 
     const reviewResult = await tryHandleReview(
@@ -372,88 +474,34 @@ export async function processMessage(
       effectiveMessage
     );
     if (reviewResult.handled && reviewResult.reply) {
-      return { reply: reviewResult.reply };
+      return persistAndReply(reviewResult.reply);
     }
 
-    let state = sessionPrefetch;
-    if (state?.step === "PAUSED_FOR_HUMAN") {
+    if (state.step === "PAUSED_FOR_HUMAN") {
       if (isAdminTakeoverReason(state.pause_reason)) {
-        return {
-          reply:
-            tone === "siz"
-              ? "Bu sohbet su an insan destek ekibinde. Botu yalnizca yonetici yeniden devreye alabilir."
-              : "Bu sohbet su an insan destek ekibinde. Botu yalnizca yonetici yeniden devreye alabilir.",
-        };
+        return persistAndReply(
+          "Bu sohbet şu an insan destek ekibinde. Botu yalnızca yönetici yeniden devreye alabilir.",
+          {},
+          { recordHistory: false }
+        );
       }
       const pausedAt = state.updated_at ? new Date(state.updated_at).getTime() : 0;
       const inactiveMs = Date.now() - pausedAt;
       const wantsBotResume = /bot devam|devam et|geri don|geri dön/i.test(effectiveMessage);
       const autoResume = Number.isFinite(pausedAt) && inactiveMs >= 2 * 60 * 60 * 1000;
       if (!wantsBotResume && !autoResume) {
-        return {
-          reply:
-            tone === "siz"
-              ? "Bu sohbet şu an insan desteğinde. Botu tekrar devreye almak için \"bot devam\" yazabilirsiniz."
-              : "Bu sohbet şu an insan desteğinde. Botu tekrar devreye almak için \"bot devam\" yazabilirsin.",
-        };
+        return persistAndReply(
+          tone === "siz"
+            ? "Bu sohbet şu an insan desteğinde. Botu tekrar devreye almak için \"bot devam\" yazabilirsiniz."
+            : "Bu sohbet şu an insan desteğinde. Botu tekrar devreye almak için \"bot devam\" yazabilirsin.",
+          {},
+          { recordHistory: false }
+        );
       }
       state = {
         ...state,
         step: "RECOVERY_CHECK",
         pause_reason: null,
-        updated_at: new Date().toISOString(),
-      };
-      await setSession(tenantId, customerPhone, state);
-    }
-    const messageCount = (state?.message_count ?? 0) + 1;
-    // 20 mesaj limiti kaldırıldı: uzun konuşmalarda context zaten trimChatHistory ile sıkıştırılıyor,
-    // bot otonom devam eder, insan devralması yok.
-
-    if (state && !isValidStep(state.step)) {
-      console.warn("[session] Geçersiz step, sıfırlanıyor:", state.step);
-      await deleteSession(tenantId, customerPhone);
-      return { reply: buildHumanEscalationMessage(tenant, tone) };
-    }
-
-    const flowType = (bt?.config?.flow_type as FlowType) || "appointment";
-
-    // tenant_bulundu adımı sadece tenant bağlama içindir; müşteriye her seferinde
-    // "hoş geldiniz" dönmemek için konuşmayı "devam" moduna geçir.
-    if (state?.step === "tenant_bulundu") {
-      state = {
-        ...(state || {}),
-        tenant_id: tenantId,
-        customer_phone: customerPhone,
-        step: "devam",
-        extracted: state?.extracted || {},
-        flow_type: flowType,
-        message_count: messageCount,
-        consecutive_misunderstandings: state?.consecutive_misunderstandings ?? 0,
-        retry_count: state?.retry_count ?? 0,
-        window_status: "OPEN",
-        last_customer_message_at: new Date().toISOString(),
-        timezone: state?.timezone || APP_TIMEZONE,
-        chat_history: state?.chat_history || [],
-        updated_at: new Date().toISOString(),
-      };
-      await setSession(tenantId, customerPhone, state);
-    }
-
-    // Session yoksa minimal başlangıç state'i oluştur.
-    if (!state) {
-      state = {
-        tenant_id: tenantId,
-        customer_phone: customerPhone,
-        step: "devam",
-        extracted: {},
-        flow_type: flowType,
-        message_count: 1,
-        consecutive_misunderstandings: 0,
-        retry_count: 0,
-        window_status: "OPEN",
-        last_customer_message_at: new Date().toISOString(),
-        timezone: APP_TIMEZONE,
-        chat_history: [],
         updated_at: new Date().toISOString(),
       };
       await setSession(tenantId, customerPhone, state);
@@ -465,70 +513,64 @@ export async function processMessage(
         tone === "siz"
           ? "Tamam, mevcut akışı kapattım. İsterseniz baştan başlayabiliriz."
           : "Tamam, mevcut akışı kapattım. İstersen baştan başlayabiliriz.";
-      await setSession(tenantId, customerPhone, {
-        ...(state || {}),
-        tenant_id: tenantId,
-        customer_phone: customerPhone,
+      return persistAndReply(replyText, {
         step: "devam",
         extracted: {},
-        flow_type: flowType,
-        message_count: messageCount,
         retry_count: 0,
         consecutive_misunderstandings: 0,
-        window_status: "OPEN",
-        last_customer_message_at: new Date().toISOString(),
-        timezone: APP_TIMEZONE,
-        chat_history: trimChatHistory([
-          ...(state?.chat_history || []),
-          { role: "user", content: incomingMessage },
-          { role: "assistant", content: replyText },
-        ]),
-        updated_at: new Date().toISOString(),
       });
-      return { reply: replyText };
     }
     if (globalInterrupt === "ASK_FAQ") {
       state = {
-        ...(state || {}),
+        ...state,
         step: "devam",
       };
     }
 
     // retry_count: anlaşılmayan mesaj sayacı. Tam otonomi için limit yükseltildi (3→8).
     // 8 kez üst üste anlaşılamazsa yine insan devralmıyor; bot "Farklı bir şekilde sorabilir misin?" ile devam eder.
-    if ((state?.retry_count ?? 0) >= 8) {
+    if ((state.retry_count ?? 0) >= 8) {
       const softReply =
         tone === "siz"
           ? "Tam anlamadım. İsterseniz 'randevu almak istiyorum', 'yarın müsait misiniz?' veya 'fiyatlar ne?' gibi yazabilirsiniz."
           : "Tam anlamadım. İstersen 'randevu almak istiyorum', 'yarın müsait misin?' veya 'fiyatlar ne?' gibi yazabilirsin.";
-      await setSession(tenantId, customerPhone, {
-        ...(state || {}),
-        tenant_id: tenantId,
-        customer_phone: customerPhone,
+      return persistAndReply(softReply, {
         step: "devam",
-        extracted: state?.extracted || {},
-        flow_type: flowType,
-        message_count: messageCount,
         retry_count: 0,
         consecutive_misunderstandings: 0,
-        window_status: "OPEN",
-        last_customer_message_at: new Date().toISOString(),
-        timezone: state?.timezone || APP_TIMEZONE,
-        chat_history: trimChatHistory([
-          ...(state?.chat_history || []),
-          { role: "user", content: incomingMessage },
-          { role: "assistant", content: softReply },
-        ]),
-        updated_at: new Date().toISOString(),
       });
-      return { reply: softReply };
     }
 
     const extracted = (state.extracted || {}) as Record<string, unknown>;
-    const pendingCancelId = extracted.pending_cancel_appointment_id as string | undefined;
+    const pendingCancelRaw = extracted.pending_cancel_appointment_id as string | undefined;
+    const pendingCancelSetAt = Number(extracted.pending_cancel_set_at ?? 0);
+    const pendingCancelExpired =
+      Boolean(pendingCancelRaw) &&
+      (!Number.isFinite(pendingCancelSetAt) ||
+        pendingCancelSetAt <= 0 ||
+        Date.now() - pendingCancelSetAt > PENDING_CANCEL_TTL_MS);
+
+    if (pendingCancelExpired) {
+      // Süresi geçen iptal beklemesi konuşmayı rehin almasın.
+      state = {
+        ...state,
+        step: state.step === "iptal_onay_bekleniyor" ? "devam" : state.step,
+        extracted: {
+          ...extracted,
+          pending_cancel_appointment_id: null,
+          pending_cancel_set_at: null,
+        },
+      };
+    }
+
+    const pendingCancelId = pendingCancelExpired ? undefined : pendingCancelRaw;
 
     if (pendingCancelId) {
-      if (isCancelConfirmation(effectiveMessage)) {
+      // Yumuşak onay ("evet"/"tamam") burada geçerli: bu bekleme yalnızca AÇIK
+      // iptal talebiyle başlatılıyor, artık masum bir sorgudan doğmuyor.
+      const cancelConfirmed =
+        isCancelConfirmation(effectiveMessage) || isSoftAffirmation(effectiveMessage);
+      if (cancelConfirmed) {
         const { data: pendingApt } = await supabase
           .from("appointments")
           .select("id, slot_start, customer_phone")
@@ -538,22 +580,19 @@ export async function processMessage(
           .maybeSingle();
 
         if (!pendingApt || !phonesMatch(customerPhone, pendingApt.customer_phone)) {
-          await setSession(tenantId, customerPhone, {
-            ...state,
-            step: "devam",
-            extracted: {
-              ...extracted,
-              pending_cancel_appointment_id: null,
-            },
-            message_count: messageCount,
-            updated_at: new Date().toISOString(),
-          });
-          return {
-            reply:
-              tone === "siz"
-                ? "İptal bekleyen aktif randevu bulunamadı. Yeni bir randevu planlayabiliriz."
-                : "İptal bekleyen aktif randevu görünmüyor. Yeni randevu planlayalım mı?",
-          };
+          return persistAndReply(
+            tone === "siz"
+              ? "İptal bekleyen aktif randevu bulunamadı. Yeni bir randevu planlayabiliriz."
+              : "İptal bekleyen aktif randevu görünmüyor. Yeni randevu planlayalım mı?",
+            {
+              step: "devam",
+              extracted: {
+                ...extracted,
+                pending_cancel_appointment_id: null,
+                pending_cancel_set_at: null,
+              },
+            }
+          );
         }
 
         const configOverride = (tenant.config_override || {}) as Record<string, unknown>;
@@ -566,12 +605,25 @@ export async function processMessage(
         const slotTime = new Date(pendingApt.slot_start).getTime();
         const hoursLeft = (slotTime - Date.now()) / (60 * 60 * 1000);
         if (hasCancellationRule && hoursLeft < cancellationHrs) {
-          return {
-            reply:
-              tone === "siz"
-                ? `İptal için randevu saatine en az ${cancellationHrs} saat kala bildirmeniz gerekiyor.`
-                : `İptal için randevu saatine en az ${cancellationHrs} saat kala bildirmen gerekiyor.`,
-          };
+          // Bayrağı temizle: aksi halde müşteri sonsuza kadar iptal onayı
+          // ekranında kilitli kalıyordu.
+          const contactPhone = tenant.contact_phone?.trim();
+          return persistAndReply(
+            (tone === "siz"
+              ? `İptal için randevu saatine en az ${cancellationHrs} saat kala bildirmeniz gerekiyor, o yüzden buradan iptal edemiyorum.`
+              : `İptal için randevu saatine en az ${cancellationHrs} saat kala haber vermen gerekiyor, o yüzden buradan iptal edemiyorum.`) +
+              (contactPhone
+                ? ` İşletmeyi doğrudan arayabilirsin: ${contactPhone}`
+                : ""),
+            {
+              step: "devam",
+              extracted: {
+                ...extracted,
+                pending_cancel_appointment_id: null,
+                pending_cancel_set_at: null,
+              },
+            }
+          );
         }
 
         const cancelResult = await cancelAppointment({
@@ -583,12 +635,11 @@ export async function processMessage(
         });
 
         if (!cancelResult.ok) {
-          return {
-            reply:
-              tone === "siz"
-                ? "İptal işlemi şu an tamamlanamadı. Lütfen tekrar deneyin."
-                : "İptal işlemi şu an tamamlanamadı, tekrar dener misin?",
-          };
+          return persistAndReply(
+            tone === "siz"
+              ? "İptal işlemi şu an tamamlanamadı. Lütfen tekrar deneyin."
+              : "İptal işlemi şu an tamamlanamadı, tekrar dener misin?"
+          );
         }
 
         await createOpsAlert({
@@ -601,176 +652,123 @@ export async function processMessage(
           dedupeKey: `cancel:${tenantId}:${pendingCancelId}`,
         }).catch((e) => console.error("[ai] ops alert create error:", e));
 
-        await setSession(tenantId, customerPhone, {
-          ...state,
-          step: "devam",
-          extracted: {
-            ...extracted,
-            pending_cancel_appointment_id: null,
-          },
-          message_count: messageCount,
-          updated_at: new Date().toISOString(),
-          chat_history: trimChatHistory([
-            ...(state.chat_history || []),
-            { role: "user", content: incomingMessage },
-            {
-              role: "assistant",
-              content:
-                tone === "siz"
-                  ? "Randevunuzu iptal ettim. İsterseniz yeni bir saat planlayalım."
-                  : "Randevunu iptal ettim. İstersen yeni bir saat planlayalım.",
+        return persistAndReply(
+          tone === "siz"
+            ? "Randevunuzu iptal ettim. İsterseniz yeni bir saat planlayalım."
+            : "Randevunu iptal ettim. İstersen yeni bir saat planlayalım.",
+          {
+            step: "devam",
+            extracted: {
+              ...extracted,
+              pending_cancel_appointment_id: null,
+              pending_cancel_set_at: null,
             },
-          ]),
-        });
-        return {
-          reply:
-            tone === "siz"
-              ? "Randevunuzu iptal ettim. İsterseniz yeni bir saat planlayalım."
-              : "Randevunu iptal ettim. İstersen yeni bir saat planlayalım.",
-        };
+          }
+        );
       }
 
       if (isCancelReject(effectiveMessage)) {
-        await setSession(tenantId, customerPhone, {
-          ...state,
-          step: "devam",
-          extracted: {
-            ...extracted,
-            pending_cancel_appointment_id: null,
-          },
-          message_count: messageCount,
-          updated_at: new Date().toISOString(),
-        });
-        return {
-          reply:
-            tone === "siz"
-              ? "İptal isteğinizi kapattım. Randevunuz aktif olarak duruyor."
-              : "Tamam, iptali kapattım. Randevun aktif olarak duruyor.",
-        };
+        return persistAndReply(
+          tone === "siz"
+            ? "İptal isteğinizi kapattım. Randevunuz aktif olarak duruyor."
+            : "Tamam, iptali kapattım. Randevun aktif olarak duruyor.",
+          {
+            step: "devam",
+            extracted: {
+              ...extracted,
+              pending_cancel_appointment_id: null,
+              pending_cancel_set_at: null,
+            },
+          }
+        );
       }
 
-      return {
-        reply:
-          tone === "siz"
-            ? "İptal onayı için lütfen \"evet iptal\" yazın. Vazgeçtiyseniz \"vazgeçtim\" yazabilirsiniz."
-            : "İptal onayı için \"evet iptal\" yaz. Vazgeçtiysen \"vazgeçtim\" yazabilirsin.",
-      };
+      // Onay da ret de değil → müşteri konuyu değiştirmiş olabilir. Eskiden burada
+      // "evet iptal yaz" duvarı vardı ve konuşma kilitleniyordu. Artık mesaj normal
+      // akışa devam eder; bekleyen iptal bağlam olarak prompt'a gider ve TTL ile düşer.
     }
 
     if (isEscalationQuestion(effectiveMessage)) {
-      return {
-        reply:
-          tone === "siz"
-            ? "Az önce burada çözemediğim bir konuda insan desteği önermiştim. İsterseniz randevu, fiyat veya müsaitlik işlemlerine burada devam edebiliriz."
-            : "Az önce burada çözemediğim bir konuda insan desteği önermiştim. İstersen randevu, fiyat veya müsaitlik işlemlerine burada devam edebiliriz.",
-      };
+      return persistAndReply(
+        tone === "siz"
+          ? "Az önce burada çözemediğim bir konuda insan desteği önermiştim. İsterseniz randevu, fiyat veya müsaitlik işlemlerine burada devam edebiliriz."
+          : "Az önce burada çözemediğim bir konuda insan desteği önermiştim. İstersen randevu, fiyat veya müsaitlik işlemlerine burada devam edebiliriz."
+      );
     }
 
     if (isAskNameIntent(effectiveMessage)) {
       const knownName = await getKnownCustomerName(tenantId, customerPhone, state);
       if (knownName) {
-        await setSession(tenantId, customerPhone, {
-          ...state,
-          extracted: {
-            ...extracted,
-            customer_name: knownName,
-          },
-          message_count: messageCount,
-          updated_at: new Date().toISOString(),
-        });
-        return {
-          reply:
-            tone === "siz"
-              ? `Sizi ${knownName} adıyla kayıtlı görüyorum.`
-              : `Seni ${knownName} adıyla kayıtlı görüyorum.`,
-        };
-      }
-      return {
-        reply:
+        return persistAndReply(
           tone === "siz"
-            ? "Ad bilginizi bu konuşmada henüz almadım. Adınızı yazarsanız kaydedebilirim."
-            : "Ad bilgisini henüz almadım. Adını yazarsan kaydedeyim.",
-      };
+            ? `Sizi ${knownName} adıyla kayıtlı görüyorum.`
+            : `Seni ${knownName} adıyla kayıtlı görüyorum.`,
+          { extracted: { ...extracted, customer_name: knownName } }
+        );
+      }
+      return persistAndReply(
+        tone === "siz"
+          ? "Ad bilginizi bu konuşmada henüz almadım. Adınızı yazarsanız kaydedebilirim."
+          : "Ad bilgisini henüz almadım. Adını yazarsan kaydedeyim."
+      );
     }
 
     if (isAbusiveMessage(effectiveMessage)) {
-      return {
-        reply:
-          tone === "siz"
-            ? "Hakaret içeren mesajlarda devam edemiyorum. Randevu veya işletme bilgisi için yardımcı olabilirim."
-            : "Hakaret içeren mesajlarda devam edemiyorum. Randevu veya işletme bilgisi için yardımcı olabilirim.",
-      };
+      return persistAndReply(
+        tone === "siz"
+          ? "Hakaret içeren mesajlarda devam edemiyorum. Randevu veya işletme bilgisi için yardımcı olabilirim."
+          : "Hakaret içeren mesajlarda devam edemiyorum. Randevu veya işletme bilgisi için yardımcı olabilirim.",
+        {},
+        { recordHistory: false }
+      );
     }
 
-    if (isNegotiationMessage(effectiveMessage)) {
-      const contactPhone = tenant.contact_phone?.trim() || "işletme telefonu";
-      return {
-        reply:
-          tone === "siz"
-            ? `Fiyat konusunda son kararı işletme verir. Mevcut fiyat bilgisini paylaşabilirim; özel fiyat için ${contactPhone} numarasını arayabilirsiniz.`
-            : `Fiyat konusunda son kararı işletme verir. Mevcut fiyat bilgisini paylaşabilirim; özel fiyat için ${contactPhone} numarasını arayabilirsin.`,
-      };
-    }
-
-    if (isGreetingOrSmallTalkOnly(effectiveMessage)) {
+    // Sadece ilk mesaj tamamen selamsa sabit karşılama gönder. Eskiden içinde
+    // gerçek talep olan her selamlı mesaj ("merhaba, yarın yer var mı?") burada
+    // kesiliyor ve talep tamamen düşüyordu.
+    if (isFirstMessage && isGreetingOrSmallTalkOnly(effectiveMessage)) {
       const welcomeRaw = msgs.welcome;
       const welcomeStr = Array.isArray(welcomeRaw) ? welcomeRaw[0] ?? "" : (welcomeRaw ?? "");
       const welcomeText = welcomeStr
         .replace(/\{tenant_name\}/g, tenant.name)
         .replace(/\{işletme_adınız\}/g, tenant.name);
-      return { reply: welcomeText };
+      if (welcomeText.trim()) return persistAndReply(welcomeText);
     }
 
-    if (isOutOfScopeMessage(effectiveMessage)) {
-      return {
-        reply:
-          tone === "siz"
-            ? `Bu hatta sadece ${tenant.name} için randevu, fiyat ve işletme bilgisi desteği veriyorum.`
-            : `Bu hatta sadece ${tenant.name} için randevu, fiyat ve işletme bilgisi desteği veriyorum.`,
-      };
-    }
+    // NOT: Pazarlık ve "kapsam dışı" mesajları artık burada kesilmiyor.
+    // Fiyat politikası ve kapsam kuralı sistem promptunda tanımlı; bu konuları
+    // LLM doğal dille yönetiyor (keyword listeleri gerçek talepleri yiyordu).
 
     // ── Deterministic intent handling (cancel / delay) ──
     const deterministicIntent = detectDeterministicIntent(effectiveMessage);
     if (deterministicIntent?.type === "cancel") {
       const last = await getCustomerLastActiveAppointment(tenantId, customerPhone);
       if (!last) {
-        return {
-          reply:
-            tone === "siz"
-              ? "Aktif bir randevunuz görünmüyor. Yeni bir randevu almak ister misiniz?"
-              : "Aktif bir randevun görünmüyor. Yeni randevu alalım mı?",
-        };
+        return persistAndReply(
+          tone === "siz"
+            ? "Aktif bir randevunuz görünmüyor. Yeni bir randevu almak ister misiniz?"
+            : "Aktif bir randevun görünmüyor. Yeni randevu alalım mı?"
+        );
       }
 
       const slotDateTime = formatSlotDateTimeTr(last.slot_start);
       const dateStr = slotDateTime.date || "-";
       const timeStr = slotDateTime.time || "-";
 
-      await setSession(tenantId, customerPhone, {
-        ...state,
-        tenant_id: tenantId,
-        customer_phone: customerPhone,
-        step: "iptal_onay_bekleniyor",
-        extracted: {
-          ...extracted,
-          pending_cancel_appointment_id: last.id,
-        },
-        flow_type: flowType,
-        message_count: messageCount,
-        consecutive_misunderstandings: 0,
-        chat_history: trimChatHistory([
-          ...(state.chat_history || []),
-          { role: "user", content: incomingMessage },
-        ]),
-        updated_at: new Date().toISOString(),
-      });
-      return {
-        reply:
-          tone === "siz"
-            ? `${dateStr} ${timeStr} randevunuzu iptal etmek için lütfen "evet iptal" yazın.`
-            : `${dateStr} ${timeStr} randevunu iptal etmem için "evet iptal" yaz.`,
-      };
+      return persistAndReply(
+        tone === "siz"
+          ? `${dateStr} ${timeStr} randevunuz var. İptal edeyim mi? Onaylarsanız "evet iptal" yazmanız yeterli.`
+          : `${dateStr} ${timeStr} randevun var. İptal edeyim mi? Onaylıyorsan "evet iptal" yaz.`,
+        {
+          step: "iptal_onay_bekleniyor",
+          extracted: {
+            ...extracted,
+            pending_cancel_appointment_id: last.id,
+            pending_cancel_set_at: Date.now(),
+          },
+          consecutive_misunderstandings: 0,
+        }
+      );
     }
 
     if (deterministicIntent?.type === "late") {
@@ -794,20 +792,21 @@ export async function processMessage(
           .slice(0, 13)}`,
       }).catch((e) => console.error("[ai] ops alert create error:", e));
 
-      return {
-        reply:
-          tone === "siz"
-            ? "Bilgiyi ustaya ilettim. Geldiğinizde program yoğunluğuna göre kısa bir bekleme olabilir."
-            : "Bilgiyi ustaya ilettim. Geldiğinde program yoğunluğuna göre kısa bir bekleme olabilir.",
-      };
+      return persistAndReply(
+        tone === "siz"
+          ? "Bilgiyi ustaya ilettim. Geldiğinizde program yoğunluğuna göre kısa bir bekleme olabilir."
+          : "Bilgiyi ustaya ilettim. Geldiğinde program yoğunluğuna göre kısa bir bekleme olabilir."
+      );
     }
 
     // ── Build context ──
-    const [history, customerProfile] = await Promise.all([
+    const [history, customerProfile, leadMemory] = await Promise.all([
       getCustomerHistory(tenantId, customerPhone),
       getCrmCustomer(tenantId, customerPhone),
+      getLeadMemory(tenantId, customerPhone),
     ]);
     const historySummary = formatHistoryForPrompt(history);
+    const leadMemoryText = formatLeadMemoryForPrompt(leadMemory);
 
     if (customerProfile?.customer_name && !(state?.extracted as { customer_name?: string })?.customer_name) {
       const ext = (state?.extracted || {}) as Record<string, unknown>;
@@ -818,7 +817,13 @@ export async function processMessage(
       await setSession(tenantId, customerPhone, { ...state, updated_at: new Date().toISOString() });
     }
 
-    const systemContext = buildSystemContext(state, historySummary, effectiveMessage, customerProfile);
+    const systemContext = buildSystemContext(
+      state,
+      historySummary,
+      effectiveMessage,
+      customerProfile,
+      leadMemoryText
+    );
 
     let systemPrompt: string;
     if (mergedConfig) {
@@ -846,6 +851,7 @@ export async function processMessage(
         selectedServiceName: selectedService.name,
         pendingCancelId: ext.pending_cancel_appointment_id as string | undefined,
         customerHistory: historySummary,
+        leadMemory: leadMemoryText,
         misunderstandingCount: state?.consecutive_misunderstandings ?? 0,
         stateSummary: buildStateSummary(state),
       };
@@ -885,6 +891,13 @@ export async function processMessage(
     let promptTokens = 0;
     let completionTokens = 0;
     let llmLatencyMs = 0;
+    type TemplateVars = Record<string, string>;
+    // Döngü DIŞINDA toplanır: onay şablonu üretildiği anda break edilirse
+    // modelin sonraki tool çağrıları (örn. ikinci kişinin randevusu) hiç çalışmıyordu.
+    const confirmationResults: TemplateVars[] = [];
+    let templateReply:
+      | { key: "cancellation_by_customer" | "rescheduled"; vars: TemplateVars }
+      | null = null;
 
     for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
       let response: OpenAI.Chat.Completions.ChatCompletion;
@@ -897,16 +910,13 @@ export async function processMessage(
           selectedModel
         );
       } catch {
+        let errMsg = "";
         if (mergedConfig) {
-        const errMsg = buildConfigMessage(
-          mergedConfig,
-          "system_error",
-          {},
-          tenant.name
-        );
-        if (errMsg) return { reply: errMsg };
+          errMsg = buildConfigMessage(mergedConfig, "system_error", {}, tenant.name);
         }
-        return { reply: getProcessErrorReply(tone) };
+        return persistAndReply(errMsg || getProcessErrorReply(tone), {}, {
+          recordHistory: false,
+        });
       }
       llmLatencyMs += Date.now() - llmRoundStart;
       promptTokens += response.usage?.prompt_tokens ?? 0;
@@ -916,25 +926,13 @@ export async function processMessage(
       if (!aiMessage) {
         const prevMis = state?.consecutive_misunderstandings ?? 0;
         if (prevMis >= 1) {
-          return { reply: buildHumanEscalationMessage(tenant, tone) };
+          return persistAndReply(buildHumanEscalationMessage(tenant, tone));
         }
-        await setSession(tenantId, customerPhone, {
-          ...(state || {}),
-          tenant_id: tenantId,
-          customer_phone: customerPhone,
-          flow_type: flowType,
-          extracted: state?.extracted || {},
+        return persistAndReply(getMisunderstandReply(tone), {
           step: "devam",
-          message_count: messageCount,
           consecutive_misunderstandings: 1,
           retry_count: (state?.retry_count ?? 0) + 1,
-          window_status: "OPEN",
-          last_customer_message_at: new Date().toISOString(),
-          timezone: state?.timezone || APP_TIMEZONE,
-          chat_history: chatHistory,
-          updated_at: new Date().toISOString(),
         });
-        return { reply: getMisunderstandReply(tone) };
       }
 
       // No tool calls → AI responded with text, we're done
@@ -1003,9 +1001,6 @@ export async function processMessage(
         })),
       });
 
-      type TemplateVars = Record<string, string>;
-      const confirmationResults: TemplateVars[] = [];
-      let templateReply: { key: "cancellation_by_customer" | "rescheduled"; vars: TemplateVars } | null = null;
       for (const tc of tcList) {
         let fnArgs: Record<string, unknown>;
         try {
@@ -1046,9 +1041,14 @@ export async function processMessage(
               (fnArgs.service_slug as string) ??
               ((fnArgs.extra_data as Record<string, unknown>)?.service_slug as string) ??
               "";
+            const readable =
+              res.date_readable ?? formatDateReadableTr(res.date ?? "", res.time);
             confirmationResults.push({
-              date: res.date ?? "",
-              date_readable: res.date_readable ?? formatDateReadableTr(res.date ?? "", res.time),
+              // {date} müşteriye giden metinde ISO ("2026-08-02") görünmesin diye
+              // okunabilir forma bağlandı; ham tarih {date_iso} ile hâlâ erişilebilir.
+              date: readable || res.date || "",
+              date_iso: res.date ?? "",
+              date_readable: readable,
               time: res.time ?? "",
               customer_name: res.customer_name ?? "",
               service: typeof serviceVal === "string" ? serviceVal : "",
@@ -1064,11 +1064,15 @@ export async function processMessage(
         if (mergedConfig && tc.function.name === "reschedule_appointment") {
           const res = toolExec.result as { ok?: boolean; new_date?: string; new_date_readable?: string; new_time?: string };
           if (res.ok && res.new_date != null) {
+            const readable =
+              res.new_date_readable ??
+              formatDateReadableTr(res.new_date ?? "", res.new_time);
             templateReply = {
               key: "rescheduled",
               vars: {
-                date: res.new_date ?? "",
-                date_readable: res.new_date_readable ?? formatDateReadableTr(res.new_date ?? "", res.new_time),
+                date: readable || res.new_date || "",
+                date_iso: res.new_date ?? "",
+                date_readable: readable,
                 time: res.new_time ?? "",
               },
             };
@@ -1089,31 +1093,63 @@ export async function processMessage(
         }
       }
 
-      if (mergedConfig && (confirmationResults.length > 0 || templateReply)) {
-        const parts: string[] = [];
-        if (confirmationResults.length > 0) {
-          const combined = confirmationResults
-            .map((v) =>
-              buildConfigMessage(mergedConfig, "confirmation", v, tenant.name)
-            )
-            .filter(Boolean);
-          if (combined.length) parts.push(combined.join("\n\n"));
-        }
-        if (templateReply) {
-          const msg = buildConfigMessage(
-            mergedConfig,
-            templateReply.key,
-            templateReply.vars,
-            tenant.name
-          );
-          if (msg) parts.push(msg);
-        }
-        if (parts.length) {
-          finalReply = parts.join("\n\n") || finalReply;
-          break;
-        }
-      }
       // Loop continues → next iteration sends tool results to OpenAI
+    }
+
+    // Tool döngüsü bittikten SONRA şablon cevabı kurulur; böylece model aynı turda
+    // birden fazla randevu/işlem yapabiliyor ve hiçbiri düşmüyor.
+    if (mergedConfig && (confirmationResults.length > 0 || templateReply)) {
+      const parts: string[] = [];
+      if (confirmationResults.length > 0) {
+        const combined = confirmationResults
+          .map((v) => buildConfigMessage(mergedConfig, "confirmation", v, tenant.name))
+          .filter(Boolean);
+        if (combined.length) parts.push(combined.join("\n\n"));
+      }
+      if (templateReply) {
+        const msg = buildConfigMessage(
+          mergedConfig,
+          templateReply.key,
+          templateReply.vars,
+          tenant.name
+        );
+        if (msg) parts.push(msg);
+      }
+      if (parts.length) finalReply = parts.join("\n\n");
+    }
+
+    // Yeni randevu alındıysa/ertelendiyse bekleyen iptal onayı anlamını yitirir.
+    if (confirmationResults.length > 0 || templateReply) {
+      mergedSessionUpdate.extracted = {
+        ...(mergedSessionUpdate.extracted || {}),
+        pending_cancel_appointment_id: null,
+        pending_cancel_set_at: null,
+      };
+    }
+
+    // Tool döngüsü tükendiği halde model hâlâ tool çağırıyorsa elimizde metin
+    // kalmıyordu ve müşteriye "sistem hatası" gidiyordu. Son bir kez TOOL'SUZ
+    // çağırıp modelin topladığı bilgiyle doğal bir cevap yazmasını istiyoruz.
+    if (!finalReply) {
+      try {
+        const closingResponse = await callOpenAI(
+          [
+            ...openaiMessages,
+            {
+              role: "system",
+              content:
+                "Artık araç çağırma. Şimdiye kadar topladığın bilgiyle müşteriye kısa ve net bir cevap yaz. Bilgi eksikse tek bir soru sor.",
+            },
+          ],
+          undefined,
+          selectedModel
+        );
+        promptTokens += closingResponse.usage?.prompt_tokens ?? 0;
+        completionTokens += closingResponse.usage?.completion_tokens ?? 0;
+        finalReply = (closingResponse.choices[0]?.message?.content || "").trim();
+      } catch (err) {
+        console.error("[ai] closing call failed:", err);
+      }
     }
 
     if (!finalReply) {
@@ -1144,7 +1180,8 @@ export async function processMessage(
         tone === "siz"
           ? "Bu konuda yardımcı olamıyorum; randevu, fiyat veya müsaitlik için yazabilirsiniz."
           : "Bu konuda yardımcı olamıyorum; randevu, fiyat veya müsaitlik için yazabilirsin.";
-      return { reply: softMsg, metrics };
+      const persisted = await persistAndReply(softMsg);
+      return { ...persisted, metrics };
     }
 
     // ── Session management ──
