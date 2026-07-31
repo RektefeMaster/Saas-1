@@ -84,7 +84,7 @@ const COPY = {
       },
       {
         q: "Yanlış saat veya yanlış bilgi vermez mi?",
-        a: "Cevaplar sizin girdiğiniz çalışma saatleri, hizmetler ve doluluk üzerinden üretilir. Ayarlar boşsa önce onu düzeltmek gerekir — sihirli değnek değil, düzenli kurulan bir sistem.",
+        a: "Cevaplar sizin girdiğiniz çalışma saatleri, hizmetler ve doluluk üzerinden üretilir. Ayarlar boşsa önce onu düzeltmek gerekir. Sihirli değnek değil, düzenli kurulan bir sistem.",
       },
       {
         q: "Personelim bilgisayardan anlamıyor, kullanabilir mi?",
@@ -124,7 +124,7 @@ const COPY = {
     },
     hero: {
       eyebrow: "Plain-spoken guide",
-      title: "What Ahi AI does — and how it works",
+      title: "What Ahi AI does, and how it works",
       lead:
         "In short: an operations panel so WhatsApp demand doesn’t break your day. Below is the honest version, without hype.",
     },
@@ -132,7 +132,7 @@ const COPY = {
       title: "What is it for?",
       body: [
         "Phones ring, chats pile up, notebooks get messy, and “do you have a slot?” never stops. Ahi AI is built to tidy that chaos.",
-        "Customers reach you on WhatsApp to book or ask questions. The system answers using your hours, services, and capacity — while you see the day in one panel.",
+        "Customers reach you on WhatsApp to book or ask questions. The system answers using your hours, services, and capacity, while you see the day in one panel.",
         "The goal isn’t a flashy AI demo. It’s a day that stays clear from open to close.",
       ],
     },
@@ -145,7 +145,7 @@ const COPY = {
         },
         {
           title: "2) Your business rules apply",
-          text: "Hours, service durations, pricing, staff preference — your rules.",
+          text: "Hours, service durations, pricing, staff preference: your rules.",
         },
         {
           title: "3) Booking and records update",
@@ -160,17 +160,17 @@ const COPY = {
     includes: {
       title: "What’s included?",
       items: [
-        { title: "Booking panel", text: "Calendar, confirm / cancel / no-show, capacity." },
-        { title: "WhatsApp link & QR", text: "Direct chat and storefront code." },
+        { title: "Booking panel", text: "Calendar, confirm / cancel / no show, capacity." },
+        { title: "WhatsApp link and QR", text: "Direct chat and storefront code." },
         { title: "Customer book", text: "Who came, what they booked, what was noted." },
-        { title: "Pricing & packages", text: "Chat and panel share the same truth." },
-        { title: "Campaigns & reminders", text: "Win-back and appointment nudges." },
-        { title: "Workflow & alerts", text: "Delays and critical items first." },
+        { title: "Pricing and packages", text: "Chat and panel share the same truth." },
+        { title: "Campaigns and reminders", text: "Win back and appointment nudges." },
+        { title: "Workflow and alerts", text: "Delays and critical items first." },
       ],
     },
     forWhom: {
       title: "Who is it for?",
-      text: "Appointment-based teams that live on WhatsApp: salons, clinics, repair shops, consultancies — teams tired of Excel plus asking three people.",
+      text: "Appointment based teams that live on WhatsApp: salons, clinics, repair shops, consultancies. Teams tired of Excel plus asking three people.",
     },
     faqTitle: "Questions people actually ask",
     faqs: [
@@ -180,11 +180,11 @@ const COPY = {
       },
       {
         q: "Does AI answer every message?",
-        a: "It helps within your rules — especially bookings and common questions. For special cases you see it in the panel and step in.",
+        a: "It helps within your rules, especially bookings and common questions. For special cases you see it in the panel and step in.",
       },
       {
         q: "Won’t it give a wrong time or wrong info?",
-        a: "Answers come from the hours, services, and availability you set. Empty settings need fixing first — it’s a system you configure, not magic.",
+        a: "Answers come from the hours, services, and availability you set. Empty settings need fixing first. It’s a system you configure, not magic.",
       },
       {
         q: "Can staff who aren’t “computer people” use it?",
@@ -192,7 +192,7 @@ const COPY = {
       },
       {
         q: "What about my old notebook / Excel?",
-        a: "During setup we talk through import versus a clean start. We don’t promise a one-click miracle migration.",
+        a: "During setup we talk through import versus a clean start. We don’t promise a one click miracle migration.",
       },
       {
         q: "What if the internet drops?",
@@ -204,14 +204,14 @@ const COPY = {
       },
       {
         q: "Is my customer data safe?",
-        a: "Each business works in its own space. Sign-in uses username/password, with extra verification when needed.",
+        a: "Each business works in its own space. Sign in uses username/password, with extra verification when needed.",
       },
     ],
     cta: {
       title: "Let’s see if it fits.",
-      text: "Tell us how your day runs. We’ll say clearly what’s useful — and what you don’t need.",
+      text: "Tell us how your day runs. We’ll say clearly what’s useful, and what you don’t need.",
       primary: "Contact us",
-      secondary: "Business sign-in",
+      secondary: "Business sign in",
     },
   },
 } as const;

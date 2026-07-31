@@ -1,0 +1,535 @@
+import type { AptStatus, DemoNavKey } from "./data";
+import type { Locale } from "@/lib/locale-context";
+
+export type GuideCopy = { title: string; shortTitle: string; summary: string; points: string[] };
+
+export const PANEL_COPY = {
+  tr: {
+    home: "Ana sayfa",
+    whatIsThis: "Bu sayfa nedir?",
+    login: "Giriş",
+    guideEyebrow: "Bu sayfa ne işe yarar?",
+    guideClose: "Anladım, incelemeye devam",
+    nav: {
+      overview: "Özet",
+      appointments: "Randevular",
+      messages: "Mesajlar",
+      workflow: "İş Akışı",
+      crm: "Müşteri Defteri",
+      campaigns: "Kampanyalar",
+      pricing: "Fiyat Listesi",
+      packages: "Paket ve Seans",
+      staff: "Personel",
+      settings: "Ayarlar",
+    } satisfies Record<DemoNavKey, string>,
+    status: {
+      pending: "Bekliyor",
+      confirmed: "Onaylı",
+      completed: "Tamamlandı",
+      cancelled: "İptal",
+      no_show: "Gelmedi",
+    } satisfies Record<AptStatus, string>,
+    toast: {
+      status: (label: string) => `Randevu durumu: ${label}`,
+      approved: "Bekleyen randevular onaylandı",
+      winback: "Geri kazanım taslağı kampanyalara taşındı",
+      reminders: "Yarınki hatırlatmalar kuyruğa alındı",
+      alertResolved: "Bildirim çözüldü",
+      replySent: "Yanıt gönderildi",
+      campaignSent: "Kampanya gönderildi (28 alıcı)",
+      settingsSaved: "Ayarlar kaydedildi",
+      apptForm: "Randevu formu açıldı",
+    },
+    overview: {
+      addApt: "Randevu Ekle",
+      today: "Bugün",
+      monthly: "Aylık",
+      fill: "Doluluk",
+      rating: "Puan",
+      aptHint: "randevu",
+      rateHint: "oran",
+      avgHint: "ortalama",
+      commandTitle: "Kontrol Merkezi",
+      commandSub: "Gelir ve günlük aksiyonları buradan yönetin",
+      kpiRevenue: "Aylık Ciro",
+      kpiFill: "Doluluk",
+      kpiNoShow: "Gelmeme",
+      kpiRisk: "Riskli Müşteri",
+      impact: (n: string) => `Tahmini etki: ${n} ₺`,
+      running: "Çalışıyor…",
+      alertsTitle: "Açık bildirimler",
+      alertsEmpty: "Tüm bildirimler çözüldü.",
+      resolve: "Çözüldü",
+      todaySchedule: "Bugünün programı",
+      code: (code: string) => `İşletme kodu: ${code}`,
+    },
+    appointments: {
+      today: "Bugün",
+      tomorrow: "Yarın",
+      all: "Tümü",
+      add: "Randevu Ekle",
+      minutes: "dk",
+      confirm: "Onayla",
+      reject: "Reddet",
+      complete: "Tamamla",
+      noShow: "Gelmedi",
+      cancel: "İptal",
+    },
+    messages: {
+      inbox: "Gelen kutusu",
+      viaWhatsapp: "WhatsApp",
+      fromCustomer: "Müşteri",
+      fromBot: "Asistan",
+      fromStaff: "Siz",
+      placeholder: "Yanıt yazın…",
+      send: "Gönder",
+      pick: "Sohbet seçin",
+      now: "Şimdi",
+      yesterday: "Dün",
+    },
+    workflow: {
+      empty: "Boş",
+      moveTo: (label: string) => `Taşı: ${label}`,
+    },
+    crm: {
+      search: "İsim, telefon, etiket…",
+      visits: "Ziyaret",
+      lastVisit: "Son ziyaret",
+      total: "Toplam",
+      note: "Personel notu",
+    },
+    campaigns: {
+      newTitle: "Yeni kampanya",
+      filter: "Filtre: 30 günden fazla gelmeyen, 28 alıcı, WhatsApp",
+      send: "Gönder",
+      history: "Geçmiş gönderimler",
+      sentLine: (channel: string, sent: number, total: number, failed: number) =>
+        failed > 0
+          ? `${channel}: ${sent}/${total} başarılı, ${failed} başarısız`
+          : `${channel}: ${sent}/${total} başarılı`,
+    },
+    pricing: {
+      title: "Hizmet kataloğu",
+      minutes: "dk",
+      active: "Aktif",
+      inactive: "Pasif",
+    },
+    packages: {
+      remaining: (expires: string) => `kalan seans, bitiş ${expires}`,
+    },
+    staff: {
+      off: "İzinli",
+      on: "Sahada",
+      todayApts: (n: number) => `Bugün: ${n} randevu`,
+      hours: (h: string) => `Saatler: ${h}`,
+    },
+    settings: {
+      info: "İşletme bilgisi",
+      name: "Ad",
+      code: "Kod",
+      whatsapp: "WhatsApp",
+      sector: "Sektör",
+      hoursTitle: "Çalışma saatleri",
+      hours: ["Pzt Cum 09:00 / 19:00", "Cumartesi 10:00 / 18:00", "Pazar Kapalı"],
+      welcome: "Karşılama mesajı",
+      save: "Kaydet",
+      links: "Vitrin bağlantıları",
+      linksHint: "WhatsApp kısa link ve QR kod buradan kopyalanır veya indirilir.",
+      qr: "QR, Salon Mira",
+    },
+    actions: {
+      act1Title: "Bekleyen 2 randevuyu onayla",
+      act1Desc: "WhatsApp’tan gelen talepler müşteriye dönüş için onayınızı bekliyor.",
+      act1Cta: "Onayla",
+      act2Title: "Hande Kılıç’a geri kazanım gönder",
+      act2Desc: "41 gündür gelmeyen paket müşterisine hazır mesaj şablonu var.",
+      act2Cta: "Mesajı hazırla",
+      act3Title: "Yarın için hatırlatma gönder",
+      act3Desc: "Yarınki 2 randevuya otomatik hatırlatma kuyruğa alınabilir.",
+      act3Cta: "Kuyruğa al",
+    },
+    campaignDraft:
+      "Merhaba {{ad}}, sizi özledik. Bu hafta bakımda %15. Yazmanız yeterli.",
+    welcomeMsg:
+      "Merhaba! Salon Mira’ya hoş geldiniz. Randevu, fiyat veya müsait saat için yazmanız yeterli.",
+    guides: {
+      overview: {
+        title: "Özet",
+        shortTitle: "Özet",
+        summary:
+          "Panele girdiğinizde ilk gördüğünüz ekran budur. Bugünün nabzını, gelir durumunu ve hemen aksiyon gerektiren işleri tek bakışta verir.",
+        points: [
+          "Aylık ciro, doluluk, gelmeme oranı ve riskli müşteri sayıları canlı güncellenir.",
+          "Önerilen aksiyonlar (hatırlatma, geri kazanım, onay bekleyenler) tek tıkla çalıştırılır.",
+          "Açık bildirimler (gecikme, iptal, gelmeme) burada listelenir; çözdüğünüzde listeden düşer.",
+          "Bu veriler WhatsApp randevularınız ve işletme ayarlarınızdan üretilir.",
+        ],
+      },
+      appointments: {
+        title: "Randevular",
+        shortTitle: "Randevular",
+        summary:
+          "Günün ve haftanın tüm randevularını görür, onaylar, iptal eder veya gelmedi işaretlersiniz. Yeni randevu da buradan eklenir.",
+        points: [
+          "Durumlar: Bekliyor, Onaylı, Tamamlandı, İptal, Gelmedi.",
+          "Her kartta müşteri, hizmet, personel, süre ve fiyat görünür.",
+          "Onay ve iptal butonları müşteriye WhatsApp bilgilendirmesi tetikleyebilir.",
+          "Personel ve tarih filtreleriyle ekip temposunu ayırırsınız.",
+        ],
+      },
+      messages: {
+        title: "Mesajlar",
+        shortTitle: "Mesajlar",
+        summary:
+          "Müşterilerin yazdığı sohbetler burada toplanır. Asistan çoğu soruyu yanıtlar; siz özel durumlarda devralırsınız.",
+        points: [
+          "Okunmamış sohbetler üstte ve rozetle işaretlenir.",
+          "Asistan cevapları ile personel cevapları aynı akışta görünür.",
+          "Randevu talebi sohbetten randevu kartına bağlanır.",
+          "WhatsApp hattınız bu listeyi canlı besler.",
+        ],
+      },
+      workflow: {
+        title: "İş Akışı",
+        shortTitle: "İş Akışı",
+        summary:
+          "Randevuları sütunlar arasında taşıyarak ekibin ortak durum tahtasını yönetirsiniz.",
+        points: [
+          "Sütunlar: Bekleyen, Onaylı, Tamamlandı, İptal, Gelmedi.",
+          "Yoğun günlerde kim nerede sorusuna hızlı cevap verir.",
+          "Gelmedi ve iptal sütunları kampanya veya hatırlatma fırsatına dönüşür.",
+        ],
+      },
+      crm: {
+        title: "Müşteri Defteri",
+        shortTitle: "Müşteri Defteri",
+        summary:
+          "Kim geldi, ne yaptırdı, hangi not bırakıldı: hepsi telefon numarasına bağlı bir defterde kalır.",
+        points: [
+          "Etiketler (VIP, renk, paket) kampanya ve filtrelerde kullanılır.",
+          "Notlar bir sonraki ziyarette personele hatırlatılır.",
+          "Son ziyaret ve toplam harcama ile uzaklaşan müşteriyi görürsünüz.",
+        ],
+      },
+      campaigns: {
+        title: "Kampanyalar",
+        shortTitle: "Kampanyalar",
+        summary:
+          "Seçtiğiniz kitleye WhatsApp veya SMS ile kampanya gönderirsiniz. Geçmiş gönderimler burada durur.",
+        points: [
+          "Etikete veya 30 gündür gelmeyen gibi filtrelere göre alıcı seçilir.",
+          "Gönderim öncesi önizleme ve alıcı sayısı görünür.",
+          "Başarı ve başarısız sayıları kayıt altına alınır.",
+        ],
+      },
+      pricing: {
+        title: "Fiyat Listesi",
+        shortTitle: "Fiyat Listesi",
+        summary:
+          "Asistanın ve panelin kullandığı resmi fiyat ve süre listesi buradadır. Müşteri fiyat sorunca buradan cevaplanır.",
+        points: [
+          "Hizmet adı, süre, fiyat ve aktif veya pasif durumu.",
+          "Güncelleme hem sohbete hem randevu formuna yansır.",
+          "Paketli hizmetler paket ekranıyla birlikte çalışır.",
+        ],
+      },
+      packages: {
+        title: "Paket ve Seans",
+        shortTitle: "Paket ve Seans",
+        summary:
+          "Çok seanslı bakım paketlerini satar, kalan seansı ve bitiş tarihini buradan izlersiniz.",
+        points: [
+          "Müşteri paketten randevu aldıkça kalan hak düşer.",
+          "Biten paketler yenileme kampanyasına aday olur.",
+        ],
+      },
+      staff: {
+        title: "Personel",
+        shortTitle: "Personel",
+        summary:
+          "Kim hangi hizmeti veriyor, çalışma günleri nedir, bugün doluluk nasıl: personel bazlı planlama buradadır.",
+        points: [
+          "Müşteri belirli bir personel isterse tercih buradan okunur.",
+          "İzin ve kapalı günler takvime işlenir.",
+        ],
+      },
+      settings: {
+        title: "Ayarlar",
+        shortTitle: "Ayarlar",
+        summary:
+          "Çalışma saatleri, karşılama mesajı, WhatsApp bağlantısı, QR kod ve bildirim tercihleri burada tanımlanır.",
+        points: [
+          "Saatler boşsa asistan doğru randevu veremez. Önce burası doldurulur.",
+          "Karşılama metni ilk mesajda otomatik gider.",
+          "QR ve kısa link vitrininize asılır; müşteri tek dokunuşla yazar.",
+        ],
+      },
+    } satisfies Record<DemoNavKey, GuideCopy>,
+  },
+  en: {
+    home: "Home",
+    whatIsThis: "What is this page?",
+    login: "Sign in",
+    guideEyebrow: "What is this page for?",
+    guideClose: "Got it, continue exploring",
+    nav: {
+      overview: "Overview",
+      appointments: "Appointments",
+      messages: "Messages",
+      workflow: "Workflow",
+      crm: "Customer Book",
+      campaigns: "Campaigns",
+      pricing: "Pricing",
+      packages: "Packages",
+      staff: "Staff",
+      settings: "Settings",
+    } satisfies Record<DemoNavKey, string>,
+    status: {
+      pending: "Pending",
+      confirmed: "Confirmed",
+      completed: "Completed",
+      cancelled: "Cancelled",
+      no_show: "No show",
+    } satisfies Record<AptStatus, string>,
+    toast: {
+      status: (label: string) => `Appointment status: ${label}`,
+      approved: "Pending appointments confirmed",
+      winback: "Win back draft moved to campaigns",
+      reminders: "Tomorrow’s reminders queued",
+      alertResolved: "Alert resolved",
+      replySent: "Reply sent",
+      campaignSent: "Campaign sent (28 recipients)",
+      settingsSaved: "Settings saved",
+      apptForm: "Appointment form opened",
+    },
+    overview: {
+      addApt: "Add appointment",
+      today: "Today",
+      monthly: "Monthly",
+      fill: "Fill rate",
+      rating: "Rating",
+      aptHint: "bookings",
+      rateHint: "rate",
+      avgHint: "average",
+      commandTitle: "Command Center",
+      commandSub: "Manage revenue and daily actions from here",
+      kpiRevenue: "Monthly revenue",
+      kpiFill: "Fill rate",
+      kpiNoShow: "No show",
+      kpiRisk: "At risk customers",
+      impact: (n: string) => `Estimated impact: ${n} TRY`,
+      running: "Running…",
+      alertsTitle: "Open alerts",
+      alertsEmpty: "All alerts are resolved.",
+      resolve: "Resolve",
+      todaySchedule: "Today’s schedule",
+      code: (code: string) => `Business code: ${code}`,
+    },
+    appointments: {
+      today: "Today",
+      tomorrow: "Tomorrow",
+      all: "All",
+      add: "Add appointment",
+      minutes: "min",
+      confirm: "Confirm",
+      reject: "Decline",
+      complete: "Complete",
+      noShow: "No show",
+      cancel: "Cancel",
+    },
+    messages: {
+      inbox: "Inbox",
+      viaWhatsapp: "WhatsApp",
+      fromCustomer: "Customer",
+      fromBot: "Assistant",
+      fromStaff: "You",
+      placeholder: "Write a reply…",
+      send: "Send",
+      pick: "Select a chat",
+      now: "Now",
+      yesterday: "Yesterday",
+    },
+    workflow: {
+      empty: "Empty",
+      moveTo: (label: string) => `Move: ${label}`,
+    },
+    crm: {
+      search: "Name, phone, tag…",
+      visits: "Visits",
+      lastVisit: "Last visit",
+      total: "Total",
+      note: "Staff note",
+    },
+    campaigns: {
+      newTitle: "New campaign",
+      filter: "Filter: inactive 30+ days, 28 recipients, WhatsApp",
+      send: "Send",
+      history: "Past sends",
+      sentLine: (channel: string, sent: number, total: number, failed: number) =>
+        failed > 0
+          ? `${channel}: ${sent}/${total} delivered, ${failed} failed`
+          : `${channel}: ${sent}/${total} delivered`,
+    },
+    pricing: {
+      title: "Service catalog",
+      minutes: "min",
+      active: "Active",
+      inactive: "Inactive",
+    },
+    packages: {
+      remaining: (expires: string) => `sessions left, ends ${expires}`,
+    },
+    staff: {
+      off: "Off",
+      on: "On floor",
+      todayApts: (n: number) => `Today: ${n} bookings`,
+      hours: (h: string) => `Hours: ${h}`,
+    },
+    settings: {
+      info: "Business info",
+      name: "Name",
+      code: "Code",
+      whatsapp: "WhatsApp",
+      sector: "Sector",
+      hoursTitle: "Working hours",
+      hours: ["Mon to Fri 09:00 / 19:00", "Saturday 10:00 / 18:00", "Sunday Closed"],
+      welcome: "Welcome message",
+      save: "Save",
+      links: "Storefront links",
+      linksHint: "Copy or download your WhatsApp short link and QR code here.",
+      qr: "QR, Salon Mira",
+    },
+    actions: {
+      act1Title: "Confirm 2 pending appointments",
+      act1Desc: "WhatsApp requests are waiting for your confirmation before the customer is notified.",
+      act1Cta: "Confirm",
+      act2Title: "Send win back to Hande Kılıç",
+      act2Desc: "A packaged customer inactive for 41 days has a ready message template.",
+      act2Cta: "Prepare message",
+      act3Title: "Send tomorrow’s reminders",
+      act3Desc: "Automatic reminders for tomorrow’s 2 appointments can be queued.",
+      act3Cta: "Queue",
+    },
+    campaignDraft:
+      "Hi {{name}}, we miss you. Enjoy 15% off care this week. Just message us to book.",
+    welcomeMsg:
+      "Hi! Welcome to Salon Mira. Ask about bookings, prices, or availability anytime.",
+    guides: {
+      overview: {
+        title: "Overview",
+        shortTitle: "Overview",
+        summary:
+          "This is the first screen you see after signing in. It shows today’s pulse, revenue signals, and work that needs action now.",
+        points: [
+          "Monthly revenue, fill rate, no show rate, and at risk customers update live.",
+          "Suggested actions (reminders, win back, pending confirmations) run in one click.",
+          "Open alerts (delays, cancellations, no shows) appear here and drop off when resolved.",
+          "These numbers come from your WhatsApp bookings and business settings.",
+        ],
+      },
+      appointments: {
+        title: "Appointments",
+        shortTitle: "Appointments",
+        summary:
+          "See the day and week, confirm or cancel, mark no shows, and add new bookings from one place.",
+        points: [
+          "Statuses: Pending, Confirmed, Completed, Cancelled, No show.",
+          "Each card shows customer, service, staff, duration, and price.",
+          "Confirm and cancel can trigger WhatsApp updates to the customer.",
+          "Filter by staff and date to match how your team works.",
+        ],
+      },
+      messages: {
+        title: "Messages",
+        shortTitle: "Messages",
+        summary:
+          "Customer chats land here. The assistant handles most questions; you step in for special cases.",
+        points: [
+          "Unread chats stay on top with a badge.",
+          "Assistant and staff replies share the same thread.",
+          "Booking requests connect from chat to appointment cards.",
+          "Your WhatsApp line feeds this inbox live.",
+        ],
+      },
+      workflow: {
+        title: "Workflow",
+        shortTitle: "Workflow",
+        summary: "Move appointments across columns so the whole team shares one status board.",
+        points: [
+          "Columns: Pending, Confirmed, Completed, Cancelled, No show.",
+          "On busy days it answers who is where, quickly.",
+          "No show and cancelled columns turn into reminder or campaign opportunities.",
+        ],
+      },
+      crm: {
+        title: "Customer Book",
+        shortTitle: "Customer Book",
+        summary:
+          "Who came, what they booked, and which notes were left: all stay on a phone linked record.",
+        points: [
+          "Tags (VIP, color, package) power campaigns and filters.",
+          "Notes surface for staff on the next visit.",
+          "Last visit and total spend help you spot fading customers.",
+        ],
+      },
+      campaigns: {
+        title: "Campaigns",
+        shortTitle: "Campaigns",
+        summary:
+          "Send WhatsApp or SMS campaigns to a chosen audience. Past sends stay here for history.",
+        points: [
+          "Pick recipients by tag or filters like inactive for 30 days.",
+          "Preview and recipient count show before you send.",
+          "Delivered and failed counts are logged.",
+        ],
+      },
+      pricing: {
+        title: "Pricing",
+        shortTitle: "Pricing",
+        summary:
+          "This is the official price and duration list used by the assistant and the panel when customers ask what something costs.",
+        points: [
+          "Service name, duration, price, and active or inactive state.",
+          "Updates flow into chat and the booking form.",
+          "Packaged services work together with the packages screen.",
+        ],
+      },
+      packages: {
+        title: "Packages",
+        shortTitle: "Packages",
+        summary: "Sell multi session care packages and track remaining sessions and end dates here.",
+        points: [
+          "Remaining credits drop as the customer books from the package.",
+          "Finished packages become renewals campaign candidates.",
+        ],
+      },
+      staff: {
+        title: "Staff",
+        shortTitle: "Staff",
+        summary:
+          "Who offers which service, working days, and today’s load: staff planning lives here.",
+        points: [
+          "If a customer asks for a specific person, the preference is read from here.",
+          "Time off and closed days land on the calendar.",
+        ],
+      },
+      settings: {
+        title: "Settings",
+        shortTitle: "Settings",
+        summary:
+          "Working hours, welcome message, WhatsApp connection, QR code, and notification preferences are defined here.",
+        points: [
+          "If hours are empty the assistant cannot book correctly. Fill this first.",
+          "The welcome text sends automatically on the first message.",
+          "QR and short links go on your storefront so customers can message in one tap.",
+        ],
+      },
+    } satisfies Record<DemoNavKey, GuideCopy>,
+  },
+} as const;
+
+export type PanelCopy = (typeof PANEL_COPY)[Locale];
+
+export function getPanelCopy(locale: Locale): PanelCopy {
+  return PANEL_COPY[locale];
+}

@@ -398,20 +398,20 @@ export default function Home() {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{LANDING_SCHEDULE.business}</p>
-                    <p className="mt-0.5 text-xs capitalize text-slate-500">{LANDING_SCHEDULE.dateLabel()}</p>
+                    <p className="mt-0.5 text-xs capitalize text-slate-500">{LANDING_SCHEDULE.dateLabel(locale)}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{t.preview.title}</p>
                     <p className="mt-0.5 text-[11px] text-slate-500">
-                      {LANDING_SCHEDULE.summary.confirmed} {locale === "tr" ? "onaylı" : "confirmed"} ·{" "}
-                      {LANDING_SCHEDULE.summary.pending} {locale === "tr" ? "bekliyor" : "pending"} ·{" "}
+                      {LANDING_SCHEDULE.summary.confirmed} {locale === "tr" ? "onaylı" : "confirmed"},{" "}
+                      {LANDING_SCHEDULE.summary.pending} {locale === "tr" ? "bekliyor" : "pending"},{" "}
                       {LANDING_SCHEDULE.summary.capacity} {locale === "tr" ? "doluluk" : "fill"}
                     </p>
                   </div>
                 </div>
               </div>
               <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                {LANDING_SCHEDULE.rows.map((row) => {
+                {LANDING_SCHEDULE.rows(locale).map((row) => {
                   const statusLabel = t.preview.status[row.status];
                   const statusClass =
                     row.status === "completed"
@@ -443,7 +443,7 @@ export default function Home() {
                           )}
                         </p>
                         <p className="truncate text-xs text-slate-500">
-                          {row.service} · {row.staff}
+                          {row.service}, {row.staff}
                         </p>
                       </div>
                       <span className={`rounded-md px-2 py-1 text-[11px] font-semibold ${statusClass}`}>

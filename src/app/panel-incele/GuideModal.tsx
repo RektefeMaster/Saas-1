@@ -2,25 +2,32 @@
 
 import { X } from "lucide-react";
 import type { DemoNavKey } from "./data";
-import { DEMO_GUIDES } from "./data";
+import type { PanelCopy } from "./i18n";
 
 export function GuideModal({
   navKey,
+  copy,
   onClose,
 }: {
   navKey: DemoNavKey;
+  copy: PanelCopy;
   onClose: () => void;
 }) {
-  const guide = DEMO_GUIDES[navKey];
+  const guide = copy.guides[navKey];
 
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/45 p-4 sm:items-center" role="dialog" aria-modal="true" aria-labelledby="demo-guide-title">
-      <button type="button" className="absolute inset-0 cursor-default" aria-label="Kapat" onClick={onClose} />
+    <div
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/45 p-4 sm:items-center"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="demo-guide-title"
+    >
+      <button type="button" className="absolute inset-0 cursor-default" aria-label={copy.guideClose} onClick={onClose} />
       <div className="relative w-full max-w-lg overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900">
         <div className="flex items-start justify-between gap-3 border-b border-slate-100 px-5 py-4 dark:border-slate-800">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-emerald-700 dark:text-emerald-400">
-              Bu sayfa ne işe yarar?
+              {copy.guideEyebrow}
             </p>
             <h2 id="demo-guide-title" className="mt-1 text-lg font-bold tracking-tight text-slate-900 dark:text-slate-50">
               {guide.title}
@@ -54,7 +61,7 @@ export function GuideModal({
             onClick={onClose}
             className="inline-flex min-h-11 w-full items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white hover:bg-emerald-700"
           >
-            Anladım, incelemeye devam
+            {copy.guideClose}
           </button>
         </div>
       </div>
