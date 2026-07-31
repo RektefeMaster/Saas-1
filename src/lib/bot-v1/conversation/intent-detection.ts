@@ -8,8 +8,6 @@ import {
   GREETING_KEYWORDS,
   SMALLTALK_KEYWORDS,
   NEGOTIATION_KEYWORDS,
-  COMPLEX_KEYWORDS,
-  COMPLEX_PATTERN,
 } from "./constants";
 
 export function isAskNameIntent(message: string): boolean {
@@ -147,13 +145,17 @@ export function detectGlobalInterruptIntent(message: string): GlobalInterruptInt
   return null;
 }
 
-/** Basit (selam, tek fiyat, tek randevu sorusu) → mini; karmaşık (pazarlık, çoklu adım, iptal) → 4o. */
-export async function classifyIntentForRouting(incomingMessage: string): Promise<"simple" | "complex"> {
-  const t = normalizeIncomingText(incomingMessage);
-  if (COMPLEX_KEYWORDS.some((k) => t.includes(k))) return "complex";
-  if (COMPLEX_PATTERN.test(t)) return "complex";
-  if (t.includes(" ve ") && (t.includes("yarin") || t.includes("bugun") || t.includes("hafta"))) {
-    return "complex";
-  }
+/** Tüm trafik Luna; kademeli model routing yok. */
+export function classifyModelRouting(_incomingMessage: string): {
+  tier: "simple" | "complex";
+  reason: "simple";
+} {
+  return { tier: "simple", reason: "simple" };
+}
+
+/** @deprecated Prefer classifyModelRouting. Her zaman simple (Luna). */
+export async function classifyIntentForRouting(
+  _incomingMessage: string
+): Promise<"simple" | "complex"> {
   return "simple";
 }
