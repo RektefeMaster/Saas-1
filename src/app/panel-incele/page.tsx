@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import {
   ArrowLeft,
   BarChart3,
@@ -23,6 +23,7 @@ import {
   Send,
   Settings,
   Target,
+  Trash2,
   UserRound,
   Users,
   X,
@@ -40,6 +41,7 @@ import {
   getDemoCampaigns,
   getDemoCustomers,
   getDemoMessages,
+  getDemoPackageDefs,
   getDemoPackages,
   getDemoPricing,
   getDemoStaff,
@@ -48,8 +50,12 @@ import {
   type DemoAlert,
   type DemoAppointment,
   type DemoCustomer,
+  type DemoCustomerPackage,
   type DemoMessage,
   type DemoNavKey,
+  type DemoPackageDef,
+  type DemoPricingItem,
+  type DemoStaffMember,
 } from "./data";
 import { getPanelCopy, type PanelCopy } from "./i18n";
 
@@ -117,7 +123,6 @@ export default function PanelIncelePage() {
   const { locale } = useLocale();
   const t = useMemo(() => getPanelCopy(locale), [locale]);
   const business = useMemo(() => getDemoBusiness(locale), [locale]);
-  const customers = useMemo(() => getDemoCustomers(locale), [locale]);
   const actions = useMemo(() => buildActions(t), [t]);
 
   const [nav, setNav] = useState<DemoNavKey>("overview");
@@ -127,6 +132,13 @@ export default function PanelIncelePage() {
   );
   const [alerts, setAlerts] = useState<DemoAlert[]>(() => getInitialAlerts(locale));
   const [messages, setMessages] = useState<DemoMessage[]>(() => getDemoMessages(locale));
+  const [customers, setCustomers] = useState<DemoCustomer[]>(() => getDemoCustomers(locale));
+  const [pricing, setPricing] = useState<DemoPricingItem[]>(() => getDemoPricing(locale));
+  const [packageDefs, setPackageDefs] = useState<DemoPackageDef[]>(() => getDemoPackageDefs(locale));
+  const [customerPackages, setCustomerPackages] = useState<DemoCustomerPackage[]>(() =>
+    getDemoPackages(locale)
+  );
+  const [staff, setStaff] = useState<DemoStaffMember[]>(() => getDemoStaff(locale));
   const [selectedMessage, setSelectedMessage] = useState<string>(
     () => getDemoMessages(locale)[0]?.id ?? ""
   );
@@ -149,6 +161,11 @@ export default function PanelIncelePage() {
     setAppointments(buildInitialAppointments(locale));
     setAlerts(getInitialAlerts(locale));
     setMessages(msgs);
+    setCustomers(custs);
+    setPricing(getDemoPricing(locale));
+    setPackageDefs(getDemoPackageDefs(locale));
+    setCustomerPackages(getDemoPackages(locale));
+    setStaff(getDemoStaff(locale));
     setSelectedMessage(msgs[0]?.id ?? "");
     setSelectedCustomer(custs[0]?.id ?? "");
     setCampaignDraft(copy.campaignDraft);
@@ -405,8 +422,13 @@ export default function PanelIncelePage() {
                 copy={t}
                 locale={locale}
                 appointments={appointments}
+                services={pricing.filter((p) => p.active)}
+                staffOptions={staff.filter((s) => !s.off)}
                 onUpdateStatus={updateStatus}
-                onToast={showToast}
+                onAdd={(apt) => {
+                  setAppointments((prev) => [apt, ...prev]);
+                  showToast(t.appointments.added);
+                }}
               />
             )}
             {nav === "messages" && (
@@ -423,7 +445,7 @@ export default function PanelIncelePage() {
             {nav === "workflow" && (
               <WorkflowView copy={t} columns={workflowColumns} onMove={(id, status) => updateStatus(id, status)} />
             )}
-            {nav === "crm" && (
+            {nav === "crm" && activeCustomer && (
               <CrmView
                 copy={t}
                 locale={locale}
@@ -432,6 +454,10 @@ export default function PanelIncelePage() {
                 query={crmQuery}
                 onQuery={setCrmQuery}
                 onSelect={setSelectedCustomer}
+                onSaveNote={(id, note) => {
+                  setCustomers((prev) => prev.map((c) => (c.id === id ? { ...c, notes: note } : c)));
+                  showToast(t.crm.noteSaved);
+                }}
               />
             )}
             {nav === "campaigns" && (
@@ -443,9 +469,37 @@ export default function PanelIncelePage() {
                 onSend={() => showToast(t.toast.campaignSent)}
               />
             )}
-            {nav === "pricing" && <PricingView copy={t} locale={locale} />}
-            {nav === "packages" && <PackagesView copy={t} locale={locale} />}
-            {nav === "staff" && <StaffView copy={t} locale={locale} />}
+            {nav === "pricing" && (
+              <PricingView
+                copy={t}
+                locale={locale}
+                items={pricing}
+                onChange={setPricing}
+                onToast={showToast}
+              />
+            )}
+            {nav === "packages" && (
+              <PackagesView
+                copy={t}
+                locale={locale}
+                defs={packageDefs}
+                customerPackages={customerPackages}
+                customers={customers}
+                onDefsChange={setPackageDefs}
+                onCustomerPackagesChange={setCustomerPackages}
+                onToast={showToast}
+              />
+            )}
+            {nav === "staff" && (
+              <StaffView
+                copy={t}
+                staff={staff}
+                onToggle={(id) => {
+                  setStaff((prev) => prev.map((s) => (s.id === id ? { ...s, off: !s.off } : s)));
+                  showToast(t.staff.updated);
+                }}
+              />
+            )}
             {nav === "settings" && (
               <SettingsView
                 copy={t}
@@ -709,18 +763,83 @@ function AppointmentsView({
   copy,
   locale,
   appointments,
+  services,
+  staffOptions,
   onUpdateStatus,
-  onToast,
+  onAdd,
 }: {
   copy: PanelCopy;
   locale: Locale;
   appointments: DemoAppointment[];
+  services: DemoPricingItem[];
+  staffOptions: DemoStaffMember[];
   onUpdateStatus: (id: string, status: AptStatus) => void;
-  onToast: (msg: string) => void;
+  onAdd: (apt: DemoAppointment) => void;
 }) {
   const a = copy.appointments;
   const [filter, setFilter] = useState<"all" | "today" | "tomorrow">("today");
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({
+    customer: "",
+    phone: "",
+    serviceId: services[0]?.id ?? "",
+    staffId: staffOptions[0]?.id ?? "",
+    time: "12:00",
+    duration: String(services[0]?.duration ?? 30),
+    price: String(services[0]?.price ?? 0),
+    dayKey: "today" as "today" | "tomorrow",
+  });
+
+  useEffect(() => {
+    if (!form.serviceId && services[0]) {
+      setForm((f) => ({
+        ...f,
+        serviceId: services[0].id,
+        duration: String(services[0].duration),
+        price: String(services[0].price),
+      }));
+    }
+  }, [services, form.serviceId]);
+
   const list = appointments.filter((apt) => (filter === "all" ? true : apt.dayKey === filter));
+
+  const submit = (e: FormEvent) => {
+    e.preventDefault();
+    if (!form.customer.trim()) return;
+    const service = services.find((s) => s.id === form.serviceId) ?? services[0];
+    const member = staffOptions.find((s) => s.id === form.staffId) ?? staffOptions[0];
+    const duration = Number(form.duration) || 30;
+    const [hh, mm] = form.time.split(":").map(Number);
+    const endDate = new Date();
+    endDate.setHours(hh || 12, (mm || 0) + duration, 0, 0);
+    const end = endDate.toLocaleTimeString(locale === "tr" ? "tr-TR" : "en-GB", {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    });
+    const day = new Date();
+    if (form.dayKey === "tomorrow") day.setDate(day.getDate() + 1);
+    onAdd({
+      id: `a-${Date.now()}`,
+      time: form.time,
+      end,
+      dateLabel: day.toLocaleDateString(locale === "tr" ? "tr-TR" : "en-GB", {
+        weekday: "long",
+        day: "numeric",
+        month: "long",
+      }),
+      dayKey: form.dayKey,
+      customer: form.customer.trim(),
+      phone: form.phone.trim() || "0500 000 00 00",
+      service: service?.name ?? "",
+      staff: member?.name ?? "",
+      duration,
+      price: Number(form.price) || 0,
+      status: "pending",
+    });
+    setShowForm(false);
+    setForm((f) => ({ ...f, customer: "", phone: "" }));
+  };
 
   return (
     <div className="space-y-4">
@@ -747,13 +866,131 @@ function AppointmentsView({
         </div>
         <button
           type="button"
-          onClick={() => onToast(copy.toast.apptForm)}
+          onClick={() => setShowForm((v) => !v)}
           className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white"
         >
           <Plus className="h-4 w-4" />
           {a.add}
         </button>
       </div>
+
+      {showForm && (
+        <form onSubmit={submit} className="panel-surface space-y-3 p-4">
+          <h3 className="font-semibold">{a.formTitle}</h3>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-500">{a.customer}</span>
+              <input
+                required
+                value={form.customer}
+                onChange={(e) => setForm((f) => ({ ...f, customer: e.target.value }))}
+                className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-500">{a.phone}</span>
+              <input
+                value={form.phone}
+                onChange={(e) => setForm((f) => ({ ...f, phone: e.target.value }))}
+                className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-500">{a.service}</span>
+              <select
+                value={form.serviceId}
+                onChange={(e) => {
+                  const svc = services.find((s) => s.id === e.target.value);
+                  setForm((f) => ({
+                    ...f,
+                    serviceId: e.target.value,
+                    duration: String(svc?.duration ?? f.duration),
+                    price: String(svc?.price ?? f.price),
+                  }));
+                }}
+                className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+              >
+                {services.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-500">{a.staff}</span>
+              <select
+                value={form.staffId}
+                onChange={(e) => setForm((f) => ({ ...f, staffId: e.target.value }))}
+                className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+              >
+                {staffOptions.map((s) => (
+                  <option key={s.id} value={s.id}>
+                    {s.name}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-500">{a.time}</span>
+              <input
+                type="time"
+                value={form.time}
+                onChange={(e) => setForm((f) => ({ ...f, time: e.target.value }))}
+                className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-500">{a.day}</span>
+              <select
+                value={form.dayKey}
+                onChange={(e) =>
+                  setForm((f) => ({ ...f, dayKey: e.target.value as "today" | "tomorrow" }))
+                }
+                className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+              >
+                <option value="today">{a.today}</option>
+                <option value="tomorrow">{a.tomorrow}</option>
+              </select>
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-500">{a.duration}</span>
+              <input
+                type="number"
+                min={15}
+                value={form.duration}
+                onChange={(e) => setForm((f) => ({ ...f, duration: e.target.value }))}
+                className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+              />
+            </label>
+            <label className="text-sm">
+              <span className="mb-1 block text-slate-500">{a.price}</span>
+              <input
+                type="number"
+                min={0}
+                value={form.price}
+                onChange={(e) => setForm((f) => ({ ...f, price: e.target.value }))}
+                className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+              />
+            </label>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="submit"
+              className="inline-flex min-h-11 items-center rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white"
+            >
+              {a.save}
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowForm(false)}
+              className="inline-flex min-h-11 items-center rounded-xl border border-slate-200 px-4 text-sm font-semibold dark:border-slate-700"
+            >
+              {a.close}
+            </button>
+          </div>
+        </form>
+      )}
 
       <div className="space-y-3">
         {list.map((apt) => (
@@ -1016,6 +1253,7 @@ function CrmView({
   query,
   onQuery,
   onSelect,
+  onSaveNote,
 }: {
   copy: PanelCopy;
   locale: Locale;
@@ -1024,8 +1262,14 @@ function CrmView({
   query: string;
   onQuery: (v: string) => void;
   onSelect: (id: string) => void;
+  onSaveNote: (id: string, note: string) => void;
 }) {
   const c = copy.crm;
+  const [note, setNote] = useState(selected.notes);
+
+  useEffect(() => {
+    setNote(selected.notes);
+  }, [selected.id, selected.notes]);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
@@ -1089,9 +1333,19 @@ function CrmView({
         </div>
         <div className="mt-5">
           <p className="text-sm font-semibold">{c.note}</p>
-          <p className="mt-2 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-700 dark:border-slate-700 dark:bg-slate-800/50 dark:text-slate-200">
-            {selected.notes}
-          </p>
+          <textarea
+            value={note}
+            onChange={(e) => setNote(e.target.value)}
+            rows={4}
+            className="mt-2 w-full rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm leading-6 dark:border-slate-700 dark:bg-slate-900"
+          />
+          <button
+            type="button"
+            onClick={() => onSaveNote(selected.id, note)}
+            className="mt-3 inline-flex min-h-11 items-center rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white"
+          >
+            {c.saveNote}
+          </button>
         </div>
       </div>
     </div>
@@ -1153,66 +1407,485 @@ function CampaignsView({
   );
 }
 
-function PricingView({ copy, locale }: { copy: PanelCopy; locale: Locale }) {
+function PricingView({
+  copy,
+  locale,
+  items,
+  onChange,
+  onToast,
+}: {
+  copy: PanelCopy;
+  locale: Locale;
+  items: DemoPricingItem[];
+  onChange: (items: DemoPricingItem[]) => void;
+  onToast: (msg: string) => void;
+}) {
   const p = copy.pricing;
-  const pricing = useMemo(() => getDemoPricing(locale), [locale]);
+  const [draft, setDraft] = useState({ name: "", duration: "30", price: "", showPrice: true });
+  const [editing, setEditing] = useState<Record<string, DemoPricingItem>>({});
+
+  const addService = (e: FormEvent) => {
+    e.preventDefault();
+    if (!draft.name.trim()) return;
+    const next: DemoPricingItem = {
+      id: `p-${Date.now()}`,
+      name: draft.name.trim(),
+      duration: Number(draft.duration) || 30,
+      price: Number(draft.price) || 0,
+      active: true,
+      showPrice: draft.showPrice,
+    };
+    onChange([next, ...items]);
+    setDraft({ name: "", duration: "30", price: "", showPrice: true });
+    onToast(p.created);
+  };
+
+  const startEdit = (item: DemoPricingItem) => {
+    setEditing((prev) => ({ ...prev, [item.id]: { ...item } }));
+  };
+
+  const saveEdit = (id: string) => {
+    const row = editing[id];
+    if (!row) return;
+    onChange(items.map((item) => (item.id === id ? row : item)));
+    setEditing((prev) => {
+      const next = { ...prev };
+      delete next[id];
+      return next;
+    });
+    onToast(p.saved);
+  };
 
   return (
-    <div className="panel-surface overflow-hidden">
-      <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-slate-800">
-        {p.title}
-      </div>
-      <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-        {pricing.map((item) => (
-          <li key={item.id} className="flex items-center justify-between gap-3 px-4 py-3.5">
-            <div>
-              <p className={`text-sm font-semibold ${item.active ? "" : "text-slate-400 line-through"}`}>
-                {item.name}
-              </p>
-              <p className="text-xs text-slate-500">
-                {item.duration} {p.minutes}
-              </p>
-            </div>
-            <div className="text-right">
-              <p className="text-sm font-semibold tabular-nums">{formatMoney(item.price, locale)}</p>
-              <p className="text-[11px] text-slate-500">{item.active ? p.active : p.inactive}</p>
-            </div>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
-
-function PackagesView({ copy, locale }: { copy: PanelCopy; locale: Locale }) {
-  const packages = useMemo(() => getDemoPackages(locale), [locale]);
-
-  return (
-    <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-      {packages.map((pk) => (
-        <article key={pk.id} className="panel-surface p-5">
-          <p className="text-xs font-semibold text-emerald-700">{pk.customer}</p>
-          <h3 className="mt-1 font-semibold">{pk.name}</h3>
-          <p className="mt-3 text-3xl font-bold tabular-nums">
-            {pk.remaining}
-            <span className="text-base font-medium text-slate-400">/{pk.total}</span>
-          </p>
-          <p className="mt-1 text-xs text-slate-500">{copy.packages.remaining(pk.expires)}</p>
-          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
-            <div
-              className="h-full rounded-full bg-emerald-500"
-              style={{ width: `${(pk.remaining / pk.total) * 100}%` }}
+    <div className="space-y-4">
+      <section className="panel-surface p-5">
+        <h3 className="font-semibold">{p.addTitle}</h3>
+        <p className="mt-1 text-sm text-slate-500">{p.addHint}</p>
+        <form onSubmit={addService} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="text-sm sm:col-span-2">
+            <span className="mb-1 block text-slate-500">{p.name}</span>
+            <input
+              required
+              value={draft.name}
+              onChange={(e) => setDraft((d) => ({ ...d, name: e.target.value }))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
             />
-          </div>
-        </article>
-      ))}
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-500">{p.duration}</span>
+            <input
+              type="number"
+              min={15}
+              value={draft.duration}
+              onChange={(e) => setDraft((d) => ({ ...d, duration: e.target.value }))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-500">{p.price}</span>
+            <input
+              type="number"
+              min={0}
+              value={draft.price}
+              onChange={(e) => setDraft((d) => ({ ...d, price: e.target.value }))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+            />
+          </label>
+          <label className="flex items-center gap-2 text-sm sm:col-span-2">
+            <input
+              type="checkbox"
+              checked={draft.showPrice}
+              onChange={(e) => setDraft((d) => ({ ...d, showPrice: e.target.checked }))}
+            />
+            {p.showPrice}
+          </label>
+          <button
+            type="submit"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white sm:col-span-2 lg:col-span-2"
+          >
+            <Plus className="h-4 w-4" />
+            {p.add}
+          </button>
+        </form>
+      </section>
+
+      <section className="panel-surface overflow-hidden">
+        <div className="border-b border-slate-100 px-4 py-3 text-sm font-semibold dark:border-slate-800">
+          {p.title}
+        </div>
+        {items.length === 0 ? (
+          <p className="px-4 py-10 text-center text-sm text-slate-500">{p.empty}</p>
+        ) : (
+          <ul className="divide-y divide-slate-100 dark:divide-slate-800">
+            {items.map((item) => {
+              const edit = editing[item.id];
+              return (
+                <li key={item.id} className="px-4 py-4">
+                  {edit ? (
+                    <div className="grid gap-3 sm:grid-cols-4">
+                      <input
+                        value={edit.name}
+                        onChange={(e) =>
+                          setEditing((prev) => ({
+                            ...prev,
+                            [item.id]: { ...edit, name: e.target.value },
+                          }))
+                        }
+                        className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      />
+                      <input
+                        type="number"
+                        value={edit.duration}
+                        onChange={(e) =>
+                          setEditing((prev) => ({
+                            ...prev,
+                            [item.id]: { ...edit, duration: Number(e.target.value) || 0 },
+                          }))
+                        }
+                        className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      />
+                      <input
+                        type="number"
+                        value={edit.price}
+                        onChange={(e) =>
+                          setEditing((prev) => ({
+                            ...prev,
+                            [item.id]: { ...edit, price: Number(e.target.value) || 0 },
+                          }))
+                        }
+                        className="min-h-10 rounded-lg border border-slate-200 px-3 text-sm dark:border-slate-700 dark:bg-slate-900"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => saveEdit(item.id)}
+                        className="min-h-10 rounded-lg bg-emerald-600 text-sm font-semibold text-white"
+                      >
+                        {p.save}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <p
+                          className={`text-sm font-semibold ${item.active ? "" : "text-slate-400 line-through"}`}
+                        >
+                          {item.name}
+                        </p>
+                        <p className="text-xs text-slate-500">
+                          {item.duration} {p.minutes}
+                          {!item.showPrice ? `, ${p.priceHidden}` : ""}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-sm font-semibold tabular-nums">
+                          {formatMoney(item.price, locale)}
+                        </span>
+                        <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold dark:bg-slate-800">
+                          {item.active ? p.active : p.inactive}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => startEdit(item)}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold dark:border-slate-700"
+                        >
+                          {p.edit}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onChange(
+                              items.map((row) =>
+                                row.id === item.id ? { ...row, active: !row.active } : row
+                              )
+                            );
+                            onToast(p.saved);
+                          }}
+                          className="rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-semibold dark:border-slate-700"
+                        >
+                          {item.active ? p.toggleOff : p.toggleOn}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            onChange(items.filter((row) => row.id !== item.id));
+                            onToast(p.deleted);
+                          }}
+                          className="inline-flex items-center gap-1 rounded-lg border border-red-200 px-2.5 py-1.5 text-xs font-semibold text-red-700 dark:border-red-900"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          {p.remove}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
 
-function StaffView({ copy, locale }: { copy: PanelCopy; locale: Locale }) {
+function PackagesView({
+  copy,
+  locale,
+  defs,
+  customerPackages,
+  customers,
+  onDefsChange,
+  onCustomerPackagesChange,
+  onToast,
+}: {
+  copy: PanelCopy;
+  locale: Locale;
+  defs: DemoPackageDef[];
+  customerPackages: DemoCustomerPackage[];
+  customers: DemoCustomer[];
+  onDefsChange: (defs: DemoPackageDef[]) => void;
+  onCustomerPackagesChange: (items: DemoCustomerPackage[]) => void;
+  onToast: (msg: string) => void;
+}) {
+  const p = copy.packages;
+  const [defForm, setDefForm] = useState({
+    name: "",
+    sessions: "6",
+    price: "",
+    validityDays: "90",
+  });
+  const [assignForm, setAssignForm] = useState({
+    customerId: customers[0]?.id ?? "",
+    packageId: defs[0]?.id ?? "",
+  });
+
+  useEffect(() => {
+    setAssignForm((f) => ({
+      customerId: f.customerId || customers[0]?.id || "",
+      packageId: f.packageId || defs[0]?.id || "",
+    }));
+  }, [customers, defs]);
+
+  const addDef = (e: FormEvent) => {
+    e.preventDefault();
+    if (!defForm.name.trim()) return;
+    onDefsChange([
+      {
+        id: `pd-${Date.now()}`,
+        name: defForm.name.trim(),
+        sessions: Number(defForm.sessions) || 1,
+        price: Number(defForm.price) || 0,
+        validityDays: Number(defForm.validityDays) || 90,
+        active: true,
+      },
+      ...defs,
+    ]);
+    setDefForm({ name: "", sessions: "6", price: "", validityDays: "90" });
+    onToast(p.created);
+  };
+
+  const assign = (e: FormEvent) => {
+    e.preventDefault();
+    const customer = customers.find((c) => c.id === assignForm.customerId);
+    const pack = defs.find((d) => d.id === assignForm.packageId);
+    if (!customer || !pack) return;
+    const expires = new Date();
+    expires.setDate(expires.getDate() + pack.validityDays);
+    onCustomerPackagesChange([
+      {
+        id: `pk-${Date.now()}`,
+        customer: customer.name,
+        name: pack.name,
+        remaining: pack.sessions,
+        total: pack.sessions,
+        expires: expires.toLocaleDateString(locale === "tr" ? "tr-TR" : "en-GB", {
+          day: "numeric",
+          month: "short",
+          year: "numeric",
+        }),
+      },
+      ...customerPackages,
+    ]);
+    onToast(p.assigned);
+  };
+
+  return (
+    <div className="space-y-5">
+      <section className="panel-surface p-5">
+        <h3 className="font-semibold">{p.addTitle}</h3>
+        <form onSubmit={addDef} className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <label className="text-sm sm:col-span-2">
+            <span className="mb-1 block text-slate-500">{p.name}</span>
+            <input
+              required
+              value={defForm.name}
+              onChange={(e) => setDefForm((f) => ({ ...f, name: e.target.value }))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-500">{p.sessions}</span>
+            <input
+              type="number"
+              min={1}
+              value={defForm.sessions}
+              onChange={(e) => setDefForm((f) => ({ ...f, sessions: e.target.value }))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-500">{p.price}</span>
+            <input
+              type="number"
+              min={0}
+              value={defForm.price}
+              onChange={(e) => setDefForm((f) => ({ ...f, price: e.target.value }))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+            />
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-500">{p.validity}</span>
+            <input
+              type="number"
+              min={1}
+              value={defForm.validityDays}
+              onChange={(e) => setDefForm((f) => ({ ...f, validityDays: e.target.value }))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+            />
+          </label>
+          <button
+            type="submit"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white lg:col-span-3"
+          >
+            <Plus className="h-4 w-4" />
+            {p.add}
+          </button>
+        </form>
+      </section>
+
+      <section className="panel-surface p-5">
+        <h3 className="mb-3 font-semibold">{p.catalogTitle}</h3>
+        {defs.length === 0 ? (
+          <p className="text-sm text-slate-500">{p.emptyCatalog}</p>
+        ) : (
+          <ul className="space-y-2">
+            {defs.map((def) => (
+              <li
+                key={def.id}
+                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 px-4 py-3 dark:border-slate-700"
+              >
+                <div>
+                  <p className="text-sm font-semibold">{def.name}</p>
+                  <p className="text-xs text-slate-500">
+                    {def.sessions} {p.sessions.toLowerCase()}, {def.validityDays}{" "}
+                    {locale === "tr" ? "gün" : "days"}
+                  </p>
+                </div>
+                <p className="text-sm font-semibold">{formatMoney(def.price, locale)}</p>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      <section className="panel-surface p-5">
+        <h3 className="font-semibold">{p.assignTitle}</h3>
+        <form onSubmit={assign} className="mt-4 grid gap-3 sm:grid-cols-3">
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-500">{p.customer}</span>
+            <select
+              value={assignForm.customerId}
+              onChange={(e) => setAssignForm((f) => ({ ...f, customerId: e.target.value }))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+            >
+              {customers.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="text-sm">
+            <span className="mb-1 block text-slate-500">{p.package}</span>
+            <select
+              value={assignForm.packageId}
+              onChange={(e) => setAssignForm((f) => ({ ...f, packageId: e.target.value }))}
+              className="min-h-11 w-full rounded-xl border border-slate-200 px-3 dark:border-slate-700 dark:bg-slate-900"
+            >
+              {defs.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button
+            type="submit"
+            disabled={defs.length === 0}
+            className="mt-auto inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white disabled:opacity-50"
+          >
+            {p.assign}
+          </button>
+        </form>
+      </section>
+
+      <section>
+        <h3 className="mb-3 font-semibold">{p.customersTitle}</h3>
+        {customerPackages.length === 0 ? (
+          <p className="text-sm text-slate-500">{p.emptyCustomers}</p>
+        ) : (
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {customerPackages.map((pk) => (
+              <article key={pk.id} className="panel-surface p-5">
+                <p className="text-xs font-semibold text-emerald-700">{pk.customer}</p>
+                <h4 className="mt-1 font-semibold">{pk.name}</h4>
+                <p className="mt-3 text-3xl font-bold tabular-nums">
+                  {pk.remaining}
+                  <span className="text-base font-medium text-slate-400">/{pk.total}</span>
+                </p>
+                <p className="mt-1 text-xs text-slate-500">{p.remaining(pk.expires)}</p>
+                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100 dark:bg-slate-800">
+                  <div
+                    className="h-full rounded-full bg-emerald-500"
+                    style={{ width: `${Math.max(0, (pk.remaining / pk.total) * 100)}%` }}
+                  />
+                </div>
+                <button
+                  type="button"
+                  disabled={pk.remaining <= 0}
+                  onClick={() => {
+                    onCustomerPackagesChange(
+                      customerPackages.map((row) =>
+                        row.id === pk.id
+                          ? { ...row, remaining: Math.max(0, row.remaining - 1) }
+                          : row
+                      )
+                    );
+                    onToast(p.sessionUsed);
+                  }}
+                  className="mt-4 inline-flex min-h-10 w-full items-center justify-center rounded-xl border border-slate-200 text-sm font-semibold disabled:opacity-40 dark:border-slate-700"
+                >
+                  {p.useSession}
+                </button>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function StaffView({
+  copy,
+  staff,
+  onToggle,
+}: {
+  copy: PanelCopy;
+  staff: DemoStaffMember[];
+  onToggle: (id: string) => void;
+}) {
   const s = copy.staff;
-  const staff = useMemo(() => getDemoStaff(locale), [locale]);
 
   return (
     <div className="grid gap-3 sm:grid-cols-2">
@@ -1233,6 +1906,13 @@ function StaffView({ copy, locale }: { copy: PanelCopy; locale: Locale }) {
           </div>
           <p className="mt-4 text-sm">{s.todayApts(member.today)}</p>
           <p className="text-xs text-slate-500">{s.hours(member.hours)}</p>
+          <button
+            type="button"
+            onClick={() => onToggle(member.id)}
+            className="mt-4 inline-flex min-h-10 items-center rounded-xl border border-slate-200 px-3 text-xs font-semibold dark:border-slate-700"
+          >
+            {member.off ? s.markOn : s.markOff}
+          </button>
         </article>
       ))}
     </div>

@@ -498,21 +498,72 @@ export function getDemoCustomers(locale: Locale): DemoCustomer[] {
   ];
 }
 
-export function getDemoPricing(locale: Locale) {
+export interface DemoPricingItem {
+  id: string;
+  name: string;
+  duration: number;
+  price: number;
+  active: boolean;
+  showPrice: boolean;
+}
+
+export interface DemoPackageDef {
+  id: string;
+  name: string;
+  sessions: number;
+  price: number;
+  validityDays: number;
+  active: boolean;
+}
+
+export interface DemoCustomerPackage {
+  id: string;
+  customer: string;
+  name: string;
+  remaining: number;
+  total: number;
+  expires: string;
+}
+
+export interface DemoStaffMember {
+  id: string;
+  name: string;
+  role: string;
+  today: number;
+  hours: string;
+  off: boolean;
+}
+
+export function getDemoPricing(locale: Locale): DemoPricingItem[] {
   const s = SERVICE[locale];
   return [
-    { id: "p1", name: s.womenCut, duration: 45, price: 450, active: true },
-    { id: "p2", name: s.menCut, duration: 30, price: 250, active: true },
-    { id: "p3", name: s.menCutBeard, duration: 45, price: 350, active: true },
-    { id: "p4", name: s.rootColor, duration: 90, price: 1200, active: true },
-    { id: "p5", name: s.keratin, duration: 60, price: 1800, active: true },
-    { id: "p6", name: s.maniPedi, duration: 60, price: 700, active: true },
-    { id: "p7", name: s.bridal, duration: 90, price: 2500, active: true },
-    { id: "p8", name: s.kids, duration: 25, price: 180, active: false },
+    { id: "p1", name: s.womenCut, duration: 45, price: 450, active: true, showPrice: true },
+    { id: "p2", name: s.menCut, duration: 30, price: 250, active: true, showPrice: true },
+    { id: "p3", name: s.menCutBeard, duration: 45, price: 350, active: true, showPrice: true },
+    { id: "p4", name: s.rootColor, duration: 90, price: 1200, active: true, showPrice: true },
+    { id: "p5", name: s.keratin, duration: 60, price: 1800, active: true, showPrice: true },
+    { id: "p6", name: s.maniPedi, duration: 60, price: 700, active: true, showPrice: true },
+    { id: "p7", name: s.bridal, duration: 90, price: 2500, active: true, showPrice: false },
+    { id: "p8", name: s.kids, duration: 25, price: 180, active: false, showPrice: true },
   ];
 }
 
-export function getDemoPackages(locale: Locale) {
+export function getDemoPackageDefs(locale: Locale): DemoPackageDef[] {
+  if (locale === "en") {
+    return [
+      { id: "pd1", name: "6 session care", sessions: 6, price: 4800, validityDays: 120, active: true },
+      { id: "pd2", name: "4 session color", sessions: 4, price: 4200, validityDays: 90, active: true },
+      { id: "pd3", name: "VIP care card", sessions: 8, price: 7200, validityDays: 180, active: true },
+    ];
+  }
+  return [
+    { id: "pd1", name: "6 Seans Bakım", sessions: 6, price: 4800, validityDays: 120, active: true },
+    { id: "pd2", name: "4 Seans Renk", sessions: 4, price: 4200, validityDays: 90, active: true },
+    { id: "pd3", name: "VIP Bakım Kartı", sessions: 8, price: 7200, validityDays: 180, active: true },
+  ];
+}
+
+export function getDemoPackages(locale: Locale): DemoCustomerPackage[] {
   if (locale === "en") {
     return [
       { id: "pk1", customer: "Zeynep Aksoy", name: "6 session care", remaining: 3, total: 6, expires: "12 Sep 2026" },
@@ -527,7 +578,7 @@ export function getDemoPackages(locale: Locale) {
   ];
 }
 
-export function getDemoStaff(locale: Locale) {
+export function getDemoStaff(locale: Locale): DemoStaffMember[] {
   if (locale === "en") {
     return [
       { id: "s1", name: "Elif Y.", role: "Senior stylist, cut and color", today: 3, hours: "09:00 / 18:00", off: false },
