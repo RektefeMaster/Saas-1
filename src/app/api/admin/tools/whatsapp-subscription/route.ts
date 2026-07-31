@@ -53,6 +53,12 @@ function missingWabaResponse() {
 }
 
 export async function GET(request: NextRequest) {
+  // Tarayıcıdan POST atmak zor olduğu için açık niyet belirten bir parametreyle
+  // aboneliği buradan da yapılabilir kıldık. İşlem idempotent ve geri alınabilir.
+  if (request.nextUrl.searchParams.get("subscribe") === "1") {
+    return POST(request);
+  }
+
   const { phoneId, token } = await resolveWhatsAppCredentials();
   if (!phoneId || !token) {
     return NextResponse.json(
@@ -104,9 +110,9 @@ export async function GET(request: NextRequest) {
         apps.length > 0
           ? "Listede senin uygulaman (SaaS1) yoksa POST ile abone et."
           : "Bu adrese POST isteği göndererek abone et (aşağıdaki komut).",
-      duzeltme_komutu: `curl -X POST "${
+      duzeltme_baglantisi: `${
         process.env.NEXT_PUBLIC_APP_URL ?? "https://www.aiahi.net"
-      }/api/admin/tools/whatsapp-subscription" -H "Cookie: admin_session=<COOKIE>"`,
+      }/api/admin/tools/whatsapp-subscription?subscribe=1`,
     });
   } catch (err) {
     return NextResponse.json(
