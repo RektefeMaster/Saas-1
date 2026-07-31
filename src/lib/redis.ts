@@ -1622,13 +1622,9 @@ export async function checkAdminLoginRateLimit(identifier: string): Promise<{ al
       return { allowed: true };
     } catch (err) {
       logRedisFallback("checkAdminLoginRateLimit", err);
-      // Fail-closed in production: memory fallback is per-instance and weak under serverless.
-      if (process.env.NODE_ENV === "production") {
-        return { allowed: false, retryAfterSeconds: 60 };
-      }
+      // Fall through to in-memory limiter. Hard-deny previously locked all admin
+      // logins whenever Upstash URL/token was missing or invalid.
     }
-  } else if (process.env.NODE_ENV === "production") {
-    return { allowed: false, retryAfterSeconds: 60 };
   }
   const now = Date.now();
   const mem = adminLoginMemory.get(key);
