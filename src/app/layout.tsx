@@ -1,10 +1,8 @@
 import type { Metadata } from "next";
 import { Manrope, Space_Grotesk } from "next/font/google";
 import { Toaster } from "sonner";
-import { ViewTransitionsWrapper } from "@/components/ViewTransitionsWrapper";
 import { ThemeProvider } from "@/lib/theme-context";
 import { LocaleProvider } from "@/lib/locale-context";
-import { PostHogProvider } from "@/app/providers/PostHogProvider";
 import { SWRProvider } from "@/app/providers/SWRProvider";
 import { VercelAnalytics } from "@/components/VercelAnalytics";
 import { LoadingWrapper } from "@/components/LoadingWrapper";
@@ -52,10 +50,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   const supabaseOrigin = getSupabaseOrigin();
-
-  // Children null check - React 19'da null children sorun yaratabilir
-  // Null yerine boş Fragment kullan
-  const safeChildren = children ?? <></>;
+  const safeChildren = children ?? null;
 
   return (
     <html lang="tr" data-locale="tr" suppressHydrationWarning>
@@ -82,35 +77,19 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body
-        className={`${manrope.variable} ${spaceGrotesk.variable} antialiased`}
-      >
+      <body className={`${manrope.variable} ${spaceGrotesk.variable} antialiased`}>
         <ClientErrorBoundary>
-          <ClientErrorBoundary componentName="PostHogProvider">
-            <PostHogProvider>
-              <ClientErrorBoundary componentName="SWRProvider">
-                <SWRProvider>
-                  <ClientErrorBoundary componentName="ThemeProvider">
-                    <ThemeProvider>
-                      <ClientErrorBoundary componentName="LoadingWrapper">
-                        <LoadingWrapper>
-                          <ClientErrorBoundary componentName="ViewTransitionsWrapper">
-                            <ViewTransitionsWrapper>
-                              <ClientErrorBoundary componentName="LocaleProvider">
-                                <LocaleProvider>{safeChildren}</LocaleProvider>
-                              </ClientErrorBoundary>
-                            </ViewTransitionsWrapper>
-                          </ClientErrorBoundary>
-                          <Toaster richColors position="top-right" />
-                          <VercelAnalytics />
-                        </LoadingWrapper>
-                      </ClientErrorBoundary>
-                    </ThemeProvider>
-                  </ClientErrorBoundary>
-                </SWRProvider>
-              </ClientErrorBoundary>
-            </PostHogProvider>
-          </ClientErrorBoundary>
+          <SWRProvider>
+            <ThemeProvider>
+              <LocaleProvider>
+                <LoadingWrapper>
+                  {safeChildren}
+                  <Toaster richColors position="top-right" />
+                  <VercelAnalytics />
+                </LoadingWrapper>
+              </LocaleProvider>
+            </ThemeProvider>
+          </SWRProvider>
         </ClientErrorBoundary>
       </body>
     </html>

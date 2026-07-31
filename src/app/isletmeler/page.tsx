@@ -111,17 +111,9 @@ export default function IsletmelerPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <Image
-        src="/arkaplan.png"
-        alt="Ahi AI backdrop"
-        fill
-        priority
-        sizes="100vw"
-        className="pointer-events-none object-cover opacity-[0.07] blur-[1px]"
-      />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(40%_30%_at_20%_0%,rgba(56,189,248,0.17),transparent),radial-gradient(40%_30%_at_90%_10%,rgba(16,185,129,0.15),transparent)]" />
 
-      <header className="sticky top-0 z-30 border-b border-slate-200/70 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+      <header className="sticky top-0 z-30 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex h-16 w-full max-w-5xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="inline-flex items-center gap-2.5 text-sm font-semibold">
             <Image

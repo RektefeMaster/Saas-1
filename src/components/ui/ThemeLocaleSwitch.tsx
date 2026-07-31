@@ -16,7 +16,7 @@ export function ThemeLocaleSwitch({ compact = false }: ThemeLocaleSwitchProps) {
 
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-2xl border border-slate-200/80 bg-white/85 p-1 shadow-sm backdrop-blur dark:border-slate-700 dark:bg-slate-900/80 ${
+      className={`inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white p-1 shadow-sm dark:border-slate-700 dark:bg-slate-900 ${
         compact ? "text-xs" : "text-sm"
       }`}
     >
