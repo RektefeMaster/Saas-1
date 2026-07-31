@@ -1,11 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  Calendar,
   ChevronDown,
   LayoutDashboard,
   ListChecks,
@@ -119,27 +119,33 @@ const UserMenu = React.memo(function UserMenu({
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
-        className="inline-flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm shadow-sm transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+        aria-expanded={open}
+        aria-haspopup="menu"
+        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
       >
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-slate-200 font-semibold text-slate-700 dark:bg-slate-800 dark:text-slate-200">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-sm font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
           {initial}
         </span>
         <span className="hidden max-w-[140px] truncate font-medium text-slate-700 dark:text-slate-200 sm:inline">
           {accountLabel}
         </span>
-        <ChevronDown className="h-4 w-4 text-slate-400" />
+        <ChevronDown className="h-4 w-4 text-slate-400" aria-hidden />
       </button>
 
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-40 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-1 shadow-xl dark:border-slate-700 dark:bg-slate-900">
+          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
+          <div
+            role="menu"
+            className="absolute right-0 top-full z-40 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+          >
             <button
               type="button"
+              role="menuitem"
               onClick={handleLogout}
-              className="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="flex w-full items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-100 dark:text-slate-200 dark:hover:bg-slate-800"
             >
-              <LogOut className="h-4 w-4" />
+              <LogOut className="h-4 w-4" aria-hidden />
               {logoutLabel}
             </button>
           </div>
@@ -236,28 +242,32 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
   return (
     <DashboardTenantProvider tenantId={extractedTenantId}>
-    <div className="min-h-screen bg-slate-100 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
-        <div className="mx-auto flex h-16 w-full max-w-[1600px] items-center justify-between px-4 sm:px-6 lg:px-8">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+        <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
           <div className="flex min-w-0 items-center gap-3">
             {isTenantPage && (
               <button
                 type="button"
                 onClick={() => setMobileOpen(true)}
-                className="inline-flex h-9 w-9 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 lg:hidden"
-                aria-label="Open menu"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 lg:hidden"
+                aria-label={locale === "tr" ? "Menüyü aç" : "Open menu"}
               >
-                <Menu className="h-4 w-4" />
+                <Menu className="h-4 w-4" aria-hidden />
               </button>
             )}
-            <Link href="/dashboard" className="inline-flex items-center gap-2">
-              <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-slate-800 text-white shadow-sm dark:bg-slate-700">
-                <Calendar className="h-4 w-4" />
-              </span>
-              <span className="font-mono text-sm font-semibold">Ahi AI</span>
+            <Link href="/dashboard" className="inline-flex items-center gap-2.5">
+              <Image
+                src="/appicon.png"
+                alt=""
+                width={32}
+                height={32}
+                className="rounded-lg border border-slate-200 bg-white dark:border-slate-700"
+              />
+              <span className="text-sm font-semibold tracking-tight">Ahi AI</span>
             </Link>
             <div className="min-w-0 border-l border-slate-200 pl-3 dark:border-slate-700">
-              <p className="truncate text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <p className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">
                 {t.section}
               </p>
               <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
@@ -285,24 +295,25 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           />
 
           <aside
-            className={`fixed left-0 top-16 z-40 h-[calc(100vh-4rem)] w-72 border-r border-slate-200 bg-white p-4 shadow-lg transition-transform dark:border-slate-800 dark:bg-slate-900 lg:translate-x-0 ${
+            className={`fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-64 border-r border-slate-200 bg-white p-3 transition-transform duration-200 sm:top-16 sm:h-[calc(100vh-4rem)] dark:border-slate-800 dark:bg-slate-900 lg:translate-x-0 ${
               mobileOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
             <div className="mb-3 flex items-center justify-between lg:hidden">
-              <span className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
                 {t.quick}
               </span>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition-colors duration-150 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                aria-label={locale === "tr" ? "Menüyü kapat" : "Close menu"}
               >
-                <X className="h-4 w-4" />
+                <X className="h-4 w-4" aria-hidden />
               </button>
             </div>
 
-            <div className="space-y-1">
+            <nav className="space-y-0.5" aria-label={t.section}>
               {navItems.map(({ href, label, icon: Icon }) => {
                 const isRoot = href === `/dashboard/${tenantId}`;
                 const active = isRoot ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
@@ -310,34 +321,34 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                   <Link
                     key={href}
                     href={href}
-                    className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition ${
+                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors duration-150 ${
                       active
-                        ? "bg-slate-900 text-white dark:bg-slate-200 dark:text-slate-900"
+                        ? "bg-emerald-600 text-white dark:bg-emerald-500 dark:text-slate-950"
                         : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                     }`}
                   >
-                    <Icon className={`h-4 w-4 ${active ? "" : "text-slate-400"}`} />
+                    <Icon className={`h-4 w-4 shrink-0 ${active ? "" : "text-slate-400"}`} aria-hidden />
                     {label}
                   </Link>
                 );
               })}
-            </div>
+            </nav>
 
             <div className="mt-4 space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setShowLinkModal(true)}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
-                <MessageCircle className="h-4 w-4" />
+                <MessageCircle className="h-4 w-4" aria-hidden />
                 {t.whatsappLink}
               </button>
               <button
                 type="button"
                 onClick={() => setShowQRModal(true)}
-                className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-100 px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-200 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
-                <QrCode className="h-4 w-4" />
+                <QrCode className="h-4 w-4" aria-hidden />
                 {t.qrCode}
               </button>
               <div className="pt-1 lg:hidden">
@@ -346,7 +357,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
             </div>
           </aside>
 
-          <main className="min-h-[calc(100vh-4rem)] pb-[calc(5.6rem+env(safe-area-inset-bottom))] lg:ml-72 lg:pb-0">
+          <main className="min-h-[calc(100vh-3.5rem)] pb-[calc(5.6rem+env(safe-area-inset-bottom))] sm:min-h-[calc(100vh-4rem)] lg:ml-64 lg:pb-0">
             {safeChildren}
           </main>
 
@@ -368,7 +379,10 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           )}
 
           {mobileNavItems.length > 0 && (
-            <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1 dark:border-slate-800 dark:bg-slate-900 lg:hidden">
+            <nav
+              className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
+              aria-label={t.section}
+            >
               <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}>
                 {mobileNavItems.map(({ href, label, icon: Icon }) => {
                   const isRoot = href === `/dashboard/${tenantId}`;
@@ -377,13 +391,16 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                     <Link
                       key={href}
                       href={href}
-                      className={`flex min-w-0 flex-col items-center justify-center rounded-xl px-1 py-2 text-[10px] font-semibold transition ${
+                      className={`flex min-h-12 min-w-0 flex-col items-center justify-center rounded-xl px-1 py-1.5 text-[10px] font-semibold transition-colors duration-150 ${
                         active
-                          ? "bg-slate-200 text-slate-800 dark:bg-slate-700 dark:text-slate-100"
+                          ? "bg-emerald-50 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"
                           : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
                       }`}
                     >
-                      <Icon className={`mb-1 h-4 w-4 ${active ? "text-slate-700 dark:text-slate-100" : ""}`} />
+                      <Icon
+                        className={`mb-0.5 h-4 w-4 ${active ? "text-emerald-700 dark:text-emerald-300" : ""}`}
+                        aria-hidden
+                      />
                       <span className="truncate">{label}</span>
                     </Link>
                   );

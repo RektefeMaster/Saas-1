@@ -15,7 +15,6 @@ import {
   MessageSquareText,
   Rocket,
   ShieldCheck,
-  Sparkles,
   Workflow,
   Menu,
   X,
@@ -226,10 +225,10 @@ export default function Home() {
   const [showContactModal, setShowContactModal] = useState(false);
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_45%_at_20%_10%,rgba(56,189,248,0.22),transparent),radial-gradient(50%_40%_at_84%_14%,rgba(16,185,129,0.2),transparent)]" />
+    <div className="relative min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_15%_0%,rgba(5,150,105,0.12),transparent_70%)]" />
 
-      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
+      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="inline-flex items-center gap-3">
             <Image
@@ -239,32 +238,30 @@ export default function Home() {
               height={34}
               sizes="34px"
               className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
+              priority
             />
-            <span className="text-base font-semibold tracking-tight">Ahi AI</span>
+            <span className="text-lg font-semibold tracking-tight">Ahi AI</span>
           </Link>
           <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300 md:flex">
-            <a href="#solutions" className="transition hover:text-slate-900 dark:hover:text-white">
+            <a href="#solutions" className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white">
               {t.nav.solutions}
             </a>
-            <a href="#flow" className="transition hover:text-slate-900 dark:hover:text-white">
+            <a href="#flow" className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white">
               {t.nav.flow}
             </a>
-            <a href="#impact" className="transition hover:text-slate-900 dark:hover:text-white">
-              {t.nav.impact}
-            </a>
-            <Link href="/isletmeler" className="transition hover:text-slate-900 dark:hover:text-white">
+            <Link href="/isletmeler" className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white">
               {t.nav.businesses}
             </Link>
             <button
               type="button"
               onClick={() => setShowContactModal(true)}
-              className="transition hover:text-slate-900 dark:hover:text-white"
+              className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white"
             >
               {t.nav.contact}
             </button>
             <Link
               href="/dashboard/login"
-              className="rounded-xl bg-slate-900 px-3.5 py-2 text-white transition hover:bg-slate-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+              className="rounded-xl bg-emerald-600 px-3.5 py-2 text-white transition-colors duration-150 hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
               {t.nav.login}
             </Link>
@@ -298,17 +295,10 @@ export default function Home() {
               >
                 {t.nav.flow}
               </a>
-              <a
-                href="#impact"
-                onClick={() => setMobileMenuOpen(false)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
-              >
-                {t.nav.impact}
-              </a>
               <Link
                 href="/isletmeler"
                 onClick={() => setMobileMenuOpen(false)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 {t.nav.businesses}
               </Link>
@@ -318,14 +308,14 @@ export default function Home() {
                   setShowContactModal(true);
                   setMobileMenuOpen(false);
                 }}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
               >
                 {t.nav.contact}
               </button>
               <Link
                 href="/dashboard/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="rounded-xl bg-slate-900 px-3 py-2 text-center text-sm font-semibold text-white dark:bg-emerald-500 dark:text-slate-950"
+                className="rounded-xl bg-emerald-600 px-3 py-2.5 text-center text-sm font-semibold text-white dark:bg-emerald-500 dark:text-slate-950"
               >
                 {t.nav.login}
               </Link>
@@ -335,91 +325,49 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-4 pb-16 pt-16 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:pt-20">
-          <div className="animate-hero-in opacity-0">
-            <span className="inline-flex items-center gap-2 rounded-full border border-cyan-200/80 bg-cyan-50/70 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-cyan-700 dark:border-cyan-900/60 dark:bg-cyan-950/35 dark:text-cyan-300">
-              <Sparkles className="h-3.5 w-3.5" />
-              {t.hero.badge}
-            </span>
-            <h1 className="mt-4 max-w-3xl text-4xl font-bold leading-[1.03] tracking-tight sm:text-5xl lg:text-6xl">
-              {t.hero.titleA}
-              <span className="mt-2 block bg-gradient-to-r from-cyan-600 to-emerald-600 bg-clip-text text-transparent dark:from-cyan-300 dark:to-emerald-400">
-                {t.hero.titleB}
-              </span>
+        <section className="relative mx-auto w-full max-w-7xl px-4 pb-20 pt-16 sm:px-6 lg:pt-24">
+          <div className="animate-hero-in mx-auto max-w-3xl text-center opacity-0">
+            <p className="text-sm font-semibold tracking-tight text-emerald-700 dark:text-emerald-400">
+              Ahi AI
+            </p>
+            <h1 className="mt-3 text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
+              {t.hero.titleA}{" "}
+              <span className="text-emerald-700 dark:text-emerald-400">{t.hero.titleB}</span>
             </h1>
-            <p className="mt-5 max-w-2xl text-base leading-8 text-slate-600 dark:text-slate-300 sm:text-lg">
+            <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300 sm:text-lg">
               {t.hero.desc}
             </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+            <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
               <Link
                 href="/dashboard/login"
-                className="inline-flex items-center justify-center gap-2 rounded-2xl bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:translate-y-[-1px] hover:bg-slate-700 dark:bg-emerald-500 dark:text-slate-950 dark:shadow-emerald-900/20 dark:hover:bg-emerald-400"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
               >
                 {t.hero.primary}
-                <ArrowRight className="h-4 w-4" />
+                <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
               <Link
                 href="/isletmeler"
-                className="inline-flex items-center justify-center gap-2 rounded-2xl border border-slate-300 bg-white px-6 py-3.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               >
-                <Globe className="h-4 w-4" />
+                <Globe className="h-4 w-4" aria-hidden />
                 {t.hero.secondary}
               </Link>
             </div>
-            <ul className="mt-6 grid gap-2.5 sm:max-w-xl">
+            <ul className="mx-auto mt-8 grid max-w-xl gap-2 text-left">
               {t.hero.points.map((point) => (
-                <li key={point} className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white/80 px-3 py-2.5 text-sm text-slate-600 shadow-sm dark:border-slate-700 dark:bg-slate-900/70 dark:text-slate-300">
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                <li key={point} className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-slate-300">
+                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
                   {point}
                 </li>
               ))}
             </ul>
           </div>
-
-          <div
-            id="impact"
-            className="relative animate-hero-in rounded-3xl border border-slate-200 bg-white/90 p-6 opacity-0 shadow-xl shadow-slate-200/40 dark:border-slate-800 dark:bg-slate-900/85 dark:shadow-black/20"
-            style={{ animationDelay: "80ms" }}
-          >
-            <div className="mb-5 flex items-center justify-between">
-              <p className="text-sm font-semibold text-slate-600 dark:text-slate-300">
-                {locale === "tr" ? "Canlı Performans Görünümü" : "Ahi AI Stack"}
-              </p>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300">
-                {locale === "tr" ? "Güncel" : "Live"}
-              </span>
-            </div>
-            <div className="grid gap-3">
-              {t.metrics.map((metric, idx) => (
-                <article
-                  key={metric.label}
-                  className="animate-metric-in rounded-2xl border border-slate-200 bg-slate-50/90 p-4 opacity-0 dark:border-slate-700 dark:bg-slate-800/60"
-                  style={{ animationDelay: `${120 + idx * 60}ms`, animationFillMode: "forwards" }}
-                >
-                  <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                    {metric.label}
-                  </p>
-                  <p className="mt-1.5 text-2xl font-bold tracking-tight">{metric.value}</p>
-                </article>
-              ))}
-            </div>
-            <div className="mt-5 rounded-2xl border border-cyan-100 bg-cyan-50/80 p-4 dark:border-cyan-900/60 dark:bg-cyan-950/30">
-                <p className="text-xs font-semibold uppercase tracking-wide text-cyan-700 dark:text-cyan-300">
-                  {locale === "tr" ? "Tek Ekran Deneyimi" : "Unified Experience"}
-                </p>
-                <p className="mt-1.5 text-sm leading-relaxed text-slate-700 dark:text-slate-200">
-                  {locale === "tr"
-                    ? "Müşteri iletişimi, randevu ve ekip yönetimi aynı veri akışında birleşir. Böylece kararlar daha hızlı ve daha isabetli alınır."
-                    : "Brings customer experience and internal operations to the same data layer. Teams decide faster with fewer mistakes."}
-                </p>
-              </div>
-            </div>
         </section>
 
         <section id="solutions" className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6">
           <ScrollReveal variant="fadeUp">
             <div className="mb-8 flex items-center gap-3">
-              <Workflow className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />
+              <Workflow className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
               <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.solutionsTitle}</h2>
             </div>
           </ScrollReveal>
@@ -428,9 +376,9 @@ export default function Home() {
               const Icon = item.icon;
               return (
                 <ScrollReveal key={item.title} delay={0.04 + index * 0.06} variant="fadeUp">
-                  <article className="group h-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950">
-                      <Icon className="h-5 w-5" />
+                  <article className="h-full rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
+                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+                      <Icon className="h-5 w-5" aria-hidden />
                     </span>
                     <h3 className="mt-4 text-lg font-semibold tracking-tight">{item.title}</h3>
                     <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
@@ -454,7 +402,7 @@ export default function Home() {
             {t.flow.map((item, index) => (
               <ScrollReveal key={item.step} delay={0.05 + index * 0.05} variant="scale">
                 <article className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <span className="font-mono text-xs font-bold tracking-[0.18em] text-cyan-600 dark:text-cyan-300">
+                  <span className="font-mono text-xs font-bold tracking-[0.14em] text-emerald-700 dark:text-emerald-400">
                     {item.step}
                   </span>
                   <h3 className="mt-1.5 text-base font-semibold">{item.title}</h3>
@@ -467,32 +415,32 @@ export default function Home() {
 
         <section className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6">
           <ScrollReveal variant="fadeUp">
-            <div className="rounded-3xl border border-slate-200 bg-gradient-to-r from-slate-900 to-slate-800 p-8 text-white dark:border-slate-700 dark:from-slate-800 dark:to-slate-900 sm:p-10">
+            <div className="rounded-2xl border border-emerald-700/20 bg-emerald-700 p-8 text-white dark:border-emerald-500/30 dark:bg-emerald-800 sm:p-10">
               <h2 className="max-w-2xl text-2xl font-bold tracking-tight sm:text-3xl">{t.cta.title}</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-white/80 sm:text-base">
+              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-emerald-50 sm:text-base">
                 {t.cta.text}
               </p>
               <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
                 <Link
                   href="/dashboard/login"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl bg-white px-5 py-3 text-sm font-semibold text-slate-900 transition hover:bg-slate-100"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-emerald-900 transition-colors duration-150 hover:bg-emerald-50"
                 >
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4" aria-hidden />
                   {t.cta.primary}
                 </Link>
                 <Link
                   href="/isletmeler"
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-white/20"
                 >
-                  <Globe className="h-4 w-4" />
+                  <Globe className="h-4 w-4" aria-hidden />
                   {t.cta.secondary}
                 </Link>
                 <button
                   type="button"
                   onClick={() => setShowContactModal(true)}
-                  className="inline-flex items-center justify-center gap-2 rounded-2xl border border-white/25 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition hover:bg-white/20"
+                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-white/20"
                 >
-                  <MessageCircle className="h-4 w-4" />
+                  <MessageCircle className="h-4 w-4" aria-hidden />
                   {t.nav.contact}
                 </button>
               </div>
@@ -509,7 +457,7 @@ export default function Home() {
           <button
             type="button"
             onClick={() => setShowContactModal(true)}
-            className="font-medium text-cyan-600 hover:text-cyan-700 hover:underline dark:text-cyan-400 dark:hover:text-cyan-300"
+            className="font-medium text-emerald-700 hover:text-emerald-800 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
           >
             {t.nav.contact}
           </button>
