@@ -3,26 +3,10 @@
 import dynamic from "next/dynamic";
 import Image from "next/image";
 import Link from "next/link";
-import {
-  ArrowRight,
-  Bot,
-  BrainCircuit,
-  CalendarDays,
-  CheckCircle2,
-  CircleGauge,
-  Globe,
-  MessageCircle,
-  MessageSquareText,
-  Rocket,
-  ShieldCheck,
-  Workflow,
-  Menu,
-  X,
-} from "lucide-react";
+import { ArrowRight, Menu, X } from "lucide-react";
 import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
 import { ThemeLocaleSwitch } from "@/components/ui";
-import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 const ContactModal = dynamic(
   () => import("@/components/ui/ContactModal").then((m) => ({ default: m.ContactModal })),
@@ -32,191 +16,177 @@ const ContactModal = dynamic(
 const COPY = {
   tr: {
     nav: {
-      solutions: "Neler Sunuyor",
-      flow: "Nasıl Çalışır",
-      impact: "Sonuçlar",
+      solutions: "Özellikler",
+      flow: "Akış",
       businesses: "İşletmeler",
       contact: "İletişim",
       login: "Giriş",
     },
     hero: {
-      badge: "Ahi AI · Yeni Nesil İşletme Merkezi",
-      titleA: "İşletmenizi büyüten dijital vitrin.",
-      titleB: "Randevu, iletişim ve takip tek panelde.",
+      eyebrow: "İşletme operasyon paneli",
+      title: "Randevu, müşteri ve iletişimi tek yerden yönetin.",
       desc:
-        "Müşteri mesajından randevuya, hatırlatmadan değerlendirmeye kadar tüm süreci tek yerden yönetirsiniz. Ekip daha az yorulur, müşteri daha hızlı yanıt alır, gününüz daha planlı akar.",
-      primary: "Paneli İncele",
-      secondary: "İşletmeleri Gör",
-      points: [
-        "Randevu, müşteri notu ve hatırlatma aynı ekranda",
-        "İşletmeye özel güvenli altyapı ve yetki kontrolü",
-        "Telefonda da masaüstünde de hızlı kullanım",
-      ],
+        "WhatsApp üzerinden gelen talepleri takvime, kayıtlara ve ekip işine bağlayan sade bir işletme paneli. Daha az dağınıklık, daha net gün.",
+      primary: "Panele giriş",
+      secondary: "Canlı işletmeler",
     },
-    metrics: [
-      { label: "Günlük Yanıt Hızı", value: "Dakikalar içinde" },
-      { label: "Tek Panelde Yönetim", value: "7 ana akış" },
-      { label: "Uygun Sektör Yapısı", value: "5 farklı alan" },
-    ],
-    solutionsTitle: "İşletmenizi Baştan Sona Güçlendiren Yapı",
+    preview: {
+      title: "Bugünün programı",
+      open: "3 açık",
+      rows: [
+        { time: "10:00", name: "Ayşe Y.", service: "Kesim", status: "Onaylı" },
+        { time: "11:30", name: "Mehmet K.", service: "Bakım", status: "Bekliyor" },
+        { time: "14:00", name: "Zeynep A.", service: "Paket", status: "Onaylı" },
+      ],
+      note: "Sıradaki işlem · WhatsApp yanıtı 2 dk içinde",
+    },
+    solutionsTitle: "Günlük işin omurgası",
+    solutionsLead: "Pazarlama dili değil — işletmenin her sabah kullandığı araçlar.",
     solutions: [
       {
-        title: "Randevu ve Kapasite Yönetimi",
-        text: "Takvim, uygun saat, iptal ve gelmeme durumlarını tek ekranda yönetin.",
-        icon: CalendarDays,
+        title: "Randevu ve kapasite",
+        text: "Uygun saat, iptal ve gelmeme durumlarını tek takvimde görün.",
       },
       {
-        title: "Müşteri Hafızası ve Akıllı Gruplama",
-        text: "Müşteri notlarını, etiketleri ve geçmiş davranışları hızlı aksiyona dönüştürün.",
-        icon: BrainCircuit,
+        title: "Müşteri defteri",
+        text: "Not, etiket ve geçmişi kaydedin; bir sonraki ziyaret için hazır olun.",
       },
       {
-        title: "Kampanya ve Geri Kazanım",
-        text: "Doğru kitleye doğru mesajı planlayın, uzaklaşan müşteriyi yeniden kazanın.",
-        icon: MessageSquareText,
+        title: "Kampanya ve hatırlatma",
+        text: "Doğru kişiye kısa mesaj planlayın, uzaklaşanı geri çağırın.",
       },
       {
-        title: "Günlük Yönetim Merkezi",
-        text: "Gecikme, iptal ve kritik bildirimleri tek bakışta görün, ekibe net görev verin.",
-        icon: CircleGauge,
-      },
-      {
-        title: "Yapay Zeka Destekli Asistan",
-        text: "İşletme tipinize göre çalışan asistanla daha doğru ve tutarlı yanıtlar verin.",
-        icon: Bot,
-      },
-      {
-        title: "Güvenli ve Büyüyebilir Altyapı",
-        text: "İki adımlı doğrulama, işlem kayıtları ve güvenli erişimle işletmenizi rahatça büyütün.",
-        icon: ShieldCheck,
+        title: "Günlük kontrol",
+        text: "Gecikme ve kritik bildirimleri öncelik sırasıyla takip edin.",
       },
     ],
-    flowTitle: "Müşteri Yolculuğu Baştan Sona Tek Akışta",
+    flowTitle: "Mesajdan iş emrine",
     flow: [
-      {
-        step: "01",
-        title: "Müşteri size ulaşır",
-        text: "Mesaj veya bağlantı üzerinden gelen talep anında yakalanır.",
-      },
-      {
-        step: "02",
-        title: "Sistem talebi yorumlar",
-        text: "İşletme kuralları, uygun saatler ve geçmiş veriler birlikte değerlendirilir.",
-      },
-      {
-        step: "03",
-        title: "Süreç otomatik ilerler",
-        text: "Randevu, hatırlatma ve müşteri notları anında güncellenir.",
-      },
-      {
-        step: "04",
-        title: "Yönetici net tabloyu görür",
-        text: "Performans göstergeleri, riskler ve fırsatlar tek ekranda net şekilde görünür.",
-      },
+      { step: "1", title: "Talep gelir", text: "WhatsApp veya bağlantı üzerinden." },
+      { step: "2", title: "Kurallar uygulanır", text: "Saat, hizmet ve kapasite kontrolü." },
+      { step: "3", title: "Kayıt oluşur", text: "Randevu, not ve hatırlatma güncellenir." },
+      { step: "4", title: "Panel netleşir", text: "Ekip ne yapacağını hemen görür." },
     ],
     cta: {
-      title: "İşinizi büyütürken yönetimi sadeleştirin.",
-      text: "Dağınık araçlardan kurtulup tek, anlaşılır ve ölçülebilir bir düzene geçin.",
-      primary: "İşletme Girişi",
-      secondary: "İşletmeleri İncele",
+      title: "Dağınık araçları bırakın.",
+      text: "Tek panel. Net öncelikler. Ölçülebilir gün.",
+      primary: "İşletme girişi",
+      secondary: "İşletmeleri incele",
     },
-    footer: "Ahi AI · İşletmeler için yapay zeka destekli yönetim platformu",
-    copyright: "© 2026 Ahi AI. Tüm hakları saklıdır.",
+    footer: "Ahi AI — işletmeler için operasyon yazılımı",
+    copyright: "© 2026 Ahi AI",
   },
   en: {
     nav: {
-      solutions: "Solutions",
+      solutions: "Features",
       flow: "Flow",
-      impact: "Impact",
       businesses: "Businesses",
       contact: "Contact",
-      login: "Login",
+      login: "Sign in",
     },
     hero: {
-      badge: "Ahi AI · Business Operating System",
-      titleA: "Smart infrastructure for your business.",
-      titleB: "The AI platform that runs your operations.",
+      eyebrow: "Business operations panel",
+      title: "Run bookings, customers, and messaging from one place.",
       desc:
-        "Ahi AI brings operations, booking, CRM, campaigns, and team productivity together in a single intelligent flow. Customer experience improves, your team works with less friction, and revenue becomes more predictable.",
-      primary: "Explore the Panel",
-      secondary: "Live Businesses",
-      points: [
-        "Booking + CRM + Automation in a single panel",
-        "Multi-tenant architecture and role-based security",
-        "Mobile-first, fast, and minimal operations",
-      ],
+        "A clear operations panel that connects WhatsApp requests to your calendar, records, and team work. Less clutter, clearer days.",
+      primary: "Open panel",
+      secondary: "Live businesses",
     },
-    metrics: [
-      { label: "Intelligent Flow Modules", value: "12+" },
-      { label: "Panel Response Time", value: "<120ms" },
-      { label: "Supported Business Models", value: "5 sectors" },
-    ],
-    solutionsTitle: "What the Platform Brings Together",
+    preview: {
+      title: "Today’s schedule",
+      open: "3 open",
+      rows: [
+        { time: "10:00", name: "Ayse Y.", service: "Cut", status: "Confirmed" },
+        { time: "11:30", name: "Mehmet K.", service: "Care", status: "Pending" },
+        { time: "14:00", name: "Zeynep A.", service: "Package", status: "Confirmed" },
+      ],
+      note: "Next action · WhatsApp reply within 2 min",
+    },
+    solutionsTitle: "The backbone of the workday",
+    solutionsLead: "Not marketing fluff — tools teams open every morning.",
     solutions: [
       {
-        title: "Booking and Capacity Management",
-        text: "Manage calendar, availability, cancellation, no-show and rebooking flows from one place.",
-        icon: CalendarDays,
+        title: "Booking & capacity",
+        text: "See availability, cancellations, and no-shows on one calendar.",
       },
       {
-        title: "Customer Memory and Segmentation",
-        text: "Turn customer notes, tags, reminders and behavior history into action.",
-        icon: BrainCircuit,
+        title: "Customer book",
+        text: "Keep notes, tags, and history ready for the next visit.",
       },
       {
-        title: "Campaigns and Win-Back",
-        text: "Plan the right message for the right audience and win back lost customers.",
-        icon: MessageSquareText,
+        title: "Campaigns & reminders",
+        text: "Plan short messages to the right people and win them back.",
       },
       {
-        title: "Operations Command Center",
-        text: "See delays, cancellations and critical alerts at a glance and assign clear ownership in the team.",
-        icon: CircleGauge,
-      },
-      {
-        title: "AI Assistants",
-        text: "Use business-type specific assistant profiles for more accurate answers.",
-        icon: Bot,
-      },
-      {
-        title: "Security and Scale",
-        text: "Grow with 2FA, audit logs, tenant isolation and secure API access.",
-        icon: ShieldCheck,
+        title: "Daily control",
+        text: "Track delays and critical alerts by priority.",
       },
     ],
-    flowTitle: "Customer Journey and Internal Operations in One Chain",
+    flowTitle: "From message to work order",
     flow: [
-      {
-        step: "01",
-        title: "Customer initiates contact",
-        text: "Intent is captured through message, link, or form.",
-      },
-      {
-        step: "02",
-        title: "AI processes context",
-        text: "Business rules, availability and historical data are evaluated together.",
-      },
-      {
-        step: "03",
-        title: "Action becomes automatic",
-        text: "Booking, reminders, customer notes and alerts are updated in sync.",
-      },
-      {
-        step: "04",
-        title: "Clear visibility in the dashboard",
-        text: "KPIs, risks, opportunities and tasks are presented for decision-making.",
-      },
+      { step: "1", title: "Request arrives", text: "Via WhatsApp or a share link." },
+      { step: "2", title: "Rules apply", text: "Time, service, and capacity checks." },
+      { step: "3", title: "Record updates", text: "Booking, notes, and reminders sync." },
+      { step: "4", title: "Panel clarifies", text: "The team sees what to do next." },
     ],
     cta: {
-      title: "Simplify operations while growing the business.",
-      text: "Move from scattered tools to a single intelligent and measurable system with Ahi AI.",
-      primary: "Business Login",
-      secondary: "Live Businesses",
+      title: "Leave scattered tools behind.",
+      text: "One panel. Clear priorities. A measurable day.",
+      primary: "Business sign-in",
+      secondary: "Browse businesses",
     },
-    footer: "Ahi AI · AI-powered software platform for businesses",
-    copyright: "© 2026 Ahi AI. All rights reserved.",
+    footer: "Ahi AI — operations software for businesses",
+    copyright: "© 2026 Ahi AI",
   },
 } as const;
+
+function ProductPreview({
+  title,
+  open,
+  rows,
+  note,
+}: {
+  title: string;
+  open: string;
+  rows: readonly { time: string; name: string; service: string; status: string }[];
+  note: string;
+}) {
+  return (
+    <div className="relative overflow-hidden rounded-2xl border border-[var(--border)] bg-[var(--card)] shadow-[var(--shadow-lg)]">
+      <div className="flex items-center justify-between border-b border-[var(--border)] px-5 py-3.5">
+        <div>
+          <p className="font-display text-sm font-semibold text-[var(--foreground)]">{title}</p>
+          <p className="mt-0.5 text-xs text-[var(--muted-foreground)]">{note}</p>
+        </div>
+        <span className="rounded-full bg-[var(--brand-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--brand)]">
+          {open}
+        </span>
+      </div>
+      <ul className="divide-y divide-[var(--border)]">
+        {rows.map((row) => (
+          <li key={`${row.time}-${row.name}`} className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-3 px-5 py-3.5">
+            <span className="font-display text-sm font-semibold tabular-nums text-[var(--foreground)]">
+              {row.time}
+            </span>
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium text-[var(--foreground)]">{row.name}</p>
+              <p className="truncate text-xs text-[var(--muted-foreground)]">{row.service}</p>
+            </div>
+            <span
+              className={`rounded-md px-2 py-1 text-[11px] font-semibold ${
+                row.status === "Onaylı" || row.status === "Confirmed"
+                  ? "bg-[var(--brand-soft)] text-[var(--brand)]"
+                  : "bg-[var(--muted)] text-[var(--muted-foreground)]"
+              }`}
+            >
+              {row.status}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
 
 export default function Home() {
   const { locale } = useLocale();
@@ -225,80 +195,80 @@ export default function Home() {
   const [showContactModal, setShowContactModal] = useState(false);
 
   return (
-    <div className="relative min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(60%_50%_at_15%_0%,rgba(5,150,105,0.12),transparent_70%)]" />
-
-      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
-        <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
-          <Link href="/" className="inline-flex items-center gap-3">
+    <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
+      <header className="sticky top-0 z-40 border-b border-[var(--border)] bg-[color-mix(in_oklab,var(--background)_92%,transparent)] backdrop-blur-md">
+        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between px-4 sm:px-6">
+          <Link href="/" className="inline-flex items-center gap-2.5">
             <Image
               src="/appicon.png"
               alt="Ahi AI"
-              width={34}
-              height={34}
-              sizes="34px"
-              className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
+              width={32}
+              height={32}
+              sizes="32px"
+              className="rounded-md"
               priority
             />
-            <span className="text-lg font-semibold tracking-tight">Ahi AI</span>
+            <span className="font-display text-[1.05rem] font-semibold tracking-tight">Ahi AI</span>
           </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300 md:flex">
-            <a href="#solutions" className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white">
+
+          <nav className="hidden items-center gap-7 text-sm font-medium text-[var(--muted-foreground)] md:flex">
+            <a href="#solutions" className="transition-colors hover:text-[var(--foreground)]">
               {t.nav.solutions}
             </a>
-            <a href="#flow" className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white">
+            <a href="#flow" className="transition-colors hover:text-[var(--foreground)]">
               {t.nav.flow}
             </a>
-            <Link href="/isletmeler" className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white">
+            <Link href="/isletmeler" className="transition-colors hover:text-[var(--foreground)]">
               {t.nav.businesses}
             </Link>
             <button
               type="button"
               onClick={() => setShowContactModal(true)}
-              className="transition-colors duration-150 hover:text-slate-900 dark:hover:text-white"
+              className="transition-colors hover:text-[var(--foreground)]"
             >
               {t.nav.contact}
             </button>
             <Link
               href="/dashboard/login"
-              className="rounded-xl bg-emerald-600 px-3.5 py-2 text-white transition-colors duration-150 hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+              className="rounded-lg bg-[var(--primary)] px-3.5 py-2 text-[var(--primary-foreground)] transition-opacity hover:opacity-90"
             >
               {t.nav.login}
             </Link>
           </nav>
+
           <div className="flex items-center gap-2">
             <ThemeLocaleSwitch compact />
             <button
               type="button"
               onClick={() => setMobileMenuOpen((v) => !v)}
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition hover:bg-slate-50 md:hidden dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 dark:hover:bg-slate-800"
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--card)] md:hidden"
               aria-label={locale === "tr" ? "Menüyü aç veya kapat" : "Toggle menu"}
             >
               {mobileMenuOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
             </button>
           </div>
         </div>
+
         {mobileMenuOpen && (
-          <div className="border-t border-slate-200 bg-white px-4 py-3 md:hidden dark:border-slate-800 dark:bg-slate-900">
-            <div className="mobile-card-stack">
-              <a
-                href="#solutions"
-                onClick={() => setMobileMenuOpen(false)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
-              >
-                {t.nav.solutions}
-              </a>
-              <a
-                href="#flow"
-                onClick={() => setMobileMenuOpen(false)}
-                className="rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
-              >
-                {t.nav.flow}
-              </a>
+          <div className="border-t border-[var(--border)] bg-[var(--card)] px-4 py-3 md:hidden">
+            <div className="grid gap-1">
+              {[
+                { href: "#solutions", label: t.nav.solutions },
+                { href: "#flow", label: t.nav.flow },
+              ].map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className="rounded-lg px-3 py-2.5 text-sm font-medium"
+                >
+                  {item.label}
+                </a>
+              ))}
               <Link
                 href="/isletmeler"
                 onClick={() => setMobileMenuOpen(false)}
-                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                className="rounded-lg px-3 py-2.5 text-sm font-medium"
               >
                 {t.nav.businesses}
               </Link>
@@ -308,14 +278,14 @@ export default function Home() {
                   setShowContactModal(true);
                   setMobileMenuOpen(false);
                 }}
-                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm font-medium text-slate-700 dark:border-slate-700 dark:text-slate-200"
+                className="rounded-lg px-3 py-2.5 text-left text-sm font-medium"
               >
                 {t.nav.contact}
               </button>
               <Link
                 href="/dashboard/login"
                 onClick={() => setMobileMenuOpen(false)}
-                className="rounded-xl bg-emerald-600 px-3 py-2.5 text-center text-sm font-semibold text-white dark:bg-emerald-500 dark:text-slate-950"
+                className="mt-1 rounded-lg bg-[var(--primary)] px-3 py-2.5 text-center text-sm font-semibold text-[var(--primary-foreground)]"
               >
                 {t.nav.login}
               </Link>
@@ -325,143 +295,125 @@ export default function Home() {
       </header>
 
       <main>
-        <section className="relative mx-auto w-full max-w-7xl px-4 pb-20 pt-16 sm:px-6 lg:pt-24">
-          <div className="animate-hero-in mx-auto max-w-3xl text-center opacity-0">
-            <p className="text-sm font-semibold tracking-tight text-emerald-700 dark:text-emerald-400">
-              Ahi AI
+        <section className="mx-auto grid w-full max-w-6xl items-center gap-12 px-4 pb-20 pt-14 sm:px-6 lg:grid-cols-[1.05fr_0.95fr] lg:gap-16 lg:pt-20">
+          <div className="max-w-xl border-l-2 border-[var(--brand)] pl-5 sm:pl-6">
+            <p className="text-xs font-semibold uppercase tracking-[0.16em] text-[var(--brand)]">
+              {t.hero.eyebrow}
             </p>
-            <h1 className="mt-3 text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-6xl">
-              {t.hero.titleA}{" "}
-              <span className="text-emerald-700 dark:text-emerald-400">{t.hero.titleB}</span>
+            <h1 className="font-display mt-4 text-[2.35rem] font-semibold leading-[1.12] tracking-tight sm:text-5xl">
+              {t.hero.title}
             </h1>
-            <p className="mx-auto mt-5 max-w-2xl text-base leading-7 text-slate-600 dark:text-slate-300 sm:text-lg">
+            <p className="mt-5 max-w-lg text-base leading-7 text-[var(--muted-foreground)] sm:text-[1.05rem]">
               {t.hero.desc}
             </p>
-            <div className="mt-8 flex flex-col items-stretch justify-center gap-3 sm:flex-row sm:items-center">
+            <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:items-center">
               <Link
                 href="/dashboard/login"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-lg bg-[var(--primary)] px-5 text-sm font-semibold text-[var(--primary-foreground)] transition-opacity hover:opacity-90"
               >
                 {t.hero.primary}
                 <ArrowRight className="h-4 w-4" aria-hidden />
               </Link>
               <Link
                 href="/isletmeler"
-                className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+                className="inline-flex min-h-12 items-center justify-center rounded-lg border border-[var(--border)] bg-[var(--card)] px-5 text-sm font-semibold text-[var(--foreground)] transition-colors hover:bg-[var(--muted)]"
               >
-                <Globe className="h-4 w-4" aria-hidden />
                 {t.hero.secondary}
               </Link>
             </div>
-            <ul className="mx-auto mt-8 grid max-w-xl gap-2 text-left">
-              {t.hero.points.map((point) => (
-                <li key={point} className="flex items-start gap-2.5 text-sm text-slate-600 dark:text-slate-300">
-                  <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
-                  {point}
-                </li>
-              ))}
-            </ul>
           </div>
+
+          <ProductPreview
+            title={t.preview.title}
+            open={t.preview.open}
+            rows={t.preview.rows}
+            note={t.preview.note}
+          />
         </section>
 
-        <section id="solutions" className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6">
-          <ScrollReveal variant="fadeUp">
-            <div className="mb-8 flex items-center gap-3">
-              <Workflow className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.solutionsTitle}</h2>
+        <section id="solutions" className="border-y border-[var(--border)] bg-[var(--card)]">
+          <div className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
+            <div className="max-w-2xl">
+              <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">
+                {t.solutionsTitle}
+              </h2>
+              <p className="mt-3 text-base text-[var(--muted-foreground)]">{t.solutionsLead}</p>
             </div>
-          </ScrollReveal>
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {t.solutions.map((item, index) => {
-              const Icon = item.icon;
-              return (
-                <ScrollReveal key={item.title} delay={0.04 + index * 0.06} variant="fadeUp">
-                  <article className="h-full rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-800 dark:bg-slate-900">
-                    <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                      <Icon className="h-5 w-5" aria-hidden />
-                    </span>
-                    <h3 className="mt-4 text-lg font-semibold tracking-tight">{item.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                      {item.text}
-                    </p>
-                  </article>
-                </ScrollReveal>
-              );
-            })}
-          </div>
-        </section>
-
-        <section id="flow" className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6">
-          <ScrollReveal variant="fadeUp">
-            <div className="mb-6 flex items-center gap-3">
-              <Rocket className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.flowTitle}</h2>
-            </div>
-          </ScrollReveal>
-          <div className="grid gap-3 md:grid-cols-2">
-            {t.flow.map((item, index) => (
-              <ScrollReveal key={item.step} delay={0.05 + index * 0.05} variant="scale">
-                <article className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <span className="font-mono text-xs font-bold tracking-[0.14em] text-emerald-700 dark:text-emerald-400">
-                    {item.step}
-                  </span>
-                  <h3 className="mt-1.5 text-base font-semibold">{item.title}</h3>
-                  <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-300">{item.text}</p>
+            <div className="mt-10 grid gap-0 border-t border-[var(--border)] sm:grid-cols-2">
+              {t.solutions.map((item, index) => (
+                <article
+                  key={item.title}
+                  className={`border-b border-[var(--border)] py-7 sm:px-6 sm:py-8 ${
+                    index % 2 === 0 ? "sm:border-r sm:pl-0" : ""
+                  } ${index < 2 ? "" : ""}`}
+                >
+                  <p className="font-display text-xs font-semibold tabular-nums text-[var(--muted-foreground)]">
+                    0{index + 1}
+                  </p>
+                  <h3 className="font-display mt-3 text-xl font-semibold tracking-tight">{item.title}</h3>
+                  <p className="mt-2 max-w-sm text-sm leading-6 text-[var(--muted-foreground)]">{item.text}</p>
                 </article>
-              </ScrollReveal>
-            ))}
+              ))}
+            </div>
           </div>
         </section>
 
-        <section className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6">
-          <ScrollReveal variant="fadeUp">
-            <div className="rounded-2xl border border-emerald-700/20 bg-emerald-700 p-8 text-white dark:border-emerald-500/30 dark:bg-emerald-800 sm:p-10">
-              <h2 className="max-w-2xl text-2xl font-bold tracking-tight sm:text-3xl">{t.cta.title}</h2>
-              <p className="mt-3 max-w-2xl text-sm leading-relaxed text-emerald-50 sm:text-base">
+        <section id="flow" className="mx-auto w-full max-w-6xl px-4 py-16 sm:px-6">
+          <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">{t.flowTitle}</h2>
+          <ol className="mt-10 grid gap-8 sm:grid-cols-2 lg:grid-cols-4 lg:gap-6">
+            {t.flow.map((item) => (
+              <li key={item.step} className="relative">
+                <span className="font-display text-4xl font-semibold text-[color-mix(in_oklab,var(--brand)_35%,transparent)]">
+                  {item.step}
+                </span>
+                <h3 className="font-display mt-2 text-lg font-semibold tracking-tight">{item.title}</h3>
+                <p className="mt-1.5 text-sm leading-6 text-[var(--muted-foreground)]">{item.text}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+
+        <section className="border-t border-[var(--border)] bg-[var(--primary)] text-[var(--primary-foreground)]">
+          <div className="mx-auto flex w-full max-w-6xl flex-col gap-6 px-4 py-14 sm:flex-row sm:items-end sm:justify-between sm:px-6">
+            <div className="max-w-xl">
+              <h2 className="font-display text-3xl font-semibold tracking-tight sm:text-4xl">{t.cta.title}</h2>
+              <p className="mt-3 text-sm leading-6 text-[color-mix(in_oklab,var(--primary-foreground)_72%,transparent)] sm:text-base">
                 {t.cta.text}
               </p>
-              <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-                <Link
-                  href="/dashboard/login"
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-5 py-3 text-sm font-semibold text-emerald-900 transition-colors duration-150 hover:bg-emerald-50"
-                >
-                  <ArrowRight className="h-4 w-4" aria-hidden />
-                  {t.cta.primary}
-                </Link>
-                <Link
-                  href="/isletmeler"
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-white/20"
-                >
-                  <Globe className="h-4 w-4" aria-hidden />
-                  {t.cta.secondary}
-                </Link>
-                <button
-                  type="button"
-                  onClick={() => setShowContactModal(true)}
-                  className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl border border-white/30 bg-white/10 px-5 py-3 text-sm font-semibold text-white transition-colors duration-150 hover:bg-white/20"
-                >
-                  <MessageCircle className="h-4 w-4" aria-hidden />
-                  {t.nav.contact}
-                </button>
-              </div>
             </div>
-          </ScrollReveal>
+            <div className="flex flex-col gap-3 sm:flex-row">
+              <Link
+                href="/dashboard/login"
+                className="inline-flex min-h-11 items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-5 text-sm font-semibold text-[var(--brand-foreground)]"
+              >
+                {t.cta.primary}
+                <ArrowRight className="h-4 w-4" aria-hidden />
+              </Link>
+              <Link
+                href="/isletmeler"
+                className="inline-flex min-h-11 items-center justify-center rounded-lg border border-[color-mix(in_oklab,var(--primary-foreground)_25%,transparent)] px-5 text-sm font-semibold"
+              >
+                {t.cta.secondary}
+              </Link>
+            </div>
+          </div>
         </section>
       </main>
 
-      <footer className="border-t border-slate-200/80 px-4 py-8 text-center text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
-        <p>{t.footer}</p>
-        <p className="mt-2 flex flex-wrap items-center justify-center gap-x-2 gap-y-1">
-          <span>{t.copyright}</span>
-          <span className="hidden sm:inline">·</span>
-          <button
-            type="button"
-            onClick={() => setShowContactModal(true)}
-            className="font-medium text-emerald-700 hover:text-emerald-800 hover:underline dark:text-emerald-400 dark:hover:text-emerald-300"
-          >
-            {t.nav.contact}
-          </button>
-        </p>
+      <footer className="border-t border-[var(--border)] px-4 py-8 text-sm text-[var(--muted-foreground)] sm:px-6">
+        <div className="mx-auto flex w-full max-w-6xl flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <p>{t.footer}</p>
+          <div className="flex items-center gap-4">
+            <span>{t.copyright}</span>
+            <button
+              type="button"
+              onClick={() => setShowContactModal(true)}
+              className="font-medium text-[var(--foreground)] underline-offset-4 hover:underline"
+            >
+              {t.nav.contact}
+            </button>
+          </div>
+        </div>
       </footer>
 
       <ContactModal isOpen={showContactModal} onClose={() => setShowContactModal(false)} />

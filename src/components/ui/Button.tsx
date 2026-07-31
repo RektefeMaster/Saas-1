@@ -13,20 +13,20 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 
 const variantStyles = {
   primary:
-    "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 focus-visible:ring-emerald-500 dark:bg-emerald-500 dark:hover:bg-emerald-600",
+    "bg-[var(--brand)] text-[var(--brand-foreground)] shadow-sm hover:opacity-90 focus-visible:ring-[var(--brand)]",
   secondary:
-    "bg-slate-100 text-slate-900 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700",
+    "bg-[var(--muted)] text-[var(--foreground)] hover:bg-[color-mix(in_oklab,var(--muted)_85%,var(--foreground))] dark:hover:bg-[var(--border)]",
   outline:
-    "border border-slate-200 bg-transparent hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800",
-  ghost: "hover:bg-slate-100 dark:hover:bg-slate-800",
+    "border border-[var(--border)] bg-transparent hover:bg-[var(--muted)]",
+  ghost: "hover:bg-[var(--muted)]",
   destructive:
     "bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500 dark:bg-red-500 dark:hover:bg-red-600",
 };
 
 const sizeStyles = {
-  sm: "h-8 gap-1.5 rounded-lg px-3 text-sm",
-  md: "h-10 gap-2 rounded-xl px-4 text-sm font-medium",
-  lg: "h-12 gap-2.5 rounded-xl px-6 text-base font-semibold",
+  sm: "h-8 gap-1.5 rounded-md px-3 text-sm",
+  md: "h-10 gap-2 rounded-lg px-4 text-sm font-medium",
+  lg: "h-12 gap-2.5 rounded-lg px-6 text-base font-semibold",
 };
 
 export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
