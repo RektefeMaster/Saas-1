@@ -26,6 +26,9 @@ export async function createMessageProcessingJob(input: {
     payload: input.payload || null,
   });
   if (error) {
+    // Meta redelivery / duplicate webhook: (provider, message_id) unique.
+    // Treat as idempotent success — do not alarm or fail ingress.
+    if (error.code === "23505") return;
     console.error("[message-jobs] create error:", error.message);
   }
 }

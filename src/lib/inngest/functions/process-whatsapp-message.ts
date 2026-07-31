@@ -1,10 +1,9 @@
-import { RetryAfterError } from "inngest";
+import { NonRetriableError, RetryAfterError } from "inngest";
 import { inngest } from "@/lib/inngest/client";
 import { processWhatsAppInboundEvent } from "@/lib/bot-v1/whatsapp-worker";
 import { logBotDlq } from "@/services/botAudit.service";
 import type { WhatsAppInboundEventData } from "@/lib/bot-v1/types";
 import { updateMessageProcessingJob } from "@/services/messageProcessingJob.service";
-import { WEBHOOK_CLAIM_STALE_MS } from "@/lib/redis";
 
 export const processWhatsAppMessageFn = inngest.createFunction(
   {
@@ -69,16 +68,18 @@ export const processWhatsAppMessageFn = inngest.createFunction(
         });
       }
 
-      // Foreign/legacy in_progress claims stay hot for ~3m. Default Inngest backoff
-      // would exhaust retries in ~30s and DLQ the message permanently. Space retries
-      // to the stale window (or a short delay when Redis is briefly unavailable).
-      if (errorMessage === "webhook_message_claim_in_progress") {
-        throw new RetryAfterError(errorMessage, WEBHOOK_CLAIM_STALE_MS, {
-          cause: err,
-        });
-      }
+      // Redis briefly unavailable — space retries instead of burning the budget.
       if (errorMessage === "webhook_message_claim_unavailable") {
         throw new RetryAfterError(errorMessage, 30_000, { cause: err });
+      }
+      // Permanent WhatsApp/config failures must not chew retries (worker normally
+      // soft-completes these; keep a belt-and-suspenders NonRetriable here).
+      if (
+        errorMessage.startsWith("whatsapp_reply_failed:window_closed_template_failed") ||
+        errorMessage.startsWith("whatsapp_reply_failed:190") ||
+        /token_expired|test_number_allowed_list/i.test(errorMessage)
+      ) {
+        throw new NonRetriableError(errorMessage, { cause: err });
       }
       throw err;
     }

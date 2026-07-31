@@ -401,6 +401,22 @@ export async function sendWhatsAppTemplateMessage({
 
   if (!res.ok) {
     const raw = await res.text().catch(() => "");
+    let parsedError: { code?: number; error_subcode?: number; message?: string } | undefined;
+    try {
+      parsedError = (JSON.parse(raw) as { error?: typeof parsedError }).error;
+    } catch {
+      parsedError = undefined;
+    }
+    const maybeExpired =
+      res.status === 401 &&
+      parsedError?.code === 190 &&
+      (parsedError.error_subcode === 463 ||
+        /session has expired/i.test(parsedError.message || ""));
+    if (maybeExpired) {
+      console.error(
+        "[whatsapp template] access token expired - refresh WHATSAPP_ACCESS_TOKEN"
+      );
+    }
     console.error("[whatsapp template] send error", res.status, "to", normalizedTo, raw);
     return false;
   }

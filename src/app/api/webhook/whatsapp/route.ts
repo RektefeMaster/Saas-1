@@ -213,8 +213,13 @@ export async function POST(request: NextRequest) {
           message: msg,
         };
 
+        // Idempotency key: Meta redeliveries share message_id. Dedupes Inngest
+        // function starts for ~24h so parallel foreign runs don't fight the claim.
+        // Meta's static Test payload id will not re-fire until the id window expires —
+        // real validation needs a live WhatsApp message (or a new message id).
         const settled = await Promise.allSettled([
           inngest.send({
+            id: `whatsapp-inbound-${messageId}`,
             name: "bot/whatsapp.message.received",
             data: eventData,
           }),

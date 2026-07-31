@@ -5,6 +5,7 @@ import {
   sendWhatsAppMessage,
   sendWhatsAppMessageDetailed,
   sendWhatsAppTemplateMessage,
+  type WhatsAppSendResult,
 } from "@/lib/whatsapp";
 import {
   acquireBotProcessingLock,
@@ -52,7 +53,6 @@ const WHATSAPP_KILL_SWITCH_MESSAGE =
   (process.env.WHATSAPP_KILL_SWITCH_MESSAGE || "").trim() ||
   "Sistemimiz su anda bakim modunda. Kisa sure sonra tekrar deneyebilir misiniz?";
 const MODEL_PRICING_VERSION = (process.env.MODEL_PRICING_VERSION || "v1").trim();
-const MESSAGE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
 function digitsOnly(value: string | null | undefined): string {
   return (value || "").replace(/\D/g, "");
@@ -108,12 +108,6 @@ function shouldSendQuickAck(text: string): boolean {
   if (!ENABLE_QUICK_ACK) return false;
   const normalized = text.trim().toLocaleLowerCase("tr-TR");
   return /^(merhaba|selam|mrb|slm|hey|iyi\s*günler)(\b|[!.?,\s]|$)/i.test(normalized);
-}
-
-function isWindowOpen(receivedAt: string): boolean {
-  const parsed = new Date(receivedAt).getTime();
-  if (!Number.isFinite(parsed)) return false;
-  return Date.now() - parsed < MESSAGE_WINDOW_MS;
 }
 
 /**
@@ -222,8 +216,7 @@ export async function processWhatsAppInboundEvent(
 
     // Single claim site for WA idempotency (do not also claim in the webhook ingress).
     // ownerToken=trace_id: Inngest retries keep the same event payload, so the same
-    // run can re-acquire its own processing claim instead of burning retries on
-    // webhook_message_claim_in_progress for ~3 minutes.
+    // run can re-acquire its own processing claim instead of burning retries.
     const claim = await claimWebhookMessageId(messageId, { ownerToken: traceId });
     if (claim === "already_done") {
       audit({
@@ -238,28 +231,34 @@ export async function processWhatsAppInboundEvent(
       });
       return;
     }
-    if (claim === "in_progress" || claim === "unavailable") {
-      // in_progress: a *different* delivery still owns the claim (or legacy claim
-      // without owner). Throw so Inngest can RetryAfterError until stale reclaim.
-      // Same-owner retries re-acquire above and never reach here.
+    if (claim === "in_progress") {
+      // Another delivery/run owns this message (Meta redelivery with a new trace_id).
+      // Soft-succeed: throwing RetryAfterError produced 500 storms and burned the
+      // foreign run's retries while the owner was still working or left a claim.
       audit({
         traceId,
         tenantId: event.tenant_hint,
         customerPhone,
         direction: "inbound",
-        stage:
-          claim === "in_progress"
-            ? "message_claim_in_progress"
-            : "message_claim_unavailable",
+        stage: "message_claim_in_progress",
         messageId,
         lockWaitMs: meta?.lockWaitMs ?? null,
         queueLagMs: meta?.queueLagMs ?? null,
       });
-      throw new Error(
-        claim === "in_progress"
-          ? "webhook_message_claim_in_progress"
-          : "webhook_message_claim_unavailable"
-      );
+      return;
+    }
+    if (claim === "unavailable") {
+      audit({
+        traceId,
+        tenantId: event.tenant_hint,
+        customerPhone,
+        direction: "inbound",
+        stage: "message_claim_unavailable",
+        messageId,
+        lockWaitMs: meta?.lockWaitMs ?? null,
+        queueLagMs: meta?.queueLagMs ?? null,
+      });
+      throw new Error("webhook_message_claim_unavailable");
     }
 
     try {
@@ -773,28 +772,29 @@ async function processClaimedWhatsAppInboundEvent(
     );
     const llmLatencyMs = Date.now() - aiStart;
     const safeReply = (reply && String(reply).trim()) || "Anlamadım, tekrar yazar mısınız?";
-    const windowOpen = isWindowOpen(event.received_at);
+    // Inbound webhook ⇒ customer just messaged us; the 24h window is open.
+    // Meta sample payloads ship stale timestamps that falsely tripped a local
+    // pre-check and forced a doomed template path (401 on test numbers).
+    // Trust Meta 131047 for a truly closed window.
     let sendStage = "message_replied";
     let sendErrorCode: string | null = null;
+    let sendResult: WhatsAppSendResult | null = null;
 
-    if (!windowOpen) {
-      const templateSent = await sendWindowRecoveryTemplate(customerPhone);
-      sendStage = templateSent ? "template_recovery_sent" : "template_recovery_failed";
-      if (!templateSent) sendErrorCode = "window_closed_template_failed";
-    } else {
-      const sendResult = await sendWhatsAppMessageDetailed({
-        to: customerPhone,
-        text: safeReply,
-      });
-      if (!sendResult.ok) {
-        sendErrorCode = sendResult.errorCode ? String(sendResult.errorCode) : null;
-        if (sendResult.blockedReason === "outside_24h_window" || sendResult.errorCode === 131047) {
-          const templateSent = await sendWindowRecoveryTemplate(customerPhone);
-          sendStage = templateSent ? "template_recovery_sent" : "template_recovery_failed";
-          if (!templateSent) sendErrorCode = "window_closed_template_failed";
-        } else {
-          sendStage = "message_reply_failed";
-        }
+    sendResult = await sendWhatsAppMessageDetailed({
+      to: customerPhone,
+      text: safeReply,
+    });
+    if (!sendResult.ok) {
+      sendErrorCode = sendResult.errorCode ? String(sendResult.errorCode) : null;
+      if (
+        sendResult.blockedReason === "outside_24h_window" ||
+        sendResult.errorCode === 131047
+      ) {
+        const templateSent = await sendWindowRecoveryTemplate(customerPhone);
+        sendStage = templateSent ? "template_recovery_sent" : "template_recovery_failed";
+        if (!templateSent) sendErrorCode = "window_closed_template_failed";
+      } else {
+        sendStage = "message_reply_failed";
       }
     }
 
@@ -806,14 +806,31 @@ async function processClaimedWhatsAppInboundEvent(
           : safeReply,
       stage: sendStage,
       metadata: {
-        window_open: windowOpen,
+        window_open: true,
         routing_reason: routingReason,
         send_error_code: sendErrorCode,
+        send_blocked_reason: sendResult?.blockedReason ?? null,
       },
     });
 
     if (sendStage === "message_reply_failed" || sendStage === "template_recovery_failed") {
-      throw new Error(`whatsapp_reply_failed:${sendErrorCode || sendStage}`);
+      const errMsg = `whatsapp_reply_failed:${sendErrorCode || sendStage}`;
+      const permanent =
+        sendStage === "template_recovery_failed" ||
+        sendResult?.blockedReason === "token_expired" ||
+        sendResult?.blockedReason === "test_number_allowed_list";
+      if (permanent) {
+        // Config / Meta policy won't change within Inngest backoff — mark done
+        // (caller) and exit cleanly instead of burning retries + claim storms.
+        console.error("[whatsapp-worker] permanent send failure; completing without retry", {
+          messageId,
+          traceId,
+          err: errMsg,
+          blockedReason: sendResult?.blockedReason ?? null,
+        });
+        return;
+      }
+      throw new Error(errMsg);
     }
 
     // Kalıcı lead hafızasını tazele. Cevap zaten gönderildi; müşteri beklemez.
