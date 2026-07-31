@@ -129,7 +129,12 @@ const runtimeWhatsAppMemory = new Map<string, { value: RuntimeWhatsAppConfig; ex
 let globalKillSwitchMemory: GlobalKillSwitchState | null = null;
 const webhookMessageDedupeMemory = new Map<
   string,
-  { expiry: number; state?: "processing" | "done"; claimedAt?: number }
+  {
+    expiry: number;
+    state?: "processing" | "done";
+    claimedAt?: number;
+    owner?: string | null;
+  }
 >();
 const tempMediaMemory = new Map<string, { value: string; expiry: number }>();
 
@@ -806,42 +811,87 @@ export type WebhookMessageClaimResult =
 
 // Must exceed bot processing lock (90s) + LLM/booking headroom so Inngest retries
 // cannot reclaim while the first attempt is still running.
-const WEBHOOK_CLAIM_STALE_MS = 180 * 1000;
+export const WEBHOOK_CLAIM_STALE_MS = 180 * 1000;
+
+const WEBHOOK_CLAIM_CAS_LUA =
+  "if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) else return nil end";
 
 function allowMemoryIdempotencyFallback(): boolean {
   return process.env.NODE_ENV !== "production";
 }
 
-function parseWebhookClaimValue(raw: unknown): { state: "processing" | "done"; at: number } | null {
+function sanitizeWebhookClaimOwner(ownerToken?: string): string {
+  return (ownerToken || "").trim().replace(/[^A-Za-z0-9_-]/g, "");
+}
+
+function formatWebhookProcessingClaim(at: number, owner: string): string {
+  return owner ? `processing:${at}:${owner}` : `processing:${at}`;
+}
+
+function serializeWebhookClaimValue(claim: {
+  state: "processing" | "done";
+  at: number;
+  owner: string | null;
+}): string | null {
+  if (claim.state === "done") return "done";
+  if (claim.at > 0) {
+    return formatWebhookProcessingClaim(claim.at, claim.owner || "");
+  }
+  if (claim.state === "processing") return "processing";
+  return null;
+}
+
+/** @internal Exported for unit tests. */
+export function parseWebhookClaimValue(
+  raw: unknown
+): { state: "processing" | "done"; at: number; owner: string | null } | null {
   if (raw == null) return null;
   const value = typeof raw === "string" ? raw : String(raw);
   if (value === "1" || value === "done") {
-    return { state: "done", at: 0 };
+    return { state: "done", at: 0, owner: null };
   }
   if (value === "processing") {
-    return { state: "processing", at: 0 };
+    return { state: "processing", at: 0, owner: null };
   }
-  const m = value.match(/^processing:(\d+)$/);
+  // processing:<ts> (eski format) veya processing:<ts>:<owner> (yeni format)
+  const m = value.match(/^processing:(\d+)(?::(.*))?$/);
   if (m) {
-    return { state: "processing", at: Number(m[1]) || 0 };
+    return {
+      state: "processing",
+      at: Number(m[1]) || 0,
+      owner: m[2] ? m[2] : null,
+    };
   }
-  return { state: "done", at: 0 };
+  return { state: "done", at: 0, owner: null };
 }
+
+export type ClaimWebhookMessageOptions = {
+  ttlSeconds?: number;
+  /**
+   * Aynı mesajın sahibi (trace_id). Bir deneme hata alıp bıraktığı damgayı
+   * AYNI sahip tekrar alabilmeli; aksi halde Inngest'in saniyeler içindeki
+   * tekrarları 3 dakikalık bayatlama süresine takılıp hakkını tüketiyor ve
+   * müşterinin mesajı kalıcı olarak düşüyordu.
+   */
+  ownerToken?: string;
+};
 
 /**
  * Claim inbound WA message for processing.
- * States: processing:<ts> while in-flight/failed; done when fully processed.
+ * States: processing:<ts>[:<owner>] while in-flight/failed; done when fully processed.
  * Redis errors / missing Redis in production → unavailable (fail-closed).
  */
 export async function claimWebhookMessageId(
   messageId: string,
-  ttlSeconds = 60 * 60 * 24
+  options: ClaimWebhookMessageOptions = {}
 ): Promise<WebhookMessageClaimResult> {
+  const ttlSeconds = options.ttlSeconds ?? 60 * 60 * 24;
   const normalized = messageId.trim();
   if (!normalized) return "unavailable";
   const key = webhookMessageDedupeKey(normalized);
   const now = Date.now();
-  const processingValue = `processing:${now}`;
+  const owner = sanitizeWebhookClaimOwner(options.ownerToken);
+  const processingValue = formatWebhookProcessingClaim(now, owner);
 
   if (redis) {
     try {
@@ -851,15 +901,33 @@ export async function claimWebhookMessageId(
       const current = parseWebhookClaimValue(await redis.get(key));
       if (!current || current.state === "done") return "already_done";
 
+      // Kendi önceki denememizin bıraktığı damgayı hemen geri alabiliriz.
+      // CAS: GET→SET arasında "done" yazılmışsa üzerine yazma.
+      if (owner && current.owner === owner) {
+        const previous = serializeWebhookClaimValue(current);
+        if (previous) {
+          const swapped = await redis.eval(
+            WEBHOOK_CLAIM_CAS_LUA,
+            [key],
+            [previous, processingValue, String(ttlSeconds)]
+          );
+          if (swapped === "OK") return "acquired";
+          const again = parseWebhookClaimValue(await redis.get(key));
+          if (!again || again.state === "done") return "already_done";
+          // Eşzamanlı aynı-owner yenilemesi kazandıysa bu deneme de owner.
+          if (again.owner === owner) return "acquired";
+          return "in_progress";
+        }
+      }
+
       const stale =
         !current.at || now - current.at >= WEBHOOK_CLAIM_STALE_MS;
       if (stale) {
         // CAS-ish: only overwrite if value unchanged (avoid dual reclaim).
-        const previous =
-          current.at > 0 ? `processing:${current.at}` : current.state === "processing" ? "processing" : null;
-        if (previous) {
+        const previous = serializeWebhookClaimValue(current);
+        if (previous && previous !== "done") {
           const swapped = await redis.eval(
-            `if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('SET', KEYS[1], ARGV[2], 'EX', ARGV[3]) else return nil end`,
+            WEBHOOK_CLAIM_CAS_LUA,
             [key],
             [previous, processingValue, String(ttlSeconds)]
           );
@@ -880,14 +948,24 @@ export async function claimWebhookMessageId(
 
   const mem = webhookMessageDedupeMemory.get(key);
   if (mem && mem.expiry > now) {
-    const age = now - (mem.claimedAt || 0);
     if (mem.state === "done") return "already_done";
+    if (owner && mem.owner === owner) {
+      webhookMessageDedupeMemory.set(key, {
+        expiry: now + ttlSeconds * 1000,
+        state: "processing",
+        claimedAt: now,
+        owner,
+      });
+      return "acquired";
+    }
+    const age = now - (mem.claimedAt || 0);
     if (age < WEBHOOK_CLAIM_STALE_MS) return "in_progress";
   }
   webhookMessageDedupeMemory.set(key, {
     expiry: now + ttlSeconds * 1000,
     state: "processing",
     claimedAt: now,
+    owner: owner || null,
   });
   return "acquired";
 }
@@ -913,6 +991,7 @@ export async function markWebhookMessageProcessed(
     expiry: now + ttlSeconds * 1000,
     state: "done",
     claimedAt: now,
+    owner: null,
   });
 }
 

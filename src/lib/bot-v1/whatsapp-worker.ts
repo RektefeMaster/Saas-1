@@ -221,7 +221,10 @@ export async function processWhatsAppInboundEvent(
     };
 
     // Single claim site for WA idempotency (do not also claim in the webhook ingress).
-    const claim = await claimWebhookMessageId(messageId);
+    // ownerToken=trace_id: Inngest retries keep the same event payload, so the same
+    // run can re-acquire its own processing claim instead of burning retries on
+    // webhook_message_claim_in_progress for ~3 minutes.
+    const claim = await claimWebhookMessageId(messageId, { ownerToken: traceId });
     if (claim === "already_done") {
       audit({
         traceId,
@@ -236,9 +239,9 @@ export async function processWhatsAppInboundEvent(
       return;
     }
     if (claim === "in_progress" || claim === "unavailable") {
-      // in_progress: another attempt still owns the claim (or failed recently).
-      // Throw so Inngest retries until stale reclaim (~3m) can re-acquire — do not
-      // soft-succeed or the message is silently dropped.
+      // in_progress: a *different* delivery still owns the claim (or legacy claim
+      // without owner). Throw so Inngest can RetryAfterError until stale reclaim.
+      // Same-owner retries re-acquire above and never reach here.
       audit({
         traceId,
         tenantId: event.tenant_hint,
@@ -273,9 +276,10 @@ export async function processWhatsAppInboundEvent(
       });
       await markWebhookMessageProcessed(messageId);
     } catch (err) {
-      // Leave claim in processing:<ts>. Stale reclaim (~3m) can retry later;
-      // do not release immediately (side effects may already have committed).
-      console.error("[whatsapp-worker] claimed inbound failed; claim retained for stale reclaim", {
+      // Leave claim in processing:<ts>:<owner>. Same-owner Inngest retries can
+      // re-acquire immediately; foreign deliveries wait for stale reclaim (~3m).
+      // Do not release immediately (side effects may already have committed).
+      console.error("[whatsapp-worker] claimed inbound failed; claim retained for owner/stale reclaim", {
         messageId,
         traceId,
         err: err instanceof Error ? err.message : String(err),

@@ -1,8 +1,10 @@
+import { RetryAfterError } from "inngest";
 import { inngest } from "@/lib/inngest/client";
 import { processWhatsAppInboundEvent } from "@/lib/bot-v1/whatsapp-worker";
 import { logBotDlq } from "@/services/botAudit.service";
 import type { WhatsAppInboundEventData } from "@/lib/bot-v1/types";
 import { updateMessageProcessingJob } from "@/services/messageProcessingJob.service";
+import { WEBHOOK_CLAIM_STALE_MS } from "@/lib/redis";
 
 export const processWhatsAppMessageFn = inngest.createFunction(
   {
@@ -41,6 +43,7 @@ export const processWhatsAppMessageFn = inngest.createFunction(
         attemptCount: attempt,
       });
     } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : String(err);
       if (attempt >= 3) {
         await logBotDlq({
           traceId: data.trace_id,
@@ -49,7 +52,7 @@ export const processWhatsAppMessageFn = inngest.createFunction(
           messageId: data.message_id,
           payload: data as unknown as Record<string, unknown>,
           errorCode: "worker_hard_fail",
-          errorMessage: err instanceof Error ? err.message : String(err),
+          errorMessage,
         });
         await updateMessageProcessingJob({
           traceId: data.trace_id,
@@ -64,6 +67,18 @@ export const processWhatsAppMessageFn = inngest.createFunction(
           attemptCount: attempt,
           errorCode: "worker_retry_scheduled",
         });
+      }
+
+      // Foreign/legacy in_progress claims stay hot for ~3m. Default Inngest backoff
+      // would exhaust retries in ~30s and DLQ the message permanently. Space retries
+      // to the stale window (or a short delay when Redis is briefly unavailable).
+      if (errorMessage === "webhook_message_claim_in_progress") {
+        throw new RetryAfterError(errorMessage, WEBHOOK_CLAIM_STALE_MS, {
+          cause: err,
+        });
+      }
+      if (errorMessage === "webhook_message_claim_unavailable") {
+        throw new RetryAfterError(errorMessage, 30_000, { cause: err });
       }
       throw err;
     }
