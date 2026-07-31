@@ -184,6 +184,61 @@ export async function GET() {
     fix: waFix,
   });
 
+  // ── 5b) WABA uygulamaya abone mi ─────────────────────────────────────────
+  // En sık atlanan adım: "messages" alanını işaretlemek tek başına yetmez,
+  // WhatsApp Business hesabının da uygulamaya abone olması gerekir. Bağ kopuksa
+  // Meta hiçbir mesajı teslim etmez ve sunucuda hiçbir iz kalmaz.
+  let subOk = false;
+  let subDetail = "";
+  let subFix: string | undefined;
+  const wabaId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID?.trim();
+  try {
+    const { token } = await import("@/lib/whatsapp").then((m) =>
+      m.resolveWhatsAppCredentials()
+    );
+    if (!wabaId) {
+      subDetail = "WHATSAPP_BUSINESS_ACCOUNT_ID tanımlı değil, kontrol edilemedi";
+      subFix =
+        "Meta → WhatsApp → Step 1. Try it out ekranındaki 'WhatsApp Business Account ID' değerini WHATSAPP_BUSINESS_ACCOUNT_ID olarak Vercel'e ekle.";
+    } else if (!token) {
+      subDetail = "Token yok, kontrol edilemedi";
+    } else {
+      const res = await fetch(
+        `https://graph.facebook.com/v22.0/${wabaId}/subscribed_apps`,
+        { headers: { Authorization: `Bearer ${token}` }, cache: "no-store" }
+      );
+      const payload = (await res.json().catch(() => ({}))) as {
+        data?: Array<{ whatsapp_business_api_data?: { id?: string; name?: string } }>;
+        error?: { message?: string };
+      };
+      if (!res.ok) {
+        subDetail = payload.error?.message ?? `Graph API ${res.status}`;
+        subFix = "Token'ın whatsapp_business_management izni olmalı.";
+      } else {
+        const apps = (payload.data || []).map(
+          (r) => r.whatsapp_business_api_data?.name ?? r.whatsapp_business_api_data?.id ?? "?"
+        );
+        subOk = apps.length > 0;
+        subDetail = subOk
+          ? `Abone uygulamalar: ${apps.join(", ")}`
+          : "WABA hiçbir uygulamaya abone DEĞİL";
+        if (!subOk) {
+          subFix =
+            "Mesajların teslim edilmemesinin sebebi budur. /api/admin/tools/whatsapp-subscription adresine POST atarak abone et.";
+        }
+      }
+    }
+  } catch (err) {
+    subDetail = err instanceof Error ? err.message : String(err);
+  }
+  add({
+    id: "waba_subscription",
+    label: "WABA → uygulama aboneliği",
+    ok: subOk,
+    detail: subDetail,
+    fix: subFix,
+  });
+
   // ── 6) Model gerçekten çalışıyor mu (tool'larla birlikte) ────────────────
   // En sinsi hata buradaydı: model tool + reasoning kombinasyonunu reddedince
   // her mesaj sessizce hataya düşüyordu.
