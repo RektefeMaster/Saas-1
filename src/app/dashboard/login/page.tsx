@@ -146,6 +146,8 @@ export default function DashboardLoginPage() {
           const hiddenAdminData = (await hiddenAdminRes.json().catch(() => ({}))) as {
             requires_otp?: boolean;
             challenge_id?: string;
+            error?: string;
+            retry_after?: number;
           };
           if (hiddenAdminRes.ok) {
             if (hiddenAdminData.requires_otp && hiddenAdminData.challenge_id) {
@@ -160,7 +162,29 @@ export default function DashboardLoginPage() {
             router.refresh();
             return;
           }
-          setError(locale === "tr" ? "Admin giriş bilgileri doğrulanamadı." : "Admin login could not be verified.");
+          const apiError = (hiddenAdminData.error || "").trim();
+          if (hiddenAdminRes.status === 429) {
+            setError(
+              apiError ||
+                (locale === "tr"
+                  ? "Çok fazla giriş denemesi. Lütfen 15 dakika sonra tekrar deneyin."
+                  : "Too many login attempts. Please try again in 15 minutes.")
+            );
+          } else if (hiddenAdminRes.status >= 500) {
+            setError(
+              apiError ||
+                (locale === "tr"
+                  ? "Admin giriş servisi şu an kullanılamıyor."
+                  : "Admin login service is currently unavailable.")
+            );
+          } else {
+            setError(
+              apiError ||
+                (locale === "tr"
+                  ? "Admin giriş bilgileri doğrulanamadı."
+                  : "Admin login could not be verified.")
+            );
+          }
           setLoading(false);
           return;
         } catch {

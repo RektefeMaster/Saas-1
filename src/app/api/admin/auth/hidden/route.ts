@@ -19,17 +19,21 @@ import {
 } from "@/lib/otp-auth";
 import { getTwilioVerifyStatus, sendSmsVerification } from "@/lib/twilio";
 
-function getHiddenIdentifier(): string | null {
-  const raw = process.env.ADMIN_HIDDEN_LOGIN_IDENTIFIER?.trim().toLowerCase() || "";
-  return raw || null;
+function getAcceptedIdentifiers(): string[] {
+  return [
+    process.env.ADMIN_HIDDEN_LOGIN_IDENTIFIER,
+    process.env.ADMIN_EMAIL,
+  ]
+    .map((value) => (value || "").trim().toLowerCase().replace(/\s+/g, ""))
+    .filter(Boolean);
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const hiddenIdentifier = getHiddenIdentifier();
-    if (!hiddenIdentifier) {
+    const acceptedIdentifiers = getAcceptedIdentifiers();
+    if (acceptedIdentifiers.length === 0) {
       return NextResponse.json(
-        { error: "ADMIN_HIDDEN_LOGIN_IDENTIFIER tanımlı değil" },
+        { error: "ADMIN_HIDDEN_LOGIN_IDENTIFIER / ADMIN_EMAIL tanımlı değil" },
         { status: 503 }
       );
     }
@@ -50,14 +54,14 @@ export async function POST(request: NextRequest) {
       identifier?: string;
       password?: string;
     };
-    const identifier = body.identifier?.trim().toLowerCase() || "";
+    const identifier = (body.identifier?.trim().toLowerCase() || "").replace(/\s+/g, "");
     const password = body.password;
 
     if (!identifier || !password || typeof password !== "string") {
       return NextResponse.json({ error: "Kimlik bilgileri eksik" }, { status: 400 });
     }
 
-    const identifierOk = identifier === hiddenIdentifier;
+    const identifierOk = acceptedIdentifiers.includes(identifier);
     const passwordOk = isAdminPasswordValid(password);
     if (!identifierOk || !passwordOk) {
       // Uniform delay: avoid timing-based identifier enumeration.
