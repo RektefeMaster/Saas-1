@@ -44,20 +44,26 @@ export function ScrollReveal({
       return;
     }
 
-    // Already visible (e.g. soft navigation) — reveal immediately.
+    const reveal = () => {
+      // Double-rAF so the browser paints opacity:0 first, then animates in.
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => el.classList.add("reveal-in"));
+      });
+    };
+
     const rect = el.getBoundingClientRect();
-    if (rect.top < window.innerHeight * 0.92 && rect.bottom > 0) {
-      el.classList.add("reveal-in");
+    if (rect.top < window.innerHeight * 0.9 && rect.bottom > 0) {
+      reveal();
       return;
     }
 
     const io = new IntersectionObserver(
       ([entry]) => {
         if (!entry.isIntersecting) return;
-        el.classList.add("reveal-in");
+        reveal();
         io.disconnect();
       },
-      { rootMargin: "0px 0px -6% 0px", threshold: 0.05 }
+      { rootMargin: "0px 0px -8% 0px", threshold: 0.08 }
     );
     io.observe(el);
     return () => io.disconnect();
