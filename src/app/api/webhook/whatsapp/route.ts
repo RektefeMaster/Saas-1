@@ -87,16 +87,21 @@ export async function POST(request: NextRequest) {
     console.warn("[webhook] rejected wa_token/wa_phone_id query credential injection attempt");
   }
 
-  void maybeSetWebhookDebug({
-    stage: "post_received",
-    at: new Date().toISOString(),
-    has_signature: Boolean(signature),
-    strict_signature: STRICT_WEBHOOK_SIGNATURE,
-    has_secret: Boolean(secret),
-    user_agent: userAgent.slice(0, 120),
-    body_size: rawBody.length,
-    runtime_token_from_url: false,
-  });
+  // Always persist ingress breadcrumbs in production — sampled happy-path
+  // writes hid "no real inbound" vs "401 signature reject" for hours.
+  await maybeSetWebhookDebug(
+    {
+      stage: "post_received",
+      at: new Date().toISOString(),
+      has_signature: Boolean(signature),
+      strict_signature: STRICT_WEBHOOK_SIGNATURE,
+      has_secret: Boolean(secret),
+      user_agent: userAgent.slice(0, 120),
+      body_size: rawBody.length,
+      runtime_token_from_url: false,
+    },
+    true
+  );
 
   if (!secret) {
     if (STRICT_WEBHOOK_SIGNATURE) {
@@ -272,11 +277,14 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  void maybeSetWebhookDebug({
-    stage: "events_queued",
-    at: new Date().toISOString(),
-    queued_count: queuedCount,
-  });
+  await maybeSetWebhookDebug(
+    {
+      stage: "events_queued",
+      at: new Date().toISOString(),
+      queued_count: queuedCount,
+    },
+    true
+  );
 
   return NextResponse.json({ ok: true, queued: queuedCount });
 }
