@@ -65,6 +65,7 @@ const COPY = {
     title: "Müşteri Defteri",
     subtitle: "Müşteri bilgilerinizi, notlarınızı ve hatırlatmalarınızı tek yerden yönetin.",
     back: "Panele dön",
+    backToList: "Listeye dön",
     search: "Telefon, ad veya etikete göre ara...",
     index: "İndeks",
     noCustomers: "Müşteri bulunamadı.",
@@ -114,6 +115,7 @@ const COPY = {
     title: "Customer Notebook",
     subtitle: "Manage customer profiles, notes, tags, and reminders in one place.",
     back: "Back to Panel",
+    backToList: "Back to list",
     search: "Search by phone, name, or tag...",
     index: "Index",
     noCustomers: "No records found.",
@@ -161,6 +163,23 @@ const COPY = {
   },
 } as const;
 
+const TOUCH_INPUT =
+  "min-h-11 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-base outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700 sm:text-sm";
+const TOUCH_BTN =
+  "inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 py-2.5 text-sm font-semibold transition";
+
+function useIsLgUp() {
+  const [isLgUp, setIsLgUp] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 1024px)");
+    const update = () => setIsLgUp(mq.matches);
+    update();
+    mq.addEventListener("change", update);
+    return () => mq.removeEventListener("change", update);
+  }, []);
+  return isLgUp;
+}
+
 function formatDate(value: string | null, locale: "tr" | "en") {
   if (!value) return "-";
   const date = new Date(value);
@@ -181,6 +200,7 @@ export function CrmContent({
 }) {
   const { locale } = useLocale();
   const t = COPY[locale];
+  const isLgUp = useIsLgUp();
 
   const [tenantId, setTenantId] = useState("");
   const tenantCtx = useDashboardTenant();
@@ -199,6 +219,7 @@ export function CrmContent({
   const [customersLoading, setCustomersLoading] = useState(false);
   const selectedPhone = useCrmStore((s) => s.selectedPhone);
   const setSelectedPhone = useCrmStore((s) => s.setSelectedPhone);
+  const showMobileDetail = !isLgUp && Boolean(selectedPhone);
   const [selectedCustomer, setSelectedCustomer] = useState<CrmCustomer | null>(null);
   const [notes, setNotes] = useState<CrmNote[]>([]);
   const [reminders, setReminders] = useState<CrmReminder[]>([]);
@@ -224,6 +245,7 @@ export function CrmContent({
     remind_at: "",
     channel: "both" as "panel" | "whatsapp" | "both",
   });
+  const [listHeight, setListHeight] = useState(400);
 
   useEffect(() => {
     params.then((p) => {
@@ -232,6 +254,19 @@ export function CrmContent({
       useCrmStore.getState().setSelectedPhone("");
     });
   }, [params]);
+
+  useEffect(() => {
+    const update = () => {
+      setListHeight(
+        window.matchMedia("(min-width: 1024px)").matches
+          ? 400
+          : Math.max(320, window.innerHeight - 300)
+      );
+    };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
 
   useEffect(() => {
     if (!tenantId) {
@@ -271,6 +306,12 @@ export function CrmContent({
     []
   );
 
+  useEffect(() => {
+    if (isLgUp && !selectedPhone && customers.length > 0) {
+      setSelectedPhone(customers[0].customer_phone);
+    }
+  }, [isLgUp, selectedPhone, customers, setSelectedPhone]);
+
   const loadCustomers = useCallback(async () => {
     if (!tenantId) return;
     setCustomersLoading(true);
@@ -287,12 +328,16 @@ export function CrmContent({
     }
     const list = Array.isArray(data) ? data : [];
     setCustomers(list);
-    if (!selectedPhone && list.length > 0) setSelectedPhone(list[0].customer_phone);
-    if (selectedPhone && !list.some((c) => c.customer_phone === selectedPhone)) {
-      setSelectedPhone(list[0]?.customer_phone || "");
+    if (isLgUp) {
+      if (!selectedPhone && list.length > 0) setSelectedPhone(list[0].customer_phone);
+      if (selectedPhone && !list.some((c) => c.customer_phone === selectedPhone)) {
+        setSelectedPhone(list[0]?.customer_phone || "");
+      }
+    } else if (selectedPhone && !list.some((c) => c.customer_phone === selectedPhone)) {
+      setSelectedPhone("");
     }
     setCustomersLoading(false);
-  }, [clearMessageLater, searchQuery, selectedPhone, tenantId]);
+  }, [clearMessageLater, isLgUp, searchQuery, selectedPhone, tenantId, setSelectedPhone]);
 
   const detailKey =
     selectedPhone && tenantId
@@ -513,13 +558,15 @@ export function CrmContent({
   };
 
   return (
-    <div className="space-y-6 p-4 pb-24 sm:p-6 lg:p-10">
-      <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+    <div className="space-y-4 p-4 sm:space-y-6 sm:p-6 lg:p-10">
+      <header
+        className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6 ${showMobileDetail ? "hidden lg:block" : ""}`}
+      >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <Link
               href={tenantId ? `/dashboard/${tenantId}` : "#"}
-              className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
+              className={`${TOUCH_BTN} rounded-lg border border-slate-200 bg-slate-50 px-3 font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700`}
             >
               <ArrowLeft className="h-4 w-4" />
               {t.back}
@@ -550,8 +597,10 @@ export function CrmContent({
         )}
       </header>
 
-      <div className="grid gap-6 xl:grid-cols-[320px_1fr]">
-        <aside className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,320px)_1fr] lg:gap-6">
+        <aside
+          className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 ${showMobileDetail ? "hidden lg:block" : ""}`}
+        >
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             {t.index}
           </h2>
@@ -562,7 +611,7 @@ export function CrmContent({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               placeholder={t.search}
-              className="w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700"
+              className={`${TOUCH_INPUT} w-full pl-10 pr-3`}
               aria-label={t.search}
             />
           </div>
@@ -578,8 +627,8 @@ export function CrmContent({
           ) : (
             <VirtualList
               items={customers}
-              height={400}
-              estimateSize={72}
+              height={listHeight}
+              estimateSize={80}
               renderItem={(customer) => (
                 <button
                   type="button"
@@ -591,7 +640,7 @@ export function CrmContent({
                     )
                   }
                   onClick={() => setSelectedPhone(customer.customer_phone)}
-                  className={`w-full rounded-xl border px-3 py-3 text-left transition ${
+                  className={`mb-2 w-full min-h-[72px] rounded-xl border px-3 py-3 text-left transition active:scale-[0.99] ${
                     selectedPhone === customer.customer_phone
                       ? "border-slate-400 bg-slate-100 dark:border-slate-500 dark:bg-slate-800"
                       : "border-slate-200 hover:bg-slate-50 dark:border-slate-700 dark:hover:bg-slate-800/60"
@@ -618,15 +667,42 @@ export function CrmContent({
           )}
         </aside>
 
-        <section className="space-y-6">
+        <section className={`min-w-0 space-y-4 lg:space-y-6 ${showMobileDetail ? "" : "hidden lg:block"}`}>
           {!selectedPhone ? (
             <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
               {t.selectCustomer}
             </div>
           ) : (
             <>
-              <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-                <h2 className="mb-4 flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
+              <div className="sticky top-0 z-10 -mx-1 border-b border-slate-200 bg-white/95 px-1 pb-3 pt-1 backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/95 lg:hidden">
+                <button
+                  type="button"
+                  onClick={() => setSelectedPhone("")}
+                  className={`${TOUCH_BTN} w-full justify-start rounded-xl border border-slate-200 bg-slate-50 font-medium text-slate-700 hover:bg-slate-100 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700`}
+                >
+                  <ArrowLeft className="h-5 w-5 shrink-0" />
+                  <span className="truncate">{t.backToList}</span>
+                </button>
+                <p className="mt-2 truncate text-base font-semibold text-slate-900 dark:text-slate-100">
+                  {selectedCustomer?.customer_name || selectedPhone}
+                </p>
+                {selectedCustomer?.customer_name && (
+                  <p className="truncate text-sm text-slate-500 dark:text-slate-400">{selectedPhone}</p>
+                )}
+                {error && (
+                  <p className="mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700 dark:border-red-800 dark:bg-red-950/30 dark:text-red-300">
+                    {error}
+                  </p>
+                )}
+                {info && (
+                  <p className="mt-2 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300">
+                    {info}
+                  </p>
+                )}
+              </div>
+
+              <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+                <h2 className="mb-4 hidden items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100 lg:flex">
                   <UserRound className="h-4 w-4" />
                   {t.profile}
                 </h2>
@@ -672,7 +748,7 @@ export function CrmContent({
                         onChange={(e) =>
                           setProfileForm((s) => ({ ...s, customer_name: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700"
+                        className={TOUCH_INPUT + " w-full"}
                       />
                     </label>
                     <label>
@@ -685,7 +761,7 @@ export function CrmContent({
                         onChange={(e) =>
                           setProfileForm((s) => ({ ...s, notes_summary: e.target.value }))
                         }
-                        className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700"
+                        className={TOUCH_INPUT + " w-full resize-y"}
                       />
                     </label>
                     {crmExtendedProfileEnabled && (
@@ -699,7 +775,7 @@ export function CrmContent({
                             type="button"
                             onClick={() => setShowAdvancedJson((v) => !v)}
                             aria-expanded={showAdvancedJson}
-                            className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                            className={`${TOUCH_BTN} shrink-0 rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-600 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800`}
                           >
                             {t.advancedJson}
                           </button>
@@ -712,17 +788,16 @@ export function CrmContent({
                             {t.healthNotice}
                           </p>
                         )}
-                        <div className="grid gap-3 sm:grid-cols-2">
+                        <div className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                           {profileFields.map((field) => {
                             const value = profileValues[field.key] ?? "";
                             const onChange = (next: string) =>
                               setProfileValues((s) => ({ ...s, [field.key]: next }));
-                            const inputClass =
-                              "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700";
+                            const inputClass = TOUCH_INPUT + " w-full rounded-lg";
                             return (
                               <label
                                 key={field.key}
-                                className={field.type === "textarea" ? "sm:col-span-2" : undefined}
+                                className={field.type === "textarea" ? "lg:col-span-2" : undefined}
                               >
                                 <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
                                   {field.label[locale]}
@@ -790,14 +865,14 @@ export function CrmContent({
                           )}
                       </section>
                     )}
-                    <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
+                    <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-xs text-slate-500 dark:text-slate-400">
                         {t.lastVisit}: {formatDate(selectedCustomer?.last_visit_at || null, locale)}
                       </p>
                       <button
                         type="button"
                         onClick={saveCustomerProfile}
-                        className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                        className={`${TOUCH_BTN} w-full bg-slate-900 text-white hover:bg-slate-700 sm:w-auto dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200`}
                       >
                         <Save className="h-4 w-4" />
                         {busy ? t.saving : t.save}
@@ -818,7 +893,7 @@ export function CrmContent({
                         <button
                           type="button"
                           onClick={() => removeTag(tag)}
-                          className="rounded-full p-0.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-600 dark:hover:text-slate-100"
+                          className="min-h-8 min-w-8 rounded-full p-1.5 text-slate-500 transition hover:bg-slate-200 hover:text-slate-700 dark:hover:bg-slate-600 dark:hover:text-slate-100"
                           aria-label="Etiketi kaldır"
                         >
                           <X className="h-3 w-3" />
@@ -826,17 +901,17 @@ export function CrmContent({
                       </span>
                     ))}
                   </div>
-                  <div className="flex gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row">
                     <input
                       value={newTag}
                       onChange={(e) => setNewTag(e.target.value)}
                       placeholder={t.addTag}
-                      className="flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700"
+                      className={`${TOUCH_INPUT} min-w-0 flex-1 rounded-lg`}
                     />
                     <button
                       type="button"
                       onClick={addTag}
-                      className="rounded-lg border border-slate-300 bg-slate-100 px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      className={`${TOUCH_BTN} w-full shrink-0 rounded-lg border border-slate-300 bg-slate-100 text-slate-700 hover:bg-slate-200 sm:w-auto dark:border-slate-600 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700`}
                     >
                       {t.addTag}
                     </button>
@@ -844,7 +919,7 @@ export function CrmContent({
                 </div>
               </article>
 
-              <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
                 <h3 className="mb-4 font-semibold text-slate-900 dark:text-slate-100">{t.notes}</h3>
                 <div className="space-y-3">
                   {notes.length === 0 ? (
@@ -863,45 +938,45 @@ export function CrmContent({
                     ))
                   )}
                 </div>
-                <div className="mt-4 flex gap-2">
+                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
                   <input
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}
                     placeholder={t.addNote}
-                    className="flex-1 rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700"
+                    className={`${TOUCH_INPUT} min-w-0 flex-1 rounded-lg`}
                   />
                   <button
                     type="button"
                     onClick={addNote}
-                    className="rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                    className={`${TOUCH_BTN} w-full bg-slate-900 text-white hover:bg-slate-700 sm:w-auto dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200`}
                   >
                     {t.addNote}
                   </button>
                 </div>
               </article>
 
-              <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
                 <h3 className="mb-4 font-semibold text-slate-900 dark:text-slate-100">{t.reminders}</h3>
-                <form onSubmit={createReminder} className="grid gap-3 md:grid-cols-2">
+                <form onSubmit={createReminder} className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <input
                     value={reminderForm.title}
                     onChange={(e) => setReminderForm((s) => ({ ...s, title: e.target.value }))}
                     placeholder={t.reminderTitle}
-                    className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700"
+                    className={`${TOUCH_INPUT} rounded-lg`}
                     required
                   />
                   <input
                     type="datetime-local"
                     value={reminderForm.remind_at}
                     onChange={(e) => setReminderForm((s) => ({ ...s, remind_at: e.target.value }))}
-                    className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700"
+                    className={`${TOUCH_INPUT} rounded-lg`}
                     required
                   />
                   <input
                     value={reminderForm.note}
                     onChange={(e) => setReminderForm((s) => ({ ...s, note: e.target.value }))}
                     placeholder={t.reminderNote}
-                    className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700 md:col-span-2"
+                    className={`${TOUCH_INPUT} rounded-lg lg:col-span-2`}
                   />
                   <select
                     value={reminderForm.channel}
@@ -911,7 +986,7 @@ export function CrmContent({
                         channel: e.target.value as "panel" | "whatsapp" | "both",
                       }))
                     }
-                    className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700"
+                    className={`${TOUCH_INPUT} rounded-lg`}
                   >
                     <option value="both">{t.channels.both}</option>
                     <option value="panel">{t.channels.panel}</option>
@@ -919,7 +994,7 @@ export function CrmContent({
                   </select>
                   <button
                     type="submit"
-                    className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                    className={`${TOUCH_BTN} w-full bg-slate-900 text-white hover:bg-slate-700 lg:w-auto dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200`}
                   >
                     <BellPlus className="h-4 w-4" />
                     {t.createReminder}
@@ -931,8 +1006,10 @@ export function CrmContent({
         </section>
       </div>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+      <section
+        className={`overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5 ${showMobileDetail ? "hidden lg:block" : ""}`}
+      >
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <h3 className="font-semibold text-slate-900 dark:text-slate-100">{t.upcoming}</h3>
           <div className="flex flex-wrap gap-2">
             {(["all", "pending", "sent", "cancelled"] as const).map((filter) => (
@@ -940,7 +1017,7 @@ export function CrmContent({
                 key={filter}
                 type="button"
                 onClick={() => setReminderFilter(filter)}
-                className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition ${
+                className={`min-h-11 rounded-xl px-3 py-2 text-xs font-semibold transition ${
                   reminderFilter === filter
                     ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
                     : "bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -984,15 +1061,15 @@ export function CrmContent({
                     <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{reminder.note}</p>
                   )}
                 </div>
-                <div className="flex items-center gap-2">
-                  <span className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium dark:bg-slate-800">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-medium dark:bg-slate-800">
                     {reminder.status}
                   </span>
                   {reminder.status !== "sent" && (
                     <button
                       type="button"
                       onClick={() => setReminderStatus(reminder.id, "sent")}
-                      className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className={`${TOUCH_BTN} rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800`}
                     >
                       {t.sent}
                     </button>
@@ -1001,7 +1078,7 @@ export function CrmContent({
                     <button
                       type="button"
                       onClick={() => setReminderStatus(reminder.id, "cancelled")}
-                      className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className={`${TOUCH_BTN} rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800`}
                     >
                       {t.cancel}
                     </button>
@@ -1009,7 +1086,7 @@ export function CrmContent({
                     <button
                       type="button"
                       onClick={() => setReminderStatus(reminder.id, "pending")}
-                      className="rounded-lg border border-slate-300 px-2.5 py-1.5 text-xs font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                      className={`${TOUCH_BTN} rounded-lg border border-slate-300 px-3 text-xs font-medium text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800`}
                     >
                       {t.reopen}
                     </button>

@@ -18,9 +18,10 @@ import {
   Inbox,
   QrCode,
   LogOut,
-  Menu,
+  MoreHorizontal,
   X,
 } from "lucide-react";
+import type { LucideIcon } from "lucide-react";
 import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase-client";
 import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
@@ -49,11 +50,6 @@ type NavKey =
   | "staff"
   | "settings";
 
-interface DashboardFeatureFlags {
-  packages?: boolean;
-  staff_preference?: boolean;
-}
-
 const COPY = {
   tr: {
     panel: "İşletme Paneli",
@@ -74,6 +70,7 @@ const COPY = {
     logout: "Çıkış Yap",
     section: "Panel",
     quick: "Hızlı Erişim",
+    more: "Diğer",
   },
   en: {
     panel: "Business Panel",
@@ -94,8 +91,78 @@ const COPY = {
     logout: "Sign Out",
     section: "Operations",
     quick: "Quick Access",
+    more: "More",
   },
 } as const;
+
+const MOBILE_PRIMARY_KEYS: NavKey[] = ["overview", "inbox", "crm", "workflow"];
+
+const MOBILE_SHORT_LABELS: Record<"tr" | "en", Partial<Record<NavKey, string>>> = {
+  tr: {
+    overview: "Özet",
+    inbox: "Mesaj",
+    crm: "CRM",
+    workflow: "Akış",
+    settings: "Ayar",
+  },
+  en: {
+    overview: "Home",
+    inbox: "Inbox",
+    crm: "CRM",
+    workflow: "Flow",
+    settings: "Settings",
+  },
+};
+
+type NavItem = {
+  key: NavKey;
+  href: string;
+  label: string;
+  icon: LucideIcon;
+};
+
+type MobileTabItem =
+  | ({ type: "link" } & NavItem & { shortLabel: string })
+  | { type: "more"; key: "more"; label: string; shortLabel: string; icon: LucideIcon };
+
+function isNavActive(pathname: string, href: string, tenantId: string | null): boolean {
+  const isRoot = href === `/dashboard/${tenantId}`;
+  return isRoot ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+}
+
+function buildMobileBottomNav(navItems: NavItem[], locale: "tr" | "en", moreLabel: string): MobileTabItem[] {
+  const byKey = new Map(navItems.map((item) => [item.key, item]));
+  const shortLabels = MOBILE_SHORT_LABELS[locale];
+
+  const toLinkTab = (item: NavItem): MobileTabItem => ({
+    type: "link",
+    ...item,
+    shortLabel: shortLabels[item.key] ?? item.label,
+  });
+
+  const primaryTabs = MOBILE_PRIMARY_KEYS.map((key) => byKey.get(key)).filter(
+    (item): item is NavItem => !!item
+  );
+  const shownKeys = new Set(primaryTabs.map((item) => item.key));
+  const overflow = navItems.filter((item) => !shownKeys.has(item.key));
+
+  if (overflow.length === 0) {
+    return primaryTabs.map(toLinkTab);
+  }
+  if (overflow.length === 1 && overflow[0].key === "settings") {
+    return [...primaryTabs.map(toLinkTab), toLinkTab(overflow[0])].slice(0, 5);
+  }
+
+  const moreTab: MobileTabItem = {
+    type: "more",
+    key: "more",
+    label: moreLabel,
+    shortLabel: moreLabel,
+    icon: MoreHorizontal,
+  };
+
+  return [...primaryTabs.map(toLinkTab), moreTab].slice(0, 5);
+}
 
 const UserMenu = React.memo(function UserMenu({
   user,
@@ -125,15 +192,15 @@ const UserMenu = React.memo(function UserMenu({
         onClick={() => setOpen((v) => !v)}
         aria-expanded={open}
         aria-haspopup="menu"
-        className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800"
+        className="inline-flex h-11 min-w-11 items-center justify-center gap-2 rounded-full border border-slate-200 bg-white px-1.5 text-sm transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:hover:bg-slate-800 sm:rounded-xl sm:px-3"
       >
-        <span className="inline-flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-sm font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
+        <span className="inline-flex h-8 w-8 items-center justify-center rounded-full bg-emerald-50 text-sm font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
           {initial}
         </span>
         <span className="hidden max-w-[140px] truncate font-medium text-slate-700 dark:text-slate-200 sm:inline">
           {accountLabel}
         </span>
-        <ChevronDown className="h-4 w-4 text-slate-400" aria-hidden />
+        <ChevronDown className="hidden h-4 w-4 text-slate-400 sm:block" aria-hidden />
       </button>
 
       {open && (
@@ -176,6 +243,14 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+    document.body.classList.add("dashboard-drawer-open");
+    return () => {
+      document.body.classList.remove("dashboard-drawer-open");
+    };
+  }, [mobileOpen]);
 
   const parts = pathname.split("/").filter(Boolean);
   const extractedTenantId = parts[1] && parts[0] === "dashboard" ? parts[1] : null;
@@ -237,7 +312,27 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     return [...visible].sort((a, b) => (rank.get(a.key) ?? 999) - (rank.get(b.key) ?? 999));
   }, [baseNav, featureFlags, moduleOrder, moduleVisibility]);
 
-  const mobileNavItems = navItems.slice(0, 5);
+  const mobileBottomNav = useMemo(
+    () => buildMobileBottomNav(navItems, locale, t.more),
+    [navItems, locale, t.more]
+  );
+
+  const mobileOverflowKeys = useMemo(() => {
+    const tabKeys = new Set(
+      mobileBottomNav.flatMap((item) => (item.type === "link" ? [item.key] : []))
+    );
+    return new Set(navItems.filter((item) => !tabKeys.has(item.key)).map((item) => item.key));
+  }, [mobileBottomNav, navItems]);
+
+  const isMoreTabActive = useMemo(
+    () =>
+      mobileBottomNav.some((item) => item.type === "more") &&
+      navItems.some(
+        (item) => mobileOverflowKeys.has(item.key) && isNavActive(pathname, item.href, tenantId)
+      ),
+    [mobileBottomNav, mobileOverflowKeys, navItems, pathname, tenantId]
+  );
+
   const isTenantPage = !!tenantId;
 
   // Null check ekle
@@ -249,19 +344,9 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     <DashboardTenantProvider tenantId={extractedTenantId}>
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
-        <div className="mx-auto flex h-14 w-full max-w-[1600px] items-center justify-between px-4 sm:h-16 sm:px-6 lg:px-8">
-          <div className="flex min-w-0 items-center gap-3">
-            {isTenantPage && (
-              <button
-                type="button"
-                onClick={() => setMobileOpen(true)}
-                className="inline-flex h-11 w-11 items-center justify-center rounded-xl border border-slate-200 bg-white text-slate-600 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300 lg:hidden"
-                aria-label={locale === "tr" ? "Menüyü aç" : "Open menu"}
-              >
-                <Menu className="h-4 w-4" aria-hidden />
-              </button>
-            )}
-            <Link href="/dashboard" className="inline-flex items-center gap-2.5">
+        <div className="mx-auto flex h-[var(--dashboard-header-height)] w-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
+            <Link href="/dashboard" className="inline-flex shrink-0 items-center gap-2.5">
               <Image
                 src="/appicon.png"
                 alt=""
@@ -269,10 +354,10 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                 height={32}
                 className="rounded-lg border border-slate-200 bg-white dark:border-slate-700"
               />
-              <span className="text-sm font-semibold tracking-tight">Ahi AI</span>
+              <span className="hidden text-sm font-semibold tracking-tight sm:inline">Ahi AI</span>
             </Link>
             <div className="min-w-0 border-l border-slate-200 pl-3 dark:border-slate-700">
-              <p className="truncate text-[11px] font-medium text-slate-500 dark:text-slate-400">
+              <p className="hidden truncate text-[11px] font-medium text-slate-500 sm:block dark:text-slate-400">
                 {t.section}
               </p>
               <p className="truncate text-sm font-semibold text-slate-800 dark:text-slate-100">
@@ -281,7 +366,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-2">
             <div className="hidden md:block">
               <ThemeLocaleSwitch compact />
             </div>
@@ -293,57 +378,60 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       {isTenantPage ? (
         <div className="relative">
           <div
-            className={`fixed inset-0 z-30 bg-slate-900/40 transition-opacity lg:hidden ${
+            className={`fixed inset-0 z-[45] bg-slate-950/45 transition-opacity duration-200 lg:hidden ${
               mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
             }`}
             onClick={() => setMobileOpen(false)}
+            aria-hidden
           />
 
           <aside
-            className={`fixed left-0 top-14 z-40 h-[calc(100vh-3.5rem)] w-64 border-r border-slate-200 bg-white p-3 transition-transform duration-200 sm:top-16 sm:h-[calc(100vh-4rem)] dark:border-slate-800 dark:bg-slate-900 lg:translate-x-0 ${
+            className={`fixed left-0 top-[var(--dashboard-header-height)] z-50 flex h-[calc(100dvh-var(--dashboard-header-height))] w-[min(20rem,88vw)] flex-col border-r border-slate-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))] transition-transform duration-200 ease-out dark:border-slate-800 dark:bg-slate-900 lg:z-40 lg:w-64 lg:translate-x-0 lg:p-3 lg:pb-3 ${
               mobileOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
-            <div className="mb-3 flex items-center justify-between lg:hidden">
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                {t.quick}
-              </span>
+            <div className="mb-4 flex shrink-0 items-center justify-between lg:hidden">
+              <div>
+                <p className="text-xs font-medium text-slate-500 dark:text-slate-400">{t.quick}</p>
+                <p className="text-sm font-semibold text-slate-900 dark:text-slate-100">
+                  {tenantName || t.panel}
+                </p>
+              </div>
               <button
                 type="button"
                 onClick={() => setMobileOpen(false)}
-                className="inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-500 transition-colors duration-150 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                className="inline-flex h-11 w-11 items-center justify-center rounded-full bg-slate-100 text-slate-600 transition-colors duration-150 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 aria-label={locale === "tr" ? "Menüyü kapat" : "Close menu"}
               >
-                <X className="h-4 w-4" aria-hidden />
+                <X className="h-5 w-5" aria-hidden />
               </button>
             </div>
 
-            <nav className="space-y-0.5" aria-label={t.section}>
+            <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto overscroll-contain" aria-label={t.section}>
               {navItems.map(({ href, label, icon: Icon }) => {
-                const isRoot = href === `/dashboard/${tenantId}`;
-                const active = isRoot ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+                const active = isNavActive(pathname, href, tenantId);
                 return (
                   <Link
                     key={href}
                     href={href}
-                    className={`flex min-h-11 items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition-colors duration-150 ${
+                    className={`flex min-h-12 items-center gap-3 rounded-2xl px-3.5 py-2.5 text-sm font-medium transition-colors duration-150 ${
                       active
                         ? "bg-[var(--brand)] text-[var(--brand-foreground)]"
                         : "text-slate-700 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-slate-800"
                     }`}
                   >
-                    <Icon className={`h-4 w-4 shrink-0 ${active ? "" : "text-slate-400"}`} aria-hidden />
+                    <Icon className={`h-5 w-5 shrink-0 ${active ? "" : "text-slate-400"}`} aria-hidden />
                     {label}
                   </Link>
                 );
               })}
             </nav>
 
-            <div className="mt-4 space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
+            <div className="mt-4 shrink-0 space-y-2 border-t border-slate-200 pt-4 dark:border-slate-800">
               <button
                 type="button"
                 onClick={() => setShowLinkModal(true)}
-                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <MessageCircle className="h-4 w-4" aria-hidden />
                 {t.whatsappLink}
@@ -351,7 +439,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
               <button
                 type="button"
                 onClick={() => setShowQRModal(true)}
-                className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                className="inline-flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition-colors duration-150 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
               >
                 <QrCode className="h-4 w-4" aria-hidden />
                 {t.qrCode}
@@ -362,7 +450,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
             </div>
           </aside>
 
-          <main className="min-h-[calc(100vh-3.5rem)] pb-[calc(5.6rem+env(safe-area-inset-bottom))] sm:min-h-[calc(100vh-4rem)] lg:ml-64 lg:pb-0">
+          <main className="min-h-[calc(100dvh-var(--dashboard-header-height))] pb-[calc(var(--dashboard-mobile-tab-height)+env(safe-area-inset-bottom))] lg:ml-64 lg:pb-0">
             {safeChildren}
           </main>
 
@@ -383,30 +471,76 @@ export default function DashboardShell({ children }: { children: React.ReactNode
             </>
           )}
 
-          {mobileNavItems.length > 0 && (
+          {mobileBottomNav.length > 0 && (
             <nav
-              className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 pb-[calc(0.4rem+env(safe-area-inset-bottom))] pt-1 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95 lg:hidden"
+              className="dashboard-tabbar fixed inset-x-0 bottom-0 z-40 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl dark:bg-slate-950/95 lg:hidden"
               aria-label={t.section}
             >
-              <div className="grid gap-1" style={{ gridTemplateColumns: `repeat(${mobileNavItems.length}, minmax(0, 1fr))` }}>
-                {mobileNavItems.map(({ href, label, icon: Icon }) => {
-                  const isRoot = href === `/dashboard/${tenantId}`;
-                  const active = isRoot ? pathname === href : pathname === href || pathname.startsWith(`${href}/`);
+              <div
+                className="mx-auto grid h-[var(--dashboard-mobile-tab-height)] max-w-lg items-stretch px-1"
+                style={{
+                  gridTemplateColumns: `repeat(${mobileBottomNav.length}, minmax(0, 1fr))`,
+                }}
+              >
+                {mobileBottomNav.map((item) => {
+                  if (item.type === "more") {
+                    const active = isMoreTabActive || mobileOpen;
+                    const Icon = item.icon;
+                    return (
+                      <button
+                        key="more"
+                        type="button"
+                        onClick={() => setMobileOpen(true)}
+                        aria-label={item.label}
+                        aria-expanded={mobileOpen}
+                        className={`dashboard-tab flex flex-col items-center justify-center gap-0.5 px-1 ${
+                          active ? "text-[var(--brand)]" : "text-slate-400 dark:text-slate-500"
+                        }`}
+                      >
+                        <span
+                          className={`inline-flex h-8 w-12 items-center justify-center rounded-full transition-colors duration-150 ${
+                            active ? "bg-[var(--brand-soft)]" : ""
+                          }`}
+                        >
+                          <Icon
+                            className="h-[22px] w-[22px]"
+                            strokeWidth={active ? 2.25 : 1.75}
+                            aria-hidden
+                          />
+                        </span>
+                        <span className={`text-[10px] leading-none tracking-wide ${active ? "font-semibold" : "font-medium"}`}>
+                          {item.shortLabel}
+                        </span>
+                      </button>
+                    );
+                  }
+
+                  const { href, shortLabel, icon: Icon } = item;
+                  const active = isNavActive(pathname, href, tenantId);
                   return (
                     <Link
                       key={href}
                       href={href}
-                      className={`flex min-h-12 min-w-0 flex-col items-center justify-center rounded-xl px-1 py-1.5 text-[10px] font-semibold transition-colors duration-150 ${
-                        active
-                          ? "bg-[var(--brand-soft)] text-[var(--brand)]"
-                          : "text-slate-500 hover:bg-slate-100 dark:text-slate-400 dark:hover:bg-slate-800"
+                      title={item.label}
+                      aria-current={active ? "page" : undefined}
+                      className={`dashboard-tab flex flex-col items-center justify-center gap-0.5 px-1 ${
+                        active ? "text-[var(--brand)]" : "text-slate-400 dark:text-slate-500"
                       }`}
                     >
-                      <Icon
-                        className={`mb-0.5 h-4 w-4 ${active ? "text-[var(--brand)]" : ""}`}
-                        aria-hidden
-                      />
-                      <span className="truncate">{label}</span>
+                      <span
+                        className={`inline-flex h-8 w-12 items-center justify-center rounded-full transition-colors duration-150 ${
+                          active ? "bg-[var(--brand-soft)]" : ""
+                        }`}
+                      >
+                        <Icon
+                          className="h-[22px] w-[22px]"
+                          strokeWidth={active ? 2.25 : 1.75}
+                          aria-hidden
+                        />
+                      </span>
+                      <span className={`text-[10px] leading-none tracking-wide ${active ? "font-semibold" : "font-medium"}`}>
+                        {shortLabel}
+                      </span>
                     </Link>
                   );
                 })}

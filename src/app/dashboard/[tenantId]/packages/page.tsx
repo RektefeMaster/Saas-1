@@ -220,7 +220,7 @@ export default function PackagesPage({
   };
 
   return (
-    <div className="space-y-6 p-4 pb-24 sm:p-6 lg:p-10">
+    <div className="space-y-6 overflow-x-hidden p-4 sm:p-6 lg:p-10">
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <Link
           href={`/dashboard/${tenantId}`}
@@ -249,98 +249,143 @@ export default function PackagesPage({
         </section>
       ) : (
         <>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">Yeni Paket</h2>
-            <form onSubmit={createPackage} className="grid gap-2 md:grid-cols-2 xl:grid-cols-5">
-              <input
-                value={newPackage.name}
-                onChange={(e) => setNewPackage((s) => ({ ...s, name: e.target.value }))}
-                placeholder="Paket adı"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
-                required
-              />
-              <input
-                value={newPackage.service_slug}
-                onChange={(e) => setNewPackage((s) => ({ ...s, service_slug: e.target.value }))}
-                placeholder="service_slug"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
-                required
-              />
-              <input
-                type="number"
-                min={1}
-                value={newPackage.total_sessions}
-                onChange={(e) =>
-                  setNewPackage((s) => ({ ...s, total_sessions: Number(e.target.value) || 1 }))
-                }
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
-              />
-              <input
-                type="number"
-                min={0}
-                step={0.01}
-                value={newPackage.price}
-                onChange={(e) => setNewPackage((s) => ({ ...s, price: e.target.value }))}
-                placeholder="Fiyat"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
-              />
-              <div className="grid grid-cols-[1fr_auto] gap-2">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Yeni Paket</h2>
+            <form onSubmit={createPackage} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+              <div>
+                <label htmlFor="pkg-name" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Paket adı
+                </label>
                 <input
+                  id="pkg-name"
+                  value={newPackage.name}
+                  onChange={(e) => setNewPackage((s) => ({ ...s, name: e.target.value }))}
+                  placeholder="Örn: 8 seans pilates"
+                  className="w-full min-h-11 rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="pkg-slug" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Hizmet slug
+                </label>
+                <input
+                  id="pkg-slug"
+                  value={newPackage.service_slug}
+                  onChange={(e) => setNewPackage((s) => ({ ...s, service_slug: e.target.value }))}
+                  placeholder="service_slug"
+                  className="w-full min-h-11 rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="pkg-sessions" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Toplam seans
+                </label>
+                <input
+                  id="pkg-sessions"
+                  type="number"
+                  min={1}
+                  value={newPackage.total_sessions}
+                  onChange={(e) =>
+                    setNewPackage((s) => ({ ...s, total_sessions: Number(e.target.value) || 1 }))
+                  }
+                  className="w-full min-h-11 rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="pkg-price" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Fiyat (₺)
+                </label>
+                <input
+                  id="pkg-price"
+                  type="number"
+                  min={0}
+                  step={0.01}
+                  value={newPackage.price}
+                  onChange={(e) => setNewPackage((s) => ({ ...s, price: e.target.value }))}
+                  placeholder="Fiyat"
+                  className="w-full min-h-11 rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                />
+              </div>
+              <div>
+                <label htmlFor="pkg-validity" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Geçerlilik (gün)
+                </label>
+                <input
+                  id="pkg-validity"
                   type="number"
                   min={0}
                   value={newPackage.validity_days}
                   onChange={(e) =>
                     setNewPackage((s) => ({ ...s, validity_days: e.target.value }))
                   }
-                  placeholder="Geçerlilik (gün)"
-                  className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
+                  placeholder="Boş = sınırsız"
+                  className="w-full min-h-11 rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
                 />
+              </div>
+              <div className="flex items-end sm:col-span-2 xl:col-span-1">
                 <button
                   type="submit"
                   disabled={saving}
-                  className="inline-flex items-center gap-1 rounded-lg bg-slate-900 px-3 py-2 text-xs font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-1.5 rounded-lg bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
                 >
-                  <PackagePlus className="h-3.5 w-3.5" />
-                  Ekle
+                  <PackagePlus className="h-4 w-4" />
+                  Paket Ekle
                 </button>
               </div>
             </form>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
               Müşteriye Paket Ata
             </h2>
-            <form onSubmit={assignPackage} className="grid gap-2 md:grid-cols-3">
-              <input
-                value={assignForm.customer_phone}
-                onChange={(e) => setAssignForm((s) => ({ ...s, customer_phone: e.target.value }))}
-                placeholder="Müşteri telefonu"
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
-                required
-              />
-              <select
-                value={assignForm.package_id}
-                onChange={(e) => setAssignForm((s) => ({ ...s, package_id: e.target.value }))}
-                className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
-                required
-              >
-                <option value="">Paket seç</option>
-                {packages
-                  .filter((pkg) => pkg.is_active)
-                  .map((pkg) => (
-                    <option key={pkg.id} value={pkg.id}>
-                      {pkg.name} ({pkg.service_slug})
-                    </option>
-                  ))}
-              </select>
-              <button
-                type="submit"
-                disabled={saving}
-                className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
-              >
-                Ata
-              </button>
+            <form onSubmit={assignPackage} className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              <div>
+                <label htmlFor="assign-phone" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Müşteri telefonu
+                </label>
+                <input
+                  id="assign-phone"
+                  type="tel"
+                  value={assignForm.customer_phone}
+                  onChange={(e) => setAssignForm((s) => ({ ...s, customer_phone: e.target.value }))}
+                  placeholder="+90 5XX XXX XX XX"
+                  className="w-full min-h-11 rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="assign-pkg" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Paket
+                </label>
+                <select
+                  id="assign-pkg"
+                  value={assignForm.package_id}
+                  onChange={(e) => setAssignForm((s) => ({ ...s, package_id: e.target.value }))}
+                  className="w-full min-h-11 rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                  required
+                >
+                  <option value="">Paket seç</option>
+                  {packages
+                    .filter((pkg) => pkg.is_active)
+                    .map((pkg) => (
+                      <option key={pkg.id} value={pkg.id}>
+                        {pkg.name} ({pkg.service_slug})
+                      </option>
+                    ))}
+                </select>
+              </div>
+              <div className="flex items-end">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="min-h-11 w-full rounded-lg border border-slate-300 bg-slate-100 px-4 py-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                >
+                  Ata
+                </button>
+              </div>
             </form>
           </section>
 
@@ -384,21 +429,27 @@ export default function PackagesPage({
                 {sortedCustomerPackages.map((cp) => (
                   <article
                     key={cp.id}
-                    className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-200 px-3 py-2 text-sm dark:border-slate-800"
+                    className="rounded-xl border border-slate-200 p-3 text-sm dark:border-slate-800"
                   >
-                    <div>
+                    <div className="space-y-2">
                       <p className="font-medium text-slate-900 dark:text-slate-100">
-                        {cp.customer_phone} • {cp.packages?.name || "Paket"}
+                        {cp.customer_phone}
+                      </p>
+                      <p className="text-sm text-slate-700 dark:text-slate-300">
+                        {cp.packages?.name || "Paket"}
                       </p>
                       <p className="text-xs text-slate-500 dark:text-slate-400">
-                        Kalan: {cp.remaining_sessions}/{cp.total_sessions} • Durum: {cp.status} • Satın alma: {formatDate(cp.purchased_at)} • Son: {formatDate(cp.expires_at)}
+                        Kalan: {cp.remaining_sessions}/{cp.total_sessions} · Durum: {cp.status}
+                      </p>
+                      <p className="text-xs text-slate-500 dark:text-slate-400">
+                        Satın alma: {formatDate(cp.purchased_at)} · Son: {formatDate(cp.expires_at)}
                       </p>
                     </div>
                     <button
                       type="button"
                       onClick={() => consumeOneSession(cp.id)}
                       disabled={saving || cp.status !== "active" || cp.remaining_sessions <= 0}
-                      className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                      className="mt-3 min-h-11 w-full rounded-lg border border-slate-300 bg-slate-100 px-3 py-2.5 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 disabled:cursor-not-allowed disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:w-auto"
                     >
                       1 Seans Düş
                     </button>

@@ -18,10 +18,13 @@ export function SWRProvider({ children }: SWRProviderProps) {
     <SWRConfig
       value={{
         fetcher,
-        // Polling kullanıldığı için focus revalidation gereksiz.
+        // Mobilde sekme değişiminde gereksiz ağ/CPU yükünü azalt.
         revalidateOnFocus: false,
         revalidateOnReconnect: true,
+        refreshWhenHidden: false,
+        focusThrottleInterval: 60000,
         dedupingInterval: 30000,
+        keepPreviousData: true,
         errorRetryCount: 3,
         errorRetryInterval: 5000,
         onError: (error, key) => {

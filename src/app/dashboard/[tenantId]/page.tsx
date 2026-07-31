@@ -375,7 +375,7 @@ export default function EsnafDashboard({
   if (!tenantId) return null;
 
   return (
-    <div className="min-h-full bg-[var(--background)]">
+    <div className="min-h-full overflow-x-hidden bg-[var(--background)]">
       <header className="border-b border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto max-w-5xl px-4 py-5 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -422,8 +422,8 @@ export default function EsnafDashboard({
         </div>
       </header>
 
-      <main className="mx-auto max-w-5xl px-4 py-5 pb-28 sm:px-6 lg:px-8 lg:pb-8">
-        <section className="panel-surface mb-5 p-3 sm:p-4">
+      <main className="mx-auto min-w-0 max-w-5xl px-4 py-4 sm:px-6 sm:py-6 lg:px-8">
+        <section className="panel-surface mb-5 p-4 sm:p-4">
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(220px,280px)] lg:items-stretch">
             <div
               className="grid grid-cols-3 gap-1 rounded-xl bg-slate-100 p-1 dark:bg-slate-800/80"

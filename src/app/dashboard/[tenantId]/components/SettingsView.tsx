@@ -184,19 +184,19 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
   }, [tenantId, workingHours, onWorkingHoursSaved]);
 
   return (
-    <div className="mb-8 space-y-6">
-      <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-blue-50/30 p-6 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-blue-950/20">
+    <div className="mb-8 space-y-4 overflow-x-hidden sm:space-y-6">
+      <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-blue-50/30 p-4 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-blue-950/20 sm:p-6">
         <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
           <span className="text-xl">🔔</span> Hatırlatma Ayarları
         </h3>
         <p className="mb-4 text-sm text-slate-600 dark:text-slate-400">
           Her sabah 08:00&apos;da yarınki randevular için kimlere mesaj gitsin?
         </p>
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
           <select
             value={reminderPref}
             onChange={(e) => setReminderPref(e.target.value as ReminderPref)}
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+            className="min-h-11 w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-base text-slate-900 shadow-sm focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:w-auto sm:text-sm"
           >
             <option value="off">Kapalı (kimseye gitmesin)</option>
             <option value="customer_only">Sadece müşteriye</option>
@@ -207,7 +207,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
             type="button"
             onClick={handleSaveReminderPref}
             disabled={reminderSaving}
-            className="rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 dark:from-slate-200 dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200"
+            className="min-h-11 w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-5 py-2.5 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 dark:from-slate-200 dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200 sm:w-auto"
           >
             {reminderSaving ? (
               <span className="flex items-center gap-2">
@@ -230,7 +230,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
         saving={messagesSaving}
       />
 
-      <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-indigo-50/30 p-6 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-indigo-950/20">
+      <div className="rounded-2xl border-2 border-slate-200 bg-gradient-to-br from-white to-indigo-50/30 p-4 shadow-lg dark:border-slate-700 dark:from-slate-900 dark:to-indigo-950/20 sm:p-6">
         <h3 className="mb-2 flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
           <span className="text-xl">🤖</span> Bot Ayarları
         </h3>
@@ -255,7 +255,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
               value={contactPhone}
               onChange={(e) => setContactPhone(e.target.value)}
               placeholder="İnsan yönlendirme mesajında gösterilir"
-              className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+              className="w-full min-h-11 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
             />
           </div>
           <div>
@@ -265,9 +265,14 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
               value={workingHoursText}
               onChange={(e) => setWorkingHoursText(e.target.value)}
               placeholder="Örn: Hafta içi 09:00-18:00"
-              className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+              className="w-full min-h-11 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
             />
           </div>
+          <details className="rounded-xl border border-slate-200 bg-slate-50/50 dark:border-slate-700 dark:bg-slate-800/30">
+            <summary className="cursor-pointer px-4 py-3 text-sm font-semibold text-slate-700 dark:text-slate-300">
+              Mesaj şablonları ve randevu kuralları
+            </summary>
+            <div className="space-y-4 border-t border-slate-200 p-4 dark:border-slate-700">
           <div>
             <label className="mb-2 block text-sm font-semibold text-slate-700 dark:text-slate-300">Açılış Mesajı</label>
             <input
@@ -275,7 +280,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
               value={openingMessage}
               onChange={(e) => setOpeningMessage(e.target.value)}
               placeholder="Müşteri ilk yazdığında gönderilen mesaj"
-              className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+              className="w-full min-h-11 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
             />
           </div>
           <div>
@@ -285,7 +290,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
               value={confirmationMessage}
               onChange={(e) => setConfirmationMessage(e.target.value)}
               placeholder="Randevu alındığında gönderilen mesaj. {date}, {time} kullanabilirsiniz"
-              className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+              className="w-full min-h-11 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
             />
           </div>
           <div>
@@ -295,7 +300,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
               value={reminderMessage}
               onChange={(e) => setReminderMessage(e.target.value)}
               placeholder="Yarın randevu hatırlatması. {time} kullanabilirsiniz"
-              className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+              className="w-full min-h-11 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm placeholder:text-slate-400 transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
             />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -304,7 +309,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
               <select
                 value={slotDuration}
                 onChange={(e) => setSlotDuration(Number(e.target.value))}
-                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full min-h-11 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
               >
                 <option value={30}>30 dakika</option>
                 <option value={45}>45 dakika</option>
@@ -318,7 +323,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
               <select
                 value={advanceBookingDays}
                 onChange={(e) => setAdvanceBookingDays(Number(e.target.value))}
-                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full min-h-11 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
               >
                 <option value={7}>7 gün</option>
                 <option value={14}>14 gün</option>
@@ -331,7 +336,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
               <select
                 value={cancellationHours}
                 onChange={(e) => setCancellationHours(Number(e.target.value))}
-                className="w-full rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-sm text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full min-h-11 rounded-xl border-2 border-slate-200 bg-white px-4 py-3 text-base text-slate-900 shadow-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
               >
                 <option value={1}>1 saat</option>
                 <option value={2}>2 saat</option>
@@ -340,12 +345,14 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
                 <option value={48}>48 saat</option>
               </select>
             </div>
+            </div>
           </div>
+          </details>
           <button
             type="button"
             onClick={handleSaveBotSettings}
             disabled={botSettingsSaving}
-            className="w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 dark:from-slate-200 dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200"
+            className="min-h-11 w-full rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-md transition hover:shadow-lg disabled:opacity-50 dark:from-slate-200 dark:to-slate-100 dark:text-slate-900 dark:hover:from-slate-100 dark:hover:to-slate-200"
           >
             {botSettingsSaving ? (
               <span className="flex items-center justify-center gap-2">
@@ -359,8 +366,8 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
         </div>
       </div>
 
-      <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900">
-        <div className="mb-2 flex items-center justify-between">
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+        <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h3 className="font-semibold text-slate-900 dark:text-slate-100">🕐 Çalışma saatleri</h3>
           <button
             type="button"
@@ -377,7 +384,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
               }
               setShowWorkingHours(!showWorkingHours);
             }}
-            className="rounded-xl border border-slate-200 px-3 py-1.5 text-sm font-medium text-emerald-600 shadow-sm transition hover:bg-emerald-50 dark:border-slate-700 dark:text-emerald-400 dark:hover:bg-emerald-900/30"
+            className="min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-emerald-600 shadow-sm transition hover:bg-emerald-50 dark:border-slate-700 dark:text-emerald-400 dark:hover:bg-emerald-900/30 sm:py-1.5"
           >
             {showWorkingHours ? "Kapat" : workingHours.length ? "Düzenle" : "Ayarla"}
           </button>
@@ -407,7 +414,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
                         else arr.push({ day_of_week: dow, start_time: e.target.value, end_time: slot.end_time || "18:00" });
                         setWorkingHours(arr);
                       }}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      className="w-full min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-base shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
                     />
                     <input
                       type="time"
@@ -419,7 +426,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
                         else arr.push({ day_of_week: dow, start_time: slot.start_time || "09:00", end_time: e.target.value });
                         setWorkingHours(arr);
                       }}
-                      className="w-full rounded-xl border border-slate-200 px-3 py-2 text-sm shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                      className="w-full min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-base shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
                     />
                   </div>
                 </div>
@@ -429,7 +436,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
               type="button"
               onClick={handleSaveWorkingHours}
               disabled={workingHoursSaving}
-              className="mt-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600"
+              className="mt-2 min-h-11 w-full rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm transition hover:bg-emerald-700 disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-600 sm:w-auto"
             >
               {workingHoursSaving ? "Kaydediliyor…" : "Kaydet"}
             </button>

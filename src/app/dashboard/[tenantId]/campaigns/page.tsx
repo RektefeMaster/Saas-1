@@ -337,14 +337,6 @@ export default function CampaignsPage({
     setExcludedPhones((prev) => new Set(prev).add(normalizePhoneForCompare(phone)));
   };
 
-  const includeRecipient = (phone: string) => {
-    setExcludedPhones((prev) => {
-      const next = new Set(prev);
-      next.delete(normalizePhoneForCompare(phone));
-      return next;
-    });
-  };
-
   const addRecipient = () => {
     const p = addPhoneInput.trim();
     if (!p) return;
@@ -372,8 +364,6 @@ export default function CampaignsPage({
       setCustomPhones([...list, phone.trim()].join("\n"));
     }
   };
-
-  const isExcluded = (phone: string) => excludedPhones.has(normalizePhoneForCompare(phone));
 
   const smsCharCount = messageText.length;
   const smsSegments = Math.ceil(smsCharCount / 160) || 0;
@@ -502,8 +492,8 @@ export default function CampaignsPage({
   };
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <div className="mx-auto max-w-3xl space-y-6 p-4 pb-32 sm:p-6 lg:p-10">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 dark:bg-slate-950">
+      <div className="mx-auto max-w-3xl space-y-6 p-4 pb-24 sm:p-6 sm:pb-6 lg:p-10">
         <header className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <Link
             href={tenantId ? `/dashboard/${tenantId}` : "/dashboard"}
@@ -560,7 +550,7 @@ export default function CampaignsPage({
 
             <div>
               <label className="mb-3 block text-sm font-medium text-slate-700 dark:text-slate-300">{t.channel}</label>
-              <div className="grid grid-cols-3 gap-3">
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
                 {[
                   { value: "whatsapp" as const, label: t.channelWhatsApp, icon: MessageCircle, color: "emerald" as const },
                   { value: "sms" as const, label: t.channelSms, icon: Smartphone, color: "blue" as const },
@@ -583,7 +573,7 @@ export default function CampaignsPage({
                       key={value}
                       type="button"
                       onClick={() => setChannel(value)}
-                      className={`flex flex-col items-center gap-2 rounded-xl border px-4 py-4 text-center transition-all duration-200 ${colorClasses[color]}`}
+                      className={`flex min-h-14 flex-row items-center gap-3 rounded-xl border px-4 py-3 text-left transition-all duration-200 sm:min-h-0 sm:flex-col sm:gap-2 sm:py-4 sm:text-center ${colorClasses[color]}`}
                     >
                       <Icon
                         className={`h-6 w-6 shrink-0 ${isActive ? (value === "whatsapp" ? "text-[#25D366]" : value === "sms" ? "text-blue-600 dark:text-blue-400" : "text-violet-600 dark:text-violet-400") : "text-slate-500 dark:text-slate-400"}`}
@@ -604,7 +594,7 @@ export default function CampaignsPage({
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200">{t.loadingRecipients}</p>
                 </div>
               ) : (
-                <div className="flex items-center justify-between gap-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-center gap-3">
                     <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-700 dark:bg-emerald-900/50 dark:text-emerald-300">
                       <Users className="h-6 w-6" />
@@ -623,7 +613,7 @@ export default function CampaignsPage({
                       </p>
                     </div>
                   </div>
-                  <div className="flex items-center gap-2">
+                  <div className="flex flex-wrap items-center gap-2 sm:justify-end">
                     {effectiveCount > 0 && (
                       <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-medium text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-200">
                         {locale === "tr" ? "Hazır" : "Ready"}
@@ -633,7 +623,7 @@ export default function CampaignsPage({
                       <button
                         type="button"
                         onClick={() => setShowRecipientsModal(true)}
-                        className="rounded-lg px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700"
+                        className="min-h-10 rounded-lg px-2.5 py-2 text-xs font-medium text-slate-600 transition hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700"
                       >
                         {t.viewRecipients}
                       </button>
@@ -644,7 +634,7 @@ export default function CampaignsPage({
             </div>
 
             <div className="mt-5">
-              <div className="mb-2 flex items-center justify-between">
+              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <label className="text-sm font-medium text-slate-700 dark:text-slate-300">{t.tagFilter}</label>
                 {recipientInfo && recipientInfo.all_tags.length > 0 && (
                   <div className="flex gap-2">
@@ -791,11 +781,11 @@ export default function CampaignsPage({
             </div>
           )}
 
-          <div className="flex flex-wrap items-center gap-3 pt-2">
+          <div className="hidden flex-wrap items-center gap-3 pt-2 sm:flex">
             <button
               type="submit"
               disabled={sending || !messageText.trim() || effectiveCount === 0}
-              className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 hover:shadow-slate-900/30 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:shadow-emerald-500/25 dark:hover:bg-emerald-400 dark:hover:shadow-emerald-500/30"
+              className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 hover:shadow-slate-900/30 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:shadow-emerald-500/25 dark:hover:bg-emerald-400 dark:hover:shadow-emerald-500/30"
             >
               {sending ? (
                 <>
@@ -910,12 +900,12 @@ export default function CampaignsPage({
         )}
 
         {campaignEnabled !== false && (
-      <div className="fixed inset-x-3 bottom-[calc(5.1rem+env(safe-area-inset-bottom))] z-30 flex flex-col gap-2 sm:hidden">
+      <div className="dashboard-sticky-cta fixed inset-x-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/95 sm:hidden">
         <button
           type="button"
           onClick={handleSubmitClick}
           disabled={sending || !messageText.trim() || effectiveCount === 0}
-          className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/25 transition active:scale-[0.98] hover:bg-slate-700 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/25 transition active:scale-[0.98] hover:bg-slate-700 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
         >
           {sending ? (
             <>
@@ -969,19 +959,19 @@ export default function CampaignsPage({
             </div>
 
             <div className="flex flex-1 flex-col gap-3 overflow-hidden p-4">
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <input
                   type="tel"
                   value={addPhoneInput}
                   onChange={(e) => setAddPhoneInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), addRecipient())}
                   placeholder={t.addRecipientPlaceholder}
-                  className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition focus:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+                  className="min-h-11 flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-base outline-none transition focus:border-slate-400 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
                 />
                 <button
                   type="button"
                   onClick={addRecipient}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
+                  className="inline-flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   <Plus className="h-4 w-4" />
                   {t.addRecipient}

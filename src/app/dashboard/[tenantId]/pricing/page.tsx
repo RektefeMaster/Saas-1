@@ -176,7 +176,7 @@ export default function PricingPage({
   const DURATION_OPTIONS = [15, 30, 45, 60, 90, 120];
 
   return (
-    <div className="p-4 pb-28 sm:p-6 lg:p-8">
+    <div className="overflow-x-hidden p-4 sm:p-6 lg:p-8">
       {/* Header */}
       <header className="mb-6">
         <Link
@@ -224,7 +224,7 @@ export default function PricingPage({
                 value={newService.name}
                 onChange={(e) => setNewService((s) => ({ ...s, name: e.target.value }))}
                 placeholder="Örn: Saç kesimi, Manikür"
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+                className="w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-3 text-base placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
                 required
               />
             </div>
@@ -239,7 +239,7 @@ export default function PricingPage({
                 onChange={(e) =>
                   setNewService((s) => ({ ...s, duration_minutes: Number(e.target.value) || 30 }))
                 }
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                className="w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-3 text-base focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
               >
                 {DURATION_OPTIONS.map((d) => (
                   <option key={d} value={d}>
@@ -262,7 +262,7 @@ export default function PricingPage({
                 value={newService.price}
                 onChange={(e) => setNewService((s) => ({ ...s, price: e.target.value }))}
                 placeholder="Boş bırakılabilir"
-                className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+                className="w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-3 text-base placeholder:text-slate-400 focus:border-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500 sm:text-sm"
               />
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
                 Fiyat zorunlu değil; boş bırakırsanız müşteriye &quot;Fiyat için arayın&quot; gösterilir
@@ -284,12 +284,12 @@ export default function PricingPage({
           </div>
 
           <div className="flex items-center gap-2">
-            <label className="inline-flex cursor-pointer items-center gap-2">
+            <label className="inline-flex min-h-11 cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 checked={newService.price_visible}
                 onChange={(e) => setNewService((s) => ({ ...s, price_visible: e.target.checked }))}
-                className="h-4 w-4 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
+                className="h-5 w-5 rounded border-slate-300 text-slate-900 focus:ring-slate-400"
               />
               <span className="text-sm text-slate-700 dark:text-slate-300">Fiyatı müşteriye göster</span>
             </label>
@@ -298,7 +298,7 @@ export default function PricingPage({
           <button
             type="submit"
             disabled={saving || !newService.name.trim()}
-            className="inline-flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+            className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 sm:w-auto sm:py-2.5"
           >
             {saving ? (
               <>
@@ -523,7 +523,7 @@ export default function PricingPage({
                       <button
                         type="button"
                         onClick={() => setDeleteConfirm(service.id)}
-                        className="rounded-lg p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
+                        className="min-h-11 min-w-11 rounded-lg p-2 text-red-600 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950/30"
                         aria-label="Sil"
                       >
                         <Trash2 className="h-4 w-4" />
@@ -539,7 +539,7 @@ export default function PricingPage({
                         onChange={(e) =>
                           updateService(service.id, { duration_minutes: Number(e.target.value) || 30 })
                         }
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        className="w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
                       >
                         {DURATION_OPTIONS.map((d) => (
                           <option key={d} value={d}>
@@ -561,7 +561,7 @@ export default function PricingPage({
                           })
                         }
                         placeholder="Yok"
-                        className="w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        className="w-full min-h-11 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-base dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
                       />
                     </div>
                   </div>
@@ -572,7 +572,7 @@ export default function PricingPage({
                         type="checkbox"
                         checked={service.price_visible}
                         onChange={(e) => updateService(service.id, { price_visible: e.target.checked })}
-                        className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                        className="h-5 w-5 rounded border-slate-300 text-slate-900"
                       />
                       <span className="text-sm text-slate-700 dark:text-slate-300">Fiyatı göster</span>
                     </label>
@@ -581,7 +581,7 @@ export default function PricingPage({
                         type="checkbox"
                         checked={service.is_active}
                         onChange={(e) => updateService(service.id, { is_active: e.target.checked })}
-                        className="h-4 w-4 rounded border-slate-300 text-slate-900"
+                        className="h-5 w-5 rounded border-slate-300 text-slate-900"
                       />
                       <span className="text-sm text-slate-700 dark:text-slate-300">Aktif</span>
                     </label>

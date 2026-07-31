@@ -200,7 +200,7 @@ export default function StaffPage({
   };
 
   return (
-    <div className="space-y-6 p-4 pb-24 sm:p-6 lg:p-10">
+    <div className="space-y-6 overflow-x-hidden p-4 sm:p-6 lg:p-10">
       <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <Link
           href={`/dashboard/${tenantId}`}
@@ -229,32 +229,47 @@ export default function StaffPage({
         </section>
       ) : (
         <>
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
-            <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">Yeni Personel</h2>
-            <form onSubmit={createStaff} className="grid gap-3 md:grid-cols-2">
-              <input
-                value={newStaff.name}
-                onChange={(e) => setNewStaff((s) => ({ ...s, name: e.target.value }))}
-                placeholder="Ad soyad"
-                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
-                required
-              />
-              <input
-                value={newStaff.phone_e164}
-                onChange={(e) => setNewStaff((s) => ({ ...s, phone_e164: e.target.value }))}
-                placeholder="Telefon (+90555...)"
-                className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
-              />
-              <button
-                type="submit"
-                disabled={saving}
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-3 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
-              >
-                <Plus className="h-4 w-4" />
-                Ekle
-              </button>
+          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Yeni Personel</h2>
+            <form onSubmit={createStaff} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <label htmlFor="staff-name" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Ad soyad
+                </label>
+                <input
+                  id="staff-name"
+                  value={newStaff.name}
+                  onChange={(e) => setNewStaff((s) => ({ ...s, name: e.target.value }))}
+                  placeholder="Ad soyad"
+                  className="w-full min-h-11 rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                  required
+                />
+              </div>
+              <div>
+                <label htmlFor="staff-phone" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
+                  Telefon
+                </label>
+                <input
+                  id="staff-phone"
+                  type="tel"
+                  value={newStaff.phone_e164}
+                  onChange={(e) => setNewStaff((s) => ({ ...s, phone_e164: e.target.value }))}
+                  placeholder="+90555..."
+                  className="w-full min-h-11 rounded-xl border border-slate-200 px-3 py-3 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                />
+              </div>
+              <div className="sm:col-span-2">
+                <button
+                  type="submit"
+                  disabled={saving}
+                  className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200 sm:w-auto sm:py-2.5"
+                >
+                  <Plus className="h-4 w-4" />
+                  Personel Ekle
+                </button>
+              </div>
               {services.length > 0 && (
-                <div className="md:col-span-2">
+                <div className="sm:col-span-2">
                   <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                     Hizmetler
                   </p>
@@ -269,7 +284,7 @@ export default function StaffPage({
                             service_slugs: toggleService(svc.slug, s.service_slugs),
                           }))
                         }
-                        className={`rounded-lg border px-2.5 py-1 text-xs ${
+                        className={`min-h-10 rounded-lg border px-3 py-2 text-xs ${
                           newStaff.service_slugs.includes(svc.slug)
                             ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
                             : "border-slate-300 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"
@@ -302,31 +317,37 @@ export default function StaffPage({
                   return (
                     <article
                       key={row.id}
-                      className="rounded-xl border border-slate-200 p-3 dark:border-slate-800"
+                      className="rounded-xl border border-slate-200 p-4 dark:border-slate-800"
                     >
-                      <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto_auto] md:items-center">
-                        <input
-                          value={draft.name}
-                          onChange={(e) =>
-                            setDrafts((prev) => ({
-                              ...prev,
-                              [row.id]: { ...draft, name: e.target.value },
-                            }))
-                          }
-                          className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
-                        />
-                        <input
-                          value={draft.phone_e164}
-                          onChange={(e) =>
-                            setDrafts((prev) => ({
-                              ...prev,
-                              [row.id]: { ...draft, phone_e164: e.target.value },
-                            }))
-                          }
-                          placeholder="+90555..."
-                          className="rounded-lg border border-slate-200 px-3 py-2 text-sm outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40"
-                        />
-                        <label className="inline-flex items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
+                      <div className="grid grid-cols-1 gap-3">
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Ad</label>
+                          <input
+                            value={draft.name}
+                            onChange={(e) =>
+                              setDrafts((prev) => ({
+                                ...prev,
+                                [row.id]: { ...draft, name: e.target.value },
+                              }))
+                            }
+                            className="w-full min-h-11 rounded-lg border border-slate-200 px-3 py-2.5 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 sm:text-sm"
+                          />
+                        </div>
+                        <div>
+                          <label className="mb-1 block text-xs font-medium text-slate-500 dark:text-slate-400">Telefon</label>
+                          <input
+                            value={draft.phone_e164}
+                            onChange={(e) =>
+                              setDrafts((prev) => ({
+                                ...prev,
+                                [row.id]: { ...draft, phone_e164: e.target.value },
+                              }))
+                            }
+                            placeholder="+90555..."
+                            className="w-full min-h-11 rounded-lg border border-slate-200 px-3 py-2.5 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 sm:text-sm"
+                          />
+                        </div>
+                        <label className="inline-flex min-h-11 items-center gap-2 text-sm text-slate-700 dark:text-slate-300">
                           <input
                             type="checkbox"
                             checked={draft.active}
@@ -336,15 +357,16 @@ export default function StaffPage({
                                 [row.id]: { ...draft, active: e.target.checked },
                               }))
                             }
+                            className="h-5 w-5 rounded border-slate-300"
                           />
                           Aktif
                         </label>
-                        <div className="flex gap-2">
+                        <div className="flex flex-col gap-2 sm:flex-row">
                           <button
                             type="button"
                             onClick={() => updateStaff(row.id)}
                             disabled={saving}
-                            className="rounded-lg border border-slate-300 bg-slate-100 px-3 py-2 text-xs font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                            className="min-h-11 flex-1 rounded-lg border border-slate-300 bg-slate-100 px-3 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-200 disabled:opacity-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
                           >
                             Kaydet
                           </button>
@@ -352,16 +374,16 @@ export default function StaffPage({
                             type="button"
                             onClick={() => deleteStaff(row.id)}
                             disabled={saving}
-                            className="inline-flex items-center gap-1 rounded-lg border border-red-200 bg-red-50 px-2.5 py-2 text-xs font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/30"
+                            className="inline-flex min-h-11 flex-1 items-center justify-center gap-1 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-50 dark:border-red-900/40 dark:bg-red-950/40 dark:text-red-300 dark:hover:bg-red-900/30"
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            <Trash2 className="h-4 w-4" />
                             Sil
                           </button>
                         </div>
                       </div>
 
                       {services.length > 0 && (
-                        <div className="mt-3 flex flex-wrap gap-2">
+                        <div className="mt-4 flex flex-wrap gap-2">
                           {services.map((svc) => (
                             <button
                               key={svc.id}
@@ -375,7 +397,7 @@ export default function StaffPage({
                                   },
                                 }))
                               }
-                              className={`rounded-lg border px-2.5 py-1 text-xs ${
+                              className={`min-h-10 rounded-lg border px-3 py-2 text-xs ${
                                 draft.service_slugs.includes(svc.slug)
                                   ? "border-slate-900 bg-slate-900 text-white dark:border-slate-100 dark:bg-slate-100 dark:text-slate-900"
                                   : "border-slate-300 bg-white text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200"

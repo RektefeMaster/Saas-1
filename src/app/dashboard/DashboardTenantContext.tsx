@@ -63,31 +63,29 @@ export function DashboardTenantProvider({
 
   const { data: tenantData, isLoading: tenantLoading } = useSWR<TenantBasic>(
     tenantId ? `/api/tenant/${tenantId}` : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 30000 }
+    fetcher
   );
 
   const { data: featureData } = useSWR<{
     feature_flags?: DashboardFeatureFlags;
     sector?: TenantSector;
-  }>(
-    tenantId ? `/api/tenant/${tenantId}/features` : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 30000 }
-  );
+  }>(tenantId ? `/api/tenant/${tenantId}/features` : null, fetcher);
 
   const staffPreferenceEnabled = Boolean(featureData?.feature_flags?.staff_preference);
 
   const { data: staffData } = useSWR<StaffOption[]>(
     tenantId && staffPreferenceEnabled ? `/api/tenant/${tenantId}/staff` : null,
-    fetcher,
-    { revalidateOnFocus: false, dedupingInterval: 30000 }
+    fetcher
   );
 
   const staffOptions = useMemo(() => {
     if (!Array.isArray(staffData)) return [];
     return staffData.filter((row) => row && row.active);
   }, [staffData]);
+
+  useEffect(() => {
+    setTenant(null);
+  }, [tenantId]);
 
   useEffect(() => {
     if (tenantData) setTenant(tenantData);

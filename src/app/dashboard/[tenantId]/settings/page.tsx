@@ -6,10 +6,9 @@ import {
   ArrowLeft,
   Bell,
   Calendar,
-  CheckCircle2,
+  ChevronDown,
   Copy,
   ExternalLink,
-  MapPin,
   MessageCircle,
   MessageSquare,
   QrCode,
@@ -213,24 +212,40 @@ function SectionCard({
   title,
   desc,
   children,
+  collapsible,
+  defaultOpen = true,
 }: {
   icon: React.ElementType;
   title: string;
   desc: string;
   children: React.ReactNode;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
 }) {
+  const [open, setOpen] = useState(defaultOpen);
+
   return (
-    <section className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
       <div className="mb-4 flex items-start gap-3">
         <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
           <Icon className="h-4 w-4" />
         </div>
-        <div>
+        <div className="min-w-0 flex-1">
           <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">{title}</h2>
           <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">{desc}</p>
         </div>
+        {collapsible && (
+          <button
+            type="button"
+            onClick={() => setOpen((v) => !v)}
+            className="inline-flex min-h-11 min-w-11 shrink-0 items-center justify-center rounded-lg border border-slate-200 text-slate-600 transition hover:bg-slate-50 dark:border-slate-700 dark:text-slate-300 dark:hover:bg-slate-800"
+            aria-expanded={open}
+          >
+            <ChevronDown className={`h-4 w-4 transition-transform ${open ? "rotate-180" : ""}`} />
+          </button>
+        )}
       </div>
-      {children}
+      {(!collapsible || open) && children}
     </section>
   );
 }
@@ -272,7 +287,7 @@ function InputField<T extends string | number>({
           placeholder={placeholder}
           rows={3}
           autoComplete="off"
-          className="w-full resize-y min-h-[80px] rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          className="w-full min-h-[88px] resize-y rounded-xl border border-slate-200 bg-white px-3 py-3 text-base outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
         />
       ) : (
         <input
@@ -287,7 +302,7 @@ function InputField<T extends string | number>({
           step={step}
           placeholder={placeholder}
           autoComplete="off"
-          className="w-full rounded-xl border border-slate-200 bg-white px-3 py-2.5 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100"
+          className="w-full min-h-11 rounded-xl border border-slate-200 bg-white px-3 py-3 text-base outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-300/30 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
         />
       )}
       {hint && <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{hint}</p>}
@@ -473,7 +488,7 @@ export default function TenantSettingsPage({
 
   if (loading || loadError) {
     return (
-      <div className="min-h-screen bg-slate-50 p-4 pb-24 dark:bg-slate-950 sm:p-6 lg:p-10">
+      <div className="min-h-screen bg-slate-50 p-4 dark:bg-slate-950 sm:p-6 lg:p-10">
         <div className="flex min-h-[40vh] flex-col items-center justify-center gap-3 rounded-2xl border border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           {!loadError && <LottieAnimationLazy src="loading" width={80} height={80} />}
           <p className={loadError ? "text-red-600 dark:text-red-400" : "text-slate-500 dark:text-slate-400"}>
@@ -494,8 +509,8 @@ export default function TenantSettingsPage({
   }
 
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950">
-      <div className="mx-auto max-w-3xl space-y-6 p-4 pb-28 sm:p-6 lg:p-10">
+    <div className="min-h-screen overflow-x-hidden bg-slate-50 dark:bg-slate-950">
+      <div className="mx-auto max-w-3xl space-y-6 p-4 pb-24 sm:p-6 sm:pb-6 lg:p-10">
         <header className="rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
           <Link
             href={`/dashboard/${tenantId}`}
@@ -517,7 +532,7 @@ export default function TenantSettingsPage({
                     {whatsappLink}
                   </p>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap">
                   <button
                     type="button"
                     onClick={async () => {
@@ -527,7 +542,7 @@ export default function TenantSettingsPage({
                         setTimeout(() => setLinkCopied(false), 2000);
                       } catch {}
                     }}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:w-auto"
                   >
                     <Copy className="h-4 w-4" />
                     {linkCopied ? t.copied : t.copyLink}
@@ -536,7 +551,7 @@ export default function TenantSettingsPage({
                     href={whatsappLink}
                     target="_blank"
                     rel="noreferrer"
-                    className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-3 py-2 text-sm font-medium text-white transition hover:bg-emerald-700"
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-emerald-600 px-3 py-2.5 text-sm font-medium text-white transition hover:bg-emerald-700 sm:w-auto"
                   >
                     <ExternalLink className="h-4 w-4" />
                     {t.openWhatsApp}
@@ -544,7 +559,7 @@ export default function TenantSettingsPage({
                   <button
                     type="button"
                     onClick={() => setShowQRModal(true)}
-                    className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700"
+                    className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2.5 text-sm font-medium text-slate-700 transition hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 sm:w-auto"
                   >
                     <QrCode className="h-4 w-4" />
                     {t.showQR}
@@ -595,12 +610,12 @@ export default function TenantSettingsPage({
 
         <SectionCard icon={Star} title={t.reviewTitle} desc={t.reviewDesc}>
           <div className="space-y-4">
-            <label className="flex cursor-pointer items-center gap-3">
+            <label className="flex min-h-11 cursor-pointer items-center gap-3">
               <input
                 type="checkbox"
                 checked={reviewEnabled}
                 onChange={(e) => setReviewEnabled(e.target.checked)}
-                className="h-4 w-4 rounded border-slate-300"
+                className="h-5 w-5 shrink-0 rounded border-slate-300"
               />
               <span className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 {t.reviewEnabled}
@@ -664,7 +679,7 @@ export default function TenantSettingsPage({
         </SectionCard>
 
         <SectionCard icon={Bell} title={t.reminderTitle} desc={t.reminderDesc}>
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 gap-2 sm:flex sm:flex-wrap">
             {(
               [
                 { value: "off" as const, label: t.reminderOff },
@@ -675,7 +690,7 @@ export default function TenantSettingsPage({
             ).map((opt) => (
               <label
                 key={opt.value}
-                className={`inline-flex cursor-pointer items-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition ${
+                className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition sm:justify-start ${
                   reminderPref === opt.value
                     ? "border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-500 dark:text-slate-950"
                     : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -695,7 +710,7 @@ export default function TenantSettingsPage({
           </div>
         </SectionCard>
 
-        <SectionCard icon={MessageSquare} title={t.messagesTitle} desc={t.messagesDesc}>
+        <SectionCard icon={MessageSquare} title={t.messagesTitle} desc={t.messagesDesc} collapsible defaultOpen={false}>
           <div className="space-y-6">
             <div className="space-y-2">
               <p className="text-xs font-semibold uppercase tracking-wider text-slate-400 dark:text-slate-500">
@@ -778,12 +793,12 @@ export default function TenantSettingsPage({
           </div>
         </SectionCard>
 
-        <div className="flex flex-wrap items-center gap-3 pt-2">
+        <div className="hidden flex-wrap items-center gap-3 pt-2 sm:flex">
           <button
             type="button"
             onClick={save}
             disabled={saving}
-            className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
           >
             <Save className="h-4 w-4" />
             {saving ? t.saving : t.save}
@@ -800,15 +815,18 @@ export default function TenantSettingsPage({
         </div>
       </div>
 
-      <div className="fixed inset-x-3 bottom-[calc(5.1rem+env(safe-area-inset-bottom))] z-30 flex flex-col gap-2 sm:hidden">
+      <div className="dashboard-sticky-cta fixed inset-x-0 z-30 border-t border-slate-200 bg-white/95 px-4 py-3 shadow-[0_-4px_12px_rgba(0,0,0,0.06)] backdrop-blur-sm dark:border-slate-700 dark:bg-slate-900/95 sm:hidden">
         {saveError && (
-          <p className="text-center text-xs font-medium text-red-600 dark:text-red-400">{saveError}</p>
+          <p className="mb-2 text-center text-xs font-medium text-red-600 dark:text-red-400">{saveError}</p>
+        )}
+        {saved && (
+          <p className="mb-2 text-center text-xs font-medium text-emerald-700 dark:text-emerald-300">{t.saved}</p>
         )}
         <button
           type="button"
           onClick={save}
           disabled={saving}
-          className="flex w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
         >
           <Save className="h-4 w-4" />
           {saving ? t.saving : t.save}

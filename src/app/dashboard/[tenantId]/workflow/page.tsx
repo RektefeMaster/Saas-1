@@ -237,6 +237,7 @@ export default function WorkflowPage({
   const [error, setError] = useState<string | null>(null);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
+  const [mobileTab, setMobileTab] = useState<AppointmentStatus>("pending");
 
   useEffect(() => {
     let mounted = true;
@@ -345,8 +346,114 @@ export default function WorkflowPage({
   const boardDisabled = Boolean(updatingId);
   const lastSyncedLabel = lastSyncedAt ? `${formatClock(lastSyncedAt)} itibarıyla güncel` : "Henüz güncellenmedi";
 
+  const renderAppointmentCard = (item: WorkflowAppointment, status: AppointmentStatus, index: number) => {
+    const nextActions = STATUS_TRANSITIONS[status];
+    const isUpdating = updatingId === item.id;
+    return (
+      <article
+        key={item.id}
+        className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition dark:border-slate-700 dark:bg-slate-900"
+      >
+        <div className="flex items-start justify-between gap-2">
+          <div className="min-w-0">
+            <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
+              {extractCustomerName(item)}
+            </p>
+            <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
+              <Clock3 className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-300" />
+              {formatSlotTime(item.slot_start)}
+            </p>
+          </div>
+          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-lg bg-slate-100 px-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+            {index + 1}
+          </span>
+        </div>
+
+        <div className="mt-3 space-y-1.5 text-xs">
+          <p className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+            <Phone className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+            {item.customer_phone}
+          </p>
+          <p className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
+            <CalendarDays className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
+            {extractServiceName(item)}
+          </p>
+        </div>
+
+        {nextActions.length > 0 && (
+          <div className="mt-3 grid gap-2">
+            {nextActions.map((targetStatus) => {
+              const action = ACTION_CONFIG[targetStatus];
+              const ActionIcon = action.icon;
+              return (
+                <button
+                  key={`${item.id}-${targetStatus}`}
+                  type="button"
+                  disabled={boardDisabled}
+                  onClick={() => updateStatus(item.id, targetStatus)}
+                  className={`inline-flex min-h-11 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${action.className}`}
+                >
+                  {isUpdating ? (
+                    <>
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      Güncelleniyor...
+                    </>
+                  ) : (
+                    <>
+                      <ActionIcon className="h-3.5 w-3.5" />
+                      {action.label}
+                    </>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </article>
+    );
+  };
+
+  const renderStatusColumn = (status: AppointmentStatus, compact = false) => {
+    const meta = STATUS_CONFIG[status];
+    const Icon = meta.icon;
+    const items = statuses[status];
+    return (
+      <section
+        key={status}
+        className={`flex flex-col rounded-2xl border p-3 ${meta.columnClass} ${compact ? "min-h-0" : "min-h-[30rem]"}`}
+      >
+        <header className="mb-3">
+          <div className="flex items-center justify-between gap-2">
+            <h2 className="inline-flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
+              <Icon className="h-4 w-4" />
+              {meta.title}
+            </h2>
+            <span
+              className={`inline-flex min-w-7 items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${meta.badgeClass}`}
+            >
+              {items.length}
+            </span>
+          </div>
+          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{meta.description}</p>
+        </header>
+
+        {items.length === 0 ? (
+          <div
+            className={`mt-1 rounded-xl border border-dashed px-3 py-8 text-center text-xs ${meta.emptyClass}`}
+          >
+            {meta.emptyMessage}
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {items.map((item, index) => renderAppointmentCard(item, status, index))}
+          </div>
+        )}
+      </section>
+    );
+  };
+
   return (
-    <div className="space-y-5 p-4 pb-28 sm:p-6 lg:p-8">
+    <div className="space-y-5 overflow-x-hidden p-4 sm:p-6 lg:p-8">
       <section className="relative overflow-hidden rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
         <div className="relative space-y-4">
           <div className="flex flex-wrap items-start justify-between gap-4">
@@ -367,7 +474,7 @@ export default function WorkflowPage({
                 </p>
               </div>
             </div>
-            <div className="min-w-[16rem] rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/95">
+            <div className="w-full rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/95 lg:min-w-[16rem] lg:w-auto">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Son güncelleme
               </p>
@@ -376,8 +483,8 @@ export default function WorkflowPage({
             </div>
           </div>
 
-          <div className="flex gap-3 overflow-x-auto pb-1">
-            <article className="min-w-[11.5rem] rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+          <div className="grid grid-cols-2 gap-3 lg:flex lg:gap-3 lg:overflow-x-auto lg:pb-1">
+            <article className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:min-w-[11.5rem]">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Toplam</p>
               <p className="mt-1 inline-flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 <Activity className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />
@@ -385,7 +492,7 @@ export default function WorkflowPage({
               </p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Seçilen günün randevuları</p>
             </article>
-            <article className="min-w-[11.5rem] rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <article className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:min-w-[11.5rem]">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Bekleyen</p>
               <p className="mt-1 inline-flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 <Clock3 className="h-5 w-5 text-amber-600 dark:text-amber-300" />
@@ -393,7 +500,7 @@ export default function WorkflowPage({
               </p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Yeni ve onaylı randevular</p>
             </article>
-            <article className="min-w-[11.5rem] rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <article className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:min-w-[11.5rem]">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Tamamlama
               </p>
@@ -403,7 +510,7 @@ export default function WorkflowPage({
               </p>
               <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{completedCount} randevu tamamlandı</p>
             </article>
-            <article className="min-w-[11.5rem] rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900">
+            <article className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:min-w-[11.5rem]">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Risk</p>
               <p className="mt-1 inline-flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-300" />
@@ -413,8 +520,8 @@ export default function WorkflowPage({
             </article>
           </div>
 
-          <div className="flex flex-wrap items-end gap-3">
-            <div>
+          <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+            <div className="w-full sm:w-auto">
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Tarih
               </label>
@@ -422,13 +529,13 @@ export default function WorkflowPage({
                 type="date"
                 value={date}
                 onChange={(event) => setDate(event.target.value)}
-                className="h-11 rounded-xl border border-slate-300 bg-white px-3 text-sm font-medium text-slate-800 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+                className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base font-medium text-slate-800 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:w-auto sm:text-sm"
               />
             </div>
             <button
               type="button"
               onClick={() => setDate(todayIso)}
-              className={`h-11 rounded-xl border px-4 text-sm font-semibold transition ${
+              className={`min-h-11 w-full rounded-xl border px-4 py-2 text-sm font-semibold transition sm:w-auto ${
                 isToday
                   ? "border-cyan-600 bg-cyan-600 text-white"
                   : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
@@ -440,7 +547,7 @@ export default function WorkflowPage({
               type="button"
               onClick={() => void refresh()}
               disabled={loading}
-              className="inline-flex h-11 items-center gap-2 rounded-xl border border-slate-300 bg-white px-4 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
+              className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-60 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800 sm:w-auto"
             >
               <RefreshCw className={`h-4 w-4 ${loading ? "animate-spin" : ""}`} />
               Yenile
@@ -496,7 +603,32 @@ export default function WorkflowPage({
         </section>
       ) : (
         <section className="rounded-3xl border border-slate-200 bg-white/80 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/70">
-          <div className="mb-3 flex gap-2 overflow-x-auto pb-1">
+          <div className="mb-3 flex gap-2 overflow-x-auto pb-1 lg:hidden">
+            {STATUS_ORDER.map((status) => {
+              const meta = STATUS_CONFIG[status];
+              const Icon = meta.icon;
+              const count = statuses[status].length;
+              const active = mobileTab === status;
+              return (
+                <button
+                  key={`tab-${status}`}
+                  type="button"
+                  onClick={() => setMobileTab(status)}
+                  className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition ${
+                    active
+                      ? "border-cyan-600 bg-cyan-600 text-white"
+                      : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
+                  }`}
+                >
+                  <Icon className="h-3.5 w-3.5" />
+                  {meta.title}
+                  <span className="rounded-full bg-black/10 px-1.5 py-0.5 text-[10px]">{count}</span>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mb-3 hidden gap-2 overflow-x-auto pb-1 lg:flex">
             {STATUS_ORDER.map((status) => {
               const meta = STATUS_CONFIG[status];
               const Icon = meta.icon;
@@ -512,111 +644,11 @@ export default function WorkflowPage({
             })}
           </div>
 
-          <div className="overflow-x-auto pb-2">
+          <div className="lg:hidden">{renderStatusColumn(mobileTab, true)}</div>
+
+          <div className="hidden overflow-x-auto pb-2 lg:block">
             <div className="grid min-w-max grid-flow-col auto-cols-[minmax(19rem,19rem)] gap-4">
-              {STATUS_ORDER.map((status) => {
-                const meta = STATUS_CONFIG[status];
-                const Icon = meta.icon;
-                const items = statuses[status];
-                return (
-                  <section
-                    key={status}
-                    className={`flex min-h-[30rem] flex-col rounded-2xl border p-3 ${meta.columnClass}`}
-                  >
-                    <header className="mb-3">
-                      <div className="flex items-center justify-between gap-2">
-                        <h2 className="inline-flex items-center gap-2 text-sm font-bold text-slate-800 dark:text-slate-100">
-                          <Icon className="h-4 w-4" />
-                          {meta.title}
-                        </h2>
-                        <span
-                          className={`inline-flex min-w-7 items-center justify-center rounded-full px-2 py-0.5 text-xs font-semibold ${meta.badgeClass}`}
-                        >
-                          {items.length}
-                        </span>
-                      </div>
-                      <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">{meta.description}</p>
-                    </header>
-
-                    {items.length === 0 ? (
-                      <div
-                        className={`mt-1 rounded-xl border border-dashed px-3 py-8 text-center text-xs ${meta.emptyClass}`}
-                      >
-                        {meta.emptyMessage}
-                      </div>
-                    ) : (
-                      <div className="space-y-3">
-                        {items.map((item, index) => {
-                          const nextActions = STATUS_TRANSITIONS[status];
-                          const isUpdating = updatingId === item.id;
-                          return (
-                            <article
-                              key={item.id}
-                              className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition dark:border-slate-700 dark:bg-slate-900"
-                            >
-                              <div className="flex items-start justify-between gap-2">
-                                <div className="min-w-0">
-                                  <p className="truncate text-sm font-semibold text-slate-900 dark:text-slate-100">
-                                    {extractCustomerName(item)}
-                                  </p>
-                                  <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
-                                    <Clock3 className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-300" />
-                                    {formatSlotTime(item.slot_start)}
-                                  </p>
-                                </div>
-                                <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-lg bg-slate-100 px-1 text-xs font-semibold text-slate-600 dark:bg-slate-800 dark:text-slate-300">
-                                  {index + 1}
-                                </span>
-                              </div>
-
-                              <div className="mt-3 space-y-1.5 text-xs">
-                                <p className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                                  <Phone className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                                  {item.customer_phone}
-                                </p>
-                                <p className="inline-flex items-center gap-1.5 text-slate-600 dark:text-slate-300">
-                                  <CalendarDays className="h-3.5 w-3.5 text-slate-400 dark:text-slate-500" />
-                                  {extractServiceName(item)}
-                                </p>
-                              </div>
-
-                              {nextActions.length > 0 && (
-                                <div className="mt-3 grid gap-2">
-                                  {nextActions.map((targetStatus) => {
-                                    const action = ACTION_CONFIG[targetStatus];
-                                    const ActionIcon = action.icon;
-                                    return (
-                                      <button
-                                        key={`${item.id}-${targetStatus}`}
-                                        type="button"
-                                        disabled={boardDisabled}
-                                        onClick={() => updateStatus(item.id, targetStatus)}
-                                        className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold transition disabled:cursor-not-allowed disabled:opacity-60 ${action.className}`}
-                                      >
-                                        {isUpdating ? (
-                                          <>
-                                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                                            Güncelleniyor...
-                                          </>
-                                        ) : (
-                                          <>
-                                            <ActionIcon className="h-3.5 w-3.5" />
-                                            {action.label}
-                                          </>
-                                        )}
-                                      </button>
-                                    );
-                                  })}
-                                </div>
-                              )}
-                            </article>
-                          );
-                        })}
-                      </div>
-                    )}
-                  </section>
-                );
-              })}
+              {STATUS_ORDER.map((status) => renderStatusColumn(status))}
             </div>
           </div>
         </section>

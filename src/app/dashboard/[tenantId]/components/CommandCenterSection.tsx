@@ -52,7 +52,7 @@ export const CommandCenterSection = memo(function CommandCenterSection({
   onRunAction,
 }: CommandCenterSectionProps) {
   return (
-    <section className="panel-surface p-5 sm:p-6">
+    <section className="panel-surface p-4 sm:p-6">
       <div className="mb-5 flex items-start justify-between gap-3">
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
@@ -78,7 +78,7 @@ export const CommandCenterSection = memo(function CommandCenterSection({
         </div>
       ) : (
         <>
-          <div className="mb-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mb-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
             {[
               {
                 label: "Aylık Ciro",
@@ -120,7 +120,7 @@ export const CommandCenterSection = memo(function CommandCenterSection({
               commandCenter.actions.map((action) => (
                 <div
                   key={action.id}
-                  className="flex flex-wrap items-center justify-between gap-4 rounded-xl border border-slate-200 bg-white px-4 py-3.5 dark:border-slate-700 dark:bg-slate-900/40"
+                  className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-4 dark:border-slate-700 dark:bg-slate-900/40"
                 >
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2">
@@ -145,7 +145,7 @@ export const CommandCenterSection = memo(function CommandCenterSection({
                     type="button"
                     onClick={() => onRunAction(action)}
                     disabled={runningActionId === action.id}
-                    className="inline-flex min-h-11 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-emerald-700 disabled:opacity-60 dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:hover:text-slate-950"
+                    className="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-emerald-700 disabled:opacity-60 sm:w-auto dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:hover:text-slate-950"
                   >
                     {runningActionId === action.id ? (
                       <span className="flex items-center gap-2">

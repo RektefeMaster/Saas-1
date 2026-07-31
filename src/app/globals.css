@@ -330,11 +330,54 @@ a:focus-visible {
   background: var(--muted-foreground);
 }
 
-/* Mobile ergonomics */
-.mobile-safe-pb {
-  padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+/* Dashboard mobile chrome — header, bottom tabs, safe-area */
+:root {
+  --dashboard-header-height: 3.5rem;
+  /* Tab content row — safe-area is applied separately in layout */
+  --dashboard-mobile-tab-height: 3.5rem;
 }
 
+@media (min-width: 640px) {
+  :root {
+    --dashboard-header-height: 4rem;
+  }
+}
+
+body.dashboard-drawer-open {
+  overflow: hidden;
+  touch-action: none;
+}
+
+/* Sticky CTA above mobile tab bar */
+.dashboard-sticky-cta {
+  bottom: calc(var(--dashboard-mobile-tab-height) + env(safe-area-inset-bottom));
+}
+
+/* Native-feel mobile tab bar */
+.dashboard-tabbar {
+  box-shadow: 0 -1px 0 rgb(15 23 42 / 0.06), 0 -8px 24px rgb(15 23 42 / 0.04);
+}
+
+.dark .dashboard-tabbar {
+  box-shadow: 0 -1px 0 rgb(255 255 255 / 0.06), 0 -8px 24px rgb(0 0 0 / 0.35);
+}
+
+.dashboard-tab {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+.dashboard-tab:active {
+  opacity: 0.72;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dashboard-tab:active {
+    opacity: 1;
+  }
+}
+
+/* Mobile ergonomics */
 .mobile-card-stack {
   display: grid;
   gap: 0.75rem;
