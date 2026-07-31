@@ -23,6 +23,7 @@ import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
 import { ThemeLocaleSwitch } from "@/components/ui";
 import { ScrollReveal } from "@/components/ui/ScrollReveal";
+import { LANDING_SCHEDULE } from "@/app/panel-incele/data";
 
 const ContactModal = dynamic(
   () => import("@/components/ui/ContactModal").then((m) => ({ default: m.ContactModal })),
@@ -39,7 +40,6 @@ const COPY = {
       login: "Giriş",
     },
     hero: {
-      badge: "Ahi AI · İşletme paneli",
       titleA: "İşletmenizi büyüten dijital vitrin.",
       titleB: "Randevu, iletişim ve takip tek panelde.",
       desc:
@@ -55,11 +55,13 @@ const COPY = {
     },
     preview: {
       title: "Bugünün programı",
-      rows: [
-        { time: "10:00", name: "Ayşe Y.", service: "Kesim", ok: true },
-        { time: "11:30", name: "Mehmet K.", service: "Bakım", ok: false },
-        { time: "14:00", name: "Zeynep A.", service: "Paket", ok: true },
-      ],
+      live: "Şu an",
+      openDemo: "Tam paneli dene",
+      status: {
+        completed: "Tamamlandı",
+        confirmed: "Onaylı",
+        pending: "Bekliyor",
+      },
     },
     metrics: [
       { label: "Günlük Yanıt Hızı", value: "Dakikalar içinde" },
@@ -140,7 +142,6 @@ const COPY = {
       login: "Login",
     },
     hero: {
-      badge: "Ahi AI · Business panel",
       titleA: "Smart infrastructure for your business.",
       titleB: "Booking, messaging, and follow-up in one place.",
       desc:
@@ -156,11 +157,13 @@ const COPY = {
     },
     preview: {
       title: "Today’s schedule",
-      rows: [
-        { time: "10:00", name: "Ayse Y.", service: "Cut", ok: true },
-        { time: "11:30", name: "Mehmet K.", service: "Care", ok: false },
-        { time: "14:00", name: "Zeynep A.", service: "Package", ok: true },
-      ],
+      live: "Now",
+      openDemo: "Try full panel",
+      status: {
+        completed: "Done",
+        confirmed: "Confirmed",
+        pending: "Pending",
+      },
     },
     metrics: [
       { label: "Intelligent Flow Modules", value: "12+" },
@@ -343,10 +346,7 @@ export default function Home() {
       <main>
         <section className="relative mx-auto grid w-full max-w-7xl items-center gap-12 px-4 pb-16 pt-14 sm:px-6 lg:grid-cols-[1.1fr_0.9fr] lg:pb-20 lg:pt-20">
           <div className="animate-hero-in opacity-0">
-            <p className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700 dark:border-emerald-900 dark:bg-emerald-950/50 dark:text-emerald-300">
-              {t.hero.badge}
-            </p>
-            <h1 className="mt-5 text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.4rem]">
+            <h1 className="text-4xl font-bold leading-[1.08] tracking-tight sm:text-5xl lg:text-[3.4rem]">
               {t.hero.titleA}{" "}
               <span className="text-emerald-700 dark:text-emerald-400">{t.hero.titleB}</span>
             </h1>
@@ -355,7 +355,7 @@ export default function Home() {
             </p>
             <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center">
               <Link
-                href="/dashboard/login"
+                href="/panel-incele"
                 className="inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-emerald-600 px-6 py-3 text-sm font-semibold text-white shadow-md shadow-emerald-700/20 transition-colors duration-150 hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
               >
                 {t.hero.primary}
@@ -394,32 +394,74 @@ export default function Home() {
               className="absolute -inset-3 rounded-3xl bg-gradient-to-br from-emerald-200/40 to-transparent blur-sm dark:from-emerald-900/30"
             />
             <div className="relative overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xl shadow-slate-200/60 dark:border-slate-700 dark:bg-slate-900 dark:shadow-black/30">
-              <div className="flex items-center justify-between border-b border-slate-100 px-5 py-3.5 dark:border-slate-800">
-                <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{t.preview.title}</p>
-                <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300">
-                  3
-                </span>
+              <div className="border-b border-slate-100 px-5 py-4 dark:border-slate-800">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{LANDING_SCHEDULE.business}</p>
+                    <p className="mt-0.5 text-xs capitalize text-slate-500">{LANDING_SCHEDULE.dateLabel()}</p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-sm font-semibold text-slate-800 dark:text-slate-100">{t.preview.title}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-500">
+                      {LANDING_SCHEDULE.summary.confirmed} {locale === "tr" ? "onaylı" : "confirmed"} ·{" "}
+                      {LANDING_SCHEDULE.summary.pending} {locale === "tr" ? "bekliyor" : "pending"} ·{" "}
+                      {LANDING_SCHEDULE.summary.capacity} {locale === "tr" ? "doluluk" : "fill"}
+                    </p>
+                  </div>
+                </div>
               </div>
               <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-                {t.preview.rows.map((row) => (
-                  <li key={`${row.time}-${row.name}`} className="grid grid-cols-[4.5rem_1fr_auto] items-center gap-3 px-5 py-3.5">
-                    <span className="text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">{row.time}</span>
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-medium text-slate-800 dark:text-slate-100">{row.name}</p>
-                      <p className="truncate text-xs text-slate-500">{row.service}</p>
-                    </div>
-                    <span
-                      className={`rounded-md px-2 py-1 text-[11px] font-semibold ${
-                        row.ok
-                          ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
-                          : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300"
+                {LANDING_SCHEDULE.rows.map((row) => {
+                  const statusLabel = t.preview.status[row.status];
+                  const statusClass =
+                    row.status === "completed"
+                      ? "bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300"
+                      : row.status === "confirmed"
+                        ? "bg-emerald-50 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300"
+                        : "bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300";
+                  return (
+                    <li
+                      key={`${row.time}-${row.name}`}
+                      className={`grid grid-cols-[4.75rem_1fr_auto] items-center gap-3 px-5 py-3.5 ${
+                        row.current ? "bg-emerald-50/70 dark:bg-emerald-950/20" : ""
                       }`}
                     >
-                      {row.ok ? (locale === "tr" ? "Onaylı" : "OK") : locale === "tr" ? "Bekliyor" : "Pending"}
-                    </span>
-                  </li>
-                ))}
+                      <div>
+                        <span className="block text-sm font-semibold tabular-nums text-slate-800 dark:text-slate-100">
+                          {row.time}
+                        </span>
+                        <span className="block text-[11px] tabular-nums text-slate-400">{row.end}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-2 truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                          {row.name}
+                          {row.current && (
+                            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-1.5 py-0.5 text-[10px] font-semibold text-white">
+                              <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-white" />
+                              {t.preview.live}
+                            </span>
+                          )}
+                        </p>
+                        <p className="truncate text-xs text-slate-500">
+                          {row.service} · {row.staff}
+                        </p>
+                      </div>
+                      <span className={`rounded-md px-2 py-1 text-[11px] font-semibold ${statusClass}`}>
+                        {statusLabel}
+                      </span>
+                    </li>
+                  );
+                })}
               </ul>
+              <div className="border-t border-slate-100 px-5 py-3 dark:border-slate-800">
+                <Link
+                  href="/panel-incele"
+                  className="inline-flex items-center gap-1.5 text-sm font-semibold text-emerald-700 hover:underline dark:text-emerald-400"
+                >
+                  {t.preview.openDemo}
+                  <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+                </Link>
+              </div>
             </div>
           </div>
         </section>
