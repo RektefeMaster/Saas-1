@@ -5,16 +5,11 @@ import dynamic from "next/dynamic";
 import { AlertCircle, CheckCircle2, Clock, Loader2 } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
 import { groupByDate, getWeekDates, DAY_NAMES } from "./dashboard.types";
-import type { CommandCenterAction } from "./CommandCenterSection";
+import { CommandCenterSection, type CommandCenterAction } from "./CommandCenterSection";
 
 const ChartBar = dynamic(
   () => import("@/components/charts/ChartBar").then((m) => ({ default: m.ChartBar })),
-  { ssr: false, loading: () => <div className="h-[280px] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
-);
-
-const CommandCenterSection = dynamic(
-  () => import("./CommandCenterSection").then((m) => ({ default: m.CommandCenterSection })),
-  { ssr: false, loading: () => <div className="h-32 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
+  { loading: () => <div className="h-[280px] animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
 );
 
 interface OverviewViewProps {

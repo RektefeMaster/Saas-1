@@ -14,20 +14,16 @@ import {
 } from "./components/dashboard.types";
 import type { CommandCenterSnapshot, CommandCenterAction } from "./components/CommandCenterSection";
 import type { DashboardModalsHandle } from "./components/DashboardModals";
-
-const OverviewView = dynamic(
-  () => import("./components/OverviewView").then((m) => ({ default: m.OverviewView })),
-  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
-);
+import { OverviewView } from "./components/OverviewView";
 
 const AppointmentsView = dynamic(
   () => import("./components/AppointmentsView").then((m) => ({ default: m.AppointmentsView })),
-  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
+  { loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
 );
 
 const SettingsView = dynamic(
   () => import("./components/SettingsView").then((m) => ({ default: m.SettingsView })),
-  { ssr: false, loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
+  { loading: () => <div className="h-64 animate-pulse rounded-2xl bg-slate-100 dark:bg-slate-800" /> }
 );
 
 const DashboardModals = dynamic(

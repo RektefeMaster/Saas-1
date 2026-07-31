@@ -74,8 +74,13 @@ body {
 }
 
 html {
-  scroll-behavior: smooth;
   -webkit-tap-highlight-color: transparent;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  html {
+    scroll-behavior: smooth;
+  }
 }
 
 /* Landing hero/metrics - JS-free animasyon (LCP iyileştirmesi) */
@@ -102,11 +107,53 @@ html {
 }
 
 .animate-hero-in {
-  animation: fade-in-up 0.5s ease-out forwards;
+  animation: fade-in-up 0.45s ease-out forwards;
 }
 
 .animate-metric-in {
-  animation: fade-in-right 0.42s ease-out forwards;
+  animation: fade-in-right 0.4s ease-out forwards;
+}
+
+/* CSS scroll reveal — no motion/framer chunk */
+.reveal {
+  opacity: 0;
+  transition:
+    opacity 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94),
+    transform 0.4s cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  transition-delay: var(--reveal-delay, 0s);
+}
+.reveal-fade-up {
+  transform: translate3d(0, 16px, 0);
+}
+.reveal-fade-in {
+  transform: none;
+}
+.reveal-slide-left {
+  transform: translate3d(20px, 0, 0);
+}
+.reveal-slide-right {
+  transform: translate3d(-20px, 0, 0);
+}
+.reveal-scale {
+  transform: translate3d(0, 0, 0) scale(0.97);
+}
+.reveal.reveal-in {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-hero-in,
+  .animate-metric-in {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+  .reveal {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
 }
 
 ::selection {

@@ -243,14 +243,6 @@ export default function DashboardLoginPage() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <Image
-        src="/arkaplan.png"
-        alt="Ahi AI backdrop"
-        fill
-        priority
-        sizes="100vw"
-        className="pointer-events-none object-cover opacity-[0.08] blur-[1.2px]"
-      />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_40%_at_15%_0%,rgba(56,189,248,0.22),transparent),radial-gradient(35%_30%_at_90%_10%,rgba(16,185,129,0.18),transparent)]" />
 
       <div className="absolute right-4 top-4 z-20">

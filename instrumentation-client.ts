@@ -6,16 +6,11 @@ Sentry.init({
   dsn,
   enabled: !!dsn,
   sendDefaultPii: true,
-  tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.1,
-  integrations: [
-    Sentry.replayIntegration({
-      maskAllText: true,
-      maskAllInputs: true,
-      blockAllMedia: true,
-    }),
-  ],
-  replaysSessionSampleRate: 0.1,
-  replaysOnErrorSampleRate: 1.0,
+  tracesSampleRate: process.env.NODE_ENV === "development" ? 1.0 : 0.05,
+  // Session Replay is expensive on mobile/main-thread; keep off by default.
+  integrations: [],
+  replaysSessionSampleRate: 0,
+  replaysOnErrorSampleRate: 0,
 });
 
 export const onRouterTransitionStart = Sentry.captureRouterTransitionStart;

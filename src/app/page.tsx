@@ -23,11 +23,7 @@ import {
 import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
 import { ThemeLocaleSwitch } from "@/components/ui";
-
-const ScrollReveal = dynamic(
-  () => import("@/components/ui/ScrollReveal").then((m) => ({ default: m.ScrollReveal })),
-  { ssr: false }
-);
+import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 const ContactModal = dynamic(
   () => import("@/components/ui/ContactModal").then((m) => ({ default: m.ContactModal })),
@@ -231,17 +227,9 @@ export default function Home() {
 
   return (
     <div className="relative min-h-screen overflow-hidden bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
-      <Image
-        src="/arkaplan.png"
-        alt="Ahi AI backdrop"
-        fill
-        priority
-        sizes="100vw"
-        className="pointer-events-none object-cover opacity-[0.08] blur-[1.2px]"
-      />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_45%_at_20%_10%,rgba(56,189,248,0.22),transparent),radial-gradient(50%_40%_at_84%_14%,rgba(16,185,129,0.2),transparent)]" />
 
-      <header className="sticky top-0 z-40 border-b border-slate-200/70 bg-white/85 backdrop-blur dark:border-slate-800 dark:bg-slate-900/80">
+      <header className="sticky top-0 z-40 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center justify-between px-4 sm:px-6">
           <Link href="/" className="inline-flex items-center gap-3">
             <Image
@@ -428,54 +416,52 @@ export default function Home() {
             </div>
         </section>
 
-        <section id="solutions" className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6">
-          <ScrollReveal as="section" variant="fadeUp">
-            <div className="mb-8 flex items-center gap-3">
-              <Workflow className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.solutionsTitle}</h2>
-            </div>
-          </ScrollReveal>
+        <ScrollReveal as="section" id="solutions" className="mx-auto w-full max-w-7xl px-4 py-14 sm:px-6" variant="fadeUp">
+          <div className="mb-8 flex items-center gap-3">
+            <Workflow className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.solutionsTitle}</h2>
+          </div>
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {t.solutions.map((item, index) => {
+            {t.solutions.map((item) => {
               const Icon = item.icon;
               return (
-                <ScrollReveal key={item.title} delay={0.02 + index * 0.05} variant="fadeUp">
-                  <article className="group h-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg dark:border-slate-800 dark:bg-slate-900">
-                    <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950">
-                      <Icon className="h-5 w-5" />
-                    </span>
-                    <h3 className="mt-4 text-lg font-semibold tracking-tight">{item.title}</h3>
-                    <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
-                      {item.text}
-                    </p>
-                  </article>
-                </ScrollReveal>
+                <article
+                  key={item.title}
+                  className="group h-full rounded-3xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900"
+                >
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-900 text-white dark:bg-emerald-500 dark:text-slate-950">
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <h3 className="mt-4 text-lg font-semibold tracking-tight">{item.title}</h3>
+                  <p className="mt-2 text-sm leading-relaxed text-slate-600 dark:text-slate-300">
+                    {item.text}
+                  </p>
+                </article>
               );
             })}
           </div>
-        </section>
+        </ScrollReveal>
 
-        <section id="flow" className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6">
-          <ScrollReveal variant="fadeUp">
-            <div className="mb-6 flex items-center gap-3">
-              <Rocket className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
-              <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.flowTitle}</h2>
-            </div>
-          </ScrollReveal>
+        <ScrollReveal as="section" id="flow" className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6" variant="fadeUp">
+          <div className="mb-6 flex items-center gap-3">
+            <Rocket className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.flowTitle}</h2>
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
-            {t.flow.map((item, index) => (
-              <ScrollReveal key={item.step} delay={0.04 + index * 0.04} variant="scale">
-                <article className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900">
-                  <span className="font-mono text-xs font-bold tracking-[0.18em] text-cyan-600 dark:text-cyan-300">
-                    {item.step}
-                  </span>
-                  <h3 className="mt-1.5 text-base font-semibold">{item.title}</h3>
-                  <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-300">{item.text}</p>
-                </article>
-              </ScrollReveal>
+            {t.flow.map((item) => (
+              <article
+                key={item.step}
+                className="rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-800 dark:bg-slate-900"
+              >
+                <span className="font-mono text-xs font-bold tracking-[0.18em] text-cyan-600 dark:text-cyan-300">
+                  {item.step}
+                </span>
+                <h3 className="mt-1.5 text-base font-semibold">{item.title}</h3>
+                <p className="mt-1.5 text-sm text-slate-600 dark:text-slate-300">{item.text}</p>
+              </article>
             ))}
           </div>
-        </section>
+        </ScrollReveal>
 
         <section className="mx-auto w-full max-w-7xl px-4 pb-16 sm:px-6">
           <ScrollReveal variant="fadeUp">
