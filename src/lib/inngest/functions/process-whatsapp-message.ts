@@ -14,7 +14,16 @@ export const processWhatsAppMessageFn = inngest.createFunction(
   },
   async ({ event, attempt }) => {
     const data = event.data as WhatsAppInboundEventData;
-    const queueLagMs = Math.max(0, Date.now() - new Date(data.received_at).getTime());
+    // Sağlayıcıdan gelen zaman damgası bozuk olabilir (Meta'nın test webhook'u
+    // sabit/sahte bir timestamp gönderiyor). Mantıksız değerleri ölçüme sokma.
+    const MAX_PLAUSIBLE_QUEUE_LAG_MS = 24 * 60 * 60 * 1000;
+    const rawQueueLagMs = Date.now() - new Date(data.received_at).getTime();
+    const queueLagMs =
+      Number.isFinite(rawQueueLagMs) &&
+      rawQueueLagMs >= 0 &&
+      rawQueueLagMs <= MAX_PLAUSIBLE_QUEUE_LAG_MS
+        ? rawQueueLagMs
+        : 0;
     try {
       await updateMessageProcessingJob({
         traceId: data.trace_id,

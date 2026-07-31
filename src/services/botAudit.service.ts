@@ -38,6 +38,21 @@ export interface BotDlqInput {
   errorMessage?: string | null;
 }
 
+/**
+ * PostgreSQL INTEGER üst sınırı. Bozuk bir zaman damgasından hesaplanan
+ * gecikme değeri bu sınırı aşınca tüm audit insert'i patlıyordu
+ * (örn. Meta'nın test webhook'undaki sahte timestamp → ~9 yıllık "gecikme").
+ * Ölçüm kaydı, mesaj akışını hiçbir koşulda bozmamalı.
+ */
+const PG_INT_MAX = 2_147_483_647;
+
+function clampInt(value: number | null | undefined): number | null {
+  if (value == null || !Number.isFinite(value)) return null;
+  const rounded = Math.round(value);
+  if (rounded <= 0) return null;
+  return Math.min(rounded, PG_INT_MAX);
+}
+
 function hashPhone(phone: string | null | undefined): string | null {
   if (!phone) return null;
   const normalized = phone.replace(/\D/g, "");
@@ -59,14 +74,14 @@ export async function logBotMessageAudit(input: BotAuditInput): Promise<void> {
     tool_name: input.toolName || null,
     tool_result: input.toolResult || null,
     reply_preview: input.replyPreview || null,
-    latency_ms: input.latencyMs || null,
-    llm_latency_ms: input.llmLatencyMs || null,
-    db_latency_ms: input.dbLatencyMs || null,
-    lock_wait_ms: input.lockWaitMs || null,
-    queue_lag_ms: input.queueLagMs || null,
-    prompt_tokens: input.promptTokens || null,
-    completion_tokens: input.completionTokens || null,
-    total_tokens: input.totalTokens || null,
+    latency_ms: clampInt(input.latencyMs),
+    llm_latency_ms: clampInt(input.llmLatencyMs),
+    db_latency_ms: clampInt(input.dbLatencyMs),
+    lock_wait_ms: clampInt(input.lockWaitMs),
+    queue_lag_ms: clampInt(input.queueLagMs),
+    prompt_tokens: clampInt(input.promptTokens),
+    completion_tokens: clampInt(input.completionTokens),
+    total_tokens: clampInt(input.totalTokens),
     cost_usd: input.costUsd || null,
     model: input.model || null,
     model_pricing_version: input.modelPricingVersion || null,
