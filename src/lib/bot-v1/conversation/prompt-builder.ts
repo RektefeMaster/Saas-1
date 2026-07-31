@@ -1,6 +1,11 @@
 import type { Tenant, BusinessType, TenantMessagesConfig } from "../../database.types";
 import { DEFAULT_MESSAGES } from "./constants";
-import { SERVICE_FIRST_FLOW_RULE } from "./prompt-rules";
+import { IMAGE_CONTENT_RULE, SERVICE_FIRST_FLOW_RULE } from "./prompt-rules";
+import {
+  buildSectorRulesPrompt,
+  getSectorProfileByKey,
+  type SectorProfile,
+} from "@/services/sectorProfile.service";
 
 export function getMergedMessages(
   tenant: Tenant & { business_types: BusinessType }
@@ -31,7 +36,8 @@ export function getProcessErrorReply(tone: string): string {
 export function buildSystemPrompt(
   tenantName: string,
   msgs: TenantMessagesConfig,
-  extraPrompt?: string
+  extraPrompt?: string,
+  sector: SectorProfile = getSectorProfileByKey("generic")
 ): string {
   const tone = msgs.tone ?? "sen";
   const personality = msgs.personality ?? "Samimi, kısa ve doğal konuş";
@@ -39,21 +45,28 @@ export function buildSystemPrompt(
 
   const rol = `Sen bu işletmenin WhatsApp asistanısın. Müşteri direkt bu işletmeye yazıyor. ${personality}. Müşteriye "${hitap}" diye hitap et. İş çözmeye yönelik konuş; randevu al, iptal et, fiyat/adres sorularına cevap ver.`;
 
-  const ton = `Kısa ve doğal cevap ver. Aynı kalıp cümleleri tekrarlama. Resmi veya robotik olma; esnaf gibi samimi ol. Emoji kullanımı en fazla 1 olsun. Randevu/iptal onayında uzun metin yazma, kısa onay ver (örn. "Tamam abi, yazdım seni"). Önceki mesajını asla inkâr etme, "öyle bir şey demedim" deme.`;
+  // Sektöre göre kayıt: esnaf ağzı sadece uygun sektörlerde.
+  const tonRegister = sector.allowCasualSlang
+    ? `Resmi veya robotik olma; samimi ol. Randevu/iptal onayında uzun metin yazma, kısa onay ver (örn. "Tamam, yazdım seni").`
+    : `Resmi ve robotik olma ama profesyonel kal; argo ve "abi/abla/kanka" gibi laubali hitaplar kullanma. Randevu/iptal onayında uzun metin yazma, kısa ve kibar onayla (örn. "Randevunuzu oluşturdum.").`;
+
+  const ton = `Kısa ve doğal cevap ver. Aynı kalıp cümleleri tekrarlama. ${tonRegister} Emoji kullanımı en fazla 1 olsun. Önceki mesajını asla inkâr etme, "öyle bir şey demedim" deme.`;
 
   const kurallar = `BAĞLAM VE HAFIZA: Konuşma geçmişindeki bilgileri kullan. Müşteri adını söylediyse tekrar sorma. "Pazartesi" = en yakın pazartesi (bağlamdaki tarih listesinden YYYY-MM-DD bul). İşlem sonrası konuşma devam eder.
 KURALLAR: Randevu öncesi müşteri adını mutlaka öğren; sonra saat belliyse direkt create_appointment. Müşteri adını bir kez öğrendikten sonra kaydet, tekrar yazınca ismiyle seslen. Saat: "6"→18:00, "sabah 10"→10:00, "öğleden sonra 3"→15:00. Tarih: bağlamdaki Bugün/Yarın kullan; "öbür gün"=yarından sonraki, "bu hafta sonu"=Cumartesi. Çalışma saatleri dışında randevu önerme.
 ${SERVICE_FIRST_FLOW_RULE}
-PERSONEL TERCİHİ: Müşteri belirli bir uzman/personel ismi verirse önce uygun personeli doğrula, müsaitlik ve randevu çağrılarında staff_id alanını gönder.
-PAKET KONTROL: Hizmet seçildikten sonra check_customer_package(service_slug) çağır. Aktif paket varsa müşteriye "Kalan X seansınızdan 1'i düşülecek, onaylıyor musunuz?" diye sor. Onay alırsan create_appointment içinde use_package=true gönder. Müşteri istemezse use_package=false ile normal akışa devam et.
-BAŞKASI İÇİN RANDEVU: Müşteri "arkadaşım için", "eşim için", "bir yakınım için" veya "onun için de" dediğinde o kişinin adını MUTLAKA sor ("Arkadaşının / o kişinin adı ne?"). Adı öğrenmeden create_appointment çağırma. create_appointment'ta customer_name olarak randevuyu alan kişinin adını yaz (konuşan kişi değil, randevu alınan kişi). Bağlamdaki "müşterinin adı" konuşan kişinindir; başkası için randevuda her seferinde o kişinin adını sor ve customer_name ile geç.
-ÇOKLU RANDEVU: "ben ve arkadaşım X için", "2 kişilik" gibi ifadelerde önce kendi adını öğren, sonra diğer kişinin adını sor. Her kişi için ayrı create_appointment çağır (customer_name: ilgili kişinin adı). İlk randevuyu aldıktan sonra "başka biri için de" derse yine o kişinin adını sor, sonra create_appointment.
-DOLU SAAT: Bir saat dolu çıkarsa (status fully_booked veya SLOT_TAKEN) mutlaka "available" listesinden alternatif saatleri öner ("O saat dolu, ama 14:00 ve 15:00 müsait, birini alayım mı?"). create_appointment veya check_availability sonucunda suggested_time varsa MUTLAKA "Önerilen alternatif saat: X" şeklinde belirt ve müşteriye öner.
-Fiyat→get_services; adres→get_tenant_info. "Geç kalacağım"→notify_late. "İptal" isteğinde önce get_last_appointment çağır, müşteriden açık onay ("evet iptal") aldıktan sonra cancel_appointment çağır. Yapamayacağın bir şey çıkarsa nazikçe "Bu konuda yardımcı olamıyorum; randevu, fiyat veya müsaitlik için yazabilirsiniz" de. [[INSAN]] yazma.
-MÜSAİTLİK: has_available_slots→saatleri sun; fully_booked→başka gün veya check_week_availability; closed_day/blocked_holiday→"O gün kapalıyız" de. "available" boş olsa bile status'a bak.
-ÖRNEKLER: "yarın 6 boş mu?"→check_availability; doluysa "6 dolu ama 5 var, alayım mı?". "tamam 15e al"→create_appointment, "Aldım, yarın 15'te görüşürüz." "arkadaşım için de alacağım"→"Arkadaşının adı ne?" diye sor, adı öğren, sonra create_appointment(customer_name: o isim). "randevumu iptal et"→get_last_appointment, cancel_appointment. "bu hafta ne zaman boş?"→check_week_availability. "ne kadar?"→get_services. "neredesiniz?"→get_tenant_info. "geç kalacağım"→notify_late.`;
+${IMAGE_CONTENT_RULE}
+PERSONEL: Belirli uzman isterse staff_id gönder.
+PAKET: Hizmet seçilince check_customer_package; aktifse onay al, use_package=true/false. "Paket var mı?"→get_packages (satış yapma). Süre→duration_minutes, uydurma.
+BAŞKASI/ÇOKLU: Başkası için adı sor; her kişi ayrı create_appointment.
+DOLU SAAT: available/suggested_time ile alternatif öner.
+Fiyat→get_services; adres→get_tenant_info; geç kalma→notify_late; iptal→get_last_appointment + açık onay + cancel_appointment. [[INSAN]] yazma.
+MÜSAİTLİK: has_available_slots→saat sun; fully_booked→başka gün/check_week_availability; closed/blocked→kapalıyız.`;
 
-  let prompt = `<rol>\n${rol}\n</rol>\n\n<ton>\n${ton}\n</ton>\n\n<kurallar>\n${kurallar}\n</kurallar>`;
+  const sectorRules = buildSectorRulesPrompt(sector);
+  const kurallarBlock = sectorRules ? `${kurallar}\n\n${sectorRules}` : kurallar;
+
+  let prompt = `<rol>\n${rol}\n</rol>\n\n<ton>\n${ton}\n</ton>\n\n<kurallar>\n${kurallarBlock}\n</kurallar>`;
   if (extraPrompt) {
     prompt += `\n\n${extraPrompt}`;
   }

@@ -66,14 +66,7 @@ export function getTwilioVerifyStatus(): TwilioVerifyStatus {
   };
 }
 
-export function isTwilioVerifyConfigured(): boolean {
-  return getTwilioVerifyStatus().configReady;
-}
 
-export function isSms2faOperational(): boolean {
-  const status = getTwilioVerifyStatus();
-  return status.enabledByFlag && status.configReady;
-}
 
 function getTwilioConfig() {
   const accountSid = process.env.TWILIO_ACCOUNT_SID?.trim() || "";
@@ -166,10 +159,6 @@ export async function verifySmsCodeDetailed(
   return { ok: false, reason: "invalid_code" };
 }
 
-export async function verifySmsCode(phoneE164: string, code: string): Promise<boolean> {
-  const result = await verifySmsCodeDetailed(phoneE164, code);
-  return result.ok;
-}
 
 /** Validates X-Twilio-Signature for webhook requests. */
 export function validateTwilioSignature(input: {

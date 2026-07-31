@@ -9,41 +9,6 @@ export type BlockedDateCheck =
   | { ok: true; blocked: boolean }
   | { ok: false; error: string };
 
-/**
- * Verilen tarihin tenant için bloklu (tatil/izin) olup olmadığını kontrol eder.
- * DB hatalarında "blocked=true" uydurmak yerine hard error döner (yanlış tatil yayılımı engellenir).
- */
-export async function checkBlockedDateDetailed(
-  tenantId: string,
-  dateStr: string
-): Promise<BlockedDateCheck> {
-  try {
-    const date = new Date(dateStr);
-    if (isNaN(date.getTime())) {
-      return { ok: true, blocked: false };
-    }
-
-    const { data, error } = await supabase
-      .from("blocked_dates")
-      .select("id")
-      .eq("tenant_id", tenantId)
-      .lte("start_date", dateStr)
-      .gte("end_date", dateStr)
-      .limit(1);
-
-    if (error) {
-      console.error("[blockedDates] check error:", error.message);
-      return { ok: false, error: error.message };
-    }
-    return { ok: true, blocked: (data?.length ?? 0) > 0 };
-  } catch (err) {
-    console.error("[blockedDates] check exception:", err);
-    return {
-      ok: false,
-      error: err instanceof Error ? err.message : "blocked_dates_check_failed",
-    };
-  }
-}
 
 /**
  * Tatil/izin ekler.

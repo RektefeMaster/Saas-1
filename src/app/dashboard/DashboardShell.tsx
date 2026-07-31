@@ -15,6 +15,7 @@ import {
   UserRound,
   Settings,
   MessageCircle,
+  Inbox,
   QrCode,
   LogOut,
   Menu,
@@ -39,6 +40,7 @@ const WhatsAppLinkModal = dynamic(
 
 type NavKey =
   | "overview"
+  | "inbox"
   | "pricing"
   | "packages"
   | "campaigns"
@@ -58,6 +60,7 @@ const COPY = {
     loading: "Yükleniyor…",
     nav: {
       overview: "Özet",
+      inbox: "Gelen Kutusu",
       pricing: "Fiyat Listesi",
       packages: "Paket & Seans",
       campaigns: "Kampanyalar",
@@ -77,6 +80,7 @@ const COPY = {
     loading: "Loading...",
     nav: {
       overview: "Overview",
+      inbox: "Inbox",
       pricing: "Pricing",
       packages: "Packages",
       campaigns: "Campaigns",
@@ -204,6 +208,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       (tenantId
         ? [
             { key: "overview" as NavKey, href: `/dashboard/${tenantId}`, label: t.nav.overview, icon: LayoutDashboard },
+            { key: "inbox" as NavKey, href: `/dashboard/${tenantId}/inbox`, label: t.nav.inbox, icon: Inbox },
             { key: "pricing" as NavKey, href: `/dashboard/${tenantId}/pricing`, label: t.nav.pricing, icon: ListChecks },
             { key: "packages" as NavKey, href: `/dashboard/${tenantId}/packages`, label: t.nav.packages, icon: Package },
             { key: "workflow" as NavKey, href: `/dashboard/${tenantId}/workflow`, label: t.nav.workflow, icon: KanbanSquare },

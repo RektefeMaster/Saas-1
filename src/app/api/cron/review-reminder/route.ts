@@ -19,6 +19,10 @@ import {
   claimAppointmentExtraFlag,
   clearAppointmentExtraFlag,
 } from "@/lib/cron-auth";
+import {
+  loadTenantMessageContexts,
+  resolveTenantMessage,
+} from "@/services/tenantMessages.service";
 
 const DEFAULT_DELAY_HOURS = 2;
 const MAX_DELAY_HOURS = 48;
@@ -157,6 +161,12 @@ export async function GET(request: NextRequest) {
     toSend.push(apt);
   }
 
+  // İşletmenin kendi değerlendirme mesajı varsa onu kullan (diş kliniği ile
+  // kuaförün dili aynı olmamalı); yoksa ortak varsayılan metin.
+  const messageContexts = await loadTenantMessageContexts(
+    toSend.map((apt) => apt.tenant_id)
+  );
+
   for (let i = 0; i < toSend.length; i += SEND_CONCURRENCY) {
     const chunk = toSend.slice(i, i + SEND_CONCURRENCY);
     const results = await Promise.all(
@@ -175,9 +185,25 @@ export async function GET(request: NextRequest) {
           return false;
         }
 
+        const messageContext = messageContexts.get(apt.tenant_id);
+        const listBody = resolveTenantMessage(
+          messageContext,
+          "review_request",
+          {},
+          REVIEW_LIST_BODY
+        );
+        const fallbackText = resolveTenantMessage(
+          messageContext,
+          "review_request",
+          {},
+          REVIEW_FALLBACK_TEXT
+        );
+
         const result = await sendWhatsAppInteractiveList({
           to: apt.customer_phone,
-          bodyText: REVIEW_LIST_BODY,
+          // Meta interaktif liste gövdesi 1024 karakterle sınırlı; özel şablon
+          // uzun yazılmışsa istek 400 dönmesin diye kırpılır.
+          bodyText: listBody.slice(0, 1000),
           buttonLabel: "Puan ver",
           sections: REVIEW_LIST_SECTIONS,
         });
@@ -185,7 +211,7 @@ export async function GET(request: NextRequest) {
         if (!ok) {
           const fallback = await sendCustomerNotification(
             apt.customer_phone,
-            REVIEW_FALLBACK_TEXT
+            fallbackText
           );
           if (fallback.whatsapp || fallback.sms) ok = true;
         }

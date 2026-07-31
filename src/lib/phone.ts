@@ -75,3 +75,15 @@ export function phonesMatch(
   const bv = new Set(phoneVariants(b));
   return av.some((v) => bv.has(v));
 }
+
+/**
+ * WhatsApp conversation identity: canonical digits-only E.164 without '+'.
+ * Webhook, backfill and conversation upsert MUST use the same function.
+ */
+export function normalizeWhatsAppIdentity(
+  input: string | null | undefined
+): string | null {
+  const e164 = normalizePhoneE164(input);
+  if (!e164) return null;
+  return e164.replace(/\D/g, "") || null;
+}

@@ -17,6 +17,13 @@ export interface StaffOption {
   active: boolean;
 }
 
+/** İşletme tipinden türeyen sektör; panelde alan setlerini belirler. */
+export interface TenantSector {
+  key: string;
+  label: string;
+  healthcare: boolean;
+}
+
 export interface TenantBasic {
   id: string;
   name: string;
@@ -32,6 +39,7 @@ interface DashboardTenantContextValue {
   tenant: TenantBasic | null;
   setTenant: React.Dispatch<React.SetStateAction<TenantBasic | null>>;
   features: DashboardFeatureFlags | null;
+  sector: TenantSector | null;
   staffPreferenceEnabled: boolean;
   staffOptions: StaffOption[];
   isLoading: boolean;
@@ -59,7 +67,10 @@ export function DashboardTenantProvider({
     { revalidateOnFocus: false, dedupingInterval: 30000 }
   );
 
-  const { data: featureData } = useSWR<{ feature_flags?: DashboardFeatureFlags }>(
+  const { data: featureData } = useSWR<{
+    feature_flags?: DashboardFeatureFlags;
+    sector?: TenantSector;
+  }>(
     tenantId ? `/api/tenant/${tenantId}/features` : null,
     fetcher,
     { revalidateOnFocus: false, dedupingInterval: 30000 }
@@ -83,6 +94,7 @@ export function DashboardTenantProvider({
   }, [tenantData]);
 
   const features = featureData?.feature_flags ?? null;
+  const sector = featureData?.sector ?? null;
   const isLoading = !!tenantId && tenantLoading;
 
   const value = useMemo<DashboardTenantContextValue>(
@@ -91,35 +103,15 @@ export function DashboardTenantProvider({
       tenant,
       setTenant,
       features,
+      sector,
       staffPreferenceEnabled,
       staffOptions,
       isLoading,
     }),
-    [tenantId, tenant, features, staffPreferenceEnabled, staffOptions, isLoading]
+    [tenantId, tenant, features, sector, staffPreferenceEnabled, staffOptions, isLoading]
   );
 
-  // Null check ekle - React 19'da Context.Provider'ın children prop'una null geçildiğinde sorun olabilir
-  if (children == null) {
-    return (
-      <DashboardTenantContext.Provider value={value}>
-        {null}
-      </DashboardTenantContext.Provider>
-    );
-  }
-
-  // Güvenli render
-  try {
-    return (
-      <DashboardTenantContext.Provider value={value}>
-        {children}
-      </DashboardTenantContext.Provider>
-    );
-  } catch (error) {
-    console.error("[DashboardTenantProvider] Render hatası:", error);
-    return (
-      <DashboardTenantContext.Provider value={value}>
-        {null}
-      </DashboardTenantContext.Provider>
-    );
-  }
+  return (
+    <DashboardTenantContext.Provider value={value}>{children}</DashboardTenantContext.Provider>
+  );
 }

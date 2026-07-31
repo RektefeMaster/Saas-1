@@ -3,7 +3,6 @@ import { supabase } from "@/lib/supabase";
 import { logTenantEvent } from "@/services/eventLog.service";
 import { markAppointmentNoShow } from "@/services/noShow.service";
 import { cancelAppointment } from "@/services/cancellation.service";
-import { getDailyAvailability } from "@/services/booking.service";
 import { notifyWaitlist } from "@/services/waitlist.service";
 import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
@@ -96,9 +95,9 @@ export async function PATCH(
       const dateStr = new Date(current.slot_start).toLocaleDateString("en-CA", {
         timeZone: tz,
       });
-      const daily = await getDailyAvailability(tenantId, dateStr);
-      if (daily.checkFailed) return;
-      await notifyWaitlist(tenantId, dateStr, daily.available, tenant?.name || "İşletme");
+      // Müsaitlik, bekleyen her müşterinin kendi hizmet süresine göre
+      // notifyWaitlist içinde hesaplanır.
+      await notifyWaitlist(tenantId, dateStr, tenant?.name || "İşletme");
     })().catch((e) => console.error("[status] waitlist notify error:", e));
 
     await logTenantEvent({

@@ -1,7 +1,6 @@
 import type { TenantMessagesConfig } from "../../database.types";
 
 export const HUMAN_ESCALATION_TAG = "[[INSAN]]";
-export const MAX_MESSAGES_BEFORE_ESCALATION = 20;
 export const MAX_CHAT_HISTORY_TURNS = 15;
 /**
  * API'ye gönderilen sohbet turu sayısı. Erken dönüşler artık geçmişe yazıldığı
@@ -66,6 +65,34 @@ export const BUSINESS_SCOPE_KEYWORDS = [
   "kuafor",
   "sac",
   "sakal",
+  // Güzellik / tırnak / lazer / diş sektörlerinde de gerçek talep sinyalleri
+  // kapsam içi sayılmalı; aksi halde "merhaba, lazer" gibi mesajlar sadece
+  // selamlama sanılıp sabit karşılamaya düşebiliyordu.
+  "boya",
+  "balyaj",
+  "rofle",
+  "fon",
+  "manikur",
+  "pedikur",
+  "oje",
+  "tirnak",
+  "protez",
+  "agda",
+  "cilt",
+  "bakim",
+  "lazer",
+  "epilasyon",
+  "seans",
+  "paket",
+  "dis",
+  "implant",
+  "dolgu",
+  "kanal",
+  "ortodonti",
+  "muayene",
+  "kontrol",
+  "temizlik",
+  "beyazlatma",
   "gec kal",
   // Randevu niyetini keyword listesi yüzünden kaçırmamak için genişletildi.
   "yer var",
@@ -82,21 +109,6 @@ export const BUSINESS_SCOPE_KEYWORDS = [
   "acik mi",
   "kapali mi",
   "calisiyor",
-];
-
-/**
- * Kapsam dışı sinyaller. Substring değil, KELİME SINIRI ile eşleşir
- * (bkz. containsWord). "aşk" gibi kısa tokenlar "başka"/"maske" içinde yanlış
- * eşleştiği için buradan kaldırıldı.
- */
-export const OFFTOPIC_KEYWORDS = [
-  "kac yasindasin",
-  "allah",
-  "dolar",
-  "siyaset",
-  "borsa",
-  "futbol",
-  "fikrin ne",
 ];
 
 /**
@@ -137,28 +149,9 @@ export const SMALLTALK_KEYWORDS = [
   "kanka",
 ];
 
-export const NEGOTIATION_KEYWORDS = [
-  "indirim",
-  "pazarlik",
-  "pazarlık",
-  "uygun olur mu",
-  "fiyatta",
-  "ogrenciyim",
-  "öğrenciyim",
-  "daha ucuz",
-  "son fiyat",
-];
-
-/** @deprecated Kademeli routing kaldırıldı; Luna-only. */
-export const COMPLEX_KEYWORDS: string[] = [];
-/** @deprecated Kademeli routing kaldırıldı; Luna-only. */
-export const COMPLEX_PATTERN = /$a/;
-
-/** Tek model: tüm sohbet trafiği Luna. COMPLEX alias geriye uyum için aynı default. */
+/** Tek model: tüm sohbet trafiği Luna. */
 export const MODEL_SIMPLE =
   process.env.OPENAI_CHAT_MODEL_SIMPLE?.trim() || "gpt-5.6-luna";
-export const MODEL_COMPLEX =
-  process.env.OPENAI_CHAT_MODEL_COMPLEX?.trim() || MODEL_SIMPLE;
 
 export const TR_DAY_NAMES_FULL = ["Pazar", "Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi"];
 

@@ -229,6 +229,12 @@ export async function POST(request: NextRequest) {
     if (body.scheduling?.slot_duration_minutes !== undefined) {
       mergedConfig.slot_duration_minutes = body.scheduling.slot_duration_minutes;
     }
+    if (body.scheduling?.buffer_minutes !== undefined) {
+      const raw = Number(body.scheduling.buffer_minutes);
+      mergedConfig.buffer_minutes = Number.isFinite(raw)
+        ? Math.min(60, Math.max(0, Math.round(raw)))
+        : 0;
+    }
     if (body.scheduling?.advance_booking_days !== undefined) {
       mergedConfig.advance_booking_days = body.scheduling.advance_booking_days;
     }

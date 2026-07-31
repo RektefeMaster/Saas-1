@@ -1,10 +1,13 @@
 /**
  * No-show işlemleri için ortak servis.
- * Randevu no-show olarak işaretlendiğinde: blacklist artırma, ops alert, merchant bildirimi.
+ * Randevu no-show olarak işaretlendiğinde: blacklist artırma, ops alert, merchant bildirimi,
+ * CRM domain event (pipeline follow_up + safe follow-up).
  */
 import { incrementNoShow } from "@/services/blacklist.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
 import { notifyNoShowForMerchant } from "@/services/merchantNotification.service";
+import { publishDomainEvent } from "@/services/domainEvents.service";
+import { upsertCrmCustomer } from "@/services/crmCustomer.service";
 
 export type NoShowSource = "cron" | "cron/reminders" | "cron/no-show" | "dashboard";
 
@@ -21,6 +24,7 @@ export interface MarkNoShowParams {
  * - incrementNoShow (blacklist)
  * - createOpsAlert
  * - notifyNoShowForMerchant (WhatsApp/SMS)
+ * - NO_SHOW_RECORDED domain event
  */
 export async function markAppointmentNoShow(params: MarkNoShowParams): Promise<void> {
   const { appointmentId, tenantId, customerPhone, staffId, source } = params;
@@ -46,4 +50,21 @@ export async function markAppointmentNoShow(params: MarkNoShowParams): Promise<v
     staffId: staffId || null,
     source: notifySource,
   }).catch((e) => console.error(`[noShow] merchant notify error (${source}):`, e));
+
+  const customerId = await upsertCrmCustomer(tenantId, customerPhone).catch(() => null);
+  if (customerId) {
+    await publishDomainEvent({
+      tenantId,
+      eventType: "NO_SHOW_RECORDED",
+      aggregateType: "appointment",
+      aggregateId: appointmentId,
+      idempotencyKey: `no_show:${tenantId}:${appointmentId}`,
+      payload: {
+        customerId,
+        customerPhone,
+        appointmentId,
+        source,
+      },
+    }).catch((e) => console.error(`[noShow] domain event error (${source}):`, e));
+  }
 }

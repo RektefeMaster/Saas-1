@@ -28,6 +28,7 @@ export async function PATCH(
       working_hours_text,
       opening_message,
       slot_duration_minutes,
+      buffer_minutes,
       advance_booking_days,
       cancellation_hours,
       ui_preferences,
@@ -43,6 +44,7 @@ export async function PATCH(
       messages !== undefined ||
       opening_message !== undefined ||
       slot_duration_minutes !== undefined ||
+      buffer_minutes !== undefined ||
       advance_booking_days !== undefined ||
       cancellation_hours !== undefined ||
       ui_preferences !== undefined ||
@@ -121,6 +123,13 @@ export async function PATCH(
     }
     if (slot_duration_minutes !== undefined) {
       newConfig.slot_duration_minutes = slot_duration_minutes;
+    }
+    // Randevular arası zorunlu boşluk (dk). 0 = kapalı.
+    if (buffer_minutes !== undefined) {
+      const raw = Number(buffer_minutes);
+      newConfig.buffer_minutes = Number.isFinite(raw)
+        ? Math.min(60, Math.max(0, Math.round(raw)))
+        : 0;
     }
     if (advance_booking_days !== undefined) {
       newConfig.advance_booking_days = advance_booking_days;

@@ -5,11 +5,8 @@ import {
   extractMissingSchemaColumn,
   extractMissingSchemaTable,
 } from "@/lib/postgrest-schema";
-import {
-  buildFeatureFlags,
-  coerceFeatureFlags,
-  inferFeatureFlagsByBusinessType,
-} from "@/types/feature-flags";
+import { buildFeatureFlags, coerceFeatureFlags } from "@/types/feature-flags";
+import { getSectorProfile } from "@/services/sectorProfile.service";
 
 const FEATURES_CACHE_SECONDS = 120;
 
@@ -119,7 +116,8 @@ export async function GET(
 
         const bt = businessTypeId ? await getBusinessTypeFeatures(businessTypeId) : null;
 
-        const inferredFlags = inferFeatureFlagsByBusinessType(bt?.slug, bt?.name);
+        const sector = getSectorProfile(bt?.slug, bt?.name);
+        const inferredFlags = sector.defaultFeatureFlags;
         const businessTypeFlags = coerceFeatureFlags(bt?.feature_flags);
         const tenantOverrideFlags = coerceFeatureFlags(
           (tenant.config_override as Record<string, unknown> | null)?.feature_flags
@@ -141,6 +139,13 @@ export async function GET(
                 slug: bt.slug || null,
               }
             : null,
+          // Panel, sektöre göre alan seti göstersin diye (CRM genişletilmiş profil formu).
+          sector: {
+            key: sector.key,
+            label: sector.label,
+            healthcare: sector.healthcare,
+            capabilities: sector.capabilities || null,
+          },
           feature_flags: featureFlags,
         };
       },

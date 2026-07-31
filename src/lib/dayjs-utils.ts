@@ -19,12 +19,6 @@ export function todayStr(): string {
   return dayjs().tz(APP_TIMEZONE).format("YYYY-MM-DD");
 }
 
-/**
- * Şu anki saat (HH:mm) - Europe/Istanbul
- */
-export function nowTimeStr(): string {
-  return dayjs().tz(APP_TIMEZONE).format("HH:mm");
-}
 
 /**
  * Tarih string'ini timezone'a göre formatlar
@@ -35,16 +29,4 @@ export function formatDateTr(dateStr: string): string {
   return d.format("D MMMM YYYY");
 }
 
-/**
- * Date objesini YYYY-MM-DD'ye çevirir (timezone'a göre)
- */
-export function toLocalDateStr(d: Date): string {
-  return dayjs(d).tz(APP_TIMEZONE).format("YYYY-MM-DD");
-}
 
-/**
- * Date objesini HH:mm'ye çevirir (timezone'a göre)
- */
-export function toLocalTimeStr(d: Date): string {
-  return dayjs(d).tz(APP_TIMEZONE).format("HH:mm");
-}

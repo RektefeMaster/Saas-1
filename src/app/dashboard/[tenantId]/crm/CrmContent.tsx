@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { preload } from "swr";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import {
   ArrowLeft,
@@ -19,6 +19,13 @@ import { fetcher } from "@/lib/swr-fetcher";
 import { VirtualList } from "@/components/ui";
 import { useCrmStore } from "@/stores/crm-store";
 import { useDashboardTenant } from "../../DashboardTenantContext";
+import {
+  extractProfileValues,
+  getProfileFields,
+  getUnmanagedKeys,
+  mergeProfileMetadata,
+  type ProfileField,
+} from "./profile-fields";
 
 interface CrmCustomer {
   customer_phone: string;
@@ -28,6 +35,10 @@ interface CrmCustomer {
   metadata?: Record<string, unknown> | null;
   last_visit_at: string | null;
   total_visits: number;
+  pipeline_stage?: string | null;
+  lead_score?: number | null;
+  lead_score_breakdown?: Record<string, number> | null;
+  lifecycle_stage?: string | null;
 }
 
 interface CrmNote {
@@ -69,9 +80,15 @@ const COPY = {
     addNote: "Not Ekle",
     addTag: "Etiket Ekle",
     summary: "Kısa müşteri özeti",
-    extendedProfile: "Genişletilmiş Profil (JSON)",
+    extendedProfile: "Müşteri Detayları",
     extendedProfileHint:
-      "Alerji, cilt tipi, renk geçmişi gibi bilgileri buraya ekleyebilirsiniz.",
+      "Bu alanlar işletme tipinize göre hazırlandı. Doldurduğunuz bilgiler müşteri kartında saklanır.",
+    advancedJson: "Gelişmiş (JSON)",
+    advancedJsonHint:
+      "Formdaki alanların dışındaki bilgileri buradan düzenleyebilirsiniz. Geçerli bir JSON nesnesi olmalı.",
+    keptKeys: "Formda olmayan ve korunan alanlar",
+    healthNotice:
+      "KVKK: Sağlık bilgisi özel nitelikli kişisel veridir. Yalnızca hizmet için gerekli olan, müşterinin açık rızasıyla paylaştığı notları girin.",
     customerName: "Müşteri adı",
     lastVisit: "Son ziyaret",
     visits: "ziyaret",
@@ -112,9 +129,15 @@ const COPY = {
     addNote: "Add Note",
     addTag: "Add Tag",
     summary: "Short customer summary",
-    extendedProfile: "Extended Profile (JSON)",
+    extendedProfile: "Customer Details",
     extendedProfileHint:
-      "Store allergy, skin type, color history and similar fields as JSON.",
+      "These fields are tailored to your business type and stored on the customer card.",
+    advancedJson: "Advanced (JSON)",
+    advancedJsonHint:
+      "Edit fields that are not part of the form above. Must be a valid JSON object.",
+    keptKeys: "Preserved fields not shown in the form",
+    healthNotice:
+      "Health data is sensitive personal data. Only record what is necessary for the service and shared with the customer's explicit consent.",
     customerName: "Customer name",
     lastVisit: "Last visit",
     visits: "visits",
@@ -161,7 +184,14 @@ export function CrmContent({
 
   const [tenantId, setTenantId] = useState("");
   const tenantCtx = useDashboardTenant();
+  const sectorKey = tenantCtx?.sector?.key ?? null;
+  const isHealthcareSector = Boolean(tenantCtx?.sector?.healthcare);
+  const profileFields = useMemo<ProfileField[]>(
+    () => getProfileFields(sectorKey),
+    [sectorKey]
+  );
   const [crmExtendedProfileEnabled, setCrmExtendedProfileEnabled] = useState(false);
+  const [showAdvancedJson, setShowAdvancedJson] = useState(false);
   const search = useCrmStore((s) => s.search);
   const setSearch = useCrmStore((s) => s.setSearch);
   const [searchQuery, setSearchQuery] = useState("");
@@ -185,6 +215,9 @@ export function CrmContent({
     notes_summary: "",
   });
   const [metadataJson, setMetadataJson] = useState("{}");
+  /** Kaydedilmiş metadata; form dışı anahtarlar buradan korunur. */
+  const [metadataRaw, setMetadataRaw] = useState<Record<string, unknown>>({});
+  const [profileValues, setProfileValues] = useState<Record<string, string>>({});
   const [reminderForm, setReminderForm] = useState({
     title: "",
     note: "",
@@ -290,9 +323,11 @@ export function CrmContent({
     });
     const metadata =
       customer?.metadata && typeof customer.metadata === "object" ? customer.metadata : {};
+    setMetadataRaw(metadata);
     setMetadataJson(JSON.stringify(metadata, null, 2));
+    setProfileValues(extractProfileValues(metadata, profileFields));
     setNotes(Array.isArray(detailData.notes) ? detailData.notes : []);
-  }, [detailData, selectedPhone, clearMessageLater]);
+  }, [detailData, selectedPhone, clearMessageLater, profileFields]);
 
   useEffect(() => {
     if (detailError) {
@@ -330,21 +365,27 @@ export function CrmContent({
     if (!tenantId || !selectedPhone) return;
     let metadataPayload: Record<string, unknown> | undefined;
     if (crmExtendedProfileEnabled) {
-      try {
-        const parsed = JSON.parse(metadataJson || "{}");
-        if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-          throw new Error("invalid_metadata");
+      // Gelişmiş mod açıkken JSON kaynak kabul edilir; kapalıyken form değerleri
+      // kaydedilmiş metadata üzerine yazılır, bilinmeyen anahtarlar silinmez.
+      let base = metadataRaw;
+      if (showAdvancedJson) {
+        try {
+          const parsed = JSON.parse(metadataJson || "{}");
+          if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+            throw new Error("invalid_metadata");
+          }
+          base = parsed as Record<string, unknown>;
+        } catch {
+          setError(
+            locale === "tr"
+              ? "Gelişmiş alan geçerli bir JSON nesnesi olmalı."
+              : "Advanced field must be a valid JSON object."
+          );
+          clearMessageLater();
+          return;
         }
-        metadataPayload = parsed as Record<string, unknown>;
-      } catch {
-        setError(
-          locale === "tr"
-            ? "Genişletilmiş profil alanı geçerli bir JSON olmalı."
-            : "Extended profile field must be valid JSON."
-        );
-        clearMessageLater();
-        return;
       }
+      metadataPayload = mergeProfileMetadata(base, profileFields, profileValues);
     }
 
     setBusy(true);
@@ -564,6 +605,12 @@ export function CrmContent({
                   </p>
                   <p className="mt-1 text-[11px] text-slate-500 dark:text-slate-400">
                     {customer.total_visits} {t.visits}
+                    {customer.pipeline_stage
+                      ? ` · ${customer.pipeline_stage}`
+                      : ""}
+                    {typeof customer.lead_score === "number"
+                      ? ` · skor ${customer.lead_score}`
+                      : ""}
                   </p>
                 </button>
               )}
@@ -590,6 +637,32 @@ export function CrmContent({
                   </div>
                 ) : (
                   <div className="grid gap-4">
+                    {(selectedCustomer?.pipeline_stage ||
+                      typeof selectedCustomer?.lead_score === "number") && (
+                      <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm dark:border-slate-700 dark:bg-slate-800/60">
+                        {selectedCustomer.pipeline_stage && (
+                          <p>
+                            Pipeline:{" "}
+                            <strong>{selectedCustomer.pipeline_stage}</strong>
+                          </p>
+                        )}
+                        {typeof selectedCustomer.lead_score === "number" && (
+                          <p>
+                            Lead skor:{" "}
+                            <strong>{selectedCustomer.lead_score}</strong>
+                          </p>
+                        )}
+                        {selectedCustomer.lead_score_breakdown &&
+                          Object.keys(selectedCustomer.lead_score_breakdown).length >
+                            0 && (
+                            <p className="mt-1 text-xs text-slate-500">
+                              {Object.entries(selectedCustomer.lead_score_breakdown)
+                                .map(([k, v]) => `${k}: ${v}`)
+                                .join(" · ")}
+                            </p>
+                          )}
+                      </div>
+                    )}
                     <label>
                       <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                         {t.customerName}
@@ -616,20 +689,106 @@ export function CrmContent({
                       />
                     </label>
                     {crmExtendedProfileEnabled && (
-                      <label>
-                        <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                          {t.extendedProfile}
-                        </span>
-                        <textarea
-                          rows={8}
-                          value={metadataJson}
-                          onChange={(e) => setMetadataJson(e.target.value)}
-                          className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 font-mono text-xs outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700"
-                        />
-                        <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                      <section className="rounded-xl border border-slate-200 p-4 dark:border-slate-700">
+                        <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+                          <h3 className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                            {t.extendedProfile}
+                            {tenantCtx?.sector?.label ? ` · ${tenantCtx.sector.label}` : ""}
+                          </h3>
+                          <button
+                            type="button"
+                            onClick={() => setShowAdvancedJson((v) => !v)}
+                            aria-expanded={showAdvancedJson}
+                            className="rounded-lg border border-slate-300 px-2.5 py-1 text-xs font-medium text-slate-600 transition hover:bg-slate-50 dark:border-slate-600 dark:text-slate-300 dark:hover:bg-slate-800"
+                          >
+                            {t.advancedJson}
+                          </button>
+                        </div>
+                        <p className="mb-3 text-xs text-slate-500 dark:text-slate-400">
                           {t.extendedProfileHint}
                         </p>
-                      </label>
+                        {isHealthcareSector && (
+                          <p className="mb-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:border-amber-900/50 dark:bg-amber-950/30 dark:text-amber-300">
+                            {t.healthNotice}
+                          </p>
+                        )}
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {profileFields.map((field) => {
+                            const value = profileValues[field.key] ?? "";
+                            const onChange = (next: string) =>
+                              setProfileValues((s) => ({ ...s, [field.key]: next }));
+                            const inputClass =
+                              "w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700";
+                            return (
+                              <label
+                                key={field.key}
+                                className={field.type === "textarea" ? "sm:col-span-2" : undefined}
+                              >
+                                <span className="mb-1 block text-xs font-medium text-slate-600 dark:text-slate-400">
+                                  {field.label[locale]}
+                                </span>
+                                {field.type === "textarea" ? (
+                                  <textarea
+                                    rows={3}
+                                    value={value}
+                                    onChange={(e) => onChange(e.target.value)}
+                                    placeholder={field.placeholder?.[locale]}
+                                    className={inputClass}
+                                  />
+                                ) : field.type === "select" ? (
+                                  <select
+                                    value={value}
+                                    onChange={(e) => onChange(e.target.value)}
+                                    className={inputClass}
+                                  >
+                                    <option value="">—</option>
+                                    {(field.options || []).map((option) => (
+                                      <option key={option} value={option}>
+                                        {option}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <input
+                                    type={
+                                      field.type === "date"
+                                        ? "date"
+                                        : field.type === "number"
+                                          ? "number"
+                                          : "text"
+                                    }
+                                    value={value}
+                                    onChange={(e) => onChange(e.target.value)}
+                                    placeholder={field.placeholder?.[locale]}
+                                    className={inputClass}
+                                  />
+                                )}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {showAdvancedJson && (
+                          <div className="mt-4 border-t border-slate-200 pt-4 dark:border-slate-700">
+                            <textarea
+                              rows={8}
+                              value={metadataJson}
+                              onChange={(e) => setMetadataJson(e.target.value)}
+                              aria-label={t.advancedJson}
+                              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 font-mono text-xs outline-none transition focus:border-slate-400 focus:ring-2 focus:ring-slate-200 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:focus:ring-slate-700"
+                            />
+                            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                              {t.advancedJsonHint}
+                            </p>
+                          </div>
+                        )}
+                        {!showAdvancedJson &&
+                          getUnmanagedKeys(metadataRaw, profileFields).length > 0 && (
+                            <p className="mt-3 text-xs text-slate-500 dark:text-slate-400">
+                              {t.keptKeys}:{" "}
+                              {getUnmanagedKeys(metadataRaw, profileFields).join(", ")}
+                            </p>
+                          )}
+                      </section>
                     )}
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-2">
                       <p className="text-xs text-slate-500 dark:text-slate-400">

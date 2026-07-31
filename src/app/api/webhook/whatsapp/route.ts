@@ -9,6 +9,9 @@ import { createMessageProcessingJob } from "@/services/messageProcessingJob.serv
 import { normalizePhoneE164 } from "@/lib/phone";
 import { createHash } from "crypto";
 import { isMetaSampleWhatsAppInbound } from "@/lib/bot-v1/meta-sample-webhook";
+import { applyDeliveryStatusUpdate } from "@/services/conversation.service";
+import { emitConversationEvent } from "@/services/conversationObservability.service";
+import type { DeliveryStatus } from "@/types/conversation.types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -175,6 +178,32 @@ export async function POST(request: NextRequest) {
           at: new Date().toISOString(),
           status_count: statuses.length,
         });
+      }
+
+      // Delivery status updates (sent/delivered/read/failed) — ordered, idempotent
+      for (const st of statuses) {
+        const statusRaw = String(st.status || "").toLowerCase();
+        const mapped: DeliveryStatus | null =
+          statusRaw === "sent" ||
+          statusRaw === "delivered" ||
+          statusRaw === "read" ||
+          statusRaw === "failed"
+            ? (statusRaw as DeliveryStatus)
+            : null;
+        const externalMessageId = String(st.id || "").trim();
+        if (!mapped || !externalMessageId) continue;
+        emitConversationEvent("webhook_received", {
+          message_id: externalMessageId,
+          reason: `status:${mapped}`,
+        });
+        void applyDeliveryStatusUpdate({
+          externalMessageId,
+          status: mapped,
+          failureCode: st.errors?.[0]?.code != null ? String(st.errors[0].code) : null,
+          failureReason: st.errors?.[0]?.title || st.errors?.[0]?.message || null,
+        }).catch((err) =>
+          logger.warn("[webhook] delivery status update failed", err)
+        );
       }
 
       for (let msgIdx = 0; msgIdx < messages.length; msgIdx += 1) {

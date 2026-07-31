@@ -66,12 +66,6 @@ interface AppointmentRow {
   staff_id: string | null;
 }
 
-interface RecurringRow {
-  day_of_week: number;
-  time: string;
-  customer_phone: string;
-}
-
 interface TenantScheduleContext {
   configOverride: Record<string, unknown>;
   startTime: string;
@@ -79,6 +73,15 @@ interface TenantScheduleContext {
   closed: boolean;
   noSchedule: boolean;
   baseSlotMinutes: number;
+}
+
+/** Randevular arası zorunlu boşluk (toparlanma/hazırlık). Panelden ayarlanır. */
+const MAX_BUFFER_MINUTES = 60;
+
+function resolveBufferMinutes(configOverride: Record<string, unknown>): number {
+  const raw = Number(configOverride?.buffer_minutes);
+  if (!Number.isFinite(raw) || raw <= 0) return 0;
+  return Math.min(MAX_BUFFER_MINUTES, Math.round(raw));
 }
 
 export interface DailyAvailabilityResult {
@@ -131,7 +134,6 @@ interface AvailabilityRangeContext {
   appointments: AppointmentRow[];
   serviceDuration: Map<string, number>;
   holdsByDate: Map<string, BookingHoldRecord[]>;
-  recurring: RecurringRow[];
   eligibleStaffIds: string[];
   customerPhone?: string;
   serviceSlug?: string | null;
@@ -216,15 +218,62 @@ function normalizeTimeString(time: string): string | null {
   return null;
 }
 
-function timeToMinutes(value: string): number {
+export function timeToMinutes(value: string): number {
   const [h, m] = value.split(":").map(Number);
   return h * 60 + m;
 }
 
-function minutesToTime(value: number): string {
+export function minutesToTime(value: number): string {
   const h = Math.floor(value / 60);
   const m = value % 60;
   return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+}
+
+export interface OpenSlotParams {
+  /** Çalışma başlangıcı (dakika). */
+  workStart: number;
+  /** Çalışma bitişi (dakika). Randevu bu saati AŞAMAZ. */
+  workEnd: number;
+  /** Takvim adımı (slot_duration_minutes). */
+  stepMinutes: number;
+  /** Seçilen hizmetin süresi. Randevu bu kadar yer kaplar. */
+  durationMinutes: number;
+  /** Dolu aralıklar (buffer uygulanmış hâlde). */
+  busy: TimeInterval[];
+  /** Aynı gün için en erken başlangıç (dakika); yoksa sınırsız. */
+  minStartMinutes?: number;
+}
+
+/**
+ * Hizmet süresine göre gerçekten başlanabilecek saatleri üretir.
+ *
+ * Kritik nokta: bir saat "boş" sayılması için yalnızca o anın değil,
+ * [saat, saat + hizmet süresi) aralığının TAMAMININ boş olması gerekir.
+ * Örn. 12:00'de alınan 60 dk'lık saç kesimi 12:30'u da kapatır; sıradaki
+ * uygun saat 13:00'tür. 17:00'de alınan 150 dk'lık işlemden sonraki ilk
+ * uygun saat 19:30'dur.
+ */
+export function computeOpenSlots(params: OpenSlotParams): string[] {
+  const {
+    workStart,
+    workEnd,
+    stepMinutes,
+    durationMinutes,
+    busy,
+    minStartMinutes = Number.NEGATIVE_INFINITY,
+  } = params;
+
+  const step = Math.max(1, stepMinutes);
+  const duration = Math.max(1, durationMinutes);
+  const out: string[] = [];
+
+  for (let cursor = workStart; cursor + duration <= workEnd; cursor += step) {
+    if (cursor < minStartMinutes) continue;
+    const candidate: TimeInterval = { start: cursor, end: cursor + duration };
+    if (busy.some((interval) => overlaps(interval, candidate))) continue;
+    out.push(minutesToTime(cursor));
+  }
+  return out;
 }
 
 function overlaps(a: TimeInterval, b: TimeInterval): boolean {
@@ -414,7 +463,6 @@ async function loadAvailabilityRangeContext(
       appointments: [],
       serviceDuration: new Map(),
       holdsByDate: new Map(),
-      recurring: [],
       eligibleStaffIds: [],
       customerPhone: options?.customerPhone,
       serviceSlug: options?.serviceSlug,
@@ -492,7 +540,6 @@ async function loadAvailabilityRangeContext(
       appointments: [],
       serviceDuration: new Map(),
       holdsByDate: new Map(normalizedDates.map((d) => [d, []])),
-      recurring: [],
       eligibleStaffIds: [],
       customerPhone: options?.customerPhone,
       serviceSlug: options?.serviceSlug,
@@ -501,7 +548,7 @@ async function loadAvailabilityRangeContext(
 
   const window = getUtcSearchWindowForRange(fromDate, toDate, timeZone);
 
-  const [appointmentsRes, holdsByDate, recurringRes, servicesRes] = await Promise.all([
+  const [appointmentsRes, holdsByDate, servicesRes] = await Promise.all([
     supabase
       .from("appointments")
       .select("slot_start, service_slug, extra_data, staff_id")
@@ -511,12 +558,6 @@ async function loadAvailabilityRangeContext(
       .neq("status", "cancelled"),
     getBookingHoldsForDates(tenantId, normalizedDates),
     supabase
-      .from("recurring_appointments")
-      .select("day_of_week, time, customer_phone")
-      .eq("tenant_id", tenantId)
-      .eq("active", true)
-      .in("day_of_week", dayOfWeeks),
-    supabase
       .from("services")
       .select("slug, duration_minutes")
       .eq("tenant_id", tenantId)
@@ -525,9 +566,6 @@ async function loadAvailabilityRangeContext(
 
   if (appointmentsRes.error) {
     throw new Error(`appointments_query_failed:${appointmentsRes.error.message}`);
-  }
-  if (recurringRes.error) {
-    throw new Error(`recurring_query_failed:${recurringRes.error.message}`);
   }
 
   const appointments = (appointmentsRes.data || []).map((row) => ({
@@ -573,11 +611,6 @@ async function loadAvailabilityRangeContext(
     appointments,
     serviceDuration,
     holdsByDate,
-    recurring: (recurringRes.data || []).map((r) => ({
-      day_of_week: Number(r.day_of_week),
-      time: String(r.time || ""),
-      customer_phone: String(r.customer_phone || ""),
-    })),
     eligibleStaffIds,
     customerPhone: options?.customerPhone,
     serviceSlug: options?.serviceSlug,
@@ -703,6 +736,14 @@ function computeDailyAvailabilityFromContext(
     (ctx.serviceSlug && ctx.serviceDuration.get(ctx.serviceSlug.trim())) ||
     schedule.baseSlotMinutes;
 
+  // Dolu aralıklar iki yandan buffer kadar genişletilir: yeni randevu ne
+  // öncekinin bitişine ne de sonrakinin başlangıcına yapışır.
+  const bufferMinutes = resolveBufferMinutes(ctx.configOverride);
+  const pad = (interval: TimeInterval): TimeInterval =>
+    bufferMinutes > 0
+      ? { start: interval.start - bufferMinutes, end: interval.end + bufferMinutes }
+      : interval;
+
   const booked = computeBookedForStaff(ctx, normalizedDate, staffId);
   const ownPhone = ctx.customerPhone ? normalizePhone(ctx.customerPhone) : "";
 
@@ -718,31 +759,10 @@ function computeDailyAvailabilityFromContext(
       240,
       Math.max(5, Number(hold.duration_minutes || schedule.baseSlotMinutes))
     );
-    holdIntervals.push({ start, end: start + holdDuration });
+    holdIntervals.push(pad({ start, end: start + holdDuration }));
   }
 
-  const recurringIntervals: TimeInterval[] = [];
-  const dayOfWeek = getDayOfWeek(normalizedDate);
-  for (const row of ctx.recurring) {
-    if (row.day_of_week !== dayOfWeek) continue;
-    const recurringPhone = normalizePhone(String(row.customer_phone || ""));
-    if (ownPhone && recurringPhone && recurringPhone === ownPhone) continue;
-    const t = normalizeTimeString(String(row.time || ""));
-    if (!t) continue;
-    const start = timeToMinutes(t);
-    recurringIntervals.push({
-      start,
-      end: start + schedule.baseSlotMinutes,
-    });
-  }
-
-  const merged = mergeIntervals(
-    mergeIntervals(booked.intervals, holdIntervals),
-    recurringIntervals
-  );
-  const workStart = timeToMinutes(schedule.startTime);
-  const workEnd = timeToMinutes(schedule.endTime);
-  const available: string[] = [];
+  const merged = mergeIntervals(booked.intervals.map(pad), holdIntervals);
   const now = new Date();
   const todayLocal = localDateStr(now, ctx.timeZone);
   const nowMinutes = localTimeToMinutes(now, ctx.timeZone);
@@ -751,20 +771,14 @@ function computeDailyAvailabilityFromContext(
       ? nowMinutes + SAME_DAY_MIN_LEAD_MINUTES
       : Number.NEGATIVE_INFINITY;
 
-  for (
-    let cursor = workStart;
-    cursor + durationMinutes <= workEnd;
-    cursor += schedule.baseSlotMinutes
-  ) {
-    if (cursor < sameDayMinStart) continue;
-    const candidate: TimeInterval = {
-      start: cursor,
-      end: cursor + durationMinutes,
-    };
-    if (!merged.some((interval) => overlaps(interval, candidate))) {
-      available.push(minutesToTime(cursor));
-    }
-  }
+  const available = computeOpenSlots({
+    workStart: timeToMinutes(schedule.startTime),
+    workEnd: timeToMinutes(schedule.endTime),
+    stepMinutes: schedule.baseSlotMinutes,
+    durationMinutes,
+    busy: merged,
+    minStartMinutes: sameDayMinStart,
+  });
 
   return {
     date: normalizedDate,
@@ -1267,7 +1281,12 @@ export async function reserveAppointment(
       normalizedTime,
       resolvedStaffId
     );
-    return { ok: true, id: data?.id, staff_id: resolvedStaffId };
+    return {
+      ok: true,
+      id: data?.id,
+      staff_id: resolvedStaffId,
+      duration_minutes: availability.durationMinutes,
+    };
   } finally {
     await releaseBookingSlotLock(input.tenantId, normalizedDate, normalizedTime);
     await releaseBookingDayLock(input.tenantId, normalizedDate);

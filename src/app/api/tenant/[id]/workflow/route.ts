@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 const STATUS_ORDER = ["pending", "confirmed", "completed", "cancelled", "no_show"] as const;
 
@@ -8,6 +9,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: tenantId } = await params;
+  // Müşteri verisi içeren liste: proxy'ye ek olarak burada da yetki doğrula.
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const { searchParams } = new URL(request.url);
   const date = searchParams.get("date");
   const from =

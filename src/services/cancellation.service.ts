@@ -7,6 +7,10 @@ import { supabase } from "@/lib/supabase";
 import { sendCustomerNotification } from "@/lib/notify";
 import { notifyCancelledAppointmentForMerchant } from "@/services/merchantNotification.service";
 import { phoneVariants, phonesMatch } from "@/lib/phone";
+import {
+  loadTenantMessageContexts,
+  resolveTenantMessage,
+} from "@/services/tenantMessages.service";
 
 const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
 
@@ -108,9 +112,23 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
       hour12: false,
     });
 
-    const customerMessage = `${tenantName} randevunuz (${dateStr} ${timeStr}) iptal edildi. Başka bir saate almak ister misiniz?`;
     // Fire-and-forget: do not block bot/API reply on WhatsApp/SMS RTT.
-    void sendCustomerNotification(apt.customer_phone, customerMessage).catch((e) =>
+    void (async () => {
+      const messageContexts = await loadTenantMessageContexts([tenantId]);
+      const messageKey =
+        cancelledBy === "tenant" ? "cancellation_by_tenant" : "cancellation_by_customer";
+      const fallback =
+        cancelledBy === "tenant"
+          ? "{tenant_name} randevunuz ({date} {time}) iptal edildi. Yeni randevu için bize yazabilirsiniz."
+          : "{tenant_name} randevunuz ({date} {time}) iptal edildi. Başka bir saate almak ister misiniz?";
+      const customerMessage = resolveTenantMessage(
+        messageContexts.get(tenantId),
+        messageKey,
+        { date: dateStr, time: timeStr, tenant_name: tenantName },
+        fallback
+      );
+      await sendCustomerNotification(apt.customer_phone, customerMessage);
+    })().catch((e) =>
       console.error("[cancelAppointment] customer notify error:", e)
     );
 

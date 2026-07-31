@@ -2,6 +2,7 @@ import { supabase } from "@/lib/supabase";
 import { sendCustomerNotification } from "@/lib/notify";
 import { createOpsAlert } from "@/services/opsAlert.service";
 import { extractMissingSchemaColumn, extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { phonesMatch } from "@/lib/phone";
 
 type AppointmentSource = "bot" | "dashboard" | "cron" | "manual";
 
@@ -68,13 +69,36 @@ async function getTenantNotifyTargets(
   return { targets: deduped, name: tenantName };
 }
 
+/**
+ * İşletme bildirimi asla müşteri sohbetine düşmemeli.
+ * İşletme sahibi/personel kendi numarasından bota yazdığında (ya da test
+ * kurulumunda sahip numarası müşteri numarasıyla aynı olduğunda) müşteriye
+ * "Yeni randevu! +90... müşterisi randevu aldı" gibi iç mesajlar gidiyordu.
+ */
+function excludeCustomerPhone(
+  targets: NotifyTarget[],
+  customerPhone?: string | null
+): NotifyTarget[] {
+  const phone = (customerPhone || "").trim();
+  if (!phone) return targets;
+  return targets.filter((target) => {
+    if (!phonesMatch(target.phone, phone)) return true;
+    console.info("[merchant notify] skipped: target equals customer phone", {
+      kind: target.kind,
+    });
+    return false;
+  });
+}
+
 async function notifyTargets(
   tenantId: string,
   text: string,
   staffId?: string | null,
-  preloaded?: { targets: NotifyTarget[]; name: string }
+  preloaded?: { targets: NotifyTarget[]; name: string },
+  customerPhone?: string | null
 ): Promise<void> {
-  const { targets } = preloaded || (await getTenantNotifyTargets(tenantId, staffId));
+  const loaded = preloaded || (await getTenantNotifyTargets(tenantId, staffId));
+  const targets = excludeCustomerPhone(loaded.targets, customerPhone);
   await Promise.all(
     targets.map(async (target) => {
       const delivery = await sendCustomerNotification(target.phone, text);
@@ -118,7 +142,7 @@ export async function notifyNewAppointmentForMerchant(params: {
   const text = `Yeni randevu! ${customerPhone} müşterisi ${dt} için ${loaded.name} işletmesinde randevu aldı.`;
 
   await Promise.allSettled([
-    notifyTargets(tenantId, text, staffId, loaded),
+    notifyTargets(tenantId, text, staffId, loaded, customerPhone),
     createOpsAlert({
       tenantId,
       type: "system",
@@ -145,7 +169,7 @@ export async function notifyCancelledAppointmentForMerchant(params: {
   const who = cancelledBy === "customer" ? "Müşteri" : "İşletme";
   const text = `Randevu iptal edildi. ${who}: ${customerPhone} - ${dt}${reason ? ` (Neden: ${reason})` : ""}.`;
 
-  await notifyTargets(tenantId, text, staffId).catch((e) =>
+  await notifyTargets(tenantId, text, staffId, undefined, customerPhone).catch((e) =>
     console.error("[merchant notify] cancel notify error:", e)
   );
 
@@ -171,7 +195,7 @@ export async function notifyRescheduledAppointmentForMerchant(params: {
   const dt = formatDateTimeTr(newDate, newTime);
   const text = `Randevu saati değişti. ${customerPhone} müşterisi için yeni saat: ${dt}.`;
 
-  await notifyTargets(tenantId, text, staffId).catch((e) =>
+  await notifyTargets(tenantId, text, staffId, undefined, customerPhone).catch((e) =>
     console.error("[merchant notify] reschedule notify error:", e)
   );
 
@@ -194,7 +218,7 @@ export async function notifyNoShowForMerchant(params: {
   const { tenantId, customerPhone, staffId, source } = params;
   const text = `No-show uyarısı: ${customerPhone} müşterisi randevuya gelmedi.`;
 
-  await notifyTargets(tenantId, text, staffId).catch((e) =>
+  await notifyTargets(tenantId, text, staffId, undefined, customerPhone).catch((e) =>
     console.error("[merchant notify] no_show notify error:", e)
   );
 

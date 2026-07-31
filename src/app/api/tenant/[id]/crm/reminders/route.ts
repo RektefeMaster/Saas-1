@@ -11,6 +11,9 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   const { id: tenantId } = await params;
+  // Müşteri verisi içeren liste: proxy'ye ek olarak burada da yetki doğrula.
+  const auth = await requireTenantApiAccess(request, tenantId);
+  if (!auth.ok) return auth.response;
   const { searchParams } = new URL(request.url);
   const status = searchParams.get("status");
 

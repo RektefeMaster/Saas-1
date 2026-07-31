@@ -24,7 +24,13 @@ export type IncomingWebhookValue = {
   };
   contacts?: IncomingContact[];
   messages?: IncomingMessage[];
-  statuses?: unknown[];
+  statuses?: Array<{
+    id?: string;
+    status?: string;
+    timestamp?: string;
+    recipient_id?: string;
+    errors?: Array<{ code?: number; title?: string; message?: string }>;
+  }>;
 };
 
 export interface WhatsAppInboundEventData {

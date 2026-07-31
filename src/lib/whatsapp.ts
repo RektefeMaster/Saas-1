@@ -67,6 +67,8 @@ export interface WhatsAppSendResult {
   isTestNumber?: boolean;
   to?: string;
   source?: "runtime" | "env";
+  /** Meta Graph API message id when send succeeds */
+  messageId?: string;
 }
 
 export interface SendTemplateMessageParams {
@@ -255,7 +257,16 @@ export async function sendWhatsAppMessageDetailed({
       source,
     };
   }
-  return { ok: true, status: res.status, to: normalizedTo, source };
+  let messageId: string | undefined;
+  try {
+    const parsed = (await res.json()) as {
+      messages?: Array<{ id?: string }>;
+    };
+    messageId = parsed.messages?.[0]?.id;
+  } catch {
+    messageId = undefined;
+  }
+  return { ok: true, status: res.status, to: normalizedTo, source, messageId };
 }
 
 export async function sendWhatsAppMessage({

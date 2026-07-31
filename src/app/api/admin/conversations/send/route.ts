@@ -1,10 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
-import { isAdminTakeoverReason } from "@/lib/human-takeover";
-import { getSession } from "@/lib/redis";
 import { normalizePhoneDigits } from "@/lib/phone";
 import { sendWhatsAppMessageDetailed } from "@/lib/whatsapp";
-import { logConversationMessage } from "@/services/conversationMessages.service";
 import { logTenantEvent } from "@/services/eventLog.service";
+import {
+  ensureConversation,
+  getConversationByExternalUser,
+  markOutboundFailed,
+  markOutboundSent,
+  recordOutboundQueued,
+} from "@/services/conversation.service";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
@@ -32,11 +36,39 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const state = await getSession(tenantId, phoneDigits);
-  if (!state || state.step !== "PAUSED_FOR_HUMAN" || !isAdminTakeoverReason(state.pause_reason)) {
+  let conv = await getConversationByExternalUser(tenantId, phoneDigits);
+  if (!conv) {
+    conv = await ensureConversation({ tenantId, externalUserId: phoneDigits });
+  }
+  if (!conv?.id) {
+    return NextResponse.json({ error: "Konuşma bulunamadı" }, { status: 404 });
+  }
+
+  // Postgres SoT — stale Redis pause must not authorize send while AI owns the thread.
+  const pgAllowsSend =
+    conv.automation_mode === "HUMAN_ACTIVE" ||
+    conv.automation_mode === "AI_ASSIST";
+
+  if (!pgAllowsSend) {
     return NextResponse.json(
-      { error: "Bu sohbet admin takeover modunda degil" },
+      { error: "Bu sohbet admin/insan takeover modunda degil" },
       { status: 409 }
+    );
+  }
+
+  const queued = await recordOutboundQueued({
+    tenantId,
+    conversationId: conv.id,
+    externalUserId: phoneDigits,
+    text,
+    senderType: "HUMAN",
+    source: "admin",
+  });
+
+  if (!queued) {
+    return NextResponse.json(
+      { error: "Mesaj kuyruğa yazılamadı" },
+      { status: 500 }
     );
   }
 
@@ -46,41 +78,32 @@ export async function POST(request: NextRequest) {
   });
 
   if (!sendResult.ok) {
-    await logConversationMessage({
+    await markOutboundFailed({
+      rowId: queued.id,
       tenantId,
-      customerPhone: phoneDigits,
-      direction: "system",
-      messageText: text,
-      messageType: "text",
-      stage: "admin_takeover_manual_send_failed",
-      metadata: {
-        actor,
-        error_code: sendResult.errorCode || null,
-        blocked_reason: sendResult.blockedReason || null,
-        source: sendResult.source || null,
-      },
+      conversationId: conv.id,
+      failureCode:
+        sendResult.errorCode != null ? String(sendResult.errorCode) : null,
+      failureReason: sendResult.errorMessage || "send_failed",
     });
-
     return NextResponse.json(
       {
         error: sendResult.errorMessage || "WhatsApp gonderimi basarisiz",
         details: sendResult,
+        queued_id: queued.id,
       },
       { status: 502 }
     );
   }
 
-  await logConversationMessage({
+  const externalMessageId =
+    sendResult.messageId || `local_${queued.id}_${Date.now()}`;
+  await markOutboundSent({
+    rowId: queued.id,
     tenantId,
-    customerPhone: phoneDigits,
-    direction: "outbound",
-    messageText: text,
-    messageType: "text",
-    stage: "admin_takeover_manual_send",
-    metadata: {
-      actor,
-      source: sendResult.source || null,
-    },
+    conversationId: conv.id,
+    externalMessageId,
+    preview: text,
   });
 
   await logTenantEvent({
@@ -92,6 +115,8 @@ export async function POST(request: NextRequest) {
     payload: {
       customer_phone_digits: phoneDigits,
       message_preview: text.slice(0, 180),
+      conversation_id: conv.id,
+      external_message_id: externalMessageId,
     },
   }).catch(() => undefined);
 
@@ -99,6 +124,8 @@ export async function POST(request: NextRequest) {
     success: true,
     tenant_id: tenantId,
     customer_phone_digits: phoneDigits,
+    conversation_id: conv.id,
+    external_message_id: externalMessageId,
     sent: true,
   });
 }

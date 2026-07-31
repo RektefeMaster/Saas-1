@@ -149,6 +149,80 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // Postgres SoT: clear stale Redis takeover flags when PG already resumed AI.
+  {
+    const phonesByTenant = new Map<string, string[]>();
+    for (const s of map.values()) {
+      if (!s.admin_takeover_active && !s.paused_for_human) continue;
+      const list = phonesByTenant.get(s.tenant_id) || [];
+      list.push(s.customer_phone_digits);
+      phonesByTenant.set(s.tenant_id, list);
+    }
+    for (const [tid, phones] of phonesByTenant) {
+      const { data: modes } = await supabase
+        .from("conversations")
+        .select("external_user_id, automation_mode")
+        .eq("tenant_id", tid)
+        .in("external_user_id", phones);
+      for (const row of modes || []) {
+        const phone = normalizePhoneDigits(row.external_user_id);
+        if (!phone) continue;
+        const s = map.get(`${tid}:${phone}`);
+        if (!s) continue;
+        if (row.automation_mode === "AI_ACTIVE") {
+          s.admin_takeover_active = false;
+          s.paused_for_human = false;
+          s.pause_reason = null;
+        } else if (row.automation_mode === "HUMAN_ACTIVE") {
+          s.admin_takeover_active = true;
+          s.paused_for_human = true;
+        }
+      }
+    }
+  }
+
+  // Postgres SoT: Redis may be expired while HUMAN_ACTIVE remains.
+  let pgQuery = supabase
+    .from("conversations")
+    .select(
+      "tenant_id, external_user_id, automation_mode, handoff_reason, last_message_at, last_message_preview"
+    )
+    .eq("automation_mode", "HUMAN_ACTIVE")
+    .limit(500);
+  if (tenantId) pgQuery = pgQuery.eq("tenant_id", tenantId);
+  if (phoneDigits) pgQuery = pgQuery.eq("external_user_id", phoneDigits);
+  const { data: pgHumanRows } = await pgQuery;
+  for (const row of pgHumanRows || []) {
+    if (!row.tenant_id || !row.external_user_id) continue;
+    const phone = normalizePhoneDigits(row.external_user_id);
+    if (!phone) continue;
+    const key = `${row.tenant_id}:${phone}`;
+    let s = map.get(key);
+    if (!s) {
+      s = {
+        tenant_id: row.tenant_id,
+        customer_phone_digits: phone,
+        tenant_name: null,
+        tenant_code: null,
+        last_message_at: row.last_message_at || now.toISOString(),
+        last_message_text: row.last_message_preview || null,
+        last_inbound_text: null,
+        last_outbound_text: null,
+        message_count: 0,
+        inbound_count: 0,
+        outbound_count: 0,
+        paused_for_human: true,
+        admin_takeover_active: true,
+        pause_reason: row.handoff_reason || "HUMAN_ACTIVE",
+      };
+      map.set(key, s);
+    } else {
+      s.paused_for_human = true;
+      s.admin_takeover_active = true;
+      if (!s.pause_reason) s.pause_reason = row.handoff_reason || "HUMAN_ACTIVE";
+    }
+  }
+
   const list = Array.from(map.values()).sort(
     (a, b) => new Date(b.last_message_at).getTime() - new Date(a.last_message_at).getTime()
   );
@@ -162,7 +236,11 @@ export async function GET(request: NextRequest) {
       .select("id, name, tenant_code")
       .in("id", tenantIds);
 
-    for (const r of (tenantRows || []) as Array<{ id: string; name: string; tenant_code: string | null }>) {
+    for (const r of (tenantRows || []) as Array<{
+      id: string;
+      name: string;
+      tenant_code: string | null;
+    }>) {
       tenantMap.set(r.id, { name: r.name, tenant_code: r.tenant_code || null });
     }
   }

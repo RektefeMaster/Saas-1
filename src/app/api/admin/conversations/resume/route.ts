@@ -6,6 +6,15 @@ import { sendWhatsAppMessageDetailed } from "@/lib/whatsapp";
 import { logConversationMessage } from "@/services/conversationMessages.service";
 import { logTenantEvent } from "@/services/eventLog.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
+import {
+  ConversationConflictError,
+  ensureConversation,
+  getConversationByExternalUser,
+  markOutboundFailed,
+  markOutboundSent,
+  recordOutboundQueued,
+  resumeConversationToAi,
+} from "@/services/conversation.service";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
@@ -33,28 +42,56 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  const state = await getSession(tenantId, phoneDigits);
-  if (!state) {
+  // Postgres SoT first — Redis may be expired while HUMAN_ACTIVE remains.
+  let conv = await getConversationByExternalUser(tenantId, phoneDigits);
+  if (!conv) {
+    conv = await ensureConversation({ tenantId, externalUserId: phoneDigits });
+  }
+  if (!conv?.id) {
     return NextResponse.json(
-      { error: "Aktif sohbet oturumu bulunamadi" },
+      { error: "Konuşma bulunamadı" },
       { status: 404 }
     );
   }
-  if (state.step !== "PAUSED_FOR_HUMAN" || !isAdminTakeoverReason(state.pause_reason)) {
+
+  const state = await getSession(tenantId, phoneDigits);
+  const redisAdminPaused =
+    state?.step === "PAUSED_FOR_HUMAN" &&
+    isAdminTakeoverReason(state.pause_reason);
+  const pgHuman = conv.automation_mode === "HUMAN_ACTIVE";
+
+  if (!pgHuman && !redisAdminPaused) {
     return NextResponse.json(
       { error: "Sohbet canli destek modunda degil" },
       { status: 409 }
     );
   }
 
+  try {
+    conv = await resumeConversationToAi({
+      actor: { kind: "admin", canAccessAllTenants: true },
+      tenantId,
+      conversationId: conv.id,
+      expectedVersion: conv.version,
+    });
+  } catch (err) {
+    if (err instanceof ConversationConflictError) {
+      return NextResponse.json({ error: err.message }, { status: 409 });
+    }
+    const message = err instanceof Error ? err.message : "Resume failed";
+    return NextResponse.json({ error: message }, { status: 500 });
+  }
+
   const nowIso = new Date().toISOString();
-  await setSession(tenantId, phoneDigits, {
-    ...state,
-    step: "RECOVERY_CHECK",
-    pause_reason: null,
-    window_status: "OPEN",
-    updated_at: nowIso,
-  });
+  if (state) {
+    await setSession(tenantId, phoneDigits, {
+      ...state,
+      step: "RECOVERY_CHECK",
+      pause_reason: null,
+      window_status: "OPEN",
+      updated_at: nowIso,
+    }).catch((err) => console.warn("[admin/resume] redis mirror failed", err));
+  }
 
   await logConversationMessage({
     tenantId,
@@ -66,40 +103,39 @@ export async function POST(request: NextRequest) {
     metadata: {
       actor,
       notify_customer: notifyCustomer,
+      conversation_id: conv.id,
     },
   });
 
   if (notifyCustomer) {
+    const queued = await recordOutboundQueued({
+      tenantId,
+      conversationId: conv.id,
+      externalUserId: phoneDigits,
+      text: notifyText,
+      senderType: "SYSTEM",
+      source: "admin",
+    });
     const sendResult = await sendWhatsAppMessageDetailed({
       to: phoneDigits,
       text: notifyText,
     });
-    if (sendResult.ok) {
-      await logConversationMessage({
+    if (queued && sendResult.ok) {
+      await markOutboundSent({
+        rowId: queued.id,
         tenantId,
-        customerPhone: phoneDigits,
-        direction: "outbound",
-        messageText: notifyText,
-        messageType: "text",
-        stage: "admin_takeover_resume_notify",
-        metadata: {
-          actor,
-          source: sendResult.source || null,
-        },
+        conversationId: conv.id,
+        externalMessageId: sendResult.messageId || `local_${queued.id}`,
+        preview: notifyText,
       });
-    } else {
-      await logConversationMessage({
+    } else if (queued) {
+      await markOutboundFailed({
+        rowId: queued.id,
         tenantId,
-        customerPhone: phoneDigits,
-        direction: "system",
-        messageText: notifyText,
-        messageType: "text",
-        stage: "admin_takeover_resume_notify_failed",
-        metadata: {
-          actor,
-          error_code: sendResult.errorCode || null,
-          blocked_reason: sendResult.blockedReason || null,
-        },
+        conversationId: conv.id,
+        failureCode:
+          sendResult.errorCode != null ? String(sendResult.errorCode) : null,
+        failureReason: sendResult.errorMessage || "send_failed",
       });
     }
   }
@@ -115,6 +151,7 @@ export async function POST(request: NextRequest) {
       visibility: "internal",
       actor,
       note: note || null,
+      conversation_id: conv.id,
     },
     dedupeKey: `admin_takeover_resume:${tenantId}:${phoneDigits}:${nowIso.slice(0, 16)}`,
   }).catch(() => undefined);
@@ -129,6 +166,7 @@ export async function POST(request: NextRequest) {
       customer_phone_digits: phoneDigits,
       notify_customer: notifyCustomer,
       note: note || null,
+      conversation_id: conv.id,
     },
   }).catch(() => undefined);
 
@@ -136,6 +174,8 @@ export async function POST(request: NextRequest) {
     success: true,
     tenant_id: tenantId,
     customer_phone_digits: phoneDigits,
+    conversation_id: conv.id,
+    automation_mode: conv.automation_mode,
     step: "RECOVERY_CHECK",
   });
 }

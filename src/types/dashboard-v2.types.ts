@@ -82,6 +82,8 @@ export interface AdminTenantWizardPayload {
   };
   scheduling?: {
     slot_duration_minutes?: number;
+    /** Randevular arası zorunlu boşluk (dk). */
+    buffer_minutes?: number;
     advance_booking_days?: number;
     cancellation_hours?: number;
     weekly_slots?: Array<{

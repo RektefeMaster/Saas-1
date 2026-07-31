@@ -65,13 +65,20 @@ export const notifyLateSchema = z.object({
   message: z.string().optional(),
 });
 
+export const checkCustomerPackageSchema = z.object({
+  service_slug: z.string().min(1),
+});
+
+export const getPackagesSchema = z.object({
+  service_slug: z.string().optional(),
+});
+
 export const createRecurringSchema = z.object({
   day_of_week: z.number().int().min(0).max(6),
   time: timeSchema,
-});
-
-export const checkCustomerPackageSchema = z.object({
-  service_slug: z.string().min(1),
+  service_slug: z.string().min(1, "service_slug boş olamaz"),
+  customer_name: z.string().optional(),
+  occurrences: z.number().int().min(1).max(12).optional(),
 });
 
 const TOOL_SCHEMAS: Record<string, z.ZodSchema> = {
@@ -83,8 +90,9 @@ const TOOL_SCHEMAS: Record<string, z.ZodSchema> = {
   check_week_availability: checkWeekAvailabilitySchema,
   add_to_waitlist: addToWaitlistSchema,
   notify_late: notifyLateSchema,
-  create_recurring: createRecurringSchema,
   check_customer_package: checkCustomerPackageSchema,
+  get_packages: getPackagesSchema,
+  create_recurring: createRecurringSchema,
 };
 
 export type ToolSchemaName = keyof typeof TOOL_SCHEMAS;

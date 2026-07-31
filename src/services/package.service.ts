@@ -43,6 +43,82 @@ function toPackageRel(input: unknown): PackageRelRow | null {
   return null;
 }
 
+export interface OfferablePackage {
+  id: string;
+  name: string;
+  serviceSlug: string;
+  serviceName: string | null;
+  totalSessions: number;
+  price: number | null;
+  validityDays: number | null;
+}
+
+/**
+ * İşletmenin satışa açık seans paketleri.
+ * Lazer epilasyon / cilt bakımı / diş beyazlatma gibi sektörlerde müşteri
+ * "paket var mı, kaç seans?" diye sorduğunda bot buradan cevap verir.
+ * Paket satışını bot tamamlamaz; sadece listeler.
+ */
+export async function listActivePackages(
+  tenantId: string,
+  serviceSlug?: string | null
+): Promise<OfferablePackage[]> {
+  let query = supabase
+    .from("packages")
+    .select("id, name, service_slug, total_sessions, price, validity_days")
+    .eq("tenant_id", tenantId)
+    .eq("is_active", true)
+    .order("total_sessions", { ascending: true })
+    .limit(25);
+
+  const scopedSlug = serviceSlug?.trim();
+  if (scopedSlug) query = query.eq("service_slug", scopedSlug);
+
+  const result = await query;
+  if (result.error) {
+    const missingTable = extractMissingSchemaTable(result.error);
+    if (missingTable === "packages") return [];
+    throw new Error(result.error.message);
+  }
+
+  const rows = (result.data || []) as Array<{
+    id: string;
+    name: string;
+    service_slug: string;
+    total_sessions: number;
+    price: number | string | null;
+    validity_days: number | null;
+  }>;
+  if (rows.length === 0) return [];
+
+  // Hizmet adını da göster: müşteri slug değil "Bacak Lazer" görmeli.
+  const slugs = [...new Set(rows.map((row) => row.service_slug).filter(Boolean))];
+  const serviceNames = new Map<string, string>();
+  if (slugs.length > 0) {
+    const servicesResult = await supabase
+      .from("services")
+      .select("slug, name")
+      .eq("tenant_id", tenantId)
+      .in("slug", slugs);
+    for (const row of servicesResult.data || []) {
+      if (row.slug) serviceNames.set(String(row.slug), String(row.name || ""));
+    }
+  }
+
+  return rows.map((row) => {
+    const priceValue = row.price == null ? null : Number(row.price);
+    return {
+      id: row.id,
+      name: row.name,
+      serviceSlug: row.service_slug,
+      serviceName: serviceNames.get(row.service_slug) || null,
+      totalSessions: Number(row.total_sessions || 0),
+      price: Number.isFinite(priceValue as number) ? (priceValue as number) : null,
+      validityDays: row.validity_days == null ? null : Number(row.validity_days),
+    };
+  });
+}
+
 export async function checkCustomerPackage(
   tenantId: string,
   customerPhone: string,

@@ -25,11 +25,23 @@ import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
 import { logTenantSwitch, resolveTenantRouting } from "@/lib/tenant-routing";
 import { transcribeVoiceMessage } from "@/lib/stt";
 import { stripZeroWidthMarkers } from "@/lib/zero-width";
-import { isAdminTakeoverReason } from "@/lib/human-takeover";
+import { isLiveHumanTakeoverReason } from "@/lib/human-takeover";
 import type { ConversationState } from "@/lib/database.types";
 import { logBotMessageAudit } from "@/services/botAudit.service";
 import { logConversationMessage } from "@/services/conversationMessages.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
+import {
+  ensureConversation,
+  touchConversationForInbound,
+  insertInboundMessageIdempotent,
+  getConversationAutomationMode,
+  shouldSkipAiProcessing,
+  recordOutboundQueued,
+  markOutboundSent,
+  markOutboundFailed,
+} from "@/services/conversation.service";
+import { emitConversationEvent } from "@/services/conversationObservability.service";
+import { cancelFollowUpsForCustomer } from "@/services/safeFollowUp.service";
 import type { IncomingMessage, IncomingWebhookValue, WhatsAppInboundEventData } from "./types";
 import { extractSafeEntities, maskSensitivePII } from "./pii";
 import {
@@ -637,81 +649,159 @@ async function processClaimedWhatsAppInboundEvent(
 
     await setPhoneTenantMapping(customerPhone, tenantId);
     const existingSession = await getSession(tenantId, customerPhone);
-    const adminTakeoverActive = Boolean(
-      existingSession?.step === "PAUSED_FOR_HUMAN" &&
-        isAdminTakeoverReason(existingSession.pause_reason)
-    );
-    if (adminTakeoverActive && existingSession) {
-      await setSession(tenantId, customerPhone, {
-        ...existingSession,
-        last_customer_message_at: event.received_at,
-        window_status: "OPEN",
-        updated_at: new Date().toISOString(),
-      });
 
+    // Postgres is SoT for automation ownership (not Redis alone).
+    // Order matters: ensure → insert (idempotent) → touch unread ONLY if new.
+    // Touching before insert inflated unread on webhook retries.
+    let conversation = await ensureConversation({
+      tenantId,
+      externalUserId: customerPhone,
+    });
+
+    if (conversation?.id && messageId) {
+      const inboundInsert = await insertInboundMessageIdempotent({
+        tenantId,
+        conversationId: conversation.id,
+        externalUserId: customerPhone,
+        externalMessageId: messageId,
+        text: normalizedText || null,
+        messageType,
+        requestId: traceId,
+      });
+      if (inboundInsert.duplicate) {
+        emitConversationEvent("message_deduplicated", {
+          tenant_id: tenantId,
+          conversation_id: conversation.id,
+          message_id: messageId,
+          request_id: traceId,
+        });
+        // Same-owner Inngest retry after crash: inbound row exists but AI may not.
+        // Meta redelivery with a new trace already exited at claim already_done/in_progress.
+        // Skip unread touch; abort only if this trace already produced an outbound.
+        const { data: priorOut } = await supabase
+          .from("conversation_messages")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("conversation_id", conversation.id)
+          .eq("direction", "outbound")
+          .eq("request_id", traceId)
+          .limit(1)
+          .maybeSingle();
+        if (priorOut?.id) return;
+      } else if (inboundInsert.inserted) {
+        conversation =
+          (await touchConversationForInbound({
+            conversationId: conversation.id,
+            tenantId,
+            messagePreview: normalizedText || null,
+            messageId,
+            requestId: traceId,
+          })) || conversation;
+        void cancelFollowUpsForCustomer(
+          tenantId,
+          conversation.customer_id,
+          "customer_replied",
+          customerPhone
+        ).catch(() => undefined);
+      }
+      // Non-duplicate insert failure (migration missing): continue; Redis claim still dedupes AI.
+    }
+
+    const dbAutomationMode =
+      conversation?.automation_mode ||
+      (await getConversationAutomationMode(tenantId, customerPhone));
+    const skipAi = shouldSkipAiProcessing(dbAutomationMode);
+
+    if (skipAi) {
+      emitConversationEvent("ai_processing_skipped", {
+        tenant_id: tenantId,
+        conversation_id: conversation?.id,
+        message_id: messageId,
+        request_id: traceId,
+        reason: dbAutomationMode || "unknown",
+      });
+      if (existingSession) {
+        await setSession(tenantId, customerPhone, {
+          ...existingSession,
+          last_customer_message_at: event.received_at,
+          window_status: "OPEN",
+          step: "PAUSED_FOR_HUMAN",
+          updated_at: new Date().toISOString(),
+        });
+      }
       void logConversationMessage({
         traceId,
         tenantId,
         customerPhone,
         direction: "inbound",
         messageText: normalizedText || null,
-        messageType: messageType,
-        stage: "admin_takeover_inbound",
+        messageType,
+        stage: "automation_mode_bypass",
         messageId,
-        metadata: {
-          routing_reason: routingReason,
-          pause_reason: existingSession.pause_reason || null,
-        },
+        metadata: { automation_mode: dbAutomationMode },
         createdAt: event.received_at,
-      }).catch((err) =>
-        console.error("[whatsapp-worker] takeover inbound log failed", err)
-      );
+      }).catch(() => undefined);
 
-      void logConversationMessage({
-        traceId,
-        tenantId,
-        customerPhone,
-        direction: "system",
-        messageText: null,
-        messageType: "system",
-        stage: "admin_takeover_bypass",
-        messageId,
-        metadata: {
-          routing_reason: routingReason,
-          pause_reason: existingSession.pause_reason || null,
-        },
-      }).catch((err) =>
-        console.error("[whatsapp-worker] takeover bypass log failed", err)
-      );
-
+      // HUMAN_ACTIVE / AI_ASSIST: staff must see inbound even if Redis expired.
       const takeoverBucket = Math.floor(Date.now() / (10 * 60 * 1000));
       await createOpsAlert({
         tenantId,
         type: "system",
         severity: "medium",
         customerPhone,
-        message: "Müşteri yeni mesaj gönderdi (canlı destek görüşmesi açık).",
+        message:
+          dbAutomationMode === "HUMAN_ACTIVE"
+            ? "Müşteri yeni mesaj gönderdi (canlı destek / insan modu açık)."
+            : "Müşteri yeni mesaj gönderdi (AI asist modu — insan onayı bekleniyor).",
         meta: {
           source: "whatsapp_worker",
-          stage: "admin_takeover_bypass",
+          stage: "automation_mode_bypass",
+          automation_mode: dbAutomationMode,
           visibility: "internal",
           trace_id: traceId,
+          conversation_id: conversation?.id || null,
         },
-        dedupeKey: `admin_takeover_inbound:${tenantId}:${digitsOnly(customerPhone)}:${takeoverBucket}`,
+        dedupeKey: `human_mode_inbound:${tenantId}:${digitsOnly(customerPhone)}:${takeoverBucket}`,
       }).catch(() => undefined);
-
-      void logBotMessageAudit({
-        traceId,
-        tenantId,
-        customerPhone,
-        direction: "system",
-        stage: "admin_takeover_bypassed",
-        messageId,
-        policyReason: "admin_takeover",
-        fsmStateBefore: existingSession.step || "PAUSED_FOR_HUMAN",
-        fsmStateAfter: existingSession.step || "PAUSED_FOR_HUMAN",
-      }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
       return;
+    }
+
+    // Soft-pause: AI still runs a limited resume/ack path; staff must be notified.
+    if (dbAutomationMode === "AUTOMATION_PAUSED") {
+      const softBucket = Math.floor(Date.now() / (10 * 60 * 1000));
+      await createOpsAlert({
+        tenantId,
+        type: "system",
+        severity: "high",
+        customerPhone,
+        message:
+          "Müşteri yazdı — konuşma AI soft-pause (insan desteği bekleniyor).",
+        meta: {
+          source: "whatsapp_worker",
+          stage: "automation_paused_inbound",
+          visibility: "internal",
+          trace_id: traceId,
+          conversation_id: conversation?.id || null,
+        },
+        dedupeKey: `soft_pause_inbound:${tenantId}:${digitsOnly(customerPhone)}:${softBucket}`,
+      }).catch(() => undefined);
+    }
+
+    // Stale Redis admin-pause must NOT override Postgres AI_ACTIVE after resume.
+    if (
+      existingSession?.step === "PAUSED_FOR_HUMAN" &&
+      isLiveHumanTakeoverReason(existingSession.pause_reason) &&
+      dbAutomationMode !== "HUMAN_ACTIVE" &&
+      dbAutomationMode !== "AI_ASSIST"
+    ) {
+      await setSession(tenantId, customerPhone, {
+        ...existingSession,
+        step: "devam",
+        pause_reason: null,
+        last_customer_message_at: event.received_at,
+        window_status: "OPEN",
+        updated_at: new Date().toISOString(),
+      }).catch(() => undefined);
     }
 
     // DİKKAT: processMessage'a bu değişken geçilir. Eskiden Redis'e yazılan güncel
@@ -797,12 +887,19 @@ async function processClaimedWhatsAppInboundEvent(
       });
     }
 
+    emitConversationEvent("ai_processing_started", {
+      tenant_id: tenantId,
+      conversation_id: conversation?.id,
+      message_id: messageId,
+      request_id: traceId,
+    });
+
     const aiStart = Date.now();
     const { reply, metrics } = await processMessage(
       tenantId,
       customerPhone,
       normalizedText,
-      { existingSession: sessionForProcessing }
+      { existingSession: sessionForProcessing, messageId }
     );
     const llmLatencyMs = Date.now() - aiStart;
     const safeReply = (reply && String(reply).trim()) || "Anlamadım, tekrar yazar mısınız?";
@@ -814,10 +911,56 @@ async function processClaimedWhatsAppInboundEvent(
     let sendErrorCode: string | null = null;
     let sendResult: WhatsAppSendResult | null = null;
 
+    // Outbound audit: queue first so provider failure still leaves a row.
+    const outboundQueued =
+      conversation?.id
+        ? await recordOutboundQueued({
+            tenantId,
+            conversationId: conversation.id,
+            externalUserId: customerPhone,
+            text: safeReply,
+            senderType: "AI",
+            source: "bot",
+            requestId: traceId,
+          })
+        : null;
+
     sendResult = await sendWhatsAppMessageDetailed({
       to: customerPhone,
       text: safeReply,
     });
+    if (outboundQueued && conversation?.id) {
+      try {
+        if (sendResult.ok && sendResult.messageId) {
+          await markOutboundSent({
+            rowId: outboundQueued.id,
+            tenantId,
+            conversationId: conversation.id,
+            externalMessageId: sendResult.messageId,
+            preview: safeReply,
+          });
+        } else if (!sendResult.ok) {
+          await markOutboundFailed({
+            rowId: outboundQueued.id,
+            tenantId,
+            conversationId: conversation.id,
+            failureCode:
+              sendResult.errorCode != null ? String(sendResult.errorCode) : null,
+            failureReason: sendResult.errorMessage || sendStage,
+          });
+        } else if (sendResult.ok) {
+          await markOutboundSent({
+            rowId: outboundQueued.id,
+            tenantId,
+            conversationId: conversation.id,
+            externalMessageId: `local_${outboundQueued.id}`,
+            preview: safeReply,
+          });
+        }
+      } catch (auditErr) {
+        console.error("[whatsapp-worker] outbound audit update failed", auditErr);
+      }
+    }
     if (!sendResult.ok) {
       sendErrorCode = sendResult.errorCode ? String(sendResult.errorCode) : null;
       const closedWindow =

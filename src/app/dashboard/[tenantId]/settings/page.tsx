@@ -40,6 +40,7 @@ interface TenantData {
     };
     opening_message?: string;
     slot_duration_minutes?: number;
+    buffer_minutes?: number;
     advance_booking_days?: number;
     cancellation_hours?: number;
     pricing_preferences?: {
@@ -86,6 +87,9 @@ const COPY = {
     schedulingDesc: "Randevu slot süresi, ileri rezervasyon ve iptal kuralları.",
     slotDuration: "Randevu süresi (dakika)",
     slotDurationHint: "Her randevu için ayrılan süre",
+    bufferMinutes: "Randevular arası boşluk (dakika)",
+    bufferMinutesHint:
+      "Toparlanma/hazırlık payı. 0 = arka arkaya randevu. Hizmet süresine ek olarak uygulanır.",
     advanceBooking: "İleri rezervasyon (gün)",
     advanceBookingHint: "Müşteriler kaç gün önceden randevu alabilsin",
     cancellationHours: "İptal süresi (saat)",
@@ -160,6 +164,9 @@ const COPY = {
     schedulingDesc: "Slot duration, advance booking, and cancellation rules.",
     slotDuration: "Slot duration (minutes)",
     slotDurationHint: "Time allocated per appointment (default: 30)",
+    bufferMinutes: "Gap between appointments (minutes)",
+    bufferMinutesHint:
+      "Turnaround/setup time. 0 = back-to-back. Applied on top of the service duration.",
     advanceBooking: "Advance booking (days)",
     advanceBookingHint: "How many days ahead can appointments be made (default: 30)",
     cancellationHours: "Cancellation window (hours)",
@@ -319,6 +326,7 @@ export default function TenantSettingsPage({
 
   // Randevu
   const [slotDuration, setSlotDuration] = useState(30);
+  const [bufferMinutes, setBufferMinutes] = useState(0);
   const [advanceBookingDays, setAdvanceBookingDays] = useState(30);
   const [cancellationHours, setCancellationHours] = useState(2);
 
@@ -385,6 +393,7 @@ export default function TenantSettingsPage({
         const pricing = (co.pricing_preferences || {}) as Record<string, string>;
 
         if (typeof co.slot_duration_minutes === "number") setSlotDuration(Math.max(5, Math.min(120, co.slot_duration_minutes)));
+        if (typeof co.buffer_minutes === "number") setBufferMinutes(Math.max(0, Math.min(60, co.buffer_minutes)));
         if (typeof co.advance_booking_days === "number") setAdvanceBookingDays(Math.max(1, Math.min(365, co.advance_booking_days)));
         if (typeof co.cancellation_hours === "number") setCancellationHours(Math.max(0, Math.min(72, co.cancellation_hours)));
 
@@ -433,6 +442,7 @@ export default function TenantSettingsPage({
           reminder_preference: reminderPref,
           opening_message: openingMessage.trim() || undefined,
           slot_duration_minutes: slot,
+          buffer_minutes: Math.max(0, Math.min(60, bufferMinutes)),
           advance_booking_days: advance,
           cancellation_hours: cancel,
           messages: {
@@ -611,7 +621,7 @@ export default function TenantSettingsPage({
         </SectionCard>
 
         <SectionCard icon={Calendar} title={t.schedulingTitle} desc={t.schedulingDesc}>
-          <div className="grid gap-4 sm:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             <InputField
               label={t.slotDuration}
               hint={`${t.slotDurationHint} (${humanizeMinutes(slotDuration)})`}
@@ -620,6 +630,16 @@ export default function TenantSettingsPage({
               onChange={setSlotDuration}
               min={5}
               max={120}
+              step={5}
+            />
+            <InputField
+              label={t.bufferMinutes}
+              hint={t.bufferMinutesHint}
+              type="number"
+              value={bufferMinutes}
+              onChange={setBufferMinutes}
+              min={0}
+              max={60}
               step={5}
             />
             <InputField

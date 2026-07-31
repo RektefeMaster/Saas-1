@@ -38,6 +38,8 @@ async function killSwitchFetcher(url: string): Promise<{ enabled?: boolean }> {
 type NavItem = {
   href: string;
   label: string;
+  /** Mobil alt çubuk dar; uzun etiketler orada kısaltılır. */
+  shortLabel?: string;
   icon: ComponentType<{ className?: string }>;
   external?: boolean;
 };
@@ -47,15 +49,15 @@ function isItemActive(pathname: string, href: string): boolean {
 }
 
 const NAV_ITEMS: NavItem[] = [
-  { href: "/admin", label: "Genel Bakış", icon: LayoutDashboard },
-  { href: "/admin/tenants", label: "İşletmeler", icon: Users },
-  { href: "/admin/business-types", label: "İşletme Tipleri", icon: Building2 },
-  { href: "/admin/campaigns", label: "Kampanyalar", icon: Megaphone },
-  { href: "/admin/security", label: "Güvenlik", icon: ShieldCheck },
-  { href: "/admin/conversations", label: "Konuşmalar", icon: MessageSquareWarning },
-  { href: "/admin/tools", label: "Sistem Araçları", icon: Wrench },
-  { href: "/admin/time-machine", label: "Time Machine", icon: History },
-  { href: "/admin/langfuse", label: "LLM Gözlemi", icon: BarChart3 },
+  { href: "/admin", label: "Genel Bakış", shortLabel: "Özet", icon: LayoutDashboard },
+  { href: "/admin/tenants", label: "İşletmeler", shortLabel: "İşletme", icon: Users },
+  { href: "/admin/business-types", label: "İşletme Tipleri", shortLabel: "Tipler", icon: Building2 },
+  { href: "/admin/campaigns", label: "Kampanyalar", shortLabel: "Kampanya", icon: Megaphone },
+  { href: "/admin/security", label: "Güvenlik", shortLabel: "Güvenlik", icon: ShieldCheck },
+  { href: "/admin/conversations", label: "Konuşmalar", shortLabel: "Sohbet", icon: MessageSquareWarning },
+  { href: "/admin/tools", label: "Sistem Araçları", shortLabel: "Araçlar", icon: Wrench },
+  { href: "/admin/time-machine", label: "Time Machine", shortLabel: "Zaman", icon: History },
+  { href: "/admin/langfuse", label: "LLM Gözlemi", shortLabel: "LLM", icon: BarChart3 },
 ];
 
 export default function AdminDashboardLayout({ children }: { children: ReactNode }) {
@@ -237,13 +239,19 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
         <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} />
         <HealthIndicator />
 
-        <nav className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-8 gap-1 border-t border-slate-200 bg-white/95 p-2 backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-900/95">
+        {/* Sabit kolon sayısı NAV_ITEMS uzunluğuyla uyuşmadığında son sekmeler
+            ikinci satıra taşıp çubuğu bozuyordu; kolon sayısı listeden türetilir. */}
+        <nav
+          className="fixed inset-x-0 bottom-0 z-40 grid gap-1 border-t border-slate-200 bg-white/95 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-900/95"
+          style={{ gridTemplateColumns: `repeat(${NAV_ITEMS.length}, minmax(0, 1fr))` }}
+        >
           {NAV_ITEMS.map((item) => {
             const active = !item.external && isItemActive(pathname, item.href);
             const Icon = item.icon;
-            const navClass = `flex flex-col items-center justify-center rounded-lg py-2 text-[10px] font-medium ${
+            const navClass = `flex min-w-0 flex-col items-center justify-center rounded-lg px-0.5 py-2 text-center text-[10px] font-medium ${
               active ? "bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"
             }`;
+            const shortLabel = item.shortLabel ?? item.label;
             if (item.external) {
               return (
                 <a
@@ -252,16 +260,17 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
                   target="_blank"
                   rel="noopener noreferrer"
                   className={navClass}
+                  title={item.label}
                 >
-                  <Icon className="mb-1 h-4 w-4" />
-                  {item.label}
+                  <Icon className="mb-1 h-4 w-4 shrink-0" />
+                  <span className="w-full truncate">{shortLabel}</span>
                 </a>
               );
             }
             return (
-              <Link key={item.href} href={item.href} className={navClass}>
-                <Icon className="mb-1 h-4 w-4" />
-                {item.label}
+              <Link key={item.href} href={item.href} className={navClass} title={item.label}>
+                <Icon className="mb-1 h-4 w-4 shrink-0" />
+                <span className="w-full truncate">{shortLabel}</span>
               </Link>
             );
           })}

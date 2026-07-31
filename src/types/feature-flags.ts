@@ -18,19 +18,6 @@ export const DEFAULT_FEATURE_FLAGS: FeatureFlags = {
   combo_services: false,
 };
 
-function normalizeText(value: string): string {
-  return value
-    .toLocaleLowerCase("tr-TR")
-    .replace(/ğ/g, "g")
-    .replace(/ü/g, "u")
-    .replace(/ş/g, "s")
-    .replace(/ı/g, "i")
-    .replace(/ö/g, "o")
-    .replace(/ç/g, "c")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 export function coerceFeatureFlags(input: unknown): Partial<FeatureFlags> {
   if (!input || typeof input !== "object") return {};
 
@@ -44,53 +31,6 @@ export function coerceFeatureFlags(input: unknown): Partial<FeatureFlags> {
   }
 
   return out;
-}
-
-export function inferFeatureFlagsByBusinessType(
-  businessTypeSlug?: string | null,
-  businessTypeName?: string | null
-): Partial<FeatureFlags> {
-  const text = normalizeText(`${businessTypeSlug || ""} ${businessTypeName || ""}`);
-
-  if (
-    text.includes("kadin-kuafor") ||
-    text.includes("kadin kuafor") ||
-    text.includes("guzellik") ||
-    text.includes("beauty")
-  ) {
-    return {
-      crm_extended_profile: true,
-      staff_preference: true,
-      packages: true,
-      variable_duration: true,
-      combo_services: true,
-    };
-  }
-
-  if (
-    text.includes("tirnak") ||
-    text.includes("nail")
-  ) {
-    return {
-      crm_extended_profile: true,
-      staff_preference: true,
-      packages: true,
-      variable_duration: false,
-      combo_services: true,
-    };
-  }
-
-  if (
-    text.includes("disci") ||
-    text.includes("dental") ||
-    text.includes("veteriner")
-  ) {
-    return {
-      packages: true,
-    };
-  }
-
-  return {};
 }
 
 export function buildFeatureFlags(

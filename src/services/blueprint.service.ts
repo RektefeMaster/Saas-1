@@ -1,5 +1,6 @@
 import { supabase } from "@/lib/supabase";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
+import { getSectorProfile } from "@/services/sectorProfile.service";
 import type {
   BlueprintDefinition,
   BlueprintSlug,
@@ -143,55 +144,15 @@ function deepMerge<T>(base: T, patch?: Record<string, unknown> | null): T {
   return out as T;
 }
 
-function normalizeText(value: string): string {
-  return value
-    .toLocaleLowerCase("tr-TR")
-    .replace(/\u011f/g, "g")
-    .replace(/\u00fc/g, "u")
-    .replace(/\u015f/g, "s")
-    .replace(/\u0131/g, "i")
-    .replace(/\u00f6/g, "o")
-    .replace(/\u00e7/g, "c")
-    .trim();
-}
-
+/**
+ * Blueprint tespiti tek kaynaktan (sekt\u00f6r profili) t\u00fcretilir; ayr\u0131 bir keyword
+ * listesi tutulmaz, aksi halde bot promptu ile CRM blueprint'i ayr\u0131\u015f\u0131yordu.
+ */
 export function detectBlueprintSlug(
   businessTypeSlug?: string | null,
   businessTypeName?: string | null
 ): BlueprintSlug {
-  const text = normalizeText(`${businessTypeSlug || ""} ${businessTypeName || ""}`);
-
-  if (
-    text.includes("berber") ||
-    text.includes("kuafor") ||
-    text.includes("guzellik") ||
-    text.includes("salon") ||
-    text.includes("hair")
-  ) {
-    return "hair-beauty";
-  }
-
-  if (
-    text.includes("dis") ||
-    text.includes("dental") ||
-    text.includes("estetik") ||
-    text.includes("clinic") ||
-    text.includes("klinik")
-  ) {
-    return "dental-esthetic";
-  }
-
-  if (
-    text.includes("oto") ||
-    text.includes("tamir") ||
-    text.includes("servis") ||
-    text.includes("garage") ||
-    text.includes("car")
-  ) {
-    return "auto-service";
-  }
-
-  return "generic-local";
+  return getSectorProfile(businessTypeSlug, businessTypeName).blueprint;
 }
 
 function defaultCompliance(

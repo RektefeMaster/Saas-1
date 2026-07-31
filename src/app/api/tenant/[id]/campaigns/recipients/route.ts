@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabase } from "@/lib/supabase";
+import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
 
 export async function GET(
   request: NextRequest,
@@ -7,6 +8,9 @@ export async function GET(
 ) {
   try {
     const { id: tenantId } = await params;
+    // Müşteri telefon listesi: proxy'ye ek olarak burada da yetki doğrula.
+    const auth = await requireTenantApiAccess(request, tenantId);
+    if (!auth.ok) return auth.response;
     const { searchParams } = new URL(request.url);
     const tagsParam = searchParams.get("tags");
     const filterTags = tagsParam ? tagsParam.split(",").map((t) => t.trim()).filter(Boolean) : [];

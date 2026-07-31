@@ -8,7 +8,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { cancelAppointment } from "@/services/cancellation.service";
 import { logTenantEvent } from "@/services/eventLog.service";
 import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
-import { getDailyAvailability } from "@/services/booking.service";
 import { notifyWaitlist } from "@/services/waitlist.service";
 import { supabase } from "@/lib/supabase";
 
@@ -90,9 +89,7 @@ export async function POST(
       const dateStr = new Date(apt.slot_start).toLocaleDateString("en-CA", {
         timeZone: tz,
       });
-      const daily = await getDailyAvailability(id, dateStr);
-      if (daily.checkFailed) return;
-      await notifyWaitlist(id, dateStr, daily.available, tenant?.name || "İşletme");
+      await notifyWaitlist(id, dateStr, tenant?.name || "İşletme");
     })().catch((e) => console.error("[cancel] waitlist notify error:", e));
 
     return NextResponse.json({ ok: true });

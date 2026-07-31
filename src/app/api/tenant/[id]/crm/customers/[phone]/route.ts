@@ -23,6 +23,10 @@ const CUSTOMER_COLUMNS = [
   "metadata",
   "last_visit_at",
   "total_visits",
+  "pipeline_stage",
+  "lead_score",
+  "lead_score_breakdown",
+  "lifecycle_stage",
   "created_at",
   "updated_at",
 ];
@@ -37,6 +41,10 @@ type CustomerRow = {
   metadata?: Record<string, unknown>;
   last_visit_at: string | null;
   total_visits: number;
+  pipeline_stage?: string | null;
+  lead_score?: number | null;
+  lead_score_breakdown?: Record<string, number> | null;
+  lifecycle_stage?: string | null;
 };
 
 async function getCustomerWithFallback(

@@ -89,7 +89,9 @@ export function buildSystemContext(
   historySummary?: string,
   lastUserMessage?: string,
   customerProfile?: CrmCustomerProfile | null,
-  leadMemoryText?: string
+  leadMemoryText?: string,
+  upcomingText?: string,
+  crmProfileText?: string
 ): string {
   const today = new Date();
   const todayStr = localDateStr(today);
@@ -127,8 +129,13 @@ export function buildSystemContext(
   const customerName =
     (ext.customer_name as string | undefined) || customerProfile?.customer_name || undefined;
   if (customerName) {
+    // Ziyaret/CRM detayı crmProfileText ile geliyorsa burada tekrarlama.
     let profileNote = "";
-    if (customerProfile && (customerProfile.total_visits > 0 || customerProfile.last_visit_at)) {
+    if (
+      !crmProfileText &&
+      customerProfile &&
+      (customerProfile.total_visits > 0 || customerProfile.last_visit_at)
+    ) {
       const lastVisit = customerProfile.last_visit_at
         ? new Date(customerProfile.last_visit_at).toLocaleDateString("tr-TR", {
             timeZone: APP_TIMEZONE,
@@ -152,6 +159,14 @@ export function buildSystemContext(
     lastSlots.length > 0
   ) {
     ctx += ` Son müsait saatler (${lastDate}): ${lastSlots.join(", ")}.`;
+  }
+
+  if (upcomingText) {
+    ctx += ` ${upcomingText.replace(/\n/g, " ")} Bunlar BU müşterinin randevuları; dolu görünürse "orası sizin randevunuz" de.`;
+  }
+
+  if (crmProfileText) {
+    ctx += ` ${crmProfileText}`;
   }
 
   if (historySummary) {

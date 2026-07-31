@@ -69,44 +69,22 @@ export function LoadingProvider({ children }: { children: React.ReactNode }) {
     }));
   }, []);
 
-  // React 19 uyumluluğu - null children yerine boş Fragment kullan
-  const safeChildren = children ?? <></>;
-  
-  // Güvenli render
-  try {
-    return (
-      <LoadingContext.Provider
-        value={{
-          loading: state.loading,
-          message: state.message,
-          progress: state.progress,
-          variant: state.variant || "spinner",
-          startLoading,
-          stopLoading,
-          setProgress,
-          setMessage,
-        }}
-      >
-        {safeChildren}
-      </LoadingContext.Provider>
-    );
-  } catch (error) {
-    console.error("[LoadingProvider] Render hatası:", error);
-    return (
-      <LoadingContext.Provider
-        value={{
-          loading: false,
-          variant: "spinner",
-          startLoading,
-          stopLoading,
-          setProgress,
-          setMessage,
-        }}
-      >
-        <></>
-      </LoadingContext.Provider>
-    );
-  }
+  return (
+    <LoadingContext.Provider
+      value={{
+        loading: state.loading,
+        message: state.message,
+        progress: state.progress,
+        variant: state.variant || "spinner",
+        startLoading,
+        stopLoading,
+        setProgress,
+        setMessage,
+      }}
+    >
+      {children}
+    </LoadingContext.Provider>
+  );
 }
 
 export function useLoadingContext() {

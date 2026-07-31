@@ -4,9 +4,7 @@ import {
   isSoftAffirmation,
   isCancelReject,
   isGreetingOrSmallTalkOnly,
-  isOutOfScopeMessage,
   isAbusiveMessage,
-  isNegotiationMessage,
   containsWord,
 } from "../intent-detection";
 import { detectDeterministicIntent } from "@/lib/intent";
@@ -84,21 +82,10 @@ describe("isGreetingOrSmallTalkOnly", () => {
       "Merhaba, yarın için yer var mı?",
       "İyi günler, cildim kuru ne önerirsiniz?",
       "Selam, oğlum için de bakabilir misiniz",
+      "Merhaba, lazer",
+      "Selam, manikür için yer var mı",
     ]) {
       expect(isGreetingOrSmallTalkOnly(msg), msg).toBe(false);
-    }
-  });
-});
-
-describe("isOutOfScopeMessage", () => {
-  it("normal randevu mesajlarını kapsam dışı saymaz", () => {
-    for (const msg of [
-      "Başka gün var mı?",
-      "başka bir güne alabilir miyiz",
-      "Maske yaptırmak istiyorum",
-      "başkası için randevu alabilir miyim",
-    ]) {
-      expect(isOutOfScopeMessage(msg), msg).toBe(false);
     }
   });
 });
@@ -112,12 +99,6 @@ describe("isAbusiveMessage", () => {
 
   it("gerçek hakareti yakalar", () => {
     expect(isAbusiveMessage("salak mısın")).toBe(true);
-  });
-});
-
-describe("isNegotiationMessage", () => {
-  it("pazarlık ifadesini tanır", () => {
-    expect(isNegotiationMessage("öğrenciyim, indirim var mı")).toBe(true);
   });
 });
 

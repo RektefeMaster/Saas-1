@@ -11,17 +11,39 @@ import {
   claimAppointmentExtraFlag,
   clearAppointmentExtraFlag,
 } from "@/lib/cron-auth";
+import {
+  loadTenantMessageContexts,
+  resolveTenantMessage,
+  type TenantMessageContext,
+} from "@/services/tenantMessages.service";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
-async function sendReminder(
-  to: string,
-  tenantName: string,
+const REMINDER_FALLBACK =
+  "Merhaba, {date} günü {time}'da {tenant_name} için randevunuz var. Lütfen unutmayın!";
+const CANCEL_HINT = 'İptal etmek isterseniz "iptal" yazabilirsiniz.';
+
+/**
+ * İşletmenin kendi hatırlatma şablonunu kullanır (panel > işletme tipi > fallback).
+ * İptal yönergesi şablonda yoksa eklenir; müşteri iptal yolunu her zaman bilmeli.
+ */
+function buildReminderText(
+  context: TenantMessageContext | undefined,
   dateText: string,
-  timeText: string
-): Promise<boolean> {
-  const text = `Merhaba, ${dateText} günü ${timeText}'da ${tenantName} için randevunuz var. Lütfen unutmayın! İptal etmek isterseniz "iptal" yazabilirsiniz.`;
+  timeText: string,
+  tenantName: string
+): string {
+  const body = resolveTenantMessage(
+    context,
+    "reminder_24h",
+    { date: dateText, time: timeText, tenant_name: tenantName },
+    REMINDER_FALLBACK
+  );
+  return /iptal/i.test(body) ? body : `${body} ${CANCEL_HINT}`;
+}
+
+async function sendReminder(to: string, text: string): Promise<boolean> {
   const delivery = await sendCustomerNotification(to, text);
   return delivery.whatsapp || delivery.sms;
 }
@@ -70,6 +92,8 @@ export async function GET(request: NextRequest) {
     ])
   );
 
+  const messageContexts = await loadTenantMessageContexts(tenantIds);
+
   const candidates = (appointments || []).filter((apt) => {
     const extra = (apt.extra_data as Record<string, unknown>) || {};
     if (typeof extra.reminder_2h_sent_at === "string") return false;
@@ -96,7 +120,13 @@ export async function GET(request: NextRequest) {
           timeZone: tz,
         });
         const tenantName = tenantMap.get(apt.tenant_id)?.name || "İşletme";
-        const ok = await sendReminder(apt.customer_phone, tenantName, dateStr, timeStr);
+        const reminderText = buildReminderText(
+          messageContexts.get(apt.tenant_id),
+          dateStr,
+          timeStr,
+          tenantName
+        );
+        const ok = await sendReminder(apt.customer_phone, reminderText);
         if (!ok) {
           await clearAppointmentExtraFlag(apt.id, extra, "reminder_2h_sent_at");
           return false;

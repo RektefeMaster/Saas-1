@@ -8,8 +8,16 @@ import {
   setTenantCache,
 } from "../../redis";
 import { sendWhatsAppMessage } from "../../whatsapp";
-import { getCustomerHistory, formatHistoryForPrompt } from "@/services/customerHistory.service";
-import { getCrmCustomer } from "@/services/crmCustomer.service";
+import {
+  getCustomerHistory,
+  formatHistoryForPrompt,
+  getCustomerUpcomingAppointments,
+  formatUpcomingForPrompt,
+} from "@/services/customerHistory.service";
+import {
+  formatCrmProfileForPrompt,
+  getCrmCustomer,
+} from "@/services/crmCustomer.service";
 import {
   touchLeadContact,
   getLeadMemory,
@@ -32,11 +40,33 @@ import {
 import { getDailyAvailability, reserveAppointment } from "@/services/booking.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
 import { detectDeterministicIntent } from "@/lib/intent";
+import { getSectorProfile } from "@/services/sectorProfile.service";
 import {
   detectConsentIntent,
   setMarketingOptOut,
 } from "@/services/marketingConsent.service";
 import { phonesMatch } from "@/lib/phone";
+import {
+  applyCriticalGuardrails,
+  type ToolEvidence,
+} from "./critical-guardrails";
+import {
+  evaluateHandoff,
+  buildHandoffSummarySnapshot,
+} from "@/services/handoffPolicy.service";
+import {
+  applyHandoffToConversation,
+  ensureConversation,
+  getConversationAutomationMode,
+  isAutomationSoftPaused,
+  linkConversationCustomer,
+  resumeConversationToAi,
+} from "@/services/conversation.service";
+import {
+  formatKnowledgeForPrompt,
+  listApprovedKnowledgeForBot,
+} from "@/services/tenantKnowledge.service";
+import { emitTurnCrmEvents } from "./crm-events";
 import type {
   BotConfig,
   MergedConfig,
@@ -100,7 +130,7 @@ import { executeToolCall } from "./tools/executor";
 import { validateToolArgs } from "./tools/tool-schemas";
 import { getValidNextStep } from "../fsm/bot-state-machine";
 import { withRetry } from "@/lib/retry";
-import { isAdminTakeoverReason } from "@/lib/human-takeover";
+import { isLiveHumanTakeoverReason } from "@/lib/human-takeover";
 import { tryHandleReview } from "./review-flow";
 
 // ── Human escalation ────────────────────────────────────────────────────────────
@@ -331,7 +361,7 @@ export async function processMessage(
   tenantId: string,
   customerPhone: string,
   incomingMessage: string,
-  options?: { existingSession?: ConversationState | null }
+  options?: { existingSession?: ConversationState | null; messageId?: string | null }
 ): Promise<{ reply: string; stateReset?: boolean; metrics?: ProcessMessageMetrics }> {
   try {
     const [tenant, sessionPrefetch, blocked] = await Promise.all([
@@ -363,6 +393,8 @@ export async function processMessage(
     const tone = msgs.tone ?? "sen";
     const effectiveMessage = normalizeHalfHourRequest(incomingMessage);
     const flowType = (bt?.config?.flow_type as FlowType) || "appointment";
+    // Sektör profili: ton (esnaf ağzı) ve sağlık/operasyon kuralları buradan.
+    const sector = getSectorProfile(bt?.slug, bt?.name);
 
     // ── Oturum başlatma (tek yerde, her erken dönüşten ÖNCE) ───────────────────
     let state: ConversationState | null = sessionPrefetch;
@@ -469,24 +501,186 @@ export async function processMessage(
       );
     }
 
-    if (isHumanEscalationRequest(effectiveMessage)) {
-      let escalationReply = "";
-      if (mergedConfig) {
-        escalationReply = buildConfigMessage(
-          mergedConfig,
-          "human_escalation",
-          {
-            contact_phone: tenant.contact_phone?.trim() ?? "",
-            working_hours: tenant.working_hours_text?.trim() ?? "",
-          },
-          tenant.name
-        );
-      }
-      if (!escalationReply) escalationReply = buildHumanEscalationMessage(tenant, tone);
-      return persistAndReply(escalationReply, {
-        step: "PAUSED_FOR_HUMAN",
-        pause_reason: "human_request",
+    // Soft-pause BEFORE handoff — otherwise sticky pause re-escalates every turn.
+    {
+      const pausedConv = await ensureConversation({
+        tenantId,
+        externalUserId: customerPhone,
       });
+      const pgMode =
+        pausedConv?.automation_mode ||
+        (await getConversationAutomationMode(tenantId, customerPhone));
+      const softPaused = isAutomationSoftPaused(pgMode);
+
+      if (softPaused) {
+        if (isLiveHumanTakeoverReason(state.pause_reason)) {
+          return persistAndReply(
+            "Bu sohbet şu an insan destek ekibinde. Botu yalnızca yönetici yeniden devreye alabilir.",
+            {},
+            { recordHistory: false }
+          );
+        }
+        const pausedAt = pausedConv?.automation_mode_updated_at
+          ? new Date(pausedConv.automation_mode_updated_at).getTime()
+          : state.updated_at
+            ? new Date(state.updated_at).getTime()
+            : 0;
+        const inactiveMs = Date.now() - pausedAt;
+        const wantsBotResume =
+          /\bbot(?:u)?\s+devam(?:\s+ettir)?\b|\bgeri\s+d[öo]n(?:ün)?\b/i.test(
+            effectiveMessage
+          );
+        const autoResume =
+          Number.isFinite(pausedAt) &&
+          pausedAt > 0 &&
+          inactiveMs >= 2 * 60 * 60 * 1000;
+        if (!wantsBotResume && !autoResume) {
+          if (state.step !== "PAUSED_FOR_HUMAN") {
+            state = {
+              ...state,
+              step: "PAUSED_FOR_HUMAN",
+              pause_reason: state.pause_reason || "automation_paused",
+              updated_at: new Date().toISOString(),
+            };
+            await setSession(tenantId, customerPhone, state);
+          }
+          return persistAndReply(
+            tone === "siz"
+              ? "Bu sohbet şu an insan desteğinde. Botu tekrar devreye almak için \"bot devam\" yazabilirsiniz."
+              : "Bu sohbet şu an insan desteğinde. Botu tekrar devreye almak için \"bot devam\" yazabilirsin.",
+            { step: "PAUSED_FOR_HUMAN" },
+            { recordHistory: false }
+          );
+        }
+        if (pausedConv?.id && pausedConv.automation_mode === "AUTOMATION_PAUSED") {
+          const resumed = await resumeConversationToAi({
+            actor: { kind: "admin", canAccessAllTenants: true },
+            tenantId,
+            conversationId: pausedConv.id,
+            expectedVersion: pausedConv.version,
+          }).catch((err) => {
+            console.warn("[ai] bot-resume PG clear failed", err);
+            return null;
+          });
+          if (!resumed || resumed.automation_mode !== "AI_ACTIVE") {
+            return persistAndReply(
+              tone === "siz"
+                ? "Botu henüz yeniden açamadım. Lütfen biraz sonra \"bot devam\" yazın veya ekibimizi bekleyin."
+                : "Botu henüz yeniden açamadım. Lütfen biraz sonra \"bot devam\" yaz veya ekibi bekle.",
+              { step: "PAUSED_FOR_HUMAN" },
+              { recordHistory: false }
+            );
+          }
+        }
+        state = {
+          ...state,
+          step: "RECOVERY_CHECK",
+          pause_reason: null,
+          updated_at: new Date().toISOString(),
+        };
+        await setSession(tenantId, customerPhone, state);
+      }
+    }
+
+    // Handoff policy (human request + crisis / medical risk, etc.)
+    {
+      const handoffDecision = evaluateHandoff({
+        humanRequested: isHumanEscalationRequest(effectiveMessage),
+        misunderstandingCount: state?.consecutive_misunderstandings ?? 0,
+        isAbusive: isAbusiveMessage(effectiveMessage),
+        healthcare: sector.healthcare,
+        messageText: effectiveMessage,
+      });
+      if (handoffDecision.shouldHandoff && handoffDecision.primaryReason) {
+        let escalationReply = "";
+        if (mergedConfig) {
+          escalationReply = buildConfigMessage(
+            mergedConfig,
+            "human_escalation",
+            {
+              contact_phone: tenant.contact_phone?.trim() ?? "",
+              working_hours: tenant.working_hours_text?.trim() ?? "",
+            },
+            tenant.name
+          );
+        }
+        if (!escalationReply) {
+          if (handoffDecision.primaryReason === "MEDICAL_RISK") {
+            escalationReply =
+              tone === "siz"
+                ? "Bu durumda sağlık değerlendirmesi gerekir; lütfen kliniğimizi arayın veya acilse 112'yi arayın. Sizi ekibimize de iletiyorum."
+                : "Bu durumda sağlık değerlendirmesi gerekir; lütfen kliniğimizi ara veya acilse 112'yi ara. Seni ekibimize de iletiyorum.";
+          } else {
+            escalationReply = buildHumanEscalationMessage(tenant, tone);
+          }
+        }
+        const selected = getSelectedServiceFromExtracted(
+          (state?.extracted || {}) as Record<string, unknown>
+        );
+        const snapshot = buildHandoffSummarySnapshot({
+          intent: handoffDecision.primaryReason,
+          serviceName: selected.name || null,
+          serviceId: selected.slug || null,
+          collectedFields: (state?.extracted || {}) as Record<string, unknown>,
+          decision: handoffDecision,
+          plainSummary: `Aktarım: ${handoffDecision.primaryReason}`,
+        });
+        // Worker already touched inbound; do NOT upsert-inbound again (unread++).
+        const conv = await ensureConversation({
+          tenantId,
+          externalUserId: customerPhone,
+        });
+        let handoffOk = false;
+        if (conv?.id) {
+          const handed = await applyHandoffToConversation({
+            tenantId,
+            conversationId: conv.id,
+            reason: handoffDecision.primaryReason,
+            summarySnapshot: snapshot,
+            priority: handoffDecision.priority,
+          }).catch((err) => {
+            console.warn("[ai] handoff conversation update failed", err);
+            return null;
+          });
+          handoffOk = Boolean(
+            handed &&
+              (handed.automation_mode === "AUTOMATION_PAUSED" ||
+                handed.automation_mode === "HUMAN_ACTIVE")
+          );
+        }
+        void emitTurnCrmEvents({
+          tenantId,
+          customerPhone,
+          messageText: effectiveMessage,
+          customerName:
+            ((state?.extracted as { customer_name?: string } | undefined)
+              ?.customer_name as string) || null,
+          handoffReason: handoffDecision.primaryReason,
+          messageId: options?.messageId,
+        })
+          .then((customerId) => {
+            if (customerId && conv?.id) {
+              return linkConversationCustomer({
+                tenantId,
+                conversationId: conv.id,
+                customerId,
+              });
+            }
+            return undefined;
+          })
+          .catch(() => undefined);
+
+        // Always escalate to the customer. Pause Redis only when Postgres landed
+        // (prevents Redis PAUSED + PG AI_ACTIVE split-brain).
+        if (!handoffOk) {
+          console.warn("[ai] handoff PG failed — escalate without Redis pause");
+          return persistAndReply(escalationReply);
+        }
+        return persistAndReply(escalationReply, {
+          step: "PAUSED_FOR_HUMAN",
+          pause_reason: handoffDecision.primaryReason.toLowerCase(),
+        });
+      }
     }
 
     if (blocked) {
@@ -506,36 +700,6 @@ export async function processMessage(
     );
     if (reviewResult.handled && reviewResult.reply) {
       return persistAndReply(reviewResult.reply);
-    }
-
-    if (state.step === "PAUSED_FOR_HUMAN") {
-      if (isAdminTakeoverReason(state.pause_reason)) {
-        return persistAndReply(
-          "Bu sohbet şu an insan destek ekibinde. Botu yalnızca yönetici yeniden devreye alabilir.",
-          {},
-          { recordHistory: false }
-        );
-      }
-      const pausedAt = state.updated_at ? new Date(state.updated_at).getTime() : 0;
-      const inactiveMs = Date.now() - pausedAt;
-      const wantsBotResume = /bot devam|devam et|geri don|geri dön/i.test(effectiveMessage);
-      const autoResume = Number.isFinite(pausedAt) && inactiveMs >= 2 * 60 * 60 * 1000;
-      if (!wantsBotResume && !autoResume) {
-        return persistAndReply(
-          tone === "siz"
-            ? "Bu sohbet şu an insan desteğinde. Botu tekrar devreye almak için \"bot devam\" yazabilirsiniz."
-            : "Bu sohbet şu an insan desteğinde. Botu tekrar devreye almak için \"bot devam\" yazabilirsin.",
-          {},
-          { recordHistory: false }
-        );
-      }
-      state = {
-        ...state,
-        step: "RECOVERY_CHECK",
-        pause_reason: null,
-        updated_at: new Date().toISOString(),
-      };
-      await setSession(tenantId, customerPhone, state);
     }
 
     const globalInterrupt = detectGlobalInterruptIntent(effectiveMessage);
@@ -823,21 +987,59 @@ export async function processMessage(
           .slice(0, 13)}`,
       }).catch((e) => console.error("[ai] ops alert create error:", e));
 
+      // "usta" her sektörde uygun değil; hitap sektör profilinden gelir.
       return persistAndReply(
         tone === "siz"
-          ? "Bilgiyi ustaya ilettim. Geldiğinizde program yoğunluğuna göre kısa bir bekleme olabilir."
-          : "Bilgiyi ustaya ilettim. Geldiğinde program yoğunluğuna göre kısa bir bekleme olabilir."
+          ? `Bilgiyi ${sector.staffNoun} ilettim. Geldiğinizde program yoğunluğuna göre kısa bir bekleme olabilir.`
+          : `Bilgiyi ${sector.staffNoun} ilettim. Geldiğinde program yoğunluğuna göre kısa bir bekleme olabilir.`
       );
     }
 
     // ── Build context ──
-    const [history, customerProfile, leadMemory] = await Promise.all([
-      getCustomerHistory(tenantId, customerPhone),
-      getCrmCustomer(tenantId, customerPhone),
-      getLeadMemory(tenantId, customerPhone),
-    ]);
+    const [history, customerProfile, leadMemory, upcoming, knowledgeEntries] =
+      await Promise.all([
+        getCustomerHistory(tenantId, customerPhone),
+        getCrmCustomer(tenantId, customerPhone),
+        getLeadMemory(tenantId, customerPhone),
+        getCustomerUpcomingAppointments(tenantId, customerPhone),
+        listApprovedKnowledgeForBot(tenantId),
+      ]);
     const historySummary = formatHistoryForPrompt(history);
     const leadMemoryText = formatLeadMemoryForPrompt(leadMemory);
+    const upcomingText = formatUpcomingForPrompt(upcoming);
+    const crmProfileText = formatCrmProfileForPrompt(customerProfile);
+    const knowledgeText = formatKnowledgeForPrompt(knowledgeEntries);
+
+    const selectedForEvents = getSelectedServiceFromExtracted(
+      (state?.extracted || {}) as Record<string, unknown>
+    );
+    void emitTurnCrmEvents({
+      tenantId,
+      customerPhone,
+      messageText: effectiveMessage,
+      customerName:
+        customerProfile?.customer_name ||
+        ((state?.extracted as { customer_name?: string } | undefined)
+          ?.customer_name as string) ||
+        null,
+      serviceSelected: Boolean(selectedForEvents.slug),
+      messageId: options?.messageId,
+    })
+      .then(async (customerId) => {
+        if (!customerId) return;
+        const conv = await ensureConversation({
+          tenantId,
+          externalUserId: customerPhone,
+        });
+        if (conv?.id) {
+          await linkConversationCustomer({
+            tenantId,
+            conversationId: conv.id,
+            customerId,
+          });
+        }
+      })
+      .catch(() => undefined);
 
     if (customerProfile?.customer_name && !(state?.extracted as { customer_name?: string })?.customer_name) {
       const ext = (state?.extracted || {}) as Record<string, unknown>;
@@ -853,7 +1055,9 @@ export async function processMessage(
       historySummary,
       effectiveMessage,
       customerProfile,
-      leadMemoryText
+      leadMemoryText,
+      upcomingText,
+      crmProfileText
     );
 
     let systemPrompt: string;
@@ -882,17 +1086,23 @@ export async function processMessage(
         selectedServiceName: selectedService.name,
         pendingCancelId: ext.pending_cancel_appointment_id as string | undefined,
         customerHistory: historySummary,
+        upcomingAppointments: upcomingText,
+        crmProfile: crmProfileText,
         leadMemory: leadMemoryText,
         misunderstandingCount: state?.consecutive_misunderstandings ?? 0,
         stateSummary: buildStateSummary(state),
+        sector,
       };
       systemPrompt = buildConfigSystemPrompt(mergedConfig, tenant.name, promptContext);
     } else {
       const extraPrompt =
         (bt?.config as { ai_prompt_template?: string })?.ai_prompt_template || "";
       systemPrompt =
-        buildSystemPrompt(tenant.name, msgs, extraPrompt) +
+        buildSystemPrompt(tenant.name, msgs, extraPrompt, sector) +
         wrapContextInXml(systemContext);
+    }
+    if (knowledgeText) {
+      systemPrompt = `${systemPrompt}\n\n${knowledgeText}`;
     }
 
     if (!openai) {
@@ -922,6 +1132,7 @@ export async function processMessage(
     let promptTokens = 0;
     let completionTokens = 0;
     let llmLatencyMs = 0;
+    const toolEvidence: ToolEvidence[] = [];
     type TemplateVars = Record<string, string>;
     // Döngü DIŞINDA toplanır: onay şablonu üretildiği anda break edilirse
     // modelin sonraki tool çağrıları (örn. ikinci kişinin randevusu) hiç çalışmıyordu.
@@ -956,12 +1167,30 @@ export async function processMessage(
       const aiMessage = response.choices[0]?.message;
       if (!aiMessage) {
         const prevMis = state?.consecutive_misunderstandings ?? 0;
-        if (prevMis >= 1) {
-          return persistAndReply(buildHumanEscalationMessage(tenant, tone));
+        const nextMis = prevMis + 1;
+        if (nextMis >= 2) {
+          const esc = buildHumanEscalationMessage(tenant, tone);
+          const conv = await ensureConversation({
+            tenantId,
+            externalUserId: customerPhone,
+          });
+          if (conv?.id) {
+            await applyHandoffToConversation({
+              tenantId,
+              conversationId: conv.id,
+              reason: "REPEATED_MISUNDERSTANDING",
+              priority: "high",
+            }).catch(() => undefined);
+          }
+          return persistAndReply(esc, {
+            step: "PAUSED_FOR_HUMAN",
+            pause_reason: "repeated_misunderstanding",
+            consecutive_misunderstandings: nextMis,
+          });
         }
         return persistAndReply(getMisunderstandReply(tone), {
           step: "devam",
-          consecutive_misunderstandings: 1,
+          consecutive_misunderstandings: nextMis,
           retry_count: (state?.retry_count ?? 0) + 1,
         });
       }
@@ -1059,6 +1288,13 @@ export async function processMessage(
           mergedConfig ?? undefined
         );
 
+        const toolOk = toolExec.result?.ok !== false && !toolExec.result?.error;
+        toolEvidence.push({
+          name: tc.function.name,
+          ok: Boolean(toolOk),
+          result: toolExec.result || {},
+        });
+
         openaiMessages.push({
           role: "tool" as const,
           tool_call_id: tc.id,
@@ -1072,14 +1308,16 @@ export async function processMessage(
               (fnArgs.service_slug as string) ??
               ((fnArgs.extra_data as Record<string, unknown>)?.service_slug as string) ??
               "";
-            const readable =
+            const readableWithTime =
               res.date_readable ?? formatDateReadableTr(res.date ?? "", res.time);
+            // {date} SAAT İÇERMEZ. Şablonlar "{date} saat {time}de bekliyoruz"
+            // biçiminde; saatli okunabilir forma bağlanınca müşteriye
+            // "yarın 1 Ağustosta saat 15.00'a saat 15:00de bekliyoruz" gidiyordu.
+            const readableDateOnly = formatDateReadableTr(res.date ?? "");
             confirmationResults.push({
-              // {date} müşteriye giden metinde ISO ("2026-08-02") görünmesin diye
-              // okunabilir forma bağlandı; ham tarih {date_iso} ile hâlâ erişilebilir.
-              date: readable || res.date || "",
+              date: readableDateOnly || res.date || "",
               date_iso: res.date ?? "",
-              date_readable: readable,
+              date_readable: readableWithTime,
               time: res.time ?? "",
               customer_name: res.customer_name ?? "",
               service: typeof serviceVal === "string" ? serviceVal : "",
@@ -1095,15 +1333,17 @@ export async function processMessage(
         if (mergedConfig && tc.function.name === "reschedule_appointment") {
           const res = toolExec.result as { ok?: boolean; new_date?: string; new_date_readable?: string; new_time?: string };
           if (res.ok && res.new_date != null) {
-            const readable =
+            const readableWithTime =
               res.new_date_readable ??
               formatDateReadableTr(res.new_date ?? "", res.new_time);
+            const readableDateOnly = formatDateReadableTr(res.new_date ?? "");
             templateReply = {
               key: "rescheduled",
               vars: {
-                date: readable || res.new_date || "",
+                // Saat ayrı {time} ile geliyor; {date} saatsiz olmalı.
+                date: readableDateOnly || res.new_date || "",
                 date_iso: res.new_date ?? "",
-                date_readable: readable,
+                date_readable: readableWithTime,
                 time: res.new_time ?? "",
               },
             };
@@ -1197,6 +1437,21 @@ export async function processMessage(
     }
     finalReply = normalizeAssistantReply(finalReply);
     if (!finalReply) finalReply = getProcessErrorReply(tone);
+
+    // A0 — Critical runtime guardrails (tool/DB evidence required for hard claims)
+    const guardrail = applyCriticalGuardrails(finalReply, {
+      healthcare: sector.healthcare,
+      toolEvidence,
+      tone,
+    });
+    if (guardrail.action !== "allow") {
+      console.warn("[ai] guardrail_blocked", {
+        reason: guardrail.reason,
+        tenant_id: tenantId,
+      });
+      finalReply = guardrail.reply;
+    }
+
     const metrics: ProcessMessageMetrics = {
       prompt_tokens: promptTokens,
       completion_tokens: completionTokens,

@@ -16,7 +16,3 @@ export const logger = pino({
       : undefined,
 });
 
-/** Tenant bazlı child logger (traceId, tenantId ekler). */
-export function createChildLogger(bindings: Record<string, string | number | boolean | undefined>) {
-  return logger.child(bindings);
-}

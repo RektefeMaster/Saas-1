@@ -2,7 +2,7 @@ import { supabase } from "../../supabase";
 import { getCrmCustomer } from "@/services/crmCustomer.service";
 import type { ConversationState } from "../../database.types";
 import { localDateStr } from "./context-builder";
-import { APP_TIMEZONE, MAX_CHAT_HISTORY_TURNS } from "./constants";
+import { APP_TIMEZONE, MAX_CHAT_HISTORY_TURNS, TR_DAY_NAMES_FULL } from "./constants";
 import type { ChatMessage } from "../../database.types";
 
 export function formatDateTr(dateStr: string): string {
@@ -118,4 +118,8 @@ export function trimChatHistory(history: ChatMessage[]): ChatMessage[] {
   const maxMessages = MAX_CHAT_HISTORY_TURNS * 2;
   if (history.length <= maxMessages) return history;
   return history.slice(-maxMessages);
+}
+
+export function dayOfWeekToTurkish(dow: number): string {
+  return TR_DAY_NAMES_FULL[dow] || String(dow);
 }

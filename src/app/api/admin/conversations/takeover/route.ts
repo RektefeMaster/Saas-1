@@ -7,6 +7,10 @@ import { supabase } from "@/lib/supabase";
 import { logConversationMessage } from "@/services/conversationMessages.service";
 import { logTenantEvent } from "@/services/eventLog.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
+import {
+  applyHandoffToConversation,
+  ensureConversation,
+} from "@/services/conversation.service";
 
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as {
@@ -38,9 +42,43 @@ export async function POST(request: NextRequest) {
   }
 
   const nowIso = new Date().toISOString();
-  const existing = await getSession(tenantId, phoneDigits);
   const reason = buildAdminTakeoverReason(actor);
 
+  // Postgres first (SoT). Redis is FSM mirror only.
+  const conv = await ensureConversation({
+    tenantId,
+    externalUserId: phoneDigits,
+  });
+  if (!conv?.id) {
+    return NextResponse.json(
+      { error: "Konuşma satırı oluşturulamadı (migration 038?)" },
+      { status: 500 }
+    );
+  }
+
+  const handed = await applyHandoffToConversation({
+    tenantId,
+    conversationId: conv.id,
+    reason,
+    automationMode: "HUMAN_ACTIVE",
+    summarySnapshot: {
+      version: 1,
+      generatedAt: nowIso,
+      plainSummary: note || "Admin takeover",
+      recommendedAction: "Admin canlı destekte",
+      handoffSignals: [{ type: "ADMIN_TAKEOVER", severity: "high", evidence: [actor] }],
+    },
+    priority: "high",
+  });
+
+  if (!handed || handed.automation_mode !== "HUMAN_ACTIVE") {
+    return NextResponse.json(
+      { error: "Postgres takeover başarısız" },
+      { status: 500 }
+    );
+  }
+
+  const existing = await getSession(tenantId, phoneDigits);
   const nextState: ConversationState = {
     ...(existing || {
       tenant_id: tenantId,
@@ -59,7 +97,9 @@ export async function POST(request: NextRequest) {
     updated_at: nowIso,
   };
 
-  await setSession(tenantId, phoneDigits, nextState);
+  await setSession(tenantId, phoneDigits, nextState).catch((err) =>
+    console.warn("[admin/takeover] redis mirror failed", err)
+  );
 
   await logConversationMessage({
     tenantId,
@@ -72,6 +112,7 @@ export async function POST(request: NextRequest) {
       actor,
       pause_reason: reason,
       tenant_name: tenant.name || null,
+      conversation_id: conv.id,
     },
   });
 
@@ -86,6 +127,7 @@ export async function POST(request: NextRequest) {
       visibility: "internal",
       actor,
       note: note || null,
+      conversation_id: conv.id,
     },
     dedupeKey: `admin_takeover:${tenantId}:${phoneDigits}:${nowIso.slice(0, 16)}`,
   }).catch(() => undefined);
@@ -100,6 +142,7 @@ export async function POST(request: NextRequest) {
       customer_phone_digits: phoneDigits,
       note: note || null,
       pause_reason: reason,
+      conversation_id: conv.id,
     },
   }).catch(() => undefined);
 
@@ -107,6 +150,8 @@ export async function POST(request: NextRequest) {
     success: true,
     tenant_id: tenantId,
     customer_phone_digits: phoneDigits,
+    conversation_id: conv.id,
+    automation_mode: handed.automation_mode,
     step: nextState.step,
     pause_reason: nextState.pause_reason || null,
     updated_at: nextState.updated_at,

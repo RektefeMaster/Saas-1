@@ -492,31 +492,6 @@ export async function setPhoneTenantMapping(
   }
 }
 
-export async function clearPhoneTenantMapping(customerPhone: string): Promise<void> {
-  const digits = normalizePhoneDigits(customerPhone);
-  if (!digits) return;
-  const key = PHONE_TENANT_PREFIX + digits;
-
-  if (redis) {
-    try {
-      await redis.del(key);
-    } catch (err) {
-      logRedisFallback("clearPhoneTenantMapping", err);
-    }
-  }
-  phoneTenantStore.delete(key);
-
-  if (isSupabaseConfigured()) {
-    try {
-      await supabase
-        .from("phone_tenant_mappings")
-        .delete()
-        .eq("customer_phone_digits", digits);
-    } catch {
-      // Tablo yoksa veya hata varsa sessizce devam et
-    }
-  }
-}
 
 /**
  * [YENİ] Tenant cache — get. TTL 5 dk. Cache miss → null (DB'den çekilip setTenantCache ile yazılır).
@@ -1664,26 +1639,6 @@ export async function setBookingSlotHold(
   return payload;
 }
 
-export async function getBookingSlotHold(
-  tenantId: string,
-  date: string,
-  time: string,
-  staffId?: string | null
-): Promise<BookingHoldRecord | null> {
-  const key = bookingHoldKey(tenantId, date, time, staffId);
-  if (redis) {
-    try {
-      const raw = await redis.get<unknown>(key);
-      return parseRedisJson<BookingHoldRecord>(raw);
-    } catch (err) {
-      logRedisFallback("getBookingSlotHold", err);
-    }
-  }
-  const mem = bookingHoldMemory.get(key);
-  if (mem && mem.expiry > Date.now()) return mem.value;
-  bookingHoldMemory.delete(key);
-  return null;
-}
 
 export async function clearBookingSlotHold(
   tenantId: string,

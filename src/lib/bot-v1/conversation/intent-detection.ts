@@ -3,11 +3,9 @@ import {
 } from "./normalizers";
 import {
   BUSINESS_SCOPE_KEYWORDS,
-  OFFTOPIC_KEYWORDS,
   ABUSIVE_KEYWORDS,
   GREETING_KEYWORDS,
   SMALLTALK_KEYWORDS,
-  NEGOTIATION_KEYWORDS,
 } from "./constants";
 
 /**
@@ -98,13 +96,6 @@ export function isAbusiveMessage(message: string): boolean {
   return containsWord(text, ABUSIVE_KEYWORDS);
 }
 
-export function isOutOfScopeMessage(message: string): boolean {
-  const text = normalizeIncomingText(message);
-  if (!text) return false;
-  if (containsWord(text, BUSINESS_SCOPE_KEYWORDS)) return false;
-  return containsWord(text, OFFTOPIC_KEYWORDS);
-}
-
 /**
  * Mesaj SADECE selam/hatır sorma mı? "Merhaba, yarın yer var mı?" gibi içinde
  * gerçek bir talep olan mesajlar buraya girmemeli — eskiden giriyordu ve talep
@@ -134,11 +125,6 @@ export function isGreetingOrSmallTalkOnly(message: string): boolean {
 
   // Selamlamadan geriye anlamlı içerik kaldıysa bu "sadece selam" değildir.
   return stripped.length === 0;
-}
-
-export function isNegotiationMessage(message: string): boolean {
-  const text = normalizeIncomingText(message);
-  return containsWord(text, NEGOTIATION_KEYWORDS);
 }
 
 function hasHumanEscalationToken(text: string): boolean {
@@ -171,6 +157,41 @@ export type GlobalInterruptIntent =
   | "ASK_FAQ"
   | "HUMAN_REQUEST";
 
+/**
+ * "boşver / vazgeçtim" akışı SIFIRLAR (seçili hizmet, tarih, isim silinir).
+ * Bu yüzden yalnızca mesajın ana niyeti buysa tetiklenmeli.
+ *
+ * Gerçek vaka: "Bugüne alalım ya boşver" cümlesinde müşteri randevuyu bugüne
+ * çekmek istiyordu; substring eşleşmesi tüm akışı kapatıp seçili hizmeti sildi
+ * ve müşteri baştan anlatmak zorunda kaldı.
+ */
+const ABANDON_WORDS = ["vazgectim", "bosver", "bosverin", "bosverelim"];
+
+/** Vazgeçme ifadesinin yanında anlam taşımayan dolgu sözcükleri. */
+const ABANDON_FILLERS = ["ya", "artik", "iste", "hadi", "yani", "tamam", "peki", "he", "ee"];
+
+function isAbandonFlowMessage(text: string): boolean {
+  if (!containsWord(text, ABANDON_WORDS)) return false;
+  // Mesajda hâlâ bir iş talebi varsa (randevu/saat/hizmet) akışı silme.
+  if (containsWord(text, BUSINESS_SCOPE_KEYWORDS)) return false;
+
+  // Vazgeçme + dolgu sözcükleri atıldığında geriye anlamlı içerik kalıyorsa
+  // ("bugüne alalım ya boşver") müşteri akışı kapatmıyor, konuyu değiştiriyor.
+  const stripped = [...ABANDON_WORDS, ...ABANDON_FILLERS]
+    .reduce(
+      (acc, word) =>
+        acc.replace(
+          new RegExp(`(?:^|[^\\p{L}\\p{N}])${word}(?:$|[^\\p{L}\\p{N}])`, "gu"),
+          " "
+        ),
+      ` ${text} `
+    )
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+
+  return stripped.length === 0;
+}
+
 export function detectGlobalInterruptIntent(message: string): GlobalInterruptIntent | null {
   const text = normalizeIncomingText(message);
   if (!text) return null;
@@ -179,14 +200,7 @@ export function detectGlobalInterruptIntent(message: string): GlobalInterruptInt
     return "HUMAN_REQUEST";
   }
 
-  if (
-    text === "vazgectim" ||
-    text === "vazgeçtim" ||
-    text.includes("vazgectim") ||
-    text.includes("vazgeçtim") ||
-    text.includes("bosver") ||
-    text.includes("boşver")
-  ) {
+  if (isAbandonFlowMessage(text)) {
     return "CANCEL_FLOW";
   }
 
@@ -213,17 +227,3 @@ export function detectGlobalInterruptIntent(message: string): GlobalInterruptInt
   return null;
 }
 
-/** Tüm trafik Luna; kademeli model routing yok. */
-export function classifyModelRouting(_incomingMessage: string): {
-  tier: "simple" | "complex";
-  reason: "simple";
-} {
-  return { tier: "simple", reason: "simple" };
-}
-
-/** @deprecated Prefer classifyModelRouting. Her zaman simple (Luna). */
-export async function classifyIntentForRouting(
-  _incomingMessage: string
-): Promise<"simple" | "complex"> {
-  return "simple";
-}

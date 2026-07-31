@@ -4,10 +4,68 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { isValidUsername } from "@/lib/username-auth";
+import {
+  detectSectorKey,
+  isWizardAllowedBusinessTypeSlug,
+  type SectorKey,
+} from "@/services/sectorProfile.service";
 
 interface BusinessType {
   id: string;
   name: string;
+  slug?: string;
+}
+
+/**
+ * Sektöre göre başlangıç hizmetleri. Sihirbaz her işletmeye "Saç Kesimi"
+ * öneriyordu; diş kliniği veya lazer merkezi kurulumunda bu satır elle
+ * siliniyor, çoğu zaman yanlış hizmetle kaydediliyordu.
+ */
+const SECTOR_STARTER_SERVICES: Record<
+  SectorKey,
+  Array<{ name: string; duration_minutes: number }>
+> = {
+  "hair-beauty": [
+    { name: "Saç Kesimi", duration_minutes: 30 },
+    { name: "Fön", duration_minutes: 30 },
+    { name: "Boya", duration_minutes: 120 },
+  ],
+  nail: [
+    { name: "Manikür", duration_minutes: 45 },
+    { name: "Pedikür", duration_minutes: 60 },
+    { name: "Kalıcı Oje", duration_minutes: 60 },
+  ],
+  "laser-aesthetic": [
+    { name: "Lazer Epilasyon - Koltuk Altı", duration_minutes: 15 },
+    { name: "Lazer Epilasyon - Bacak", duration_minutes: 45 },
+    { name: "Cilt Bakımı", duration_minutes: 60 },
+  ],
+  dental: [
+    { name: "Muayene", duration_minutes: 30 },
+    { name: "Diş Taşı Temizliği", duration_minutes: 45 },
+    { name: "Dolgu", duration_minutes: 45 },
+  ],
+  veterinary: [
+    { name: "Muayene", duration_minutes: 30 },
+    { name: "Aşı", duration_minutes: 20 },
+  ],
+  "auto-service": [
+    { name: "Periyodik Bakım", duration_minutes: 90 },
+    { name: "Yağ Değişimi", duration_minutes: 45 },
+  ],
+  "home-service": [{ name: "Yerinde Hizmet", duration_minutes: 60 }],
+  generic: [{ name: "Standart Hizmet", duration_minutes: 30 }],
+};
+
+function buildStarterServices(sectorKey: SectorKey): ServiceDraft[] {
+  return SECTOR_STARTER_SERVICES[sectorKey].map((item) => ({
+    name: item.name,
+    description: "",
+    duration_minutes: item.duration_minutes,
+    price: "",
+    price_visible: true,
+    is_active: true,
+  }));
 }
 
 interface ServiceDraft {
@@ -66,6 +124,7 @@ export default function NewTenantWizardPage() {
   const [sms2faEnabled, setSms2faEnabled] = useState(true);
 
   const [slotDuration, setSlotDuration] = useState(30);
+  const [bufferMinutes, setBufferMinutes] = useState(0);
   const [advanceBookingDays, setAdvanceBookingDays] = useState(30);
   const [cancellationHours, setCancellationHours] = useState(2);
   const [weeklySlots, setWeeklySlots] = useState<SlotDraft[]>(DEFAULT_SLOTS);
@@ -76,16 +135,11 @@ export default function NewTenantWizardPage() {
     reason: "",
   });
 
-  const [services, setServices] = useState<ServiceDraft[]>([
-    {
-      name: "Saç Kesimi",
-      description: "",
-      duration_minutes: 30,
-      price: "",
-      price_visible: true,
-      is_active: true,
-    },
-  ]);
+  const [services, setServices] = useState<ServiceDraft[]>(() =>
+    buildStarterServices("generic")
+  );
+  /** Kullanıcı hizmetlere dokunduysa tip değişiminde üzerine yazma. */
+  const [servicesTouched, setServicesTouched] = useState(false);
 
   const [crmTags, setCrmTags] = useState("VIP, Düzenli");
   const [crmReminderChannel, setCrmReminderChannel] = useState<"panel" | "whatsapp" | "both">(
@@ -109,7 +163,18 @@ export default function NewTenantWizardPage() {
   useEffect(() => {
     fetch("/api/admin/business-types")
       .then((r) => r.json())
-      .then((data) => (Array.isArray(data) ? setTypes(data as BusinessType[]) : setTypes([])))
+      .then((data) => {
+        if (!Array.isArray(data)) {
+          setTypes([]);
+          return;
+        }
+        // Yan sektörler (oto/vet/halı) kodda kalır; wizard'da gösterme.
+        // Empty filtered must NOT fall back to full list (would re-expose side sectors).
+        const filtered = (data as BusinessType[]).filter((t) =>
+          isWizardAllowedBusinessTypeSlug(t.slug || t.name)
+        );
+        setTypes(filtered);
+      })
       .catch(() => setTypes([]));
   }, []);
 
@@ -152,8 +217,18 @@ export default function NewTenantWizardPage() {
   };
 
   const updateService = (index: number, patch: Partial<ServiceDraft>) => {
+    setServicesTouched(true);
     setServices((prev) => prev.map((item, i) => (i === index ? { ...item, ...patch } : item)));
   };
+
+  const selectedType = types.find((type) => type.id === businessTypeId);
+  const sectorKey = detectSectorKey(selectedType?.slug, selectedType?.name);
+
+  // İşletme tipi seçildiğinde hizmet listesini sektöre göre öner.
+  useEffect(() => {
+    if (servicesTouched || !businessTypeId) return;
+    setServices(buildStarterServices(sectorKey));
+  }, [businessTypeId, sectorKey, servicesTouched]);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -176,6 +251,7 @@ export default function NewTenantWizardPage() {
       },
       scheduling: {
         slot_duration_minutes: slotDuration,
+        buffer_minutes: bufferMinutes,
         advance_booking_days: advanceBookingDays,
         cancellation_hours: cancellationHours,
         weekly_slots: weeklySlots,
@@ -481,6 +557,19 @@ export default function NewTenantWizardPage() {
                 <p className="mt-1 text-xs text-slate-500">Her randevu hücresi (örn: 30 dakika)</p>
               </div>
               <div>
+                <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">Randevular arası boşluk (dk)</label>
+                <input
+                  type="number"
+                  min={0}
+                  max={60}
+                  step={5}
+                  value={bufferMinutes}
+                  onChange={(e) => setBufferMinutes(Math.max(0, Math.min(60, Number(e.target.value) || 0)))}
+                  className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm"
+                />
+                <p className="mt-1 text-xs text-slate-500">Toparlanma payı; 0 = arka arkaya randevu</p>
+              </div>
+              <div>
                 <label className="mb-1 block text-sm font-medium text-slate-700 dark:text-slate-300">İleri rezervasyon (gün)</label>
                 <input
                   type="number"
@@ -612,7 +701,7 @@ export default function NewTenantWizardPage() {
                 <input
                   value={service.name}
                   onChange={(e) => updateService(index, { name: e.target.value })}
-                  placeholder="Hizmet adı (örn: Saç Kesimi)"
+                  placeholder="Hizmet adı"
                   className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
                 />
                 <input
@@ -649,7 +738,10 @@ export default function NewTenantWizardPage() {
                 </label>
                 <button
                   type="button"
-                  onClick={() => setServices((prev) => prev.filter((_, i) => i !== index))}
+                  onClick={() => {
+                    setServicesTouched(true);
+                    setServices((prev) => prev.filter((_, i) => i !== index));
+                  }}
                   className="rounded-lg border border-red-200 px-2 py-1.5 text-xs font-medium text-red-700"
                 >
                   Sil
@@ -658,7 +750,8 @@ export default function NewTenantWizardPage() {
             ))}
             <button
               type="button"
-              onClick={() =>
+              onClick={() => {
+                setServicesTouched(true);
                 setServices((prev) => [
                   ...prev,
                   {
@@ -669,8 +762,8 @@ export default function NewTenantWizardPage() {
                     price_visible: true,
                     is_active: true,
                   },
-                ])
-              }
+                ]);
+              }}
               className="rounded-xl border border-slate-300 px-4 py-2 text-sm font-medium text-slate-700"
             >
               + Hizmet ekle

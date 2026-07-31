@@ -40,15 +40,33 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
   {
     type: "function",
     function: {
+      name: "get_packages",
+      description:
+        "İşletmenin satışa açık seans paketlerini (ör. 8 seans lazer, 5 seans cilt bakımı) listeler. Müşteri 'paket var mı', 'kaç seans', 'kampanya' diye sorduğunda çağır.",
+      parameters: {
+        type: "object",
+        properties: {
+          service_slug: {
+            type: "string",
+            description: "Opsiyonel; sadece bu hizmete ait paketleri getirir.",
+          },
+        },
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
       name: "match_service",
       description:
-        "Müşterinin söylediği hizmet ifadesini (sadece saç, sakal traşı, saç+fön vb.) fiyat listesindeki hizmete eşleştirir. Randevu almadan önce mutlaka çağır.",
+        "Müşterinin kendi kelimeleriyle tarif ettiği işlemi fiyat listesindeki hizmete eşleştirir. Randevu almadan önce mutlaka çağır.",
       parameters: {
         type: "object",
         properties: {
           user_text: {
             type: "string",
-            description: "Müşterinin hizmet hakkında söylediği metin (örn: sadece saç, sakal traşı)",
+            description:
+              "Müşterinin hizmet hakkında söylediği metin (örn: 'sadece dip boya', 'bacak lazer', 'diş taşı temizliği')",
           },
         },
         required: ["user_text"],
@@ -143,14 +161,24 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "create_recurring",
-      description: "Her hafta aynı gün ve saate tekrar eden randevu oluştur.",
+      description:
+        "Her hafta aynı gün ve saate tekrar eden randevu serisi oluşturur. Belirtilen sayıda haftanın randevusu gerçek randevu olarak açılır; dolu haftalar atlanır ve sonuçta bildirilir.",
       parameters: {
         type: "object",
         properties: {
           day_of_week: { type: "number", description: "0=Pazar..6=Cumartesi" },
           time: { type: "string", description: "HH:MM" },
+          service_slug: {
+            type: "string",
+            description: "Hizmet slug (match_service sonucundan)",
+          },
+          customer_name: { type: "string", description: "Müşterinin adı" },
+          occurrences: {
+            type: "number",
+            description: "Kaç hafta açılacak (varsayılan 4, en fazla 12)",
+          },
         },
-        required: ["day_of_week", "time"],
+        required: ["day_of_week", "time", "service_slug"],
       },
     },
   },
@@ -173,7 +201,8 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "get_services",
-      description: "İşletmenin hizmetlerini ve fiyatlarını listele.",
+      description:
+        "İşletmenin hizmetlerini, fiyatlarını ve işlem sürelerini (duration_minutes) listele.",
       parameters: { type: "object", properties: {} },
     },
   },

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { memo, useMemo } from "react";
+import React, { memo, useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { AlertCircle, CheckCircle2, Clock, Loader2, Star } from "lucide-react";
 import { useDashboardStore } from "@/stores/dashboard-store";
@@ -28,7 +28,7 @@ function OverviewViewInner({ onRunAction, onResolveAlert }: OverviewViewProps) {
   const appointments = useDashboardStore((state) => state.appointments);
 
   const grouped = useMemo(() => groupByDate(appointments), [appointments]);
-  const weekDates = useMemo(() => getWeekDates(new Date()), [Math.floor(Date.now() / 86400000)]);
+  const [weekDates] = useState(() => getWeekDates(new Date()));
   const chartData = useMemo(
     () =>
       weekDates.slice(0, 7).map((dateStr) => {

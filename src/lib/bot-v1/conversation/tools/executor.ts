@@ -3,14 +3,16 @@ import { sendWhatsAppMessage } from "../../../whatsapp";
 import {
   getAvailabilityRange,
   getDailyAvailability,
+  minutesToTime,
   reserveAppointment,
+  timeToMinutes,
 } from "@/services/booking.service";
 import { getCustomerLastActiveAppointment, cancelAppointment } from "@/services/cancellation.service";
+import { getCustomerUpcomingAppointments } from "@/services/customerHistory.service";
 import { addToWaitlist, notifyWaitlist } from "@/services/waitlist.service";
-import { createRecurringAppointment, dayOfWeekToTurkish } from "@/services/recurring.service";
 import { createOpsAlert } from "@/services/opsAlert.service";
 import { isCancelConfirmation, isSoftAffirmation } from "../intent-detection";
-import { formatDateTr, formatDateReadableTr } from "../helpers";
+import { dayOfWeekToTurkish, formatDateTr, formatDateReadableTr } from "../helpers";
 import {
   localDateStr,
   formatSlotDateTimeTr,
@@ -26,10 +28,13 @@ import {
 } from "@/services/merchantNotification.service";
 import { upsertCrmCustomer } from "@/services/crmCustomer.service";
 import { markLeadConverted } from "@/services/leadMemory.service";
+import { publishDomainEvent } from "@/services/domainEvents.service";
 import {
   checkCustomerPackage,
   consumeCustomerPackageSession,
+  listActivePackages,
 } from "@/services/package.service";
+import { createWeeklySeries } from "@/services/appointmentSeries.service";
 import { matchServiceToSlug } from "./match-service";
 import { phoneVariants } from "@/lib/phone";
 
@@ -39,31 +44,32 @@ export interface ToolExecResult {
   sessionUpdate?: Partial<ConversationState>;
 }
 
-async function checkAndNotifyWaitlist(
-  tenantId: string,
-  dateStr: string,
-  configOverride?: Record<string, unknown>
-): Promise<void> {
-  const daily = await getDailyAvailability(tenantId, dateStr, { configOverride });
-  if (daily.available.length === 0) return;
+async function checkAndNotifyWaitlist(tenantId: string, dateStr: string): Promise<void> {
+  // Müsaitlik artık bekleyenin KENDİ hizmetine göre notifyWaitlist içinde
+  // hesaplanıyor; burada sadece işletme adını geçmek yeterli.
   const { data: tenant } = await supabase
     .from("tenants")
     .select("name")
     .eq("id", tenantId)
     .single();
-  await notifyWaitlist(tenantId, dateStr, daily.available, tenant?.name || "İşletme");
+  await notifyWaitlist(tenantId, dateStr, tenant?.name || "İşletme");
 }
 
-async function getAppointmentDate(appointmentId: string): Promise<string | null> {
+async function getAppointmentDateAndService(
+  appointmentId: string
+): Promise<{ date: string; serviceSlug: string | null } | null> {
   const { data } = await supabase
     .from("appointments")
-    .select("slot_start")
+    .select("slot_start, service_slug")
     .eq("id", appointmentId)
     .single();
   if (!data) return null;
   const parsed = new Date(data.slot_start);
   if (isNaN(parsed.getTime())) return null;
-  return localDateStr(parsed);
+  return {
+    date: localDateStr(parsed),
+    serviceSlug: (data.service_slug as string | null) || null,
+  };
 }
 
 function getStateExtracted(state: ConversationState | null): Record<string, unknown> {
@@ -140,6 +146,15 @@ export async function executeToolCall(
     else if (availability.available.length === 0) status = "fully_booked";
     else status = "has_available_slots";
 
+    // O gün dolu görünen saatlerin hangileri MÜŞTERİNİN KENDİ randevusu?
+    // Bu bilgi olmadan bot kendi az önce oluşturduğu randevuyu "başkasının
+    // randevusu" diye anlatıyordu.
+    const ownSlots = (
+      await getCustomerUpcomingAppointments(tenantId, customerPhone, 10).catch(() => [])
+    )
+      .filter((apt) => apt.date === dateStr)
+      .map((apt) => apt.time);
+
     return {
       result: {
         date: dateStr,
@@ -147,6 +162,17 @@ export async function executeToolCall(
         status,
         available: availability.available,
         booked_count: availability.booked.length,
+        // Listelenen saatler bu süreye göre süzüldü. Bot "15:00 uygun, işlem
+        // 17:30'da biter" diyebilsin ve süreyi uydurmasın.
+        service_duration_minutes: daily.durationMinutes,
+        duration_note: `Listedeki her saat ${daily.durationMinutes} dakikalık işlem için uygundur; bu süre boyunca takvim kapanır.`,
+        ...(ownSlots.length > 0
+          ? {
+              your_appointment_times: ownSlots,
+              your_appointment_note:
+                "Bu saatler müşterinin KENDİ randevusu. Dolu diye geçiştirme; 'orası sizin randevunuz' de.",
+            }
+          : {}),
       },
       sessionUpdate: {
         step: "saat_secimi_bekleniyor",
@@ -259,7 +285,13 @@ export async function executeToolCall(
           }
         : {}),
     };
-    let result: { ok: boolean; id?: string; error?: string; suggested_time?: string };
+    let result: {
+      ok: boolean;
+      id?: string;
+      error?: string;
+      suggested_time?: string;
+      duration_minutes?: number;
+    };
     try {
       const reserveResult = await withRetry(() =>
         reserveAppointment({
@@ -279,7 +311,11 @@ export async function executeToolCall(
           suggested_time: reserveResult.suggested_time,
         };
       } else {
-        result = { ok: true, id: reserveResult.id };
+        result = {
+          ok: true,
+          id: reserveResult.id,
+          duration_minutes: reserveResult.duration_minutes,
+        };
       }
     } catch (err) {
       console.error("[ai] createAppointment:", err);
@@ -320,11 +356,29 @@ export async function executeToolCall(
         source: "bot",
       }).catch((e) => console.error("[ai] merchant notify error:", e));
       // Waitlist notify only on cancel (slot freed), not on create.
-      await upsertCrmCustomer(tenantId, customerPhone, customerName);
+      const customerId = await upsertCrmCustomer(tenantId, customerPhone, customerName);
       // Randevu alan lead artık müşteri.
       void markLeadConverted(tenantId, customerPhone).catch((e) =>
         console.warn("[ai] lead convert:", e)
       );
+      if (customerId) {
+        void publishDomainEvent({
+          tenantId,
+          eventType: "APPOINTMENT_CREATED",
+          aggregateType: "crm_customer",
+          aggregateId: customerId,
+          idempotencyKey: `appt_created:${tenantId}:${customerId}:${dateStr}:${timeStr}`,
+          payload: {
+            customerId,
+            customerPhone,
+            dateSelected: true,
+            nameProvided: Boolean(customerName),
+          },
+        }).catch(() => undefined);
+      }
+      const endTime = result.duration_minutes
+        ? minutesToTime(timeToMinutes(timeStr) + result.duration_minutes)
+        : null;
       return {
         result: {
           ok: true,
@@ -332,6 +386,9 @@ export async function executeToolCall(
           date_readable: formatDateReadableTr(dateStr, timeStr),
           time: timeStr,
           customer_name: customerName,
+          ...(result.duration_minutes
+            ? { duration_minutes: result.duration_minutes, end_time: endTime }
+            : {}),
           ...(packageUsageResult
             ? {
                 package_used: packageUsageResult.used,
@@ -506,12 +563,24 @@ export async function executeToolCall(
       reason: args.reason as string,
     });
     if (cancelResult.ok) {
-      // İptal sonrası bekleme listesini bilgilendir
-      const aptDate = await getAppointmentDate(aptId);
-      if (aptDate) {
-        checkAndNotifyWaitlist(tenantId, aptDate, configOverride).catch((e) =>
+      // İptal sonrası bekleme listesini bilgilendir. Boşalan blok iptal edilen
+      // randevunun hizmet süresiyle değerlendirilir.
+      const cancelled = await getAppointmentDateAndService(aptId);
+      if (cancelled) {
+        checkAndNotifyWaitlist(tenantId, cancelled.date).catch((e) =>
           console.error("[ai] waitlist notify after cancel:", e)
         );
+      }
+      const customerId = await upsertCrmCustomer(tenantId, customerPhone);
+      if (customerId) {
+        void publishDomainEvent({
+          tenantId,
+          eventType: "APPOINTMENT_CANCELLED",
+          aggregateType: "crm_customer",
+          aggregateId: customerId,
+          idempotencyKey: `appt_cancel:${tenantId}:${customerId}:${aptId}`,
+          payload: { customerId, customerPhone, appointmentId: aptId },
+        }).catch(() => undefined);
       }
       return { result: { ok: true }, sessionDeleted: true };
     }
@@ -520,9 +589,13 @@ export async function executeToolCall(
 
   if (name === "check_week_availability") {
     const startDate = args.start_date as string;
+    // Seçili hizmet geçilmezse haftalık tarama TAKVİM ADIMIYLA (30 dk) hesaplanıp
+    // 2,5 saatlik bir işleme sığmayan saatleri "boş" gösteriyordu.
+    const weekServiceSlug = resolveSelectedServiceSlug(args, state);
     const range = await getAvailabilityRange(tenantId, startDate, {
       configOverride,
       customerPhone,
+      serviceSlug: weekServiceSlug,
       maxDays: 7,
     });
     const labeled: Record<string, string[]> = {};
@@ -709,25 +782,100 @@ export async function executeToolCall(
   }
 
   if (name === "create_recurring") {
-    const dow = args.day_of_week as number;
-    const time = args.time as string;
-    const res = await createRecurringAppointment(tenantId, customerPhone, dow, time);
-    if (res.ok) {
+    const serviceSlug = resolveSelectedServiceSlug(args, state);
+    if (!serviceSlug) {
       return {
         result: {
-          ok: true,
-          day: dayOfWeekToTurkish(dow),
-          time,
+          ok: false,
+          error:
+            "Seri randevu için önce hizmet belirlenmeli. match_service ile hizmeti eşleştirin.",
         },
       };
     }
-    return { result: { ok: false, error: res.error } };
+    const customerName =
+      (args.customer_name as string | undefined)?.trim() ||
+      ((state?.extracted as { customer_name?: string })?.customer_name ?? "").trim();
+    if (!customerName) {
+      return {
+        result: { ok: false, error: "Seri randevu için müşterinin adı gerekli." },
+      };
+    }
+
+    const series = await createWeeklySeries({
+      tenantId,
+      customerPhone,
+      dayOfWeek: args.day_of_week as number,
+      time: args.time as string,
+      serviceSlug,
+      customerName,
+      occurrences: args.occurrences as number | undefined,
+      advanceBookingDays:
+        mergedConfig?.advance_booking_days ??
+        (configOverride?.advance_booking_days as number) ??
+        30,
+      today: todayStr(),
+    });
+
+    if (series.created.length === 0) {
+      return {
+        result: {
+          ok: false,
+          error: "Seri oluşturulamadı; istenen saatte uygun hafta bulunamadı.",
+          skipped: series.skipped,
+        },
+      };
+    }
+
+    // İlk randevu için işletmeye tek bildirim; her hafta için ayrı ayrı spam yapılmaz.
+    const first = series.created[0];
+    notifyNewAppointmentForMerchant({
+      tenantId,
+      customerPhone,
+      date: first.date,
+      time: first.time,
+      staffId: null,
+      source: "bot",
+    }).catch((e) => console.error("[ai] merchant notify (series):", e));
+    await upsertCrmCustomer(tenantId, customerPhone, customerName);
+    void markLeadConverted(tenantId, customerPhone).catch(() => undefined);
+
+    return {
+      result: {
+        ok: true,
+        day: dayOfWeekToTurkish(args.day_of_week as number),
+        time: args.time,
+        created_count: series.created.length,
+        created: series.created.map((o) => ({
+          date: o.date,
+          date_readable: formatDateTr(o.date),
+        })),
+        skipped: series.skipped.map((s) => ({
+          date: s.date,
+          date_readable: formatDateTr(s.date),
+          reason: s.reason,
+        })),
+      },
+      sessionUpdate: {
+        extracted: {
+          ...mergeSelectedService(state, serviceSlug),
+          customer_name: customerName,
+        },
+      },
+    };
   }
 
   if (name === "add_to_waitlist") {
     const date = args.date as string;
     const preferredTime = args.preferred_time as string | undefined;
-    const res = await addToWaitlist(tenantId, customerPhone, date, preferredTime);
+    // Hangi hizmet için beklendiği kaydedilir: yer açıldığında slot o hizmetin
+    // süresiyle tutulur ve yalnızca gerçekten sığan boşluk bildirilir.
+    const res = await addToWaitlist(
+      tenantId,
+      customerPhone,
+      date,
+      preferredTime,
+      resolveSelectedServiceSlug(args, state) || null
+    );
     if (res.ok) {
       return {
         result: {
@@ -740,11 +888,55 @@ export async function executeToolCall(
     return { result: { ok: false, error: res.error } };
   }
 
+  if (name === "get_packages") {
+    const scopedSlug =
+      (args.service_slug as string | undefined)?.trim() ||
+      resolveSelectedServiceSlug({}, state) ||
+      undefined;
+
+    let packages: Awaited<ReturnType<typeof listActivePackages>> = [];
+    try {
+      packages = await listActivePackages(tenantId, scopedSlug || null);
+      // Seçili hizmete paket yoksa tüm paketleri göster; müşteri boş cevap almasın.
+      if (packages.length === 0 && scopedSlug) {
+        packages = await listActivePackages(tenantId, null);
+      }
+    } catch (err) {
+      console.error("[ai] get_packages:", err);
+      return { result: { ok: false, packages: [], error: "PACKAGE_LOOKUP_FAILED" } };
+    }
+
+    if (packages.length === 0) {
+      return {
+        result: {
+          ok: true,
+          packages: [],
+          message: "Tanımlı bir seans paketi yok. Tek seans randevu oluşturabilirim.",
+        },
+      };
+    }
+
+    return {
+      result: {
+        ok: true,
+        packages: packages.map((pkg) => ({
+          name: pkg.name,
+          service: pkg.serviceName || pkg.serviceSlug,
+          service_slug: pkg.serviceSlug,
+          total_sessions: pkg.totalSessions,
+          price: pkg.price == null ? null : `${pkg.price} TL`,
+          validity_days: pkg.validityDays,
+        })),
+        note: "Paketi sen satma; müşteri isterse randevu oluştur ve paketin randevuda tanımlanacağını söyle.",
+      },
+    };
+  }
+
   if (name === "get_services") {
     const [serviceRes, tenantRes] = await Promise.all([
       supabase
         .from("services")
-        .select("name, slug, price, description, price_visible, is_active")
+        .select("name, slug, price, description, duration_minutes, price_visible, is_active")
         .eq("tenant_id", tenantId)
         .eq("is_active", true),
       supabase.from("tenants").select("contact_phone").eq("id", tenantId).single(),
@@ -756,6 +948,7 @@ export async function executeToolCall(
           slug: string;
           price: number | null;
           description: string | null;
+          duration_minutes?: number | null;
           price_visible?: boolean | null;
         }>
       | null;
@@ -779,15 +972,21 @@ export async function executeToolCall(
     }
     return {
       result: {
-        services: services.map((s) => ({
-          name: s.name,
-          price:
-            s.price_visible === false || s.price == null
-              ? `Fiyat için arayın: ${fallbackPhone}`
-              : `${s.price} TL`,
-          price_visible: s.price_visible !== false,
-          description: s.description || "",
-        })),
+        services: services.map((s) => {
+          const duration = Number(s.duration_minutes ?? 0);
+          return {
+            name: s.name,
+            slug: s.slug,
+            price:
+              s.price_visible === false || s.price == null
+                ? `Fiyat için arayın: ${fallbackPhone}`
+                : `${s.price} TL`,
+            price_visible: s.price_visible !== false,
+            // "Ne kadar sürer?" sorusunu bot artık uydurmadan cevaplayabilsin.
+            duration_minutes: Number.isFinite(duration) && duration > 0 ? duration : null,
+            description: s.description || "",
+          };
+        }),
         fallback_phone: fallbackPhone,
       },
     };

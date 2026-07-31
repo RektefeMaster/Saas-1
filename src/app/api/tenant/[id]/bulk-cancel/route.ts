@@ -6,8 +6,11 @@ import { supabase } from "@/lib/supabase";
 import { APP_TIMEZONE } from "@/lib/dayjs-utils";
 import { sendCustomerNotification } from "@/lib/notify";
 import { requireTenantApiAccess } from "@/middleware/tenantApiAuth.middleware";
-import { getDailyAvailability } from "@/services/booking.service";
 import { notifyWaitlist } from "@/services/waitlist.service";
+import {
+  loadTenantMessageContexts,
+  resolveTenantMessage,
+} from "@/services/tenantMessages.service";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -72,24 +75,30 @@ export async function POST(
 
     const tenantName = tenant?.name || "İşletme";
     const reasonText = reason ? ` Sebep: ${reason}` : "";
+    const messageContexts = await loadTenantMessageContexts([tenantId]);
+    const messageContext = messageContexts.get(tenantId);
 
     const results = await Promise.all(
       cancelledAppointments.map(async (apt) => {
         const timeStr = dayjs(apt.slot_start).tz(tz).format("HH:mm");
+        const body = resolveTenantMessage(
+          messageContext,
+          "cancellation_by_tenant",
+          { date, time: timeStr, tenant_name: tenantName },
+          "Merhaba, {tenant_name} {date} tarihindeki saat {time} randevunuzu maalesef iptal etmek zorunda kaldı. En kısa sürede yeni randevu almak için bize yazabilirsiniz."
+        );
         const delivery = await sendCustomerNotification(
           apt.customer_phone,
-          `Merhaba, ${tenantName} ${date} tarihindeki saat ${timeStr} randevunuzu maalesef iptal etmek zorunda kaldı.${reasonText} En kısa sürede yeni randevu almak için bize yazabilirsiniz.`
+          reasonText ? `${body}${reasonText}` : body
         );
         return delivery.whatsapp || delivery.sms ? 1 : 0;
       })
     );
     const sent = results.reduce<number>((a, b) => a + b, 0);
 
-    void getDailyAvailability(tenantId, date)
-      .then((daily) =>
-        notifyWaitlist(tenantId, date, daily.available, tenantName)
-      )
-      .catch((e) => console.error("[bulk-cancel] waitlist notify error:", e));
+    void notifyWaitlist(tenantId, date, tenantName).catch((e) =>
+      console.error("[bulk-cancel] waitlist notify error:", e)
+    );
 
     return NextResponse.json({
       ok: true,
