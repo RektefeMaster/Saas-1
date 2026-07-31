@@ -255,7 +255,40 @@ export async function GET() {
     fix: ingressFix,
   });
 
-  // ── 8) Son mesajlar nerede durdu ─────────────────────────────────────────
+  // ── 8) Boru hattının hangi halkasına kadar gelindi ───────────────────────
+  // Bu üçü birlikte "mesaj nerede öldü" sorusunu kesin cevaplar:
+  //   job yok            → Meta hiç teslim etmedi (veya imza reddedildi)
+  //   job var, kayıt yok → Inngest worker hiç çalışmadı
+  //   inbound var, outbound yok → worker işlerken düştü
+  const pipeline: Record<string, unknown> = {};
+
+  try {
+    const { data } = await supabase
+      .from("message_processing_jobs")
+      .select("message_id, status, attempt_count, error_code, created_at")
+      .order("created_at", { ascending: false })
+      .limit(5);
+    pipeline.webhook_kabul_edilen_mesajlar = data || [];
+  } catch (err) {
+    pipeline.webhook_kabul_edilen_mesajlar = `okunamadı: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
+  }
+
+  try {
+    const { data } = await supabase
+      .from("conversation_messages")
+      .select("direction, stage, message_type, created_at")
+      .order("created_at", { ascending: false })
+      .limit(8);
+    pipeline.son_konusma_kayitlari = data || [];
+  } catch (err) {
+    pipeline.son_konusma_kayitlari = `okunamadı: ${
+      err instanceof Error ? err.message : String(err)
+    }`;
+  }
+
+  // ── 9) Son mesajlar nerede durdu ─────────────────────────────────────────
   let lastStages: Array<{ stage: string; at: string; direction: string }> = [];
   try {
     const { data } = await supabase
@@ -287,6 +320,7 @@ export async function GET() {
         yapilacak: c.fix,
       })),
       kontroller: checks,
+      boru_hatti: pipeline,
       son_mesaj_asamalari: lastStages,
     },
     { headers: { "Cache-Control": "no-store" } }

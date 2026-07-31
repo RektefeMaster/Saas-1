@@ -27,9 +27,10 @@ async function maybeSetWebhookDebug(
   record: Parameters<typeof setWebhookDebugRecord>[0],
   force = false
 ): Promise<void> {
-  if (!force && process.env.NODE_ENV === "production" && Math.random() > 0.02) {
-    return;
-  }
+  // Örnekleme kaldırıldı: "Meta bize hiç ulaştı mı?" sorusunun cevabı teşhis için
+  // kritik ve %2 örnekleme bu kaydı güvenilmez kılıyordu (mesaj gelse bile
+  // çoğu zaman yazılmıyordu). Mesaj başına tek Redis yazımı ihmal edilebilir.
+  void force;
   await setWebhookDebugRecord(record);
 }
 
