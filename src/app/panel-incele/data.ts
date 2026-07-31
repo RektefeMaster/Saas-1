@@ -77,7 +77,7 @@ export const DEMO_GUIDES: Record<
       "Aylık ciro, doluluk, gelmeme oranı ve riskli müşteri sayıları canlı güncellenir.",
       "Önerilen aksiyonlar (hatırlatma, geri kazanım, onay bekleyenler) tek tıkla çalıştırılır.",
       "Açık bildirimler — gecikme, iptal, gelmeme — burada listelenir; çözdüğünüzde listeden düşer.",
-      "Gerçek panelde bu veriler WhatsApp randevularınız ve işletme ayarlarınızdan üretilir.",
+      "Bu veriler WhatsApp randevularınız ve işletme ayarlarınızdan üretilir.",
     ],
   },
   appointments: {
@@ -87,7 +87,7 @@ export const DEMO_GUIDES: Record<
     points: [
       "Durumlar: Bekliyor → Onaylı → Tamamlandı / İptal / Gelmedi.",
       "Her kartta müşteri, hizmet, personel, süre ve fiyat görünür.",
-      "Onay / iptal butonları gerçek panelde müşteriye WhatsApp bilgilendirmesi tetikleyebilir.",
+      "Onay / iptal butonları müşteriye WhatsApp bilgilendirmesi tetikleyebilir.",
       "Personel ve tarih filtreleriyle ekip temposunu ayırırsınız.",
     ],
   },
@@ -99,7 +99,7 @@ export const DEMO_GUIDES: Record<
       "Okunmamış sohbetler üstte ve rozetle işaretlenir.",
       "Asistan cevapları ile personel cevapları aynı akışta görünür.",
       "Randevu talebi sohbetten randevu kartına bağlanır.",
-      "Gerçek kullanımda Twilio / WhatsApp hattınız bu listeyi besler.",
+      "WhatsApp hattınız bu listeyi canlı besler.",
     ],
   },
   workflow: {

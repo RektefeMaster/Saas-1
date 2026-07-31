@@ -159,12 +159,12 @@ export default function PanelIncelePage() {
       setAppointments((prev) =>
         prev.map((a) => (a.status === "pending" && a.dayKey === "today" ? { ...a, status: "confirmed" } : a))
       );
-      showToast("Bekleyen randevular onaylandı (demo)");
+      showToast("Bekleyen randevular onaylandı");
     } else if (id === "act2") {
       goNav("campaigns");
       showToast("Geri kazanım taslağı kampanyalara taşındı");
     } else {
-      showToast("Yarınki hatırlatmalar kuyruğa alındı (demo)");
+      showToast("Yarınki hatırlatmalar kuyruğa alındı");
     }
     setRunningAction(null);
   };
@@ -220,24 +220,17 @@ export default function PanelIncelePage() {
       )
     );
     setReply("");
-    showToast("Yanıt gönderildi (demo)");
+    showToast("Yanıt gönderildi");
   };
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      {/* Demo top bar */}
       <div className="sticky top-0 z-50 border-b border-emerald-800/20 bg-emerald-700 text-white">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm sm:px-6">
-          <div className="flex items-center gap-3">
-            <Link href="/" className="inline-flex items-center gap-1.5 font-medium text-emerald-50 hover:text-white">
-              <ArrowLeft className="h-4 w-4" />
-              Ana sayfa
-            </Link>
-            <span className="hidden h-4 w-px bg-white/30 sm:block" />
-            <span className="rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-semibold">
-              Demo panel · Sahte veriler
-            </span>
-          </div>
+          <Link href="/" className="inline-flex items-center gap-1.5 font-medium text-emerald-50 hover:text-white">
+            <ArrowLeft className="h-4 w-4" />
+            Ana sayfa
+          </Link>
           <div className="flex items-center gap-2">
             <button
               type="button"
@@ -251,7 +244,7 @@ export default function PanelIncelePage() {
               href="/dashboard/login"
               className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
             >
-              Gerçek giriş
+              Giriş
             </Link>
           </div>
         </div>
@@ -369,7 +362,7 @@ export default function PanelIncelePage() {
               <CampaignsView
                 draft={campaignDraft}
                 onDraft={setCampaignDraft}
-                onSend={() => showToast("Kampanya demo olarak ‘gönderildi’ (28 alıcı)")}
+                onSend={() => showToast("Kampanya gönderildi · 28 alıcı")}
               />
             )}
             {nav === "pricing" && <PricingView />}
@@ -379,7 +372,7 @@ export default function PanelIncelePage() {
               <SettingsView
                 welcomeMsg={welcomeMsg}
                 onWelcome={setWelcomeMsg}
-                onSave={() => showToast("Ayarlar kaydedildi (demo)")}
+                onSave={() => showToast("Ayarlar kaydedildi")}
               />
             )}
           </main>
@@ -655,7 +648,7 @@ function AppointmentsView({
         </div>
         <button
           type="button"
-          onClick={() => onToast("Demo’da yeni randevu formu simüle edildi")}
+          onClick={() => onToast("Randevu formu açıldı")}
           className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-emerald-600 px-4 text-sm font-semibold text-white"
         >
           <Plus className="h-4 w-4" />
@@ -995,7 +988,7 @@ function CampaignsView({
           className="mt-3 inline-flex min-h-11 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-semibold text-white"
         >
           <Send className="h-4 w-4" />
-          Demo gönder
+          Gönder
         </button>
       </section>
       <section className="space-y-3">
@@ -1155,11 +1148,11 @@ function SettingsView({
       <section className="panel-surface p-5">
         <h3 className="font-semibold">Vitrin bağlantıları</h3>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">
-          WhatsApp kısa link ve QR kod — gerçek panelde buradan kopyalanır / indirilir.
+          WhatsApp kısa link ve QR kod buradan kopyalanır veya indirilir.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           <span className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs font-mono text-slate-500">
-            wa.me/demo-mira
+            wa.me/salon-mira
           </span>
           <span className="rounded-lg border border-dashed border-slate-300 px-3 py-2 text-xs text-slate-500">
             QR · Salon Mira

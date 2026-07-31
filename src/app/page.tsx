@@ -56,7 +56,7 @@ const COPY = {
     preview: {
       title: "Bugünün programı",
       live: "Şu an",
-      openDemo: "Tam paneli dene",
+      openDemo: "Paneli aç",
       status: {
         completed: "Tamamlandı",
         confirmed: "Onaylı",
@@ -158,7 +158,7 @@ const COPY = {
     preview: {
       title: "Today’s schedule",
       live: "Now",
-      openDemo: "Try full panel",
+      openDemo: "Open panel",
       status: {
         completed: "Done",
         confirmed: "Confirmed",

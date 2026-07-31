@@ -47,9 +47,6 @@ export function GuideModal({
               </li>
             ))}
           </ul>
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            Bu bir demo ortamıdır — veriler sahte. Gerçek panelde kendi işletmenizin canlı kayıtları görünür.
-          </p>
         </div>
         <div className="border-t border-slate-100 px-5 py-4 dark:border-slate-800">
           <button
