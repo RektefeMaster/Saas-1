@@ -46,7 +46,8 @@ export async function POST(
     }
 
     if (
-      conversation.automation_mode === "HUMAN_ACTIVE" &&
+      (conversation.automation_mode === "HUMAN_ACTIVE" ||
+        conversation.automation_mode === "AI_ASSIST") &&
       conversation.assigned_membership_id &&
       auth.actor !== "admin"
     ) {

@@ -131,31 +131,6 @@ export async function touchConversationForInbound(input: {
 }
 
 /** @deprecated Prefer ensureConversation + insertInbound + touchConversationForInbound */
-export async function upsertConversationForInbound(input: {
-  tenantId: string;
-  channel?: "whatsapp";
-  externalUserId: string;
-  customerId?: string | null;
-  messagePreview?: string | null;
-  messageId?: string | null;
-  requestId?: string | null;
-}): Promise<ConversationRow | null> {
-  const ensured = await ensureConversation({
-    tenantId: input.tenantId,
-    externalUserId: input.externalUserId,
-    channel: input.channel,
-  });
-  if (!ensured) return null;
-  return touchConversationForInbound({
-    conversationId: ensured.id,
-    tenantId: input.tenantId,
-    customerId: input.customerId,
-    messagePreview: input.messagePreview,
-    messageId: input.messageId,
-    requestId: input.requestId,
-  });
-}
-
 export async function getConversationById(
   conversationId: string,
   tenantId: string
@@ -440,6 +415,18 @@ export async function setAutomationMode(input: {
   if (input.mode === "AI_ASSIST" && input.membershipId) {
     patch.assigned_membership_id = input.membershipId;
     patch.assigned_at = now;
+  }
+  if (input.mode === "AUTOMATION_PAUSED") {
+    patch.assigned_membership_id = null;
+    patch.assigned_at = null;
+    patch.human_takeover_at = null;
+    patch.conversation_status = "PENDING";
+  }
+  if (input.mode === "AI_ACTIVE") {
+    patch.assigned_membership_id = null;
+    patch.assigned_at = null;
+    patch.human_takeover_at = null;
+    patch.handoff_reason = null;
   }
 
   const { data, error } = await supabase

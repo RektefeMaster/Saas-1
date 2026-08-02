@@ -1,8 +1,7 @@
 /**
- * xstate: Bot FSM — Geçersiz durum geçişlerini engeller.
+ * Bot FSM — Geçersiz durum geçişlerini engeller.
  * COMPLETED → COLLECTING_FIELDS gibi mantıksız geçişler fiziksel olarak bloke edilir.
  */
-import { createMachine } from "xstate";
 
 // Geçerli geçişler: from -> [to]
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -51,37 +50,6 @@ const VALID_TRANSITIONS: Record<string, string[]> = {
   AWAITING_CONFIRMATION: ["EXECUTING", "COLLECTING_FIELDS"],
   FAILED_SAFE: ["INIT", "devam"],
 };
-
-/** xstate machine — Stately Inspector veya görsel şema için */
-export const botConversationMachine = createMachine({
-  id: "bot-conversation",
-  initial: "INIT",
-  states: {
-    INIT: { on: { tenant_found: "tenant_bulundu", continue: "devam", pause: "PAUSED_FOR_HUMAN" } },
-    tenant_bulundu: { on: { continue: "devam" } },
-    devam: {
-      on: {
-        await_date: "tarih_saat_bekleniyor",
-        await_time: "saat_secimi_bekleniyor",
-        await_cancel: "iptal_onay_bekleniyor",
-        execute: "EXECUTING",
-        pause: "PAUSED_FOR_HUMAN",
-        complete: "COMPLETED",
-      },
-    },
-    tarih_saat_bekleniyor: { on: { await_time: "saat_secimi_bekleniyor", continue: "devam" } },
-    saat_secimi_bekleniyor: { on: { execute: "EXECUTING", continue: "devam" } },
-    iptal_onay_bekleniyor: { on: { execute: "EXECUTING", continue: "devam" } },
-    EXECUTING: { on: { continue: "devam", complete: "COMPLETED" } },
-    COMPLETED: { on: { continue: "devam", reset: "INIT" } },
-    PAUSED_FOR_HUMAN: { on: { recover: "RECOVERY_CHECK", continue: "devam" } },
-    RECOVERY_CHECK: { on: { continue: "devam" } },
-    INTENT_ROUTING: { on: { collect: "COLLECTING_FIELDS", continue: "devam" } },
-    COLLECTING_FIELDS: { on: { await_confirm: "AWAITING_CONFIRMATION", continue: "devam" } },
-    AWAITING_CONFIRMATION: { on: { execute: "EXECUTING", collect: "COLLECTING_FIELDS" } },
-    FAILED_SAFE: { on: { reset: "INIT", continue: "devam" } },
-  },
-});
 
 /**
  * Geçerli geçiş mi kontrol eder.

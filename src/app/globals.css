@@ -343,7 +343,8 @@ a:focus-visible {
   }
 }
 
-body.dashboard-drawer-open {
+body.dashboard-drawer-open,
+body.site-menu-open {
   overflow: hidden;
   touch-action: none;
 }
@@ -397,6 +398,214 @@ body.dashboard-drawer-open {
   }
 }
 
+
+/* =====================================================================
+   Vitrin (public site) — panelle aynı yeşil dil, krem/pirinç yok.
+   Sadece /, /nasil-calisir, /isletmeler ve site bileşenleri.
+   ===================================================================== */
+:root {
+  --ahi-paper: #f8fafc;
+  --ahi-paper-2: #f1f5f9;
+  --ahi-paper-3: #e2e8f0;
+  --ahi-ink: #0f172a;
+  --ahi-ink-2: #1e293b;
+  --ahi-pine: #064e3b;
+  --ahi-brand: #059669;
+  --ahi-brand-lift: #10b981;
+  /* Legacy alias: eski brass referansları marka yeşiline düşer */
+  --ahi-brass: #059669;
+  --ahi-brass-lift: #34d399;
+  --ahi-brass-soft: #ecfdf5;
+  --ahi-text: #0f172a;
+  --ahi-text-2: #475569;
+  --ahi-text-3: #64748b;
+  --ahi-line: #e2e8f0;
+  --ahi-line-strong: #cbd5e1;
+  --ahi-on-ink: #f8fafc;
+  --ahi-on-ink-2: #94a3b8;
+  --ahi-on-ink-line: rgba(248, 250, 252, 0.12);
+}
+
+.dark {
+  --ahi-paper: #0f172a;
+  --ahi-paper-2: #1e293b;
+  --ahi-paper-3: #334155;
+  --ahi-ink: #020617;
+  --ahi-ink-2: #0f172a;
+  --ahi-pine: #064e3b;
+  --ahi-brand: #10b981;
+  --ahi-brand-lift: #34d399;
+  --ahi-brass: #10b981;
+  --ahi-brass-lift: #6ee7b7;
+  --ahi-brass-soft: #064e3b;
+  --ahi-text: #f8fafc;
+  --ahi-text-2: #cbd5e1;
+  --ahi-text-3: #94a3b8;
+  --ahi-line: rgba(248, 250, 252, 0.1);
+  --ahi-line-strong: rgba(248, 250, 252, 0.18);
+  --ahi-on-ink: #f8fafc;
+  --ahi-on-ink-2: #94a3b8;
+  --ahi-on-ink-line: rgba(248, 250, 252, 0.12);
+}
+
+.site-root {
+  background: var(--ahi-paper);
+  color: var(--ahi-text);
+}
+
+.site-display {
+  font-family: var(--font-bricolage), var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+  line-height: 1.08;
+}
+
+.site-kicker {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--ahi-brand);
+}
+
+/* Geriye uyumluluk — yeni kod site-kicker kullanır */
+.site-eyebrow {
+  font-size: 0.8125rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  text-transform: none;
+  color: var(--ahi-brand);
+}
+
+.site-meta {
+  font-variant-numeric: tabular-nums;
+}
+
+.site-btn {
+  display: inline-flex;
+  min-height: 2.75rem;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  border-radius: 0.75rem;
+  padding: 0.625rem 1.25rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  transition: background-color 0.18s ease, color 0.18s ease, border-color 0.18s ease;
+}
+
+.site-btn-primary {
+  background: var(--ahi-brand);
+  color: #fff;
+}
+
+.site-btn-primary:hover {
+  background: var(--ahi-brand-lift);
+}
+
+.site-btn-ink {
+  background: var(--ahi-ink);
+  color: var(--ahi-on-ink);
+}
+
+.site-btn-ink:hover {
+  background: var(--ahi-ink-2);
+}
+
+.site-btn-ghost {
+  border: 1px solid var(--ahi-line-strong);
+  background: transparent;
+  color: var(--ahi-text);
+}
+
+.site-btn-ghost:hover {
+  background: var(--ahi-paper-2);
+}
+
+.site-link {
+  position: relative;
+  text-underline-offset: 0.28em;
+  transition: color 0.18s ease;
+}
+
+.site-link:hover {
+  color: var(--ahi-brand);
+}
+
+.site-link::after {
+  display: none;
+}
+
+.site-rule-brass {
+  background: var(--ahi-brand);
+  opacity: 0.85;
+}
+
+.site-seal-texture {
+  display: none;
+}
+
+/* Sinyal noktası — mesaj → randevu rayında ilerler */
+@keyframes ahi-rail-travel {
+  0% {
+    offset-distance: 0%;
+    opacity: 0;
+  }
+  8% {
+    opacity: 1;
+  }
+  92% {
+    opacity: 1;
+  }
+  100% {
+    offset-distance: 100%;
+    opacity: 0;
+  }
+}
+
+@keyframes ahi-pulse-ring {
+  0% {
+    transform: scale(0.7);
+    opacity: 0.65;
+  }
+  100% {
+    transform: scale(2.1);
+    opacity: 0;
+  }
+}
+
+@keyframes ahi-dash-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+.ahi-pulse-ring {
+  animation: ahi-pulse-ring 2.4s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+}
+
+/* Kayıt çizgisi görünüre girince çizilir */
+.ahi-draw {
+  stroke-dasharray: var(--draw-length, 600);
+  stroke-dashoffset: var(--draw-length, 600);
+}
+
+.ahi-draw.reveal-in,
+.reveal-in .ahi-draw {
+  animation: ahi-dash-draw 1.5s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ahi-pulse-ring {
+    animation: none;
+    opacity: 0;
+  }
+  .ahi-draw,
+  .ahi-draw.reveal-in,
+  .reveal-in .ahi-draw {
+    animation: none;
+    stroke-dashoffset: 0;
+  }
+}
 
 /* ===== Recharts grafik stilleri ===== */
 .recharts-cartesian-grid-horizontal line,

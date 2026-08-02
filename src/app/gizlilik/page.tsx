@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { SiteShell } from "@/components/site/SiteShell";
 
 export const metadata: Metadata = {
   title: "Gizlilik Politikası ve KVKK Aydınlatma Metni | Ahi AI",
@@ -20,35 +21,43 @@ function Section({
 }) {
   return (
     <section className="mt-10">
-      <h2 className="text-xl font-semibold text-slate-900 dark:text-slate-100">
+      <h2 className="site-display text-xl" style={{ color: "var(--ahi-text)" }}>
         {title}
       </h2>
-      <div className="mt-3 space-y-3 text-[15px] leading-relaxed text-slate-700 dark:text-slate-300">
+      <div className="mt-3 space-y-3 text-[15px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
         {children}
       </div>
     </section>
   );
 }
 
+function LegalLink({ href, children }: { href: string; children: React.ReactNode }) {
+  return (
+    <a
+      className="underline decoration-[var(--ahi-brand)] underline-offset-4 transition-colors hover:opacity-80"
+      style={{ color: "var(--ahi-brand)" }}
+      href={href}
+    >
+      {children}
+    </a>
+  );
+}
+
 export default function GizlilikPage() {
   return (
-    <main className="min-h-screen bg-white px-5 py-16 dark:bg-slate-950">
-      <div className="mx-auto w-full max-w-3xl">
-        <Link
-          href="/"
-          className="text-sm text-emerald-700 hover:underline dark:text-emerald-400"
+    <SiteShell>
+      <main className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
+        <h1
+          className="site-display text-[clamp(1.9rem,4.5vw,2.75rem)]"
+          style={{ color: "var(--ahi-text)" }}
         >
-          ← Ana sayfa
-        </Link>
-
-        <h1 className="mt-6 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
           Gizlilik Politikası ve KVKK Aydınlatma Metni
         </h1>
-        <p className="mt-2 text-sm text-slate-500 dark:text-slate-400">
+        <p className="site-meta mt-3 text-sm" style={{ color: "var(--ahi-text-3)" }}>
           Son güncelleme: {LAST_UPDATED}
         </p>
 
-        <p className="mt-6 text-[15px] leading-relaxed text-slate-700 dark:text-slate-300">
+        <p className="mt-6 text-[15px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
           Ahi AI, işletmelerin WhatsApp üzerinden gelen randevu ve bilgi
           taleplerini otomatik yanıtlayan bir hizmettir. Bu metin, hizmeti
           kullanan işletmelerin ve o işletmelere WhatsApp&apos;tan yazan
@@ -57,15 +66,9 @@ export default function GizlilikPage() {
 
         <Section title="1. Veri sorumlusu">
           <p>
-            Veri sorumlusu: <strong>{CONTROLLER}</strong>
+            Veri sorumlusu: <strong style={{ color: "var(--ahi-text)" }}>{CONTROLLER}</strong>
             <br />
-            İletişim:{" "}
-            <a
-              className="text-emerald-700 hover:underline dark:text-emerald-400"
-              href={`mailto:${CONTACT_EMAIL}`}
-            >
-              {CONTACT_EMAIL}
-            </a>
+            İletişim: <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>
           </p>
           <p>
             Hizmeti kullanan işletmeler kendi müşteri verileri bakımından ayrıca
@@ -155,28 +158,28 @@ export default function GizlilikPage() {
           </p>
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <strong>Meta (WhatsApp Business Platform)</strong> — mesajların
+              <strong style={{ color: "var(--ahi-text)" }}>Meta (WhatsApp Business Platform)</strong> — mesajların
               iletilmesi
             </li>
             <li>
-              <strong>OpenAI</strong> — mesajların yanıtlanması, ses ve görsel
+              <strong style={{ color: "var(--ahi-text)" }}>OpenAI</strong> — mesajların yanıtlanması, ses ve görsel
               çözümleme
             </li>
             <li>
-              <strong>Supabase</strong> — randevu ve müşteri kayıtlarının
+              <strong style={{ color: "var(--ahi-text)" }}>Supabase</strong> — randevu ve müşteri kayıtlarının
               saklanması
             </li>
             <li>
-              <strong>Upstash</strong> — kısa süreli konuşma hafızası
+              <strong style={{ color: "var(--ahi-text)" }}>Upstash</strong> — kısa süreli konuşma hafızası
             </li>
             <li>
-              <strong>Vercel</strong> — uygulamanın barındırılması
+              <strong style={{ color: "var(--ahi-text)" }}>Vercel</strong> — uygulamanın barındırılması
             </li>
             <li>
-              <strong>Twilio</strong> — SMS bildirimleri (kullanıldığı ölçüde)
+              <strong style={{ color: "var(--ahi-text)" }}>Twilio</strong> — SMS bildirimleri (kullanıldığı ölçüde)
             </li>
             <li>
-              <strong>Sentry, PostHog, Langfuse</strong> — hata takibi ve
+              <strong style={{ color: "var(--ahi-text)" }}>Sentry, PostHog, Langfuse</strong> — hata takibi ve
               kullanım ölçümü
             </li>
           </ul>
@@ -189,18 +192,18 @@ export default function GizlilikPage() {
         <Section title="6. Saklama süreleri">
           <ul className="list-disc space-y-1 pl-5">
             <li>
-              <strong>Konuşma oturumu:</strong> 24 saat sonra otomatik silinir
+              <strong style={{ color: "var(--ahi-text)" }}>Konuşma oturumu:</strong> 24 saat sonra otomatik silinir
             </li>
             <li>
-              <strong>Sesli mesaj ve görseller:</strong> şifreli olarak en fazla
+              <strong style={{ color: "var(--ahi-text)" }}>Sesli mesaj ve görseller:</strong> şifreli olarak en fazla
               48 saat saklanır, sonra otomatik silinir
             </li>
             <li>
-              <strong>Randevu kayıtları ve müşteri notları:</strong> işletmeyle
+              <strong style={{ color: "var(--ahi-text)" }}>Randevu kayıtları ve müşteri notları:</strong> işletmeyle
               ilişki sürdüğü müddetçe; silme talebinde derhâl silinir
             </li>
             <li>
-              <strong>Teknik kayıtlar (log):</strong> hata ayıklama ve kötüye
+              <strong style={{ color: "var(--ahi-text)" }}>Teknik kayıtlar (log):</strong> hata ayıklama ve kötüye
               kullanım incelemesi için sınırlı süre
             </li>
           </ul>
@@ -209,7 +212,7 @@ export default function GizlilikPage() {
         <Section title="7. Kampanya mesajlarından çıkma">
           <p>
             Kampanya veya hatırlatma amaçlı mesaj almak istemiyorsanız
-            WhatsApp&apos;tan <strong>&quot;DUR&quot;</strong> yazmanız
+            WhatsApp&apos;tan <strong style={{ color: "var(--ahi-text)" }}>&quot;DUR&quot;</strong> yazmanız
             yeterlidir. Bu andan itibaren size pazarlama mesajı gönderilmez.
           </p>
           <p>
@@ -229,12 +232,7 @@ export default function GizlilikPage() {
           </p>
           <p>
             Taleplerinizi{" "}
-            <a
-              className="text-emerald-700 hover:underline dark:text-emerald-400"
-              href={`mailto:${CONTACT_EMAIL}`}
-            >
-              {CONTACT_EMAIL}
-            </a>{" "}
+            <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>{" "}
             adresine iletebilirsiniz. Başvurunuz en geç 30 gün içinde
             yanıtlanır.
           </p>
@@ -266,27 +264,26 @@ export default function GizlilikPage() {
           </p>
         </Section>
 
-        <p className="mt-10 text-[15px] leading-relaxed text-slate-700 dark:text-slate-300">
+        <p className="mt-10 text-[15px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
           Verilerinizin silinmesini talep etmek için{" "}
           <Link
             href="/veri-silme"
-            className="text-emerald-700 hover:underline dark:text-emerald-400"
+            className="underline decoration-[var(--ahi-brand)] underline-offset-4"
+            style={{ color: "var(--ahi-brand)" }}
           >
             Veri Silme Talebi
           </Link>{" "}
           sayfasına bakabilirsiniz.
         </p>
 
-        <p className="mt-12 border-t border-slate-200 pt-6 text-sm text-slate-500 dark:border-slate-800 dark:text-slate-400">
+        <p
+          className="mt-12 border-t pt-6 text-sm"
+          style={{ borderColor: "var(--ahi-line)", color: "var(--ahi-text-3)" }}
+        >
           Sorularınız için:{" "}
-          <a
-            className="text-emerald-700 hover:underline dark:text-emerald-400"
-            href={`mailto:${CONTACT_EMAIL}`}
-          >
-            {CONTACT_EMAIL}
-          </a>
+          <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>
         </p>
-      </div>
-    </main>
+      </main>
+    </SiteShell>
   );
 }

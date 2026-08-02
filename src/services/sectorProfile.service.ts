@@ -22,24 +22,6 @@ export type SectorKey =
   | "home-service"
   | "generic";
 
-/** Canonical product codes (UI labels separate). */
-export type CanonicalSectorCode =
-  | "barber"
-  | "hair_salon"
-  | "beauty_center"
-  | "laser_aesthetic"
-  | "dental_clinic"
-  | "nail_salon";
-
-export type SectorCapabilities = {
-  booking: boolean;
-  staffSelection: boolean;
-  servicePackages: boolean;
-  sessionTracking: boolean;
-  healthcareCompliance: boolean;
-  beforeAfterMedia: boolean;
-};
-
 export interface SectorProfile {
   key: SectorKey;
   label: string;
@@ -60,8 +42,6 @@ export interface SectorProfile {
   operationalRules: string[];
   /** Bu sektörde varsayılan açık gelen özellik bayrakları. */
   defaultFeatureFlags: Partial<FeatureFlags>;
-  /** Capability flags — prefer these over `if sector ===`. */
-  capabilities: SectorCapabilities;
 }
 
 /** Wizard'da gösterilecek business_types.slug değerleri (yan sektörler gizlenir). */
@@ -76,28 +56,6 @@ export const WIZARD_ALLOWED_BUSINESS_TYPE_SLUGS = [
   "dis-klinigi",
   "tirnak-salonu",
 ] as const;
-
-/** Legacy slug → canonical code */
-export const SLUG_TO_CANONICAL: Record<string, CanonicalSectorCode> = {
-  berber: "barber",
-  kuaför: "hair_salon",
-  kuafor: "hair_salon",
-  "kadin-kuafor": "hair_salon",
-  "guzellik-merkezi": "beauty_center",
-  "lazer-epilasyon": "laser_aesthetic",
-  disci: "dental_clinic",
-  "dis-klinigi": "dental_clinic",
-  "tirnak-salonu": "nail_salon",
-};
-
-const DEFAULT_CAPABILITIES: SectorCapabilities = {
-  booking: true,
-  staffSelection: false,
-  servicePackages: false,
-  sessionTracking: false,
-  healthcareCompliance: false,
-  beforeAfterMedia: false,
-};
 
 /** Sağlık/medikal sektörlerde geçerli ortak uyum kuralları. */
 const HEALTHCARE_COMPLIANCE_RULES: string[] = [
@@ -127,13 +85,6 @@ const SECTOR_PROFILES: Record<SectorKey, SectorProfile> = {
       variable_duration: true,
       combo_services: true,
     },
-    capabilities: {
-      ...DEFAULT_CAPABILITIES,
-      staffSelection: true,
-      servicePackages: true,
-      sessionTracking: true,
-      beforeAfterMedia: true,
-    },
   },
   nail: {
     key: "nail",
@@ -154,11 +105,6 @@ const SECTOR_PROFILES: Record<SectorKey, SectorProfile> = {
       packages: true,
       variable_duration: true,
       combo_services: true,
-    },
-    capabilities: {
-      ...DEFAULT_CAPABILITIES,
-      staffSelection: true,
-      servicePackages: true,
     },
   },
   "laser-aesthetic": {
@@ -182,14 +128,6 @@ const SECTOR_PROFILES: Record<SectorKey, SectorProfile> = {
       packages: true,
       variable_duration: true,
       combo_services: true,
-    },
-    capabilities: {
-      ...DEFAULT_CAPABILITIES,
-      staffSelection: true,
-      servicePackages: true,
-      sessionTracking: true,
-      healthcareCompliance: true,
-      beforeAfterMedia: true,
     },
   },
   dental: {
@@ -215,13 +153,6 @@ const SECTOR_PROFILES: Record<SectorKey, SectorProfile> = {
       variable_duration: true,
       combo_services: false,
     },
-    capabilities: {
-      ...DEFAULT_CAPABILITIES,
-      staffSelection: true,
-      servicePackages: true,
-      sessionTracking: true,
-      healthcareCompliance: true,
-    },
   },
   veterinary: {
     key: "veterinary",
@@ -237,11 +168,6 @@ const SECTOR_PROFILES: Record<SectorKey, SectorProfile> = {
       "HAYVAN BİLGİSİ: Randevu alırken hayvanın türü ve adı işe yarar; kısaca sor ve randevu notuna geçir.",
     ],
     defaultFeatureFlags: { packages: true },
-    capabilities: {
-      ...DEFAULT_CAPABILITIES,
-      servicePackages: true,
-      healthcareCompliance: true,
-    },
   },
   "auto-service": {
     key: "auto-service",
@@ -256,7 +182,6 @@ const SECTOR_PROFILES: Record<SectorKey, SectorProfile> = {
       "ARIZA TESPİTİ: Telefonda arıza teşhisi koyma ve tamir fiyatı taahhüt etme. \"Kesin tutar aracı gördükten sonra belli olur\" de.",
     ],
     defaultFeatureFlags: {},
-    capabilities: { ...DEFAULT_CAPABILITIES },
   },
   "home-service": {
     key: "home-service",
@@ -271,7 +196,6 @@ const SECTOR_PROFILES: Record<SectorKey, SectorProfile> = {
       "FİYAT: Metrekare/parça sayısı gibi değişkenlere bağlı fiyatlarda kesin tutar verme; \"Kesin tutar yerinde ölçüm sonrası belli olur\" de.",
     ],
     defaultFeatureFlags: {},
-    capabilities: { ...DEFAULT_CAPABILITIES },
   },
   generic: {
     key: "generic",
@@ -283,7 +207,6 @@ const SECTOR_PROFILES: Record<SectorKey, SectorProfile> = {
     serviceExamples: "hizmet listesindeki işlemler",
     operationalRules: [],
     defaultFeatureFlags: {},
-    capabilities: { ...DEFAULT_CAPABILITIES },
   },
 };
 
@@ -419,26 +342,6 @@ export function isWizardAllowedBusinessTypeSlug(slug: string | null | undefined)
   return WIZARD_ALLOWED_BUSINESS_TYPE_SLUGS.some(
     (allowed) => normalizeText(allowed) === normalized
   );
-}
-
-export function resolveCanonicalSectorCode(
-  slug?: string | null
-): CanonicalSectorCode | null {
-  if (!slug) return null;
-  const direct = SLUG_TO_CANONICAL[slug];
-  if (direct) return direct;
-  const normalized = normalizeText(slug);
-  for (const [key, code] of Object.entries(SLUG_TO_CANONICAL)) {
-    if (normalizeText(key) === normalized) return code;
-  }
-  return null;
-}
-
-export function hasCapability(
-  profile: SectorProfile,
-  capability: keyof SectorCapabilities
-): boolean {
-  return Boolean(profile.capabilities?.[capability]);
 }
 
 /**

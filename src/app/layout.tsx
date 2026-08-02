@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Manrope, Space_Grotesk } from "next/font/google";
+import { Bricolage_Grotesque, Manrope, Space_Grotesk } from "next/font/google";
 import { Toaster } from "sonner";
 import { ThemeProvider } from "@/lib/theme-context";
 import { LocaleProvider } from "@/lib/locale-context";
@@ -10,16 +10,26 @@ import { ClientErrorBoundary } from "@/components/ClientErrorBoundary";
 import "./globals.css";
 import { getDefaultAppUrl } from "@/lib/app-url";
 
+// Türkçe ğ/ş/ı/İ glifleri latin-ext alt kümesinde; onsuz bu harfler
+// sistem yazı tipine düşüyordu.
 const manrope = Manrope({
   variable: "--font-manrope",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
   display: "swap",
   adjustFontFallback: true,
 });
 
 const spaceGrotesk = Space_Grotesk({
   variable: "--font-space-grotesk",
-  subsets: ["latin"],
+  subsets: ["latin", "latin-ext"],
+  display: "swap",
+  adjustFontFallback: true,
+});
+
+// Vitrin başlıklarının karakter yüzü — tabela hissi veren geniş grotesk
+const bricolage = Bricolage_Grotesque({
+  variable: "--font-bricolage",
+  subsets: ["latin", "latin-ext"],
   display: "swap",
   adjustFontFallback: true,
 });
@@ -95,7 +105,9 @@ export default function RootLayout({
           }}
         />
       </head>
-      <body className={`${manrope.variable} ${spaceGrotesk.variable} antialiased`}>
+      <body
+        className={`${manrope.variable} ${spaceGrotesk.variable} ${bricolage.variable} antialiased`}
+      >
         <ClientErrorBoundary>
           <SWRProvider>
             <ThemeProvider>

@@ -79,16 +79,3 @@ export async function getActiveMembership(
   return ensureTenantMembership(tenantId, userId, "owner");
 }
 
-export async function assertMembershipBelongsToTenant(
-  membershipId: string,
-  tenantId: string
-): Promise<TenantMembership | null> {
-  const { data } = await supabase
-    .from("tenant_memberships")
-    .select("id, tenant_id, user_id, role, status")
-    .eq("id", membershipId)
-    .eq("tenant_id", tenantId)
-    .eq("status", "active")
-    .maybeSingle();
-  return (data as TenantMembership) || null;
-}

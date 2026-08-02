@@ -371,19 +371,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
           <h3 className="font-semibold text-slate-900 dark:text-slate-100">🕐 Çalışma saatleri</h3>
           <button
             type="button"
-            onClick={() => {
-              if (!showWorkingHours && workingHours.length === 0) {
-                setWorkingHours(
-                  [1, 2, 3, 4, 5].map((dow) => ({
-                    day_of_week: dow,
-                    start_time: "09:00",
-                    end_time: "18:00",
-                    day_name: DAY_NAMES[dow],
-                  }))
-                );
-              }
-              setShowWorkingHours(!showWorkingHours);
-            }}
+            onClick={() => setShowWorkingHours(!showWorkingHours)}
             className="min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-sm font-medium text-emerald-600 shadow-sm transition hover:bg-emerald-50 dark:border-slate-700 dark:text-emerald-400 dark:hover:bg-emerald-900/30 sm:py-1.5"
           >
             {showWorkingHours ? "Kapat" : workingHours.length ? "Düzenle" : "Ayarla"}
@@ -398,15 +386,43 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
                 end_time: "",
                 day_name: DAY_NAMES[dow],
               };
+              // Açık gün = saatleri dolu satır. Hafta kalıbı yok: herhangi bir
+              // gün (salı, perşembe, pazar…) kapalı işaretlenebilir.
+              const isOpen = Boolean(slot.start_time && slot.end_time);
+              const setDayOpen = (open: boolean) => {
+                const arr = workingHours.filter((s) => s.day_of_week !== dow);
+                if (open) {
+                  arr.push({
+                    day_of_week: dow,
+                    start_time: slot.start_time || "09:00",
+                    end_time: slot.end_time || "18:00",
+                    day_name: DAY_NAMES[dow],
+                  });
+                }
+                setWorkingHours(arr.sort((a, b) => a.day_of_week - b.day_of_week));
+              };
               return (
                 <div key={dow} className="rounded-xl border border-slate-200 p-3 dark:border-slate-700 sm:flex sm:items-center sm:gap-2 sm:border-0 sm:p-0">
-                  <div className="mb-2 text-sm font-medium text-slate-700 sm:mb-0 sm:w-20 sm:text-slate-600 dark:text-slate-300">
-                    {DAY_NAMES[dow]}
-                  </div>
-                  <div className="grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2">
+                  <label className="mb-2 flex items-center gap-2 text-sm font-medium text-slate-700 sm:mb-0 sm:w-36 sm:text-slate-600 dark:text-slate-300">
+                    <input
+                      type="checkbox"
+                      checked={isOpen}
+                      onChange={(e) => setDayOpen(e.target.checked)}
+                      className="h-4 w-4 shrink-0 accent-emerald-600"
+                      aria-label={`${DAY_NAMES[dow]} açık mı`}
+                    />
+                    <span className="w-16">{DAY_NAMES[dow]}</span>
+                    <span className={isOpen ? "text-xs text-emerald-600" : "text-xs text-slate-400"}>
+                      {isOpen ? "Açık" : "Kapalı"}
+                    </span>
+                  </label>
+                  <div
+                    className={`grid grid-cols-2 gap-2 sm:flex sm:items-center sm:gap-2 ${isOpen ? "" : "opacity-40"}`}
+                  >
                     <input
                       type="time"
                       value={slot.start_time}
+                      disabled={!isOpen}
                       onChange={(e) => {
                         const arr = [...workingHours];
                         const idx = arr.findIndex((s) => s.day_of_week === dow);
@@ -414,11 +430,12 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
                         else arr.push({ day_of_week: dow, start_time: e.target.value, end_time: slot.end_time || "18:00" });
                         setWorkingHours(arr);
                       }}
-                      className="w-full min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-base shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                      className="w-full min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-base shadow-sm disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
                     />
                     <input
                       type="time"
                       value={slot.end_time}
+                      disabled={!isOpen}
                       onChange={(e) => {
                         const arr = [...workingHours];
                         const idx = arr.findIndex((s) => s.day_of_week === dow);
@@ -426,7 +443,7 @@ function SettingsViewInner({ tenantId, tenant, setTenant, onWorkingHoursSaved }:
                         else arr.push({ day_of_week: dow, start_time: slot.start_time || "09:00", end_time: e.target.value });
                         setWorkingHours(arr);
                       }}
-                      className="w-full min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-base shadow-sm dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                      className="w-full min-h-11 rounded-xl border border-slate-200 px-3 py-2 text-base shadow-sm disabled:cursor-not-allowed dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
                     />
                   </div>
                 </div>

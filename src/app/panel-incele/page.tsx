@@ -303,9 +303,17 @@ export default function PanelIncelePage() {
 
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="sticky top-0 z-50 border-b border-emerald-800/20 bg-emerald-700 text-white">
+      <div
+        className="sticky top-0 z-50 border-b text-white"
+        style={{ background: "var(--ahi-ink)", borderColor: "var(--ahi-on-ink-line)" }}
+      >
+        <div className="site-rule-brass h-[2px] w-full" />
         <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm sm:px-6">
-          <Link href="/" className="inline-flex items-center gap-1.5 font-medium text-emerald-50 hover:text-white">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-1.5 font-medium transition-colors hover:opacity-90"
+            style={{ color: "var(--ahi-on-ink)" }}
+          >
             <ArrowLeft className="h-4 w-4" />
             {t.home}
           </Link>
@@ -313,14 +321,16 @@ export default function PanelIncelePage() {
             <button
               type="button"
               onClick={() => setGuideOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-lg bg-white/15 px-3 py-1.5 text-xs font-semibold hover:bg-white/25"
+              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
+              style={{ background: "var(--ahi-on-ink-line)", color: "var(--ahi-on-ink)" }}
             >
               <CircleHelp className="h-3.5 w-3.5" />
               {t.whatIsThis}
             </button>
             <Link
               href="/dashboard/login"
-              className="rounded-lg bg-white px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-50"
+              className="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
+              style={{ background: "var(--ahi-brass)", color: "#160f02" }}
             >
               {t.login}
             </Link>

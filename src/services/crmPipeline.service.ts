@@ -16,18 +16,6 @@ export type PipelineStage =
   | "won"
   | "lost";
 
-const STAGE_ORDER: PipelineStage[] = [
-  "new_lead",
-  "contacted",
-  "need_identified",
-  "qualified",
-  "appointment_booked",
-  "offer_sent",
-  "follow_up",
-  "won",
-  "lost",
-];
-
 /** Allowed forward/side transitions. Backward only via explicit keys. */
 const ALLOWED: Record<PipelineStage, PipelineStage[]> = {
   new_lead: ["contacted", "need_identified", "qualified", "lost"],
@@ -107,8 +95,4 @@ export async function transitionPipelineStage(input: {
   });
 
   return { ok: true, from, to };
-}
-
-export function stageRank(stage: PipelineStage): number {
-  return STAGE_ORDER.indexOf(stage);
 }

@@ -1,27 +1,13 @@
 "use client";
 
-import dynamic from "next/dynamic";
-import Image from "next/image";
 import Link from "next/link";
-import { ArrowRight, Menu, X } from "lucide-react";
-import { useState } from "react";
 import { useLocale } from "@/lib/locale-context";
-import { ThemeLocaleSwitch } from "@/components/ui";
-
-const ContactModal = dynamic(
-  () => import("@/components/ui/ContactModal").then((m) => ({ default: m.ContactModal })),
-  { ssr: false, loading: () => null }
-);
+import { SiteShell, useSiteContact } from "@/components/site/SiteShell";
+import { MarkArrow } from "@/components/site/GuildMarks";
+import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 const COPY = {
   tr: {
-    nav: {
-      home: "Ana sayfa",
-      guide: "Nasıl çalışır",
-      businesses: "İşletmeler",
-      contact: "İletişim",
-      login: "Giriş",
-    },
     hero: {
       eyebrow: "Açık anlatım",
       title: "Ahi AI ne yapar, nasıl çalışır?",
@@ -40,19 +26,19 @@ const COPY = {
       title: "Nasıl çalışır?",
       steps: [
         {
-          title: "1) Müşteri size ulaşır",
+          title: "Müşteri size ulaşır",
           text: "WhatsApp numaranız, kısa bağlantı veya QR ile gelir. Yeni bir uygulama indirmek zorunda kalmaz.",
         },
         {
-          title: "2) İşletme kurallarınız devreye girer",
+          title: "İşletme kurallarınız devreye girer",
           text: "Çalışma saatleri, hizmet süreleri, fiyat listesi, personel tercihi gibi sizin tanımladığınız kurallar uygulanır.",
         },
         {
-          title: "3) Randevu ve kayıt oluşur",
+          title: "Randevu ve kayıt oluşur",
           text: "Uygunsa randevu takvime düşer. Müşteri notu ve geçmişi defterde kalır. Hatırlatmalar planlanabilir.",
         },
         {
-          title: "4) Siz panelden yönetirsiniz",
+          title: "Siz panelden yönetirsiniz",
           text: "Bugünkü randevular, bekleyen yanıtlar, iptaller ve kampanya işleri tek ekranda.",
         },
       ],
@@ -111,92 +97,85 @@ const COPY = {
       title: "Uygun olup olmadığını birlikte bakalım.",
       text: "İşletmenizin temposunu anlatın; neyin işe yarayıp neyin gereksiz olduğunu net söyleyelim.",
       primary: "İletişime geç",
-      secondary: "İşletme girişi",
+      secondary: "Paneli incele",
     },
   },
   en: {
-    nav: {
-      home: "Home",
-      guide: "How it works",
-      businesses: "Businesses",
-      contact: "Contact",
-      login: "Sign in",
-    },
     hero: {
-      eyebrow: "Plain-spoken guide",
+      eyebrow: "Plain explanation",
       title: "What Ahi AI does, and how it works",
       lead:
-        "In short: an operations panel so WhatsApp demand doesn’t break your day. Below is the honest version, without hype.",
+        "In short: a business panel built so the day keeps moving when customers write on WhatsApp. Below is the unvarnished version.",
     },
     what: {
       title: "What is it for?",
       body: [
-        "Phones ring, chats pile up, notebooks get messy, and “do you have a slot?” never stops. Ahi AI is built to tidy that chaos.",
-        "Customers reach you on WhatsApp to book or ask questions. The system answers using your hours, services, and capacity, while you see the day in one panel.",
-        "The goal isn’t a flashy AI demo. It’s a day that stays clear from open to close.",
+        "The phone rings, messages pile up, the book gets messy, and “do you have a slot?” lands all day. Ahi AI pulls that scatter together.",
+        "Customers find you on WhatsApp, ask for a booking or a question. The system answers against your hours, services and availability; you see the day, the customer and the broken bits from the panel.",
+        "The point isn’t a flashy AI demo. The point is that the work looks clear from open to close.",
       ],
     },
     how: {
       title: "How does it work?",
       steps: [
         {
-          title: "1) The customer reaches you",
-          text: "Via your WhatsApp number, a short link, or QR. They don’t install a new app.",
+          title: "The customer reaches you",
+          text: "Via your WhatsApp number, a short link or a QR code. No new app to install.",
         },
         {
-          title: "2) Your business rules apply",
-          text: "Hours, service durations, pricing, staff preference: your rules.",
+          title: "Your shop rules take over",
+          text: "Opening hours, service durations, price list, staff preference — the rules you defined.",
         },
         {
-          title: "3) Booking and records update",
-          text: "If available, the appointment lands on the calendar. Notes stay in the customer book.",
+          title: "Booking and record appear",
+          text: "If there’s a slot, it lands on the calendar. Notes and history stay in the ledger. Reminders can be queued.",
         },
         {
-          title: "4) You run the day from the panel",
-          text: "Today’s bookings, pending replies, cancellations, and campaigns in one place.",
+          title: "You run it from the panel",
+          text: "Today’s bookings, waiting replies, cancellations and campaign work on one screen.",
         },
       ],
     },
     includes: {
-      title: "What’s included?",
+      title: "What’s inside?",
       items: [
-        { title: "Booking panel", text: "Calendar, confirm / cancel / no show, capacity." },
-        { title: "WhatsApp link and QR", text: "Direct chat and storefront code." },
-        { title: "Customer book", text: "Who came, what they booked, what was noted." },
-        { title: "Pricing and packages", text: "Chat and panel share the same truth." },
-        { title: "Campaigns and reminders", text: "Win back and appointment nudges." },
-        { title: "Workflow and alerts", text: "Delays and critical items first." },
+        { title: "Booking panel", text: "Calendar, confirm / cancel / no-show, capacity." },
+        { title: "WhatsApp link and QR", text: "Direct chat and a window-ready code." },
+        { title: "Customer ledger", text: "Who came, what they had, what was noted." },
+        { title: "Price list and packages", text: "Chat and panel share the same facts." },
+        { title: "Campaigns and reminders", text: "Win-back messages and booking nudges." },
+        { title: "Workflow and alerts", text: "Delays and critical items rise first." },
       ],
     },
     forWhom: {
       title: "Who is it for?",
-      text: "Appointment based teams that live on WhatsApp: salons, clinics, repair shops, consultancies. Teams tired of Excel plus asking three people.",
+      text: "Appointment-led businesses that live in WhatsApp: salons, beauty, clinics, repair / service, consulting — anyone ready to leave the Excel-plus-three-people-relay behind.",
     },
-    faqTitle: "Questions people actually ask",
+    faqTitle: "Questions that come up",
     faqs: [
       {
-        q: "Do I have to change my WhatsApp number?",
-        a: "No. Messaging continues on the WhatsApp line configured for your business.",
+        q: "Do I have to change my WhatsApp account?",
+        a: "No. The point is not to break the habit customers already have. You keep the WhatsApp line tied to your business.",
       },
       {
         q: "Does AI answer every message?",
-        a: "It helps within your rules, especially bookings and common questions. For special cases you see it in the panel and step in.",
+        a: "It helps within your rules and speeds up bookings and common questions. In special cases you see it in the panel and step in.",
       },
       {
-        q: "Won’t it give a wrong time or wrong info?",
-        a: "Answers come from the hours, services, and availability you set. Empty settings need fixing first. It’s a system you configure, not magic.",
+        q: "Won’t it give the wrong time or wrong info?",
+        a: "Answers are produced from the hours, services and availability you entered. If settings are empty, fix those first. Not a magic wand — a system that needs to be set up properly.",
       },
       {
-        q: "Can staff who aren’t “computer people” use it?",
-        a: "The panel stays plain: who’s coming today, what’s the status, what to do next. Most teams settle in after a short walkthrough.",
+        q: "My staff aren’t computer people. Can they use it?",
+        a: "The panel stays plain: who’s coming today, what’s the status, what to do next. A short walkthrough is usually enough.",
       },
       {
-        q: "What about my old notebook / Excel?",
-        a: "During setup we talk through import versus a clean start. We don’t promise a one click miracle migration.",
+        q: "What about my old book / Excel?",
+        a: "At setup we talk through import or a clean start. We don’t promise a one-click migrate-everything miracle; what matters is the new order holding from day one.",
       },
       {
         q: "What if the internet drops?",
-        a: "The panel and WhatsApp run in the cloud, so live management pauses offline and continues when you’re back.",
+        a: "Panel and WhatsApp run in the cloud; live management pauses without a connection. When it returns, you continue where you left off.",
       },
       {
         q: "How do setup and pricing work?",
@@ -210,182 +189,194 @@ const COPY = {
     cta: {
       title: "Let’s see if it fits.",
       text: "Tell us how your day runs. We’ll say clearly what’s useful, and what you don’t need.",
-      primary: "Contact us",
-      secondary: "Business sign in",
+      primary: "Get in touch",
+      secondary: "Explore the panel",
     },
   },
 } as const;
 
-export default function HowItWorksPage() {
+function HowItWorksContent() {
   const { locale } = useLocale();
   const t = COPY[locale];
-  const [mobileOpen, setMobileOpen] = useState(false);
-  const [showContact, setShowContact] = useState(false);
+  const openContact = useSiteContact();
 
   return (
-    <div className="relative min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(55%_45%_at_15%_0%,rgba(5,150,105,0.12),transparent_65%)]" />
+    <main>
+      <section className="mx-auto w-full max-w-3xl px-4 pb-10 pt-12 sm:px-6 sm:pb-12 sm:pt-14">
+        <ScrollReveal variant="fadeUp">
+          <h1
+            className="site-display text-[clamp(1.9rem,4.5vw,2.75rem)]"
+            style={{ color: "var(--ahi-text)" }}
+          >
+            {t.hero.title}
+          </h1>
+          <p className="mt-4 max-w-2xl text-[15px] leading-7" style={{ color: "var(--ahi-text-2)" }}>
+            {t.hero.lead}
+          </p>
+        </ScrollReveal>
+      </section>
 
-      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
-        <div className="relative mx-auto flex h-16 w-full max-w-3xl items-center justify-between px-4 sm:max-w-7xl sm:px-6">
-          <Link href="/" className="inline-flex items-center gap-3">
-            <Image
-              src="/appicon.png"
-              alt="Ahi AI"
-              width={34}
-              height={34}
-              className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700"
-              priority
-            />
-            <span className="text-lg font-semibold tracking-tight">Ahi AI</span>
-          </Link>
-          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-600 dark:text-slate-300 md:flex">
-            <Link href="/" className="hover:text-slate-900 dark:hover:text-white">
-              {t.nav.home}
-            </Link>
-            <span className="text-emerald-700 dark:text-emerald-400">{t.nav.guide}</span>
-            <Link href="/isletmeler" className="hover:text-slate-900 dark:hover:text-white">
-              {t.nav.businesses}
-            </Link>
-            <button type="button" onClick={() => setShowContact(true)} className="hover:text-slate-900 dark:hover:text-white">
-              {t.nav.contact}
-            </button>
-            <Link
-              href="/dashboard/login"
-              className="rounded-xl bg-emerald-600 px-3.5 py-2 text-white hover:bg-emerald-700 dark:bg-emerald-500 dark:text-slate-950"
-            >
-              {t.nav.login}
-            </Link>
-          </nav>
-          <div className="flex items-center gap-2">
-            <ThemeLocaleSwitch compact />
-            <button
-              type="button"
-              className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 bg-white md:hidden dark:border-slate-700 dark:bg-slate-900"
-              onClick={() => setMobileOpen((v) => !v)}
-            >
-              {mobileOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
-            </button>
+      <section className="mx-auto w-full max-w-3xl px-4 pb-6 sm:px-6">
+        <ScrollReveal variant="fadeUp">
+          <div
+            className="rounded-2xl border px-6 py-7 sm:px-8 sm:py-8"
+            style={{ borderColor: "var(--ahi-line)", background: "var(--ahi-paper)" }}
+          >
+            <h2 className="text-xl font-semibold" style={{ color: "var(--ahi-text)" }}>
+              {t.what.title}
+            </h2>
+            <div className="mt-4 space-y-4 text-[15px] leading-7" style={{ color: "var(--ahi-text-2)" }}>
+              {t.what.body.map((p) => (
+                <p key={p.slice(0, 28)}>{p}</p>
+              ))}
+            </div>
           </div>
-        </div>
-        {mobileOpen && (
-          <div className="grid gap-1 border-t border-slate-200 bg-white px-4 py-3 md:hidden dark:border-slate-800 dark:bg-slate-900">
-            <Link href="/" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" onClick={() => setMobileOpen(false)}>
-              {t.nav.home}
-            </Link>
-            <Link href="/isletmeler" className="rounded-xl border border-slate-200 px-3 py-2.5 text-sm" onClick={() => setMobileOpen(false)}>
-              {t.nav.businesses}
-            </Link>
-            <button
-              type="button"
-              className="rounded-xl border border-slate-200 px-3 py-2.5 text-left text-sm"
-              onClick={() => {
-                setShowContact(true);
-                setMobileOpen(false);
-              }}
-            >
-              {t.nav.contact}
-            </button>
-            <Link
-              href="/dashboard/login"
-              className="rounded-xl bg-emerald-600 px-3 py-2.5 text-center text-sm font-semibold text-white"
-              onClick={() => setMobileOpen(false)}
-            >
-              {t.nav.login}
-            </Link>
-          </div>
-        )}
-      </header>
+        </ScrollReveal>
+      </section>
 
-      <main className="relative mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 lg:py-16">
-        <p className="text-sm font-semibold text-emerald-700 dark:text-emerald-400">{t.hero.eyebrow}</p>
-        <h1 className="mt-3 text-3xl font-bold tracking-tight sm:text-5xl">{t.hero.title}</h1>
-        <p className="mt-4 text-base leading-7 text-slate-600 dark:text-slate-300 sm:text-lg">{t.hero.lead}</p>
+      <section style={{ background: "var(--ahi-paper-2)" }}>
+        <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-14">
+          <ScrollReveal variant="fadeUp">
+            <h2 className="site-display text-[clamp(1.5rem,3.5vw,2.1rem)]" style={{ color: "var(--ahi-text)" }}>
+              {t.how.title}
+            </h2>
+          </ScrollReveal>
 
-        <section className="mt-10 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-8">
-          <h2 className="text-2xl font-bold tracking-tight">{t.what.title}</h2>
-          <div className="mt-4 space-y-4 text-sm leading-7 text-slate-600 dark:text-slate-300 sm:text-[0.98rem]">
-            {t.what.body.map((p) => (
-              <p key={p.slice(0, 24)}>{p}</p>
-            ))}
-          </div>
-        </section>
-
-        <section className="mt-10">
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.how.title}</h2>
-          <ol className="mt-5 space-y-3">
-            {t.how.steps.map((step) => (
-              <li
-                key={step.title}
-                className="rounded-2xl border border-slate-200 bg-white px-5 py-4 shadow-sm dark:border-slate-700 dark:bg-slate-900"
-              >
-                <h3 className="text-base font-semibold">{step.title}</h3>
-                <p className="mt-1.5 text-sm leading-6 text-slate-600 dark:text-slate-300">{step.text}</p>
+          <ol className="mt-8 grid gap-6 sm:grid-cols-2">
+            {t.how.steps.map((step, index) => (
+              <li key={step.title}>
+                <ScrollReveal delay={0.03 + index * 0.04} variant="fadeUp">
+                  <p className="site-meta text-xs font-semibold" style={{ color: "var(--ahi-brand)" }}>
+                    {index + 1}
+                  </p>
+                  <h3 className="mt-2 text-[15px] font-semibold" style={{ color: "var(--ahi-text)" }}>
+                    {step.title}
+                  </h3>
+                  <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
+                    {step.text}
+                  </p>
+                </ScrollReveal>
               </li>
             ))}
           </ol>
-        </section>
+        </div>
+      </section>
 
-        <section className="mt-10">
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.includes.title}</h2>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2">
-            {t.includes.items.map((item) => (
-              <article
-                key={item.title}
-                className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900"
-              >
-                <h3 className="font-semibold">{item.title}</h3>
-                <p className="mt-2 text-sm leading-6 text-slate-600 dark:text-slate-300">{item.text}</p>
+      <section className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-14">
+        <ScrollReveal variant="fadeUp">
+          <h2 className="site-display text-[clamp(1.5rem,3.5vw,2.1rem)]" style={{ color: "var(--ahi-text)" }}>
+            {t.includes.title}
+          </h2>
+        </ScrollReveal>
+        <div
+          className="mt-6 grid gap-px border sm:grid-cols-2"
+          style={{ background: "var(--ahi-line)", borderColor: "var(--ahi-line)" }}
+        >
+          {t.includes.items.map((item, index) => (
+            <ScrollReveal key={item.title} delay={0.02 + index * 0.03} variant="fadeUp" className="h-full">
+              <article className="h-full px-5 py-5" style={{ background: "var(--ahi-paper)" }}>
+                <h3 className="text-[15px] font-semibold" style={{ color: "var(--ahi-text)" }}>
+                  {item.title}
+                </h3>
+                <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
+                  {item.text}
+                </p>
               </article>
-            ))}
-          </div>
-        </section>
+            </ScrollReveal>
+          ))}
+        </div>
+      </section>
 
-        <section className="mt-10 rounded-2xl border border-emerald-200 bg-emerald-50 p-6 dark:border-emerald-900 dark:bg-emerald-950/40 sm:p-8">
-          <h2 className="text-2xl font-bold tracking-tight">{t.forWhom.title}</h2>
-          <p className="mt-3 text-sm leading-7 text-slate-700 dark:text-slate-200 sm:text-[0.98rem]">{t.forWhom.text}</p>
-        </section>
+      <section style={{ background: "var(--ahi-ink)" }}>
+        <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-12">
+          <ScrollReveal variant="fadeUp">
+            <h2 className="text-lg font-semibold" style={{ color: "var(--ahi-on-ink)" }}>
+              {t.forWhom.title}
+            </h2>
+            <p className="mt-3 max-w-2xl text-[15px] leading-7" style={{ color: "var(--ahi-on-ink-2)" }}>
+              {t.forWhom.text}
+            </p>
+          </ScrollReveal>
+        </div>
+      </section>
 
-        <section className="mt-10">
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.faqTitle}</h2>
-          <div className="mt-5 divide-y divide-slate-200 overflow-hidden rounded-2xl border border-slate-200 bg-white dark:divide-slate-700 dark:border-slate-700 dark:bg-slate-900">
-            {t.faqs.map((item) => (
-              <details key={item.q} className="group px-5 py-4 open:bg-slate-50 dark:open:bg-slate-800/50">
-                <summary className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden">
-                  <span className="flex items-start justify-between gap-3">
-                    <span>{item.q}</span>
-                    <span className="text-emerald-600 transition group-open:rotate-45">+</span>
+      <section className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-14">
+        <ScrollReveal variant="fadeUp">
+          <h2 className="site-display text-[clamp(1.5rem,3.5vw,2.1rem)]" style={{ color: "var(--ahi-text)" }}>
+            {t.faqTitle}
+          </h2>
+        </ScrollReveal>
+        <div
+          className="mt-6 divide-y divide-[var(--ahi-line)] overflow-hidden rounded-2xl border"
+          style={{
+            borderColor: "var(--ahi-line)",
+            background: "var(--ahi-paper)",
+          }}
+        >
+          {t.faqs.map((item) => (
+            <details
+              key={item.q}
+              className="group px-5 py-4"
+              style={{ borderColor: "var(--ahi-line)" }}
+            >
+              <summary
+                className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden"
+                style={{ color: "var(--ahi-text)" }}
+              >
+                <span className="flex items-start justify-between gap-3">
+                  <span>{item.q}</span>
+                  <span
+                    className="site-meta shrink-0 text-lg leading-none transition group-open:rotate-45"
+                    style={{ color: "var(--ahi-brand)" }}
+                  >
+                    +
                   </span>
-                </summary>
-                <p className="mt-3 text-sm leading-7 text-slate-600 dark:text-slate-300">{item.a}</p>
-              </details>
-            ))}
-          </div>
-        </section>
+                </span>
+              </summary>
+              <p className="mt-3 text-sm leading-7" style={{ color: "var(--ahi-text-2)" }}>
+                {item.a}
+              </p>
+            </details>
+          ))}
+        </div>
+      </section>
 
-        <section className="mt-12 rounded-2xl bg-emerald-700 p-7 text-white sm:p-9">
-          <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">{t.cta.title}</h2>
-          <p className="mt-3 max-w-xl text-sm leading-6 text-emerald-50">{t.cta.text}</p>
-          <div className="mt-6 flex flex-col gap-3 sm:flex-row">
-            <button
-              type="button"
-              onClick={() => setShowContact(true)}
-              className="inline-flex min-h-11 items-center justify-center gap-2 rounded-xl bg-white px-5 text-sm font-semibold text-emerald-900"
+      <section className="mx-auto w-full max-w-3xl px-4 pb-16 sm:px-6 sm:pb-20">
+        <ScrollReveal variant="fadeUp">
+          <div className="rounded-2xl px-6 py-10 sm:px-10 sm:py-12" style={{ background: "var(--ahi-ink)" }}>
+            <h2
+              className="site-display max-w-xl text-[clamp(1.5rem,3.5vw,2.1rem)]"
+              style={{ color: "var(--ahi-on-ink)" }}
             >
-              {t.cta.primary}
-              <ArrowRight className="h-4 w-4" aria-hidden />
-            </button>
-            <Link
-              href="/dashboard/login"
-              className="inline-flex min-h-11 items-center justify-center rounded-xl border border-white/30 px-5 text-sm font-semibold"
-            >
-              {t.cta.secondary}
-            </Link>
+              {t.cta.title}
+            </h2>
+            <p className="mt-3 max-w-xl text-[15px] leading-7" style={{ color: "var(--ahi-on-ink-2)" }}>
+              {t.cta.text}
+            </p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              <button type="button" onClick={openContact} className="site-btn site-btn-primary">
+                {t.cta.primary}
+                <MarkArrow className="h-4 w-4" />
+              </button>
+              <Link
+                href="/panel-incele"
+                className="site-btn"
+                style={{ border: "1px solid var(--ahi-on-ink-line)", color: "var(--ahi-on-ink)" }}
+              >
+                {t.cta.secondary}
+              </Link>
+            </div>
           </div>
-        </section>
-      </main>
+        </ScrollReveal>
+      </section>
+    </main>
+  );
+}
 
-      <ContactModal isOpen={showContact} onClose={() => setShowContact(false)} />
-    </div>
+export default function HowItWorksPage() {
+  return (
+    <SiteShell>
+      <HowItWorksContent />
+    </SiteShell>
   );
 }

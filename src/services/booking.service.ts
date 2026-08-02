@@ -15,7 +15,26 @@ import { isCustomerBlocked } from "@/services/blacklist.service";
 import { normalizePhoneDigits } from "@/lib/phone";
 
 const DEFAULT_WORKING_HOURS = { start: "09:00", end: "18:00" };
-const DEFAULT_WORKING_DAYS = [1, 2, 3, 4, 5, 6];
+/**
+ * Takvim HİÇ tanımlanmamış tenant'lar için son çare varsayım.
+ * Hafta kalıbı dayatmamak için `config_override.default_working_days`
+ * ([0=Pazar..6=Cumartesi]) ile ezilebilir: salı kapalı, pazar açık gibi her
+ * kombinasyon mümkün. availability_slots satırı varsa bu değer HİÇ kullanılmaz;
+ * o zaman satırı olmayan her gün kapalıdır.
+ */
+const FALLBACK_WORKING_DAYS = [1, 2, 3, 4, 5, 6];
+
+export function resolveFallbackWorkingDays(
+  configOverride: Record<string, unknown>
+): number[] {
+  const raw = configOverride?.default_working_days;
+  if (!Array.isArray(raw)) return FALLBACK_WORKING_DAYS;
+  const days = raw
+    .map((d) => Number(d))
+    .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
+  // Boş dizi "hiçbir gün çalışmıyorum" demektir; sessizce varsayılana dönme.
+  return days.length > 0 || raw.length === 0 ? days : FALLBACK_WORKING_DAYS;
+}
 const APP_TIMEZONE = process.env.APP_TIMEZONE?.trim() || "Europe/Istanbul";
 const DEFAULT_TZ_OFFSET = "+03:00";
 const WEEK_AVAILABILITY_MAX_DAYS = 7;
@@ -93,6 +112,11 @@ export interface DailyAvailabilityResult {
   checkFailed?: boolean;
   closed?: boolean;
   noSchedule?: boolean;
+  /**
+   * Gün aslında boş; saatler yalnızca "bugün için çok geç" olduğu için elendi.
+   * "Dolu" demek yanlış olur — mesai bitmiş/kalan süre hizmete yetmiyor demektir.
+   */
+  pastCutoff?: boolean;
   workingHours: { start: string; end: string } | null;
   durationMinutes: number;
 }
@@ -306,7 +330,7 @@ function resolveScheduleFromSlots(
       | null;
     const startTime = defaultHours?.start || DEFAULT_WORKING_HOURS.start;
     const endTime = defaultHours?.end || DEFAULT_WORKING_HOURS.end;
-    if (!DEFAULT_WORKING_DAYS.includes(dayOfWeek)) {
+    if (!resolveFallbackWorkingDays(override).includes(dayOfWeek)) {
       return {
         configOverride: override,
         startTime,
@@ -771,19 +795,30 @@ function computeDailyAvailabilityFromContext(
       ? nowMinutes + SAME_DAY_MIN_LEAD_MINUTES
       : Number.NEGATIVE_INFINITY;
 
-  const available = computeOpenSlots({
+  const slotParams = {
     workStart: timeToMinutes(schedule.startTime),
     workEnd: timeToMinutes(schedule.endTime),
     stepMinutes: schedule.baseSlotMinutes,
     durationMinutes,
     busy: merged,
+  };
+  const available = computeOpenSlots({
+    ...slotParams,
     minStartMinutes: sameDayMinStart,
   });
+
+  // Saat kalmadıysa sebebi ayırt et: gerçekten dolu mu, yoksa gün mü geçti?
+  // Aksi halde bomboş bir günde müşteriye "bugün dolu" deniyordu.
+  let pastCutoff = false;
+  if (available.length === 0 && sameDayMinStart !== Number.NEGATIVE_INFINITY) {
+    pastCutoff = computeOpenSlots(slotParams).length > 0;
+  }
 
   return {
     date: normalizedDate,
     available,
     booked: booked.starts,
+    pastCutoff,
     workingHours: { start: schedule.startTime, end: schedule.endTime },
     durationMinutes,
   };

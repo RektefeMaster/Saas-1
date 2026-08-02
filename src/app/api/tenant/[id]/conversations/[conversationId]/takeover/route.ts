@@ -24,11 +24,25 @@ export async function POST(
       return NextResponse.json({ error: "Kullanıcı kimliği yok" }, { status: 401 });
     }
 
-    const membership = auth.userId
+    let membership = auth.userId
       ? await getActiveMembership(tenantId, auth.userId)
       : null;
+    // One retry — lazy bootstrap can race with concurrent first-login inserts.
+    if (!membership && auth.actor !== "admin" && auth.userId) {
+      membership = await getActiveMembership(tenantId, auth.userId);
+    }
     if (!membership && auth.actor !== "admin") {
-      return NextResponse.json({ error: "Üyelik bulunamadı" }, { status: 403 });
+      console.error("[takeover] membership bootstrap failed", {
+        tenantId,
+        userId: auth.userId,
+      });
+      return NextResponse.json(
+        {
+          error:
+            "Üyelik oluşturulamadı — sayfayı yenileyip tekrar deneyin. Devam ederse destek ile iletişime geçin.",
+        },
+        { status: 403 }
+      );
     }
 
     const body = (await request.json()) as {

@@ -143,7 +143,9 @@ export async function executeToolCall(
     let status: string;
     if (availability.blocked) status = "blocked_holiday";
     else if (availability.closed) status = "closed_day";
-    else if (availability.available.length === 0) status = "fully_booked";
+    else if (availability.available.length === 0)
+      // Gün boş ama saat geçmişse "dolu" DEME; müşteri haklı olarak itiraz ediyor.
+      status = daily.pastCutoff ? "too_late_today" : "fully_booked";
     else status = "has_available_slots";
 
     // O gün dolu görünen saatlerin hangileri MÜŞTERİNİN KENDİ randevusu?
@@ -165,6 +167,11 @@ export async function executeToolCall(
         // Listelenen saatler bu süreye göre süzüldü. Bot "15:00 uygun, işlem
         // 17:30'da biter" diyebilsin ve süreyi uydurmasın.
         service_duration_minutes: daily.durationMinutes,
+        ...(status === "too_late_today"
+          ? {
+              status_note: `Bugün takvim DOLU DEĞİL; çalışma saati (${daily.workingHours?.end || "kapanış"}) içinde ${daily.durationMinutes} dakikalık işleme yetecek süre kalmadı. Müşteriye "dolu" deme, "bugüne yetişmiyor" de ve en yakın günü öner.`,
+            }
+          : {}),
         duration_note: `Listedeki her saat ${daily.durationMinutes} dakikalık işlem için uygundur; bu süre boyunca takvim kapanır.`,
         ...(ownSlots.length > 0
           ? {
@@ -561,6 +568,8 @@ export async function executeToolCall(
       cancelledBy: "customer",
       customerPhone,
       reason: args.reason as string,
+      // Bot sohbetinden iptal: ayrı bildirim gönderilmesin, cevap zaten onay.
+      source: "bot",
     });
     if (cancelResult.ok) {
       // İptal sonrası bekleme listesini bilgilendir. Boşalan blok iptal edilen
@@ -728,6 +737,7 @@ export async function executeToolCall(
       cancelledBy: "customer",
       customerPhone,
       reason: "Yeniden planlama",
+      source: "bot",
     });
     if (!cancelRes.ok) {
       if (createRes.id) {

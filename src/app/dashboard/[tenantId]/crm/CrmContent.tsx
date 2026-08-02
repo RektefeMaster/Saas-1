@@ -76,6 +76,7 @@ const COPY = {
     upcoming: "Hatırlatma Listesi",
     noNotes: "Henüz not yok.",
     noReminder: "Hatırlatma yok.",
+    loading: "Yükleniyor…",
     save: "Kaydet",
     saving: "Kaydediliyor...",
     addNote: "Not Ekle",
@@ -126,6 +127,7 @@ const COPY = {
     upcoming: "Reminder List",
     noNotes: "No notes yet.",
     noReminder: "No reminders.",
+    loading: "Loading…",
     save: "Save",
     saving: "Saving...",
     addNote: "Add Note",
@@ -228,6 +230,8 @@ export function CrmContent({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [info, setInfo] = useState("");
+  const busyRef = useRef(false);
+  const notesEndRef = useRef<HTMLDivElement | null>(null);
 
   const [newTag, setNewTag] = useState("");
   const [newNote, setNewNote] = useState("");
@@ -493,8 +497,9 @@ export function CrmContent({
   };
 
   const addNote = async () => {
-    if (!tenantId || !selectedPhone || !newNote.trim()) return;
+    if (!tenantId || !selectedPhone || !newNote.trim() || busyRef.current) return;
     setBusy(true);
+    busyRef.current = true;
     const res = await fetch(
       `/api/tenant/${tenantId}/crm/customers/${encodeURIComponent(selectedPhone)}/notes`,
       {
@@ -505,6 +510,7 @@ export function CrmContent({
     );
     const payload = (await res.json().catch(() => ({}))) as { error?: string };
     setBusy(false);
+    busyRef.current = false;
     if (!res.ok) {
       setError(payload.error || "Not eklenemedi.");
       clearMessageLater();
@@ -512,6 +518,9 @@ export function CrmContent({
     }
     setNewNote("");
     await Promise.all([mutateDetail(), loadCustomers()]);
+    requestAnimationFrame(() => {
+      notesEndRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    });
   };
 
   const createReminder = async (e: React.FormEvent) => {
@@ -618,7 +627,7 @@ export function CrmContent({
           {customersLoading ? (
             <div className="flex items-center justify-center py-12 text-sm text-slate-500 dark:text-slate-400">
               <Loader2 className="mr-2 h-5 w-5 animate-spin" />
-              Yükleniyor…
+              {t.loading}
             </div>
           ) : customers.length === 0 ? (
             <p className="rounded-lg bg-slate-50 py-6 text-center text-sm text-slate-500 dark:bg-slate-800/60 dark:text-slate-400">
@@ -709,7 +718,7 @@ export function CrmContent({
                 {detailLoading ? (
                   <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
                     <Loader2 className="h-4 w-4 animate-spin" />
-                    Yükleniyor…
+                    {t.loading}
                   </div>
                 ) : (
                   <div className="grid gap-4">
@@ -919,36 +928,52 @@ export function CrmContent({
                 </div>
               </article>
 
-              <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
-                <h3 className="mb-4 font-semibold text-slate-900 dark:text-slate-100">{t.notes}</h3>
-                <div className="space-y-3">
+              <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+                <h3 className="border-b border-slate-100 px-4 py-3 font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-100 sm:px-5">
+                  {t.notes}
+                </h3>
+                <div className="max-h-80 space-y-3 overflow-y-auto overscroll-contain bg-slate-50/80 px-3 py-4 dark:bg-slate-950/40 sm:px-4">
                   {notes.length === 0 ? (
-                    <p className="text-sm text-slate-500 dark:text-slate-400">{t.noNotes}</p>
+                    <p className="py-6 text-center text-sm text-slate-500 dark:text-slate-400">
+                      {t.noNotes}
+                    </p>
                   ) : (
-                    notes.map((note) => (
-                      <div
-                        key={note.id}
-                        className="rounded-xl border border-slate-100 px-4 py-3 dark:border-slate-800"
-                      >
-                        <p className="text-sm text-slate-800 dark:text-slate-100">{note.note}</p>
-                        <p className="mt-2 text-[11px] text-slate-500 dark:text-slate-400">
-                          {formatDate(note.created_at, locale)}
-                        </p>
+                    // API newest-first döner; sohbet görünümü için kronolojik sıraya çevir.
+                    [...notes].reverse().map((note) => (
+                      <div key={note.id} className="flex justify-end gap-2">
+                        <div className="flex max-w-[min(90%,24rem)] flex-col items-end">
+                          <div className="rounded-2xl rounded-tr-md bg-emerald-600 px-3.5 py-2.5 text-sm text-white shadow-sm">
+                            <p className="whitespace-pre-wrap break-words">{note.note}</p>
+                          </div>
+                          <p className="mt-1 px-1 text-[10px] text-slate-400">
+                            {formatDate(note.created_at, locale)}
+                          </p>
+                        </div>
                       </div>
                     ))
                   )}
+                  <div ref={notesEndRef} />
                 </div>
-                <div className="mt-4 flex flex-col gap-2 sm:flex-row">
+                <div className="flex flex-col gap-2 border-t border-slate-100 p-3 dark:border-slate-800 sm:flex-row sm:p-4">
                   <input
                     value={newNote}
                     onChange={(e) => setNewNote(e.target.value)}
                     placeholder={t.addNote}
-                    className={`${TOUCH_INPUT} min-w-0 flex-1 rounded-lg`}
+                    disabled={busy}
+                    className={`${TOUCH_INPUT} min-w-0 flex-1 rounded-xl disabled:opacity-50`}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" && !e.shiftKey) {
+                        e.preventDefault();
+                        if (busyRef.current) return;
+                        void addNote();
+                      }
+                    }}
                   />
                   <button
                     type="button"
-                    onClick={addNote}
-                    className={`${TOUCH_BTN} w-full bg-slate-900 text-white hover:bg-slate-700 sm:w-auto dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200`}
+                    disabled={busy || !newNote.trim()}
+                    onClick={() => void addNote()}
+                    className={`${TOUCH_BTN} w-full rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 sm:w-auto dark:bg-emerald-500 dark:hover:bg-emerald-400`}
                   >
                     {t.addNote}
                   </button>
@@ -1038,7 +1063,7 @@ export function CrmContent({
         {remindersLoading ? (
           <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400">
             <Loader2 className="h-4 w-4 animate-spin" />
-            Yükleniyor…
+            {t.loading}
           </div>
         ) : reminders.length === 0 ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">{t.noReminder}</p>

@@ -139,6 +139,31 @@ export async function PUT(
     }
   }
 
+  // Sahibin seçimi KAYIT ALTINA ALINIR. Aksi halde "tüm günler kapalı"
+  // kaydedildiğinde tabloda hiç satır kalmıyor, motor da bunu "takvim hiç
+  // tanımlanmamış" sanıp varsayılan Pzt-Cmt'yi AÇIK kabul ediyordu.
+  if (!staffId) {
+    const openDays = [...new Set(toInsert.map((s) => s.day_of_week))].sort(
+      (a, b) => a - b
+    );
+    const { data: tenantRow } = await supabase
+      .from("tenants")
+      .select("config_override")
+      .eq("id", tenantId)
+      .maybeSingle();
+    const nextConfig = {
+      ...((tenantRow?.config_override as Record<string, unknown> | null) || {}),
+      default_working_days: openDays,
+    };
+    const { error: cfgError } = await supabase
+      .from("tenants")
+      .update({ config_override: nextConfig, updated_at: new Date().toISOString() })
+      .eq("id", tenantId);
+    if (cfgError) {
+      console.error("[availability/slots] working days persist failed:", cfgError.message);
+    }
+  }
+
   let updatedQuery = supabase
     .from("availability_slots")
     .select("id, staff_id, day_of_week, start_time, end_time")

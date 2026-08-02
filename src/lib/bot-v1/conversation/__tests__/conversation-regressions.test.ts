@@ -3,7 +3,7 @@
  * Her başlık gerçek bir WhatsApp sohbetinde görülen davranışa karşılık gelir.
  */
 import { describe, it, expect } from "vitest";
-import { detectGlobalInterruptIntent } from "../intent-detection";
+import { detectGlobalInterruptIntent, hasReschedulingIntent } from "../intent-detection";
 import { formatDateReadableTr } from "../helpers";
 import { fillTemplate } from "@/services/configMerge.service";
 
@@ -60,5 +60,19 @@ describe("onay mesajında saat tekrarı", () => {
     const withTime = formatDateReadableTr("2026-08-01", "15:00");
     expect(withTime).toMatch(/saat/);
     expect(withTime).toContain("15.00");
+  });
+});
+
+describe("aynı mesajda iptal + yeni randevu", () => {
+  it("iptal onayının yanındaki saat/tarih talebini yakalar", () => {
+    expect(hasReschedulingIntent("Evet iptal et ve bugün saat 12 ye al")).toBe(true);
+    expect(hasReschedulingIntent("iptal edip yarına alalım")).toBe(true);
+    expect(hasReschedulingIntent("evet iptal, cuma 15e yaz")).toBe(true);
+  });
+
+  it("sade iptal onayında tetiklenmez (akış kesilsin)", () => {
+    expect(hasReschedulingIntent("evet iptal")).toBe(false);
+    expect(hasReschedulingIntent("iptal et")).toBe(false);
+    expect(hasReschedulingIntent("evet")).toBe(false);
   });
 });

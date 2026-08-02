@@ -104,6 +104,7 @@ import {
   isEscalationQuestion,
   isHumanEscalationRequest,
   detectGlobalInterruptIntent,
+  hasReschedulingIntent,
 } from "./intent-detection";
 import {
   getMergedMessages,
@@ -395,6 +396,8 @@ export async function processMessage(
     const flowType = (bt?.config?.flow_type as FlowType) || "appointment";
     // Sektör profili: ton (esnaf ağzı) ve sağlık/operasyon kuralları buradan.
     const sector = getSectorProfile(bt?.slug, bt?.name);
+    // Bu turda iptal yapıldıysa aynı mesajdaki yeni randevu talebi sürdürülür.
+    let justCancelledInThisTurn = false;
 
     // ── Oturum başlatma (tek yerde, her erken dönüşten ÖNCE) ───────────────────
     let state: ConversationState | null = sessionPrefetch;
@@ -513,7 +516,12 @@ export async function processMessage(
       const softPaused = isAutomationSoftPaused(pgMode);
 
       if (softPaused) {
-        if (isLiveHumanTakeoverReason(state.pause_reason)) {
+        // Live takeover lock only when PG still says human owns the thread.
+        // Stale Redis staff_takeover:* after AUTOMATION_PAUSED must not admin-lock soft-pause.
+        if (
+          isLiveHumanTakeoverReason(state.pause_reason) &&
+          pgMode !== "AUTOMATION_PAUSED"
+        ) {
           return persistAndReply(
             "Bu sohbet şu an insan destek ekibinde. Botu yalnızca yönetici yeniden devreye alabilir.",
             {},
@@ -827,6 +835,7 @@ export async function processMessage(
           cancelledBy: "customer",
           customerPhone,
           reason: "Müşteri onaylı iptal",
+          source: "bot",
         });
 
         if (!cancelResult.ok) {
@@ -847,19 +856,37 @@ export async function processMessage(
           dedupeKey: `cancel:${tenantId}:${pendingCancelId}`,
         }).catch((e) => console.error("[ai] ops alert create error:", e));
 
-        return persistAndReply(
-          tone === "siz"
-            ? "Randevunuzu iptal ettim. İsterseniz yeni bir saat planlayalım."
-            : "Randevunu iptal ettim. İstersen yeni bir saat planlayalım.",
-          {
+        const clearedExtracted = {
+          ...extracted,
+          pending_cancel_appointment_id: null,
+          pending_cancel_set_at: null,
+        };
+
+        // "Evet iptal et VE bugün 12'ye al" gibi çift talepli mesajlarda burada
+        // durup sabit cevap dönmek ikinci isteği tamamen yutuyordu. Mesajda
+        // yeniden planlama sinyali varsa iptali yap ama akışı kesme; LLM
+        // devam edip yeni randevuyu oluştursun.
+        if (hasReschedulingIntent(effectiveMessage)) {
+          state = {
+            ...(state as ConversationState),
             step: "devam",
             extracted: {
-              ...extracted,
-              pending_cancel_appointment_id: null,
-              pending_cancel_set_at: null,
+              ...clearedExtracted,
+              just_cancelled_appointment: true,
             },
-          }
-        );
+          };
+          justCancelledInThisTurn = true;
+        } else {
+          return persistAndReply(
+            tone === "siz"
+              ? "Randevunuzu iptal ettim. İsterseniz yeni bir saat planlayalım."
+              : "Randevunu iptal ettim. İstersen yeni bir saat planlayalım.",
+            {
+              step: "devam",
+              extracted: clearedExtracted,
+            }
+          );
+        }
       }
 
       if (isCancelReject(effectiveMessage)) {
@@ -1089,6 +1116,7 @@ export async function processMessage(
         upcomingAppointments: upcomingText,
         crmProfile: crmProfileText,
         leadMemory: leadMemoryText,
+        justCancelled: justCancelledInThisTurn,
         misunderstandingCount: state?.consecutive_misunderstandings ?? 0,
         stateSummary: buildStateSummary(state),
         sector,

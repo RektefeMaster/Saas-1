@@ -2,8 +2,6 @@ import { describe, expect, it } from "vitest";
 import { shouldSkipAiProcessing } from "../conversation.service";
 import {
   isWizardAllowedBusinessTypeSlug,
-  resolveCanonicalSectorCode,
-  hasCapability,
   getSectorProfileByKey,
 } from "../sectorProfile.service";
 
@@ -34,14 +32,7 @@ describe("wizard sector filter", () => {
     expect(isWizardAllowedBusinessTypeSlug("hali-yikama")).toBe(false);
   });
 
-  it("maps legacy slugs to canonical codes", () => {
-    expect(resolveCanonicalSectorCode("disci")).toBe("dental_clinic");
-    expect(resolveCanonicalSectorCode("berber")).toBe("barber");
-  });
-
-  it("exposes healthcare capability for dental", () => {
-    const dental = getSectorProfileByKey("dental");
-    expect(hasCapability(dental, "healthcareCompliance")).toBe(true);
-    expect(hasCapability(dental, "booking")).toBe(true);
+  it("sağlık sektörü işareti diş kliniğinde açık", () => {
+    expect(getSectorProfileByKey("dental").healthcare).toBe(true);
   });
 });

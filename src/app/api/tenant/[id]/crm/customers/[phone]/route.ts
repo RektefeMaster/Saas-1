@@ -93,11 +93,14 @@ async function getCustomerWithFallback(
 }
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string; phone: string }> }
 ) {
   try {
     const { id: tenantId, phone } = await params;
+    // Müşteri kartı + notlar kişisel veri; kardeş CRM route'larıyla aynı kontrol.
+    const auth = await requireTenantApiAccess(request, tenantId);
+    if (!auth.ok) return auth.response;
     const customerPhone = normalizePhoneForLookup(phone);
 
     // Paralel sorgular: customer ve notes bağımsız olduğu için aynı anda çekilebilir

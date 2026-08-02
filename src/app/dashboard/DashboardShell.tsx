@@ -6,6 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import {
+  BookOpen,
   ChevronDown,
   LayoutDashboard,
   ListChecks,
@@ -28,6 +29,7 @@ import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
 import { useLocale } from "@/lib/locale-context";
 import { ThemeLocaleSwitch } from "@/components/ui";
 import { DashboardTenantProvider, useDashboardTenant } from "./DashboardTenantContext";
+import { applyModuleOrder } from "./nav-order";
 
 const QRCodeModal = dynamic(
   () => import("@/components/ui/QRCodeModal").then((m) => ({ default: m.QRCodeModal })),
@@ -47,6 +49,7 @@ type NavKey =
   | "campaigns"
   | "workflow"
   | "crm"
+  | "knowledge"
   | "staff"
   | "settings";
 
@@ -62,6 +65,7 @@ const COPY = {
       campaigns: "Kampanyalar",
       workflow: "İş Akışı",
       crm: "Müşteri Defteri",
+      knowledge: "Bilgi Bankası",
       staff: "Personel",
       settings: "Ayarlar",
     },
@@ -83,6 +87,7 @@ const COPY = {
       campaigns: "Campaigns",
       workflow: "Workflow",
       crm: "Customer Book",
+      knowledge: "Knowledge Base",
       staff: "Staff",
       settings: "Settings",
     },
@@ -167,14 +172,20 @@ function buildMobileBottomNav(navItems: NavItem[], locale: "tr" | "en", moreLabe
 const UserMenu = React.memo(function UserMenu({
   user,
   logoutLabel,
+  pathname,
 }: {
   user: User | null;
   logoutLabel: string;
+  pathname: string;
 }) {
   const router = useRouter();
   const [open, setOpen] = useState(false);
   const accountLabel = loginEmailToUsernameDisplay(user?.email);
   const initial = accountLabel.slice(0, 1).toUpperCase() || "?";
+
+  useEffect(() => {
+    setOpen(false);
+  }, [pathname]);
 
   const handleLogout = async () => {
     const supabase = createClient();
@@ -205,10 +216,10 @@ const UserMenu = React.memo(function UserMenu({
 
       {open && (
         <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} aria-hidden />
+          <div className="fixed inset-0 z-[55]" onClick={() => setOpen(false)} aria-hidden />
           <div
             role="menu"
-            className="absolute right-0 top-full z-40 mt-2 w-56 rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
+            className="absolute right-0 top-full z-[60] mt-2 w-56 rounded-xl border border-slate-200 bg-white p-1 shadow-lg dark:border-slate-700 dark:bg-slate-900"
           >
             <button
               type="button"
@@ -288,6 +299,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
             { key: "packages" as NavKey, href: `/dashboard/${tenantId}/packages`, label: t.nav.packages, icon: Package },
             { key: "workflow" as NavKey, href: `/dashboard/${tenantId}/workflow`, label: t.nav.workflow, icon: KanbanSquare },
             { key: "crm" as NavKey, href: `/dashboard/${tenantId}/crm`, label: t.nav.crm, icon: Users },
+            { key: "knowledge" as NavKey, href: `/dashboard/${tenantId}/knowledge`, label: t.nav.knowledge, icon: BookOpen },
             { key: "campaigns" as NavKey, href: `/dashboard/${tenantId}/campaigns`, label: t.nav.campaigns, icon: MessageCircle },
             { key: "staff" as NavKey, href: `/dashboard/${tenantId}/staff`, label: t.nav.staff, icon: UserRound },
             { key: "settings" as NavKey, href: `/dashboard/${tenantId}/settings`, label: t.nav.settings, icon: Settings },
@@ -307,9 +319,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     if (moduleVisibility) {
       visible = visible.filter((item) => moduleVisibility[item.key] !== false);
     }
-    if (!moduleOrder || moduleOrder.length === 0) return visible;
-    const rank = new Map(moduleOrder.map((key, index) => [key, index]));
-    return [...visible].sort((a, b) => (rank.get(a.key) ?? 999) - (rank.get(b.key) ?? 999));
+    return applyModuleOrder(visible, moduleOrder);
   }, [baseNav, featureFlags, moduleOrder, moduleVisibility]);
 
   const mobileBottomNav = useMemo(
@@ -346,7 +356,15 @@ export default function DashboardShell({ children }: { children: React.ReactNode
       <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
         <div className="mx-auto flex h-[var(--dashboard-header-height)] w-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 flex-1 items-center gap-3">
-            <Link href="/dashboard" className="inline-flex shrink-0 items-center gap-2.5">
+            <Link
+              href={
+                extractedTenantId
+                  ? `/dashboard/${extractedTenantId}`
+                  : "/dashboard"
+              }
+              className="inline-flex shrink-0 items-center gap-2.5"
+              aria-label={extractedTenantId ? t.nav.overview : "Ahi AI"}
+            >
               <Image
                 src="/appicon.png"
                 alt=""
@@ -370,7 +388,7 @@ export default function DashboardShell({ children }: { children: React.ReactNode
             <div className="hidden md:block">
               <ThemeLocaleSwitch compact />
             </div>
-            <UserMenu user={user} logoutLabel={t.logout} />
+            <UserMenu user={user} logoutLabel={t.logout} pathname={pathname} />
           </div>
         </div>
       </header>

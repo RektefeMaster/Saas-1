@@ -112,8 +112,13 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
       hour12: false,
     });
 
+    // Müşteri iptali bot sohbetinden geliyorsa AYRI bildirim GÖNDERME:
+    // botun kendi cevabı zaten onaydır. İkisi birden gidince müşteri aynı anda
+    // "Randevunuz iptal edildi" + "Randevunu iptal ettim" alıyordu.
+    const notifyCustomer = cancelledBy !== "customer" || params.source !== "bot";
+
     // Fire-and-forget: do not block bot/API reply on WhatsApp/SMS RTT.
-    void (async () => {
+    if (notifyCustomer) void (async () => {
       const messageContexts = await loadTenantMessageContexts([tenantId]);
       const messageKey =
         cancelledBy === "tenant" ? "cancellation_by_tenant" : "cancellation_by_customer";

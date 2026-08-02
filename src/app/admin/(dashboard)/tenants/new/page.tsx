@@ -98,11 +98,16 @@ const STEP_TITLES = [
   "Marka ve Görünüm",
 ];
 
-const DEFAULT_SLOTS: SlotDraft[] = [1, 2, 3, 4, 5].map((day) => ({
-  day_of_week: day,
-  start_time: "09:00",
-  end_time: "18:00",
-}));
+/** Gün sırası: Pazartesi…Pazar. Hiçbir gün varsayılan olarak AÇIK gelmez. */
+const WEEK_DAYS: Array<{ value: number; label: string }> = [
+  { value: 1, label: "Pazartesi" },
+  { value: 2, label: "Salı" },
+  { value: 3, label: "Çarşamba" },
+  { value: 4, label: "Perşembe" },
+  { value: 5, label: "Cuma" },
+  { value: 6, label: "Cumartesi" },
+  { value: 0, label: "Pazar" },
+];
 
 export default function NewTenantWizardPage() {
   const router = useRouter();
@@ -127,7 +132,7 @@ export default function NewTenantWizardPage() {
   const [bufferMinutes, setBufferMinutes] = useState(0);
   const [advanceBookingDays, setAdvanceBookingDays] = useState(30);
   const [cancellationHours, setCancellationHours] = useState(2);
-  const [weeklySlots, setWeeklySlots] = useState<SlotDraft[]>(DEFAULT_SLOTS);
+  const [weeklySlots, setWeeklySlots] = useState<SlotDraft[]>([]);
   const [blockedDates, setBlockedDates] = useState<BlockedDraft[]>([]);
   const [blockedDraft, setBlockedDraft] = useState<BlockedDraft>({
     start_date: "",
@@ -153,7 +158,6 @@ export default function NewTenantWizardPage() {
   const [accentColor, setAccentColor] = useState("#06b6d4");
   const [moduleVisibility, setModuleVisibility] = useState({
     overview: true,
-    calendar: true,
     pricing: true,
     workflow: true,
     crm: true,
@@ -284,7 +288,6 @@ export default function NewTenantWizardPage() {
         primaryColor,
         accentColor,
         moduleVisibility,
-        moduleOrder: ["overview", "calendar", "pricing", "workflow", "crm", "settings"],
       },
       pricing_preferences: {
         fallbackMode: "show_call",
@@ -595,55 +598,54 @@ export default function NewTenantWizardPage() {
             <div>
               <label className="mb-2 block text-sm font-medium text-slate-700 dark:text-slate-300">Haftalık çalışma saatleri</label>
               <div className="grid gap-2 md:grid-cols-2">
-              {weeklySlots.map((slot, index) => (
-                <div key={`${slot.day_of_week}-${index}`} className="flex items-center gap-2 rounded-xl border border-slate-200 p-2">
-                  <select
-                    value={slot.day_of_week}
-                    onChange={(e) =>
-                      setWeeklySlots((prev) =>
-                        prev.map((item, i) =>
-                          i === index ? { ...item, day_of_week: Number(e.target.value) } : item
-                        )
-                      )
-                    }
-                    className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-                  >
-                    <option value={1}>Pzt</option>
-                    <option value={2}>Sal</option>
-                    <option value={3}>Çar</option>
-                    <option value={4}>Per</option>
-                    <option value={5}>Cum</option>
-                    <option value={6}>Cmt</option>
-                    <option value={0}>Paz</option>
-                  </select>
-                  <input
-                    type="time"
-                    value={slot.start_time}
-                    onChange={(e) =>
-                      setWeeklySlots((prev) =>
-                        prev.map((item, i) =>
-                          i === index ? { ...item, start_time: e.target.value } : item
-                        )
-                      )
-                    }
-                    className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-                  />
-                  <input
-                    type="time"
-                    value={slot.end_time}
-                    onChange={(e) =>
-                      setWeeklySlots((prev) =>
-                        prev.map((item, i) =>
-                          i === index ? { ...item, end_time: e.target.value } : item
-                        )
-                      )
-                    }
-                    className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm"
-                  />
-                </div>
-              ))}
+              {WEEK_DAYS.map(({ value: dow, label }) => {
+                const slot = weeklySlots.find((s) => s.day_of_week === dow);
+                const isOpen = Boolean(slot);
+                const patch = (p: Partial<SlotDraft>) =>
+                  setWeeklySlots((prev) =>
+                    prev.map((item) =>
+                      item.day_of_week === dow ? { ...item, ...p } : item
+                    )
+                  );
+                const toggle = (open: boolean) =>
+                  setWeeklySlots((prev) => {
+                    const rest = prev.filter((s) => s.day_of_week !== dow);
+                    if (!open) return rest;
+                    return [
+                      ...rest,
+                      { day_of_week: dow, start_time: "09:00", end_time: "18:00" },
+                    ].sort((a, b) => a.day_of_week - b.day_of_week);
+                  });
+                return (
+                  <div key={dow} className="flex items-center gap-2 rounded-xl border border-slate-200 p-2">
+                    <label className="flex w-32 shrink-0 items-center gap-2 text-sm">
+                      <input
+                        type="checkbox"
+                        checked={isOpen}
+                        onChange={(e) => toggle(e.target.checked)}
+                        className="h-4 w-4 accent-emerald-600"
+                      />
+                      <span>{label}</span>
+                    </label>
+                    <input
+                      type="time"
+                      value={slot?.start_time ?? ""}
+                      disabled={!isOpen}
+                      onChange={(e) => patch({ start_time: e.target.value })}
+                      className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:opacity-40"
+                    />
+                    <input
+                      type="time"
+                      value={slot?.end_time ?? ""}
+                      disabled={!isOpen}
+                      onChange={(e) => patch({ end_time: e.target.value })}
+                      className="rounded-lg border border-slate-200 px-2 py-1.5 text-sm disabled:opacity-40"
+                    />
+                  </div>
+                );
+              })}
               </div>
-              <p className="mt-2 text-xs text-slate-500">Her gün için açılış-kapanış saati</p>
+              <p className="mt-2 text-xs text-slate-500">Çalıştığınız günleri işaretleyin. İşaretlenmeyen gün kapalıdır — hafta içi/sonu ayrımı yoktur.</p>
             </div>
             <div className="rounded-xl border border-slate-200 p-3">
               <p className="mb-2 text-sm font-medium text-slate-700 dark:text-slate-300">Kapalı günler (tatil, bayram vb.)</p>
@@ -869,7 +871,6 @@ export default function NewTenantWizardPage() {
                       }
                     />
                     {key === "overview" && "Özet"}
-                    {key === "calendar" && "Takvim"}
                     {key === "pricing" && "Fiyat Listesi"}
                     {key === "workflow" && "İş Akışı"}
                     {key === "crm" && "CRM Defteri"}

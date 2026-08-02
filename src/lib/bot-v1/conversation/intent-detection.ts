@@ -227,3 +227,25 @@ export function detectGlobalInterruptIntent(message: string): GlobalInterruptInt
   return null;
 }
 
+
+/**
+ * Mesaj, iptal onayının yanında AYRICA yeni randevu talebi de taşıyor mu?
+ * ("evet iptal et ve bugün 12'ye al", "iptal edip yarına alalım")
+ * Saat/tarih sinyali + alma fiili birlikte aranır; tek başına "iptal" yeterli değil.
+ */
+export function hasReschedulingIntent(message: string): boolean {
+  const text = normalizeIncomingText(message);
+  if (!text) return false;
+  const hasTimeOrDate =
+    // Ek almış saatler de sayılır: "15e", "12'ye" → sondaki \b aranmaz.
+    /\b\d{1,2}([:.]\d{2})?/.test(text) ||
+    // Türkçe ek alan biçimler ("yarina", "cumaya", "pazartesiye") için kök eşleşmesi.
+    /\b(bugun|yarin|obur\s*gun|pazartesi|sali|carsamba|persembe|cuma|cumartesi|pazar|hafta)/.test(
+      text
+    );
+  const hasBookingVerb =
+    /\b(al|alalim|alir\s*misin|alabilir|yaz|yazalim|ayarla|ayarlayalim|tasi|tasiyalim|kaydet)\b/.test(
+      text
+    );
+  return hasTimeOrDate && hasBookingVerb;
+}

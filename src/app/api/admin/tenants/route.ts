@@ -229,6 +229,17 @@ export async function POST(request: NextRequest) {
     if (body.scheduling?.slot_duration_minutes !== undefined) {
       mergedConfig.slot_duration_minutes = body.scheduling.slot_duration_minutes;
     }
+    if (body.scheduling?.weekly_slots) {
+      // Seçilen günler kalıcı: hiç gün seçilmezse [] yazılır ve motor hiçbir
+      // günü varsayılan olarak açmaz.
+      mergedConfig.default_working_days = [
+        ...new Set(
+          (body.scheduling.weekly_slots || [])
+            .map((s) => Number(s.day_of_week))
+            .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6)
+        ),
+      ].sort((a, b) => a - b);
+    }
     if (body.scheduling?.buffer_minutes !== undefined) {
       const raw = Number(body.scheduling.buffer_minutes);
       mergedConfig.buffer_minutes = Number.isFinite(raw)
@@ -358,9 +369,13 @@ export async function POST(request: NextRequest) {
         }));
 
       if (slotsPayload.length > 0) {
+        // DİKKAT: tablodaki benzersiz indeks (tenant_id, day_of_week,
+        // COALESCE(staff_id, ...)) üzerinde; "tenant_id,day_of_week" ile
+        // ON CONFLICT eşleşmez ve Postgres hata döndürür. Yeni tenant'ta zaten
+        // satır olmadığı için düz insert hem doğru hem indeks şekline bağımsız.
         const { error: slotError } = await supabase
           .from("availability_slots")
-          .upsert(slotsPayload, { onConflict: "tenant_id,day_of_week" });
+          .insert(slotsPayload);
         if (slotError) {
           return NextResponse.json(
             { error: `Çalışma saatleri kaydedilemedi: ${slotError.message}` },

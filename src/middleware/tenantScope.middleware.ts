@@ -15,20 +15,6 @@ export class TenantScopeError extends Error {
 }
 
 /**
- * İstekte gelen tenant_id ile işlem yapılan tenant_id aynı mı kontrol eder.
- * Farklıysa TenantScopeError fırlatır (403).
- * API route'larda path'ten gelen id ile session/body'deki tenant_id karşılaştırmak için kullanın.
- */
-export function requireTenantMatch(
-  operationTenantId: string,
-  requestTenantId: string | undefined | null
-): void {
-  if (!requestTenantId || operationTenantId !== requestTenantId) {
-    throw new TenantScopeError("Bu işlem için yetkiniz yok.", 403);
-  }
-}
-
-/**
  * tenant_id'nin dolu ve geçerli UUID olduğunu doğrular.
  * Boş veya geçersizse TenantScopeError fırlatır.
  */

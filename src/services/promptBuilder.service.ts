@@ -38,6 +38,8 @@ export interface PromptBuilderContext {
   crmProfile?: string;
   /** Önceki konuşmalardan kalıcı hafıza (crm_customers.bot_memory). */
   leadMemory?: string;
+  /** Bu turda mevcut randevu iptal edildi; müşteri aynı mesajda yeni saat istedi. */
+  justCancelled?: boolean;
   misunderstandingCount: number;
   /** Kayan hafıza: tek cümlelik durum özeti (legacy path ile tutarlılık). */
   stateSummary?: string;
@@ -62,7 +64,7 @@ export function buildSystemPrompt(
   const examples = buildExamplesPrompt(config);
   const toneInstructions = buildToneInstructions(config, sector);
   const fieldInstructions = buildFieldInstructions(config);
-  const toolUsage = buildToolUsageInstructions();
+  const toolUsage = buildToolUsageInstructions(sector);
   const sectorRules = buildSectorRulesPrompt(sector);
   const contextBlock = buildContextBlock(context);
 
@@ -139,31 +141,37 @@ ${lines}
 ${hints ? `\nBilgi çıkarma ipuçları:\n${hints}` : ""}`;
 }
 
-function buildToolUsageInstructions(): string {
-  const serviceFirstRuleLine = SERVICE_FIRST_FLOW_RULE.replace(/^HİZMET ÖNCELİKLİ AKIŞ:\s*/u, "");
-  return `
-Araç kullanımı (ne zaman hangi fonksiyonu çağır):
-- RANDEVU AKIŞINDA ÖNCE HİZMET: ${serviceFirstRuleLine}
-- ${SERVICE_SELECTED_CONTINUE_RULE}
-- ${IMAGE_CONTENT_RULE}
-- Tarih belli değilse veya müşteri "müsait mi?", "boş var mı?" derse → check_availability(date) (YYYY-MM-DD). service_slug ile çağır (hizmete göre süre hesaplanır).
-- Müşteri belirli bir personel isterse (Ayşe, belirli uzman vb.) uygun staff_id ile check_availability ve create_appointment çağır.
-- Hizmet seçildiyse ve paketli kullanım ihtimali varsa önce check_customer_package(service_slug) çağır.
-- Paket/seans sorusu → get_packages; satış yapma, sadece listele.
-- Süre sorusu → get_services.duration_minutes; uydurma. check_availability listesi seçili hizmet süresine göre süzülmüştür — listede yoksa "olur" deme. Uzun işlemde create_appointment end_time varsa bitiş saatini söyle.
-- check_customer_package sonucu aktif paket dönerse müşteriye "Kalan X seansınızdan 1'i düşülecek, onaylıyor musunuz?" diye sor; onay alırsan create_appointment(..., use_package: true) çağır.
-- create_appointment sonucu ACTIVE_PACKAGE_CONFIRMATION_REQUIRED dönerse önce onay sor; müşteri paketi kullanmak istemezse create_appointment(..., use_package: false) ile devam et.
-- Tarih + saat + müşteri adı + service_slug toplandıysa → create_appointment(date, time, customer_name, service_slug, ...).
-- ÇOKLU RANDEVU: Müşteri "ben ve arkadaşım X için", "2 kişilik", "biz ikimiz için" gibi ifadeler kullandığında TÜM İSİMLERİ AKLINDA TUT. Her kişi için ayrı create_appointment çağır (customer_name parametresini her seferinde doğru isimle doldur). İlk randevuyu aldıktan sonra diğer kişiler için de randevu almayı unutma. Örnek: "ben ve arkadaşım ismail için" dediğinde önce kendi adını öğren, sonra ismail için de randevu al. Tek randevu alıp durma, tüm isimleri işle.
-- İptal isteğinde önce get_last_appointment çağır, müşteriden açık onay ("evet iptal") aldıktan sonra cancel_appointment(appointment_id) çağır.
-- "Başka gün var mı?", "bu hafta ne zaman boş?" → check_week_availability(start_date).
-- Randevu değiştirmek → get_last_appointment, sonra reschedule_appointment veya iptal + create_appointment.
-- "Her hafta aynı gün/saat", "düzenli gelmek istiyorum" → create_recurring(day_of_week, time, service_slug, customer_name, occurrences). Sonuçta created listesindeki tarihleri say, skipped varsa hangi haftanın neden açılamadığını söyle ve alternatif öner. Kaç hafta açılacağını müşteriye sor (varsayılan 4).
-- "Yer açılırsa haber ver" → add_to_waitlist(date, preferred_time).
-- Fiyat / hizmet listesi → get_services.
-- Adres, telefon, çalışma saatleri → get_tenant_info.
-- "Geç kalacağım" → notify_late(minutes, message).
-`;
+/**
+ * Araç POLİTİKASI — araçların ne olduğu değil, NE ZAMAN ve HANGİ SIRAYLA
+ * çağrılacağı. Parametre/açıklama zaten `tools` şemasıyla API'ye ayrıca
+ * gidiyor; burada tekrar anlatmak token'ı iki kez ödemek demekti.
+ *
+ * Bloklar sektöre göre kapatılır: paketi olmayan bir berbere paket kuralları
+ * göndermek hem maliyet hem gürültü (model olmayan aracı zorluyordu).
+ */
+function buildToolUsageInstructions(sector: SectorProfile): string {
+  const flags = sector.defaultFeatureFlags;
+  const lines: string[] = [
+    `ÖNCE HİZMET: ${SERVICE_FIRST_FLOW_RULE.replace(/^HİZMET ÖNCELİKLİ AKIŞ:\s*/u, "")}`,
+    SERVICE_SELECTED_CONTINUE_RULE,
+    IMAGE_CONTENT_RULE,
+    "GERÇEK KAYNAK ARAÇLARDIR: Müsaitlik, fiyat, süre ve randevu bilgisini ASLA tahmin etme; ilgili aracı çağır ve dönen değeri aynen kullan.",
+    'MÜSAİTLİK SONUCU: has_available_slots→saatleri sun. fully_booked→"o gün dolu". too_late_today→"bugün DOLU DEĞİL, kapanışa yetişmiyor" de ve en yakın günü öner. closed_day/blocked_holiday→"o gün kapalıyız". Listede olmayan saate "olur" deme, listedekini "yetmez" diye eleme.',
+    "SÜRE: get_services.duration_minutes dışında süre söyleme. create_appointment end_time dönerse bitiş saatini de belirt.",
+    'İPTAL: Önce get_last_appointment, sonra açık onay ("evet iptal"), sonra cancel_appointment. Müşteri aynı mesajda yeni saat de istediyse iptalden sonra DURMA, yeni randevuyu da oluştur.',
+    "ÇOKLU KİŞİ: Bir mesajda birden fazla isim geçiyorsa her kişi için ayrı create_appointment çağır; ilkini alıp durma.",
+  ];
+
+  if (flags.staff_preference) {
+    lines.push("PERSONEL: Müşteri belirli bir uzman isterse staff_id ile müsaitliğe bak ve randevuyu onunla aç.");
+  }
+  if (flags.packages) {
+    lines.push(
+      'PAKET: Hizmet seçilince check_customer_package çağır; aktif paket varsa "Kalan X seansınızdan 1 düşülecek, onaylıyor musunuz?" diye sor, onayda use_package:true gönder. ACTIVE_PACKAGE_CONFIRMATION_REQUIRED dönerse önce onay al. "Paket var mı / kaç seans" sorusunda get_packages ile listele; satışı sen tamamlama.'
+    );
+  }
+
+  return `\nAraç politikası:\n${lines.map((l) => `- ${l}`).join("\n")}\n`;
 }
 
 function buildContextBlock(context: PromptBuilderContext): string {
@@ -215,6 +223,13 @@ Müşteri saat söylerse create_appointment çağır.`;
   if (context.pendingCancelId) {
     block += `\n\nİptal bekleyen randevu ID: ${context.pendingCancelId}
 Müşteri onaylarsa cancel_appointment çağır.`;
+  }
+
+  if (context.justCancelled) {
+    block += `\n\nÖNEMLİ: Müşterinin mevcut randevusu BU MESAJDA iptal edildi.
+Tekrar iptal etme, "iptal edeyim mi" diye sorma. Müşteri aynı mesajda yeni bir
+saat istedi: önce iptali tek cümleyle onayla, sonra istenen saat için
+check_availability/create_appointment ile yeni randevuyu oluştur.`;
   }
 
   if (context.misunderstandingCount > 0) {

@@ -4,8 +4,10 @@ import { requireValidTenantId } from "@/middleware/tenantScope.middleware";
 import {
   ConversationAccessError,
   ConversationConflictError,
+  getConversationById,
   resumeConversationToAi,
 } from "@/services/conversation.service";
+import { getActiveMembership } from "@/services/tenantMembership.service";
 import { getSession, setSession } from "@/lib/redis";
 import type { ConversationActor } from "@/types/conversation.types";
 
@@ -20,9 +22,36 @@ export async function POST(
     const auth = await requireTenantApiAccess(request, tenantId);
     if (!auth.ok) return auth.response;
 
-    const body = (await request.json()) as { expected_version: number };
+    const body = (await request.json()) as {
+      expected_version: number;
+      force?: boolean;
+    };
     if (body.expected_version == null) {
       return NextResponse.json({ error: "expected_version gerekli" }, { status: 400 });
+    }
+
+    const existing = await getConversationById(conversationId, tenantId);
+    if (!existing) {
+      return NextResponse.json({ error: "Konuşma bulunamadı" }, { status: 404 });
+    }
+
+    // Only assignee (or admin / explicit force) may release an active human takeover.
+    if (
+      auth.actor !== "admin" &&
+      !body.force &&
+      (existing.automation_mode === "HUMAN_ACTIVE" ||
+        existing.automation_mode === "AI_ASSIST") &&
+      existing.assigned_membership_id
+    ) {
+      const membership = auth.userId
+        ? await getActiveMembership(tenantId, auth.userId)
+        : null;
+      if (!membership || membership.id !== existing.assigned_membership_id) {
+        return NextResponse.json(
+          { error: "Bu konuşma başka bir personelde — AI'ya bırakamazsınız" },
+          { status: 409 }
+        );
+      }
     }
 
     const actor: ConversationActor =

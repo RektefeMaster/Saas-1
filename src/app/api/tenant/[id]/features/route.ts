@@ -144,7 +144,6 @@ export async function GET(
             key: sector.key,
             label: sector.label,
             healthcare: sector.healthcare,
-            capabilities: sector.capabilities || null,
           },
           feature_flags: featureFlags,
         };
