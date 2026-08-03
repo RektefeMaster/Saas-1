@@ -745,11 +745,13 @@ export function regularCustomerScenarios(p: Profile): Scenario[] {
       phone: reg.phone,
       messages: ["paketimde kaç seans kaldı?", `evet, ${p.ask} paketi`],
       expect: (t) => {
-        const r = last(t);
+        // Kalan seans HERHANGİ bir turda doğru söylenmişse yeterli; bot ilk
+        // turda cevaplayıp ikinci turda konuyu değiştirmiş olabilir.
+        const text = all(t);
         const remaining = reg.activePackage!.remaining;
-        const nums = [...r.matchAll(/\b(\d{1,2})\b/g)].map((m) => Number(m[1]));
+        const nums = [...text.matchAll(/\b(\d{1,2})\b/g)].map((m) => Number(m[1]));
         if (!nums.includes(remaining))
-          return `Kalan seans yanlış/eksik (gerçek: ${remaining}): "${r.slice(0, 180)}"`;
+          return `Kalan seans hiç söylenmedi (gerçek: ${remaining}): "${last(t).slice(0, 180)}"`;
         return null;
       },
     });

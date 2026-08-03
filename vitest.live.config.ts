@@ -21,7 +21,9 @@ export default defineConfig({
     hookTimeout: 120_000,
     // Konuşmalar eşzamanlı; izolasyon AsyncLocalStorage ile. 6 eşzamanlı istek
     // OpenAI rate limitini zorlamadan süreyi ~6 kat kısaltıyor.
-    maxConcurrency: 6,
+    // 6 eşzamanlı istek OpenAI TPM limitini (200k) doyuruyor ve konuşmalar
+    // rate-limit yüzünden çöküyordu; 3 hem hızlı hem güvenli.
+    maxConcurrency: 3,
     fileParallelism: false,
   },
   resolve: {

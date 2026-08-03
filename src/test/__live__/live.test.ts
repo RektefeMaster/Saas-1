@@ -118,7 +118,13 @@ async function converse(profile: Profile, sc: Scenario): Promise<Outcome> {
     for (const msg of sc.messages) {
       try {
         const res = await processMessage(profile.tenantId, phone, msg);
-        if (/Bir şeyler ters gitti|işletme bulunamadı/i.test(res.reply)) {
+        // Rate-limit/altyapı çöküşü BOT HATASI olarak sayılmamalı: config'in
+        // system_error şablonu da buraya düşer ("Bir sorun oldu…").
+        if (
+          /Bir şeyler ters gitti|işletme bulunamadı|Bir sorun oldu, biraz sonra|Şu an randevu alamıyorum/i.test(
+            res.reply
+          )
+        ) {
           return {
             turns,
             appointments: (conv.store.appointments || []) as Row[],

@@ -152,6 +152,61 @@ async function resolveStaffId(
   return partial?.id;
 }
 
+
+/**
+ * Müşterinin serbest metninde geçen personel adını bulur.
+ * Model `staff_id` göndermeyi atlasa bile "Ahmet Usta ile alabilir miyim?"
+ * talebi karşılıksız kalmasın diye son çare olarak kullanılır.
+ */
+async function resolveStaffFromText(
+  tenantId: string,
+  text: string | undefined
+): Promise<string | undefined> {
+  const raw = (text || "").trim();
+  if (raw.length < 3) return undefined;
+
+  const { data } = await supabase
+    .from("staff")
+    .select("id, name")
+    .eq("tenant_id", tenantId)
+    .eq("active", true);
+
+  const rows = (data || []) as Array<{ id: string; name: string }>;
+  if (rows.length === 0) return undefined;
+
+  const norm = (v: string) =>
+    v
+      .toLocaleLowerCase("tr-TR")
+      .replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s")
+      .replace(/ı/g, "i").replace(/ö/g, "o").replace(/ç/g, "c")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+  const haystack = norm(raw);
+  // Unvan/genel kelimeler tek başına ayırt edici değil; adın kendisi aranır.
+  const GENERIC = new Set(["dr", "uzman", "usta", "vet", "hekim", "bey", "hanim"]);
+  for (const row of rows) {
+    const parts = norm(row.name).split(" ").filter((w) => w.length > 2 && !GENERIC.has(w));
+    if (parts.length && parts.every((w) => haystack.includes(w))) return row.id;
+  }
+  return undefined;
+}
+
+
+/**
+ * Son birkaç müşteri mesajını birleştirir.
+ * Personel adı çoğu zaman ONAY turundan ÖNCEKİ mesajda geçiyor
+ * ("... Dr. Selin ile ..." → "evet oluştur"); yalnızca son mesaja bakmak
+ * tercihi kaçırıyordu.
+ */
+function recentUserText(state: ConversationState | null, lastUserMessage: string): string {
+  const history = (state?.chat_history || [])
+    .filter((m) => m.role === "user")
+    .slice(-4)
+    .map((m) => m.content);
+  return [...history, lastUserMessage].join(" \n ");
+}
+
 export async function executeToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -165,6 +220,9 @@ export async function executeToolCall(
   if (name === "check_availability") {
     const dateStr = args.date as string;
     const serviceSlug = resolveSelectedServiceSlug(args, state);
+    // Personel tercihi konuşma boyunca TAŞINIR. Canlı testte model müsaitliği
+    // "Dr. Selin için" sorup randevuyu personelsiz açıyordu; müşteri istediği
+    // uzmanı aldığını sanıyor, takvimde başka birine düşüyordu.
     const staffId = await resolveStaffId(tenantId, args.staff_id as string | undefined);
     const daily = await getDailyAvailability(tenantId, dateStr, {
       configOverride,
@@ -172,6 +230,13 @@ export async function executeToolCall(
       serviceSlug,
       customerPhone,
     });
+    const staffPreferenceUpdate = staffId
+      ? {
+          sessionUpdate: {
+            extracted: { ...getStateExtracted(state), preferred_staff_id: staffId },
+          },
+        }
+      : {};
     if (daily.checkFailed) {
       return {
         result: {
@@ -181,6 +246,7 @@ export async function executeToolCall(
           available: [],
           booked_count: 0,
         },
+        ...staffPreferenceUpdate,
       };
     }
     const availability = {
@@ -237,6 +303,7 @@ export async function executeToolCall(
           ...mergeSelectedService(state, serviceSlug),
           last_availability_date: dateStr,
           last_available_slots: availability.available,
+          ...(staffId ? { preferred_staff_id: staffId } : {}),
         },
       },
     };
@@ -299,7 +366,19 @@ export async function executeToolCall(
         },
       };
     }
-    const staffId = await resolveStaffId(tenantId, args.staff_id as string | undefined);
+    // Personel tercihi ÜÇ kaynaktan aranır. Model tercihi düzenli olarak
+    // düşürüyordu: müsaitliği "Dr. Selin için" sorup randevuyu personelsiz
+    // açıyor, müşteri istediği uzmanı aldığını sanıyordu.
+    //   1) aracın kendi argümanı
+    //   2) oturumda taşınan tercih (check_availability'den)
+    //   3) müşterinin mesajında geçen personel adı
+    const staffId =
+      (await resolveStaffId(tenantId, args.staff_id as string | undefined)) ??
+      (await resolveStaffId(
+        tenantId,
+        (getStateExtracted(state).preferred_staff_id as string | undefined) || undefined
+      )) ??
+      (await resolveStaffFromText(tenantId, recentUserText(state, lastUserMessage)));
     const hasPackageDecision = typeof args.use_package === "boolean";
     const usePackage = args.use_package === true;
     const availablePackage =

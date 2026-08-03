@@ -12,7 +12,7 @@ import {
 } from "@/lib/redis";
 import { extractMissingSchemaTable } from "@/lib/postgrest-schema";
 import { isCustomerBlocked } from "@/services/blacklist.service";
-import { normalizePhoneDigits } from "@/lib/phone";
+import { normalizePhoneDigits, phoneVariants } from "@/lib/phone";
 
 const DEFAULT_WORKING_HOURS = { start: "09:00", end: "18:00" };
 /**
@@ -316,15 +316,6 @@ function overlaps(a: TimeInterval, b: TimeInterval): boolean {
 
 function normalizePhone(phone: string): string {
   return normalizePhoneDigits(phone);
-}
-
-/** Telefonun DB'de bulunabilecek yazım biçimleri. */
-function phoneVariantsFor(phone: string): string[] {
-  const digits = normalizePhoneDigits(phone);
-  const last10 = digits.slice(-10);
-  return [...new Set([phone, digits, `+${digits}`, `+90${last10}`, `0${last10}`, last10])].filter(
-    Boolean
-  );
 }
 
 function addDays(dateStr: string, days: number): string {
@@ -1187,7 +1178,7 @@ async function findSameDayDuplicate(input: {
     .from("appointments")
     .select("id, slot_start, service_slug, extra_data, customer_phone")
     .eq("tenant_id", input.tenantId)
-    .in("customer_phone", phoneVariantsFor(input.customerPhone))
+    .in("customer_phone", phoneVariants(input.customerPhone))
     .in("status", ["confirmed", "pending"])
     .gte("slot_start", window.from)
     .lte("slot_start", window.to);
