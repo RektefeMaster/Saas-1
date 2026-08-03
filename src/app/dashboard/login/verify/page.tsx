@@ -5,7 +5,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { AlertCircle, Smartphone } from "lucide-react";
-import { Button, Input, ThemeLocaleSwitch } from "@/components/ui";
+import { Input, ThemeLocaleSwitch } from "@/components/ui";
+import { SiteAtmosphere } from "@/components/site/SiteAtmosphere";
 import { useLocale } from "@/lib/locale-context";
 
 const COPY = {
@@ -91,40 +92,37 @@ function VerifyForm() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <Image
-        src="/arkaplan.png"
-        alt="Ahi AI backdrop"
-        fill
+    <div className="site-root relative min-h-screen overflow-hidden">
+      <SiteAtmosphere
+        src="/site/trust-secure.jpg"
+        strength="veil"
         priority
-        sizes="100vw"
-        className="pointer-events-none object-cover opacity-[0.07]"
+        mobile="on"
+        position="center"
       />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_40%_at_15%_0%,rgba(56,189,248,0.2),transparent),radial-gradient(35%_30%_at_90%_10%,rgba(16,185,129,0.17),transparent)]" />
-
       <div className="absolute right-4 top-4 z-20">
         <ThemeLocaleSwitch compact />
       </div>
 
-      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-xl items-center px-4 py-10 sm:px-6">
-        <section className="w-full rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 sm:p-7">
-          <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-300">
-            <Image
-              src="/appicon.png"
-              alt="Ahi AI"
-              width={28}
-              height={28}
-              sizes="28px"
-              className="rounded-md border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
-            />
-            Ahi AI
+      <div className="relative z-[1] mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-12 sm:px-6">
+        <section
+          className="w-full rounded-2xl border p-6 sm:p-8"
+          style={{ borderColor: "var(--ahi-line)", background: "var(--ahi-paper)" }}
+        >
+          <Link href="/" className="inline-flex items-center gap-2">
+            <Image src="/appicon.png" alt="" width={28} height={28} sizes="28px" />
+            <span className="site-display text-lg" style={{ color: "var(--ahi-text)" }}>
+              Ahi AI
+            </span>
           </Link>
-          <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+          <h1 className="mt-6 text-xl font-semibold tracking-[-0.015em]" style={{ color: "var(--ahi-text)" }}>
             {t.title}
           </h1>
-          <p className="mt-2 text-sm text-slate-600 dark:text-slate-300">{t.subtitle}</p>
+          <p className="mt-2 text-sm leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
+            {t.subtitle}
+          </p>
 
-          <form onSubmit={verify} className="mt-5 space-y-4">
+          <form onSubmit={verify} className="mt-6 space-y-4">
             <Input
               label={t.code}
               value={code}
@@ -143,9 +141,9 @@ function VerifyForm() {
               </div>
             )}
 
-            <Button type="submit" fullWidth size="lg" loading={loading}>
+            <button type="submit" disabled={loading} className="site-btn site-btn-primary w-full">
               {loading ? t.verifying : t.verify}
-            </Button>
+            </button>
           </form>
 
           <div className="mt-5 flex items-center justify-between text-sm">
@@ -153,11 +151,12 @@ function VerifyForm() {
               type="button"
               onClick={resend}
               disabled={resending}
-              className="font-semibold text-cyan-700 hover:text-cyan-800 disabled:opacity-50 dark:text-cyan-300 dark:hover:text-cyan-200"
+              className="font-semibold disabled:opacity-50"
+              style={{ color: "var(--ahi-brand)" }}
             >
               {resending ? t.resending : t.resend}
             </button>
-            <Link href="/dashboard/login" className="font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
+            <Link href="/dashboard/login" className="font-medium" style={{ color: "var(--ahi-text-2)" }}>
               {t.back}
             </Link>
           </div>

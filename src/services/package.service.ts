@@ -167,6 +167,54 @@ export async function checkCustomerPackage(
   };
 }
 
+/**
+ * Müşterinin TÜM aktif paketleri (hizmet belirtmeden).
+ * "Paketimde kaç seans kaldı?" sorusunda hizmet adı gelmiyor; hizmet zorunlu
+ * olduğu için bot kalan seansı hiç söyleyemiyordu.
+ */
+export async function listCustomerActivePackages(
+  tenantId: string,
+  customerPhone: string
+): Promise<
+  Array<{
+    customerPackageId: string;
+    packageName: string;
+    serviceSlug: string | null;
+    remainingSessions: number;
+    totalSessions: number;
+    expiresAt: string | null;
+  }>
+> {
+  const normalizedPhone = normalizePhoneE164(customerPhone) || customerPhone;
+  const nowIso = new Date().toISOString();
+  const result = await supabase
+    .from("customer_packages")
+    .select(
+      "id, package_id, remaining_sessions, total_sessions, expires_at, packages!inner(id, name, service_slug, is_active)"
+    )
+    .eq("tenant_id", tenantId)
+    .eq("customer_phone", normalizedPhone)
+    .eq("status", "active")
+    .gt("remaining_sessions", 0)
+    .eq("packages.is_active", true)
+    .or(`expires_at.is.null,expires_at.gte.${nowIso}`)
+    .order("purchased_at", { ascending: true });
+
+  if (result.error || !result.data) return [];
+
+  return (result.data as CustomerPackageRow[]).map((row) => {
+    const pkg = toPackageRel(row.packages);
+    return {
+      customerPackageId: row.id,
+      packageName: pkg?.name || "Paket",
+      serviceSlug: pkg?.service_slug || null,
+      remainingSessions: Number(row.remaining_sessions || 0),
+      totalSessions: Number(row.total_sessions || 0),
+      expiresAt: row.expires_at || null,
+    };
+  });
+}
+
 interface ConsumeRpcRow {
   id: string;
   remaining_sessions: number;

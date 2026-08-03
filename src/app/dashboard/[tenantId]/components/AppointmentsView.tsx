@@ -388,7 +388,7 @@ function AppointmentsViewInner({
             {availabilityLoading ? (
               <div className="flex flex-col items-center justify-center py-12">
                 <Loader2 className="h-8 w-8 animate-spin text-slate-400" />
-                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Müsaitlik yükleniyor...</p>
+                <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Müsaitlik yükleniyor…</p>
               </div>
             ) : availability?.blocked ? (
               <div className="rounded-xl border border-amber-200 bg-amber-50 py-8 text-center dark:border-amber-800/50 dark:bg-amber-950/20">
@@ -597,20 +597,22 @@ function AppointmentsViewInner({
                 href={`/dashboard/${tenantId}/workflow`}
                 className="inline-flex min-h-11 w-full items-center justify-center rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-2 text-sm font-medium text-emerald-800 transition hover:bg-emerald-100 sm:w-auto dark:border-emerald-800 dark:bg-emerald-950/50 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
               >
-                İş akışına git →
+                Gün takibine git →
               </Link>
             )}
           </div>
           {loading ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Loader2 className="h-10 w-10 animate-spin text-slate-400" />
-              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Randevular yükleniyor...</p>
+              <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Randevular yükleniyor…</p>
             </div>
           ) : sortedDates.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-16">
               <Calendar className="h-12 w-12 text-slate-300 dark:text-slate-600" />
               <p className="mt-4 text-sm font-medium text-slate-600 dark:text-slate-400">Henüz randevu yok</p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Yeni randevu eklemek için yukarıdaki butonu kullanın</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
+                Yeni randevu eklemek için yukarıdaki düğmeyi kullanın.
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-slate-100 dark:divide-slate-800">

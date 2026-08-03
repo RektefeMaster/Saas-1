@@ -427,7 +427,7 @@ export default function AdminCampaignsPage() {
                 onClick={() => setActiveTab(key)}
                 className={`flex items-center gap-2 border-b-2 px-4 py-2 text-sm font-medium transition ${
                   activeTab === key
-                    ? "border-cyan-500 text-cyan-600 dark:text-cyan-400"
+                    ? "border-emerald-500 text-emerald-600 dark:text-emerald-400"
                     : "-mb-px border-transparent text-slate-600 hover:text-slate-900 dark:text-slate-400 dark:hover:text-slate-200"
                 }`}
               >
@@ -714,7 +714,7 @@ export default function AdminCampaignsPage() {
               <button
                 type="submit"
                 disabled={sending || !tenantId || !messageText.trim() || effectiveCount === 0}
-                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 disabled:opacity-50 dark:bg-cyan-500 dark:text-slate-950 dark:shadow-cyan-500/25 dark:hover:bg-cyan-400"
+                className="inline-flex items-center gap-2 rounded-xl bg-slate-900 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-900/20 transition hover:bg-slate-700 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:shadow-emerald-500/25 dark:hover:bg-emerald-400"
               >
                 {sending ? (
                   <>
@@ -884,7 +884,7 @@ export default function AdminCampaignsPage() {
               type="button"
               onClick={handleSubmitClick}
               disabled={sending || !messageText.trim() || effectiveCount === 0 || !tenantId}
-              className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/25 transition active:scale-[0.98] hover:bg-slate-700 disabled:opacity-50 dark:bg-cyan-500 dark:text-slate-950 dark:hover:bg-cyan-400"
+              className="flex w-full items-center justify-center gap-2 rounded-xl bg-slate-900 px-6 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-900/25 transition active:scale-[0.98] hover:bg-slate-700 disabled:opacity-50 dark:bg-emerald-500 dark:text-slate-950 dark:hover:bg-emerald-400"
             >
               {sending ? (
                 <>
@@ -943,7 +943,7 @@ export default function AdminCampaignsPage() {
                 <button
                   type="button"
                   onClick={addRecipient}
-                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 dark:bg-cyan-600 dark:hover:bg-cyan-500"
+                  className="inline-flex items-center gap-1.5 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-700 dark:bg-emerald-600 dark:hover:bg-emerald-500"
                 >
                   <Plus className="h-4 w-4" />
                   Ekle
@@ -1032,7 +1032,7 @@ export default function AdminCampaignsPage() {
                 type="button"
                 onClick={handleConfirmSend}
                 disabled={sending}
-                className="flex-1 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-cyan-500 dark:hover:bg-cyan-400"
+                className="flex-1 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-50 dark:bg-emerald-500 dark:hover:bg-emerald-400"
               >
                 {sending ? (
                   <span className="flex items-center justify-center gap-2">

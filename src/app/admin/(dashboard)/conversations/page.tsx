@@ -135,7 +135,7 @@ export default function AdminConversationsPage() {
 
         if (!res.ok) {
           throw new Error(
-            payload && "error" in payload ? payload.error : "Liste alinamadi"
+            payload && "error" in payload ? payload.error : "Liste alınamadı"
           );
         }
         const data = payload as { items: ConversationSummary[] };
@@ -182,7 +182,7 @@ export default function AdminConversationsPage() {
 
         if (!res.ok) {
           throw new Error(
-            payload && "error" in payload ? payload.error : "Mesajlar alinamadi"
+            payload && "error" in payload ? payload.error : "Mesajlar alınamadı"
           );
         }
         const data = payload as { items: MessageItem[] };
@@ -283,7 +283,7 @@ export default function AdminConversationsPage() {
           }),
         });
         const p = (await res.json().catch(() => null)) as { error?: string } | null;
-        if (!res.ok) throw new Error(p?.error || "Takeover basarisiz");
+        if (!res.ok) throw new Error(p?.error || "Devralma başarısız");
       }),
     [selected, runAction]
   );
@@ -302,7 +302,7 @@ export default function AdminConversationsPage() {
           }),
         });
         const p = (await res.json().catch(() => null)) as { error?: string } | null;
-        if (!res.ok) throw new Error(p?.error || "Resume basarisiz");
+        if (!res.ok) throw new Error(p?.error || "Asistana bırakma başarısız");
       }),
     [selected, runAction]
   );
@@ -341,7 +341,7 @@ export default function AdminConversationsPage() {
               }),
             });
             const p = (await res.json().catch(() => null)) as { error?: string } | null;
-            if (!res.ok) throw new Error(p?.error || "Mesaj gonderilemedi");
+            if (!res.ok) throw new Error(p?.error || "Mesaj gönderilemedi");
           },
           () => {
             messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -519,10 +519,10 @@ export default function AdminConversationsPage() {
                   <MessageSquare className="h-8 w-8 text-slate-400 dark:text-slate-500" />
                 </div>
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  {searchQuery ? "Arama sonucu yok" : `Son ${hours} saatte konusma yok`}
+                  {searchQuery ? "Arama sonucu yok" : `Son ${hours} saatte konuşma yok`}
                 </p>
                 <p className="text-xs text-slate-500 dark:text-slate-400">
-                  {searchQuery ? "Farkli bir arama deneyin" : "Yeni mesajlar burada gorunecek"}
+                  {searchQuery ? "Farklı bir arama deneyin" : "Yeni mesajlar burada görünecek"}
                 </p>
               </div>
             ) : (

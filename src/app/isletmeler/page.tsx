@@ -9,9 +9,8 @@ import { fetcher } from "@/lib/swr-fetcher";
 import { LottieAnimationLazy } from "@/components/ui";
 import { useFuzzySearchWorker } from "@/lib/use-fuzzy-search-worker";
 import { SiteShell } from "@/components/site/SiteShell";
+import { SiteAtmosphere } from "@/components/site/SiteAtmosphere";
 import { MarkSpeech } from "@/components/site/GuildMarks";
-import { ScrollReveal } from "@/components/ui/ScrollReveal";
-
 const VirtualList = dynamic(
   () => import("@/components/ui/VirtualList").then((m) => ({ default: m.VirtualList })),
   { ssr: false }
@@ -136,32 +135,38 @@ export default function IsletmelerPage() {
   return (
     <SiteShell>
       <main>
-        <section className="mx-auto w-full max-w-5xl px-4 pb-8 pt-12 sm:px-6 sm:pt-14">
-          <ScrollReveal variant="fadeUp">
-            <div className="flex flex-wrap items-end justify-between gap-4">
-              <div>
-                <h1
-                  className="site-display text-[clamp(1.9rem,4.5vw,2.75rem)]"
-                  style={{ color: "var(--ahi-text)" }}
-                >
-                  {t.title}
-                </h1>
-                <p className="mt-3 max-w-xl text-[15px] leading-7" style={{ color: "var(--ahi-text-2)" }}>
-                  {t.desc}
-                </p>
-              </div>
-              <span
-                className="site-meta inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-semibold"
-                style={{
-                  borderColor: "var(--ahi-line)",
-                  background: "var(--ahi-paper)",
-                  color: "var(--ahi-text-2)",
-                }}
+        <section className="relative overflow-hidden">
+          <SiteAtmosphere
+            src="/site/storefront-qr.jpg"
+            strength="soft"
+            priority
+            mobile="on"
+            position="center 45%"
+          />
+          <div className="relative z-[1] mx-auto w-full max-w-5xl px-4 pb-8 pt-12 sm:px-6 sm:pt-14">
+          <div className="flex flex-wrap items-end justify-between gap-4">
+            <div>
+              <h1
+                className="site-display text-[clamp(1.9rem,4.5vw,2.75rem)]"
+                style={{ color: "var(--ahi-text)" }}
               >
-                {tenants.length} {t.countSuffix}
-              </span>
+                {t.title}
+              </h1>
+              <p className="mt-3 max-w-xl text-[16px] leading-8" style={{ color: "var(--ahi-text-2)" }}>
+                {t.desc}
+              </p>
             </div>
-          </ScrollReveal>
+            <span
+              className="site-meta inline-flex items-center rounded-lg border px-3 py-1.5 text-xs font-semibold"
+              style={{
+                borderColor: "var(--ahi-line)",
+                background: "var(--ahi-paper)",
+                color: "var(--ahi-text-2)",
+              }}
+            >
+              {tenants.length} {t.countSuffix}
+            </span>
+          </div>
 
           <div className="relative mt-8">
             <Search
@@ -179,6 +184,7 @@ export default function IsletmelerPage() {
                 color: "var(--ahi-text)",
               }}
             />
+          </div>
           </div>
         </section>
 

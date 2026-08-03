@@ -33,15 +33,27 @@ const nextConfig: NextConfig = {
   // Image optimizasyonu
   images: {
     formats: ["image/avif", "image/webp"],
-    deviceSizes: [640, 750, 828, 1080, 1200, 1920, 2048, 3840],
+    // Marketing max ~1920; 2048/3840 variant üretmeyi kes
+    deviceSizes: [640, 750, 828, 1080, 1200, 1920],
     imageSizes: [16, 32, 48, 64, 96, 128, 256, 384],
-    minimumCacheTTL: 60,
+    minimumCacheTTL: 86400,
     dangerouslyAllowSVG: true,
     contentSecurityPolicy: "default-src 'self'; script-src 'none'; sandbox;",
   },
   // Experimental optimizasyonlar - tree-shaking ile bundle küçültme
   experimental: {
-    optimizePackageImports: ["lucide-react", "@supabase/supabase-js", "motion", "recharts"],
+    optimizePackageImports: [
+      "lucide-react",
+      "@supabase/supabase-js",
+      "motion",
+      "recharts",
+      "dayjs",
+      "cmdk",
+      "vaul",
+      "@tanstack/react-table",
+      "@tanstack/react-virtual",
+      "lottie-react",
+    ],
   },
   async headers() {
     return [
@@ -97,6 +109,12 @@ const nextConfig: NextConfig = {
         source: "/arkaplan.png",
         headers: [
           { key: "Cache-Control", value: "public, max-age=86400, stale-while-revalidate=604800" },
+        ],
+      },
+      {
+        source: "/site/:path*",
+        headers: [
+          { key: "Cache-Control", value: "public, max-age=31536000, immutable" },
         ],
       },
     ];

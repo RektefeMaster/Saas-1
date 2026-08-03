@@ -180,7 +180,7 @@ export default function AdminPage() {
         <div className="flex flex-wrap gap-2">
           <Link
             href="/admin/tenants?quickAdd=1"
-            className="inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition hover:bg-cyan-700 dark:bg-cyan-500 dark:hover:bg-cyan-600"
+            className="inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-700 dark:bg-emerald-500 dark:hover:bg-emerald-600"
           >
             <Plus className="h-4 w-4" />
             Quick Add
@@ -347,7 +347,7 @@ export default function AdminPage() {
                       </div>
                       <span className={`rounded text-[11px] font-medium ${
                         a.status === "completed" ? "text-emerald-600 dark:text-emerald-400" :
-                        a.status === "confirmed" ? "text-cyan-600 dark:text-cyan-400" : "text-slate-500"
+                        a.status === "confirmed" ? "text-sky-600 dark:text-sky-400" : "text-slate-500"
                       }`}>
                         {a.status}
                       </span>

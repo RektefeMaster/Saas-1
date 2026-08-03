@@ -12,7 +12,7 @@ const servicesCache = new Map<
   string,
   {
     expiry: number;
-    rows: Array<{ name: string; slug: string; searchText: string }>;
+    rows: Array<{ name: string; slug: string; searchText: string; normalized: string }>;
   }
 >();
 
@@ -54,7 +54,14 @@ export async function matchServiceToSlug(
     };
   }
 
-  const best = fuzzySearchBest(services, trimmed, ["name", "slug", "searchText"], SCORE_THRESHOLD);
+  // Sorgu da indekslenen metinle aynı şekilde ASCII'ye indirgenir; aksi halde
+  // "koltuk altı" ile "koltuk alti" birbirini tam yakalayamıyordu.
+  const best = fuzzySearchBest(
+    services,
+    normalizeTr(trimmed),
+    ["name", "slug", "searchText", "normalized"],
+    SCORE_THRESHOLD
+  );
 
   if (!best) {
     return {
@@ -78,9 +85,21 @@ export async function matchServiceToSlug(
   };
 }
 
+/** Türkçe karakterleri ASCII'ye indirger; sorgu ve indeks aynı alfabede olur. */
+function normalizeTr(value: string): string {
+  return value
+    .toLocaleLowerCase("tr-TR")
+    .replace(/ğ/g, "g")
+    .replace(/ü/g, "u")
+    .replace(/ş/g, "s")
+    .replace(/ı/g, "i")
+    .replace(/ö/g, "o")
+    .replace(/ç/g, "c");
+}
+
 async function fetchServices(
   tenantId: string
-): Promise<Array<{ name: string; slug: string; searchText: string }>> {
+): Promise<Array<{ name: string; slug: string; searchText: string; normalized: string }>> {
   const cached = servicesCache.get(tenantId);
   if (cached && cached.expiry > Date.now()) return cached.rows;
 
@@ -109,10 +128,10 @@ function toSearchItem(row: {
   name: string;
   slug: string;
   description?: string | null;
-}): { name: string; slug: string; searchText: string } {
+}): { name: string; slug: string; searchText: string; normalized: string } {
   const name = String(row.name || "").trim();
   const slug = String(row.slug || "").trim();
   const desc = String(row.description || "").trim();
   const searchText = [name, slug, desc].filter(Boolean).join(" ");
-  return { name, slug, searchText };
+  return { name, slug, searchText, normalized: normalizeTr(searchText) };
 }

@@ -4,6 +4,7 @@ import {
 import {
   BUSINESS_SCOPE_KEYWORDS,
   ABUSIVE_KEYWORDS,
+  ABUSIVE_STEMS,
   GREETING_KEYWORDS,
   SMALLTALK_KEYWORDS,
 } from "./constants";
@@ -22,6 +23,28 @@ export function containsWord(text: string, words: readonly string[]): boolean {
       .replace(/\s+/g, "\\s+");
     if (!escaped) return false;
     return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}(?:$|[^\\p{L}\\p{N}])`, "u").test(text);
+  });
+}
+
+/**
+ * Kök + Türkçe ek eşleşmesi. Türkçe eklemeli bir dil: "yetkili" → "yetkiliye",
+ * "yetkiliyle", "yetkilinizi". `containsWord` kelime sonunda da sınır aradığı
+ * için bu biçimlerin HİÇBİRİNİ yakalamıyordu — müşteri "yetkiliye bağlayın"
+ * yazdığında insan aktarımı hiç tetiklenmiyordu.
+ *
+ * Kelime BAŞI sınırı korunur (yanlış ön-ek eşleşmesi olmasın), sonda ek serbest.
+ * Bu yüzden köklerin kısa ve çift anlamlı olmaması gerekir: "sik" kökü
+ * "sıkıldım"ı da yakalar, o yüzden böyle kökler listeye KONULMAZ.
+ */
+export function containsStem(text: string, stems: readonly string[]): boolean {
+  if (!text) return false;
+  return stems.some((stem) => {
+    const escaped = stem
+      .trim()
+      .replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
+      .replace(/\s+/g, "\\s+");
+    if (!escaped) return false;
+    return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}\\p{L}*`, "u").test(text);
   });
 }
 
@@ -92,8 +115,10 @@ export function isCancelReject(message: string): boolean {
 export function isAbusiveMessage(message: string): boolean {
   const text = normalizeIncomingText(message);
   if (!text) return false;
-  // Word-boundary match avoids false positives ("almak", "normal", "plan").
-  return containsWord(text, ABUSIVE_KEYWORDS);
+  // Tam kelime: kısa/çift anlamlı olanlar ("pic") yalnızca kelime sınırıyla.
+  if (containsWord(text, ABUSIVE_KEYWORDS)) return true;
+  // Kök + ek: "salaksın", "aptalsın", "gerizekalısın" eskiden kaçıyordu.
+  return containsStem(text, ABUSIVE_STEMS);
 }
 
 /**
@@ -127,20 +152,47 @@ export function isGreetingOrSmallTalkOnly(message: string): boolean {
   return stripped.length === 0;
 }
 
+/**
+ * İnsan talebi kökleri. Ek toleranslı eşleşir (bkz. containsStem):
+ * "yetkiliye", "operatöre", "canlı desteğe", "gerçek kişiyle".
+ *
+ * "canli deste" bilerek kısa: Türkçede k→ğ yumuşaması var (destek → desteğe),
+ * "destek" kökü "desteğe"yi yakalayamaz.
+ *
+ * "mudur" listeye KONULMAZ: "uygun mudur?" gibi soru ekiyle çakışıyor.
+ */
+const HUMAN_ESCALATION_STEMS = [
+  "yetkili",
+  "operator",
+  "canli deste",
+  "gercek kisi",
+  "musteri hizmet",
+  "insan deste",
+  "patron",
+  "isletme sahib",
+] as const;
+
 function hasHumanEscalationToken(text: string): boolean {
   // text is already normalizeIncomingText (ASCII-folded).
+  if (containsStem(text, HUMAN_ESCALATION_STEMS)) return true;
   return (
-    /\b(yetkili|operator|canli\s*destek)\b/.test(text) ||
-    /\bgercek\s*kisi\b/.test(text) ||
-    /\bmusteri\s*hizmet/.test(text) ||
-    /\bbiriyle\s*gorusmek\b/.test(text) ||
-    /\binsan\s*(destek|mi|misiniz|misin|yonlendir)\b/.test(text)
+    /\bbiriyle\s*gorus/.test(text) ||
+    // "bir insanla görüşebilir miyim", "insanla konuşmak istiyorum"
+    /\binsan\p{L}*\s*(?:ile\s*)?(?:gorus|konus|baglan)/u.test(text) ||
+    /\binsan\s*(mi|misiniz|misin|yonlendir)\b/.test(text)
   );
 }
 
+/**
+ * "Neden insana aktardın?" gibi eskalasyon SORUSU.
+ *
+ * Eskiden `text.includes("usta")` kullanılıyordu; substring olduğu için
+ * "Mustafa" ismini de yakalıyordu — "ben Mustafa, randevumu aktarır mısın"
+ * yazan müşteriye randevu yerine "insan desteği önermiştim" cevabı gidiyordu.
+ */
 export function isEscalationQuestion(message: string): boolean {
   const text = normalizeIncomingText(message);
-  if (!hasHumanEscalationToken(text) && !text.includes("usta") && !text.includes("yetkili")) {
+  if (!hasHumanEscalationToken(text) && !containsStem(text, ["usta"])) {
     return false;
   }
   return text.includes("neden") || text.includes("bagla") || text.includes("aktar");
@@ -196,7 +248,11 @@ export function detectGlobalInterruptIntent(message: string): GlobalInterruptInt
   const text = normalizeIncomingText(message);
   if (!text) return null;
 
-  if (hasHumanEscalationToken(text) || text.includes("yetkili")) {
+  // `hasHumanEscalationToken` ile AYNI kaynağı kullanır. Eskiden buraya ekstra
+  // `text.includes("yetkili")` konulmuştu; bu yüzden "yetkiliye bağlayın" burada
+  // HUMAN_REQUEST görünüyor (ve test yeşil kalıyor) ama processor'ın gerçekten
+  // aktarım yaptığı `isHumanEscalationRequest` false dönüyordu.
+  if (hasHumanEscalationToken(text)) {
     return "HUMAN_REQUEST";
   }
 

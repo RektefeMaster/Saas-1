@@ -329,7 +329,7 @@ export default function NewTenantWizardPage() {
         ← İşletmeler listesine dön
       </Link>
 
-      <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-cyan-50/50 to-emerald-50/60 p-6 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-cyan-950/20 dark:to-emerald-950/20 sm:p-8">
+      <section className="overflow-hidden rounded-3xl border border-slate-200/80 bg-gradient-to-br from-white via-emerald-50/50 to-emerald-50/60 p-6 shadow-sm dark:border-slate-800 dark:from-slate-900 dark:via-emerald-950/20 dark:to-emerald-950/20 sm:p-8">
         <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
           Yeni İşletme Oluştur
         </h1>
@@ -343,7 +343,7 @@ export default function NewTenantWizardPage() {
           </div>
           <div className="h-2 overflow-hidden rounded-full bg-slate-200 dark:bg-slate-700">
             <div
-              className="h-full rounded-full bg-gradient-to-r from-cyan-500 to-emerald-500 transition-all duration-300"
+              className="h-full rounded-full bg-gradient-to-r from-emerald-500 to-emerald-500 transition-all duration-300"
               style={{ width: `${((step + 1) / STEP_TITLES.length) * 100}%` }}
             />
           </div>
@@ -359,7 +359,7 @@ export default function NewTenantWizardPage() {
                 onClick={() => setStep(index)}
                 className={`w-[10.5rem] shrink-0 rounded-xl border px-3 py-2.5 text-left text-xs transition sm:w-auto sm:shrink ${
                   isActive
-                    ? "border-cyan-400 bg-cyan-50 text-cyan-900 shadow-sm dark:border-cyan-600 dark:bg-cyan-950/40 dark:text-cyan-100"
+                    ? "border-emerald-400 bg-emerald-50 text-emerald-900 shadow-sm dark:border-emerald-600 dark:bg-emerald-950/40 dark:text-emerald-100"
                     : isDone
                       ? "border-emerald-300 bg-emerald-50 text-emerald-800 hover:border-emerald-400 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200"
                       : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400"
@@ -397,7 +397,7 @@ export default function NewTenantWizardPage() {
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 placeholder="Örn: Mehmet Berber Salonu"
-                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm transition focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-600 dark:bg-slate-900 dark:focus:border-cyan-400"
+                className="w-full rounded-xl border border-slate-300 px-4 py-3 text-sm transition focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-600 dark:bg-slate-900 dark:focus:border-emerald-400"
                 required
               />
               <p className="mt-1 text-xs text-slate-500">Müşterilere görünen resmi işletme adı</p>

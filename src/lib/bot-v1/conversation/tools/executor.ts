@@ -33,6 +33,7 @@ import {
   checkCustomerPackage,
   consumeCustomerPackageSession,
   listActivePackages,
+  listCustomerActivePackages,
 } from "@/services/package.service";
 import { createWeeklySeries } from "@/services/appointmentSeries.service";
 import { matchServiceToSlug } from "./match-service";
@@ -102,6 +103,55 @@ function mergeSelectedService(
   };
 }
 
+
+/**
+ * Modelin gönderdiği personel değerini GERÇEK bir staff.id'ye çevirir.
+ *
+ * Botun personel kimliklerini öğrenebileceği bir aracı yok; "PERSONEL: staff_id
+ * gönder" kuralı gereği model adı slug'layıp uyduruyordu ("Ahmet Usta" →
+ * "ahmet-usta"). Bu değer doğrulanmadan randevuya yazılıyor, personel tercihi
+ * sessizce kayboluyor ve takvim tutarsız hale geliyordu.
+ * Burada hem id hem AD kabul edilir; eşleşme yoksa null döner (otomatik atama).
+ */
+async function resolveStaffId(
+  tenantId: string,
+  raw: string | undefined
+): Promise<string | undefined> {
+  const value = (raw || "").trim();
+  if (!value) return undefined;
+
+  const { data } = await supabase
+    .from("staff")
+    .select("id, name")
+    .eq("tenant_id", tenantId)
+    .eq("active", true);
+
+  const rows = (data || []) as Array<{ id: string; name: string }>;
+  if (rows.length === 0) return undefined;
+
+  if (rows.some((r) => r.id === value)) return value;
+
+  const norm = (v: string) =>
+    v
+      .toLocaleLowerCase("tr-TR")
+      .replace(/ğ/g, "g").replace(/ü/g, "u").replace(/ş/g, "s")
+      .replace(/ı/g, "i").replace(/ö/g, "o").replace(/ç/g, "c")
+      .replace(/[^a-z0-9]+/g, " ")
+      .trim();
+
+  const target = norm(value);
+  const exact = rows.find((r) => norm(r.name) === target);
+  if (exact) return exact.id;
+
+  // "ahmet-usta" ↔ "Ahmet Usta" veya sadece "Ahmet" gibi kısmi eşleşmeler.
+  const partial = rows.find((r) => {
+    const n = norm(r.name);
+    return n.includes(target) || target.includes(n) ||
+      n.split(" ").some((w) => w.length > 2 && target.includes(w));
+  });
+  return partial?.id;
+}
+
 export async function executeToolCall(
   name: string,
   args: Record<string, unknown>,
@@ -115,7 +165,7 @@ export async function executeToolCall(
   if (name === "check_availability") {
     const dateStr = args.date as string;
     const serviceSlug = resolveSelectedServiceSlug(args, state);
-    const staffId = (args.staff_id as string | undefined)?.trim() || undefined;
+    const staffId = await resolveStaffId(tenantId, args.staff_id as string | undefined);
     const daily = await getDailyAvailability(tenantId, dateStr, {
       configOverride,
       staffId,
@@ -249,7 +299,7 @@ export async function executeToolCall(
         },
       };
     }
-    const staffId = (args.staff_id as string | undefined)?.trim() || undefined;
+    const staffId = await resolveStaffId(tenantId, args.staff_id as string | undefined);
     const hasPackageDecision = typeof args.use_package === "boolean";
     const usePackage = args.use_package === true;
     const availablePackage =
@@ -298,6 +348,8 @@ export async function executeToolCall(
       error?: string;
       suggested_time?: string;
       duration_minutes?: number;
+      existing_appointment_id?: string;
+      existing_time?: string;
     };
     try {
       const reserveResult = await withRetry(() =>
@@ -316,6 +368,8 @@ export async function executeToolCall(
           ok: false,
           error: reserveResult.error,
           suggested_time: reserveResult.suggested_time,
+          existing_appointment_id: reserveResult.existing_appointment_id,
+          existing_time: reserveResult.existing_time,
         };
       } else {
         result = {
@@ -409,6 +463,30 @@ export async function executeToolCall(
           extracted: {
             ...mergeSelectedService(state, serviceSlug),
             customer_name: customerName,
+            // Hemen ardından gelen "aslında 16:00 olsun" talebinin DOĞRU
+            // randevuyu taşıyabilmesi için oluşturulan kaydın ID'si saklanır.
+            last_appointment_id: result.id,
+          },
+        },
+      };
+    }
+    if (result.error === "ALREADY_BOOKED_SAME_DAY") {
+      // Model ikinci randevu açmak yerine mevcut olanı TAŞIMALI.
+      return {
+        result: {
+          ok: false,
+          error: "ALREADY_BOOKED_SAME_DAY",
+          existing_appointment_id: result.existing_appointment_id,
+          existing_time: result.existing_time,
+          hint:
+            "Bu müşterinin o gün aynı hizmet için zaten aktif randevusu var. Yeni randevu AÇMA; " +
+            "saat değişikliği isteniyorsa reschedule_appointment kullan. Başka bir KİŞİ için " +
+            "randevu alınıyorsa customer_name alanına o kişinin adını yaz.",
+        },
+        sessionUpdate: {
+          extracted: {
+            ...getStateExtracted(state),
+            last_appointment_id: result.existing_appointment_id,
           },
         },
       };
@@ -424,12 +502,21 @@ export async function executeToolCall(
 
   if (name === "check_customer_package") {
     const serviceSlug = (args.service_slug as string | undefined)?.trim();
+    // Hizmet belirtilmediyse müşterinin TÜM aktif paketlerini döndür:
+    // "paketimde kaç seans kaldı?" sorusunda hizmet adı gelmiyor.
     if (!serviceSlug) {
+      const allPackages = await listCustomerActivePackages(tenantId, customerPhone);
       return {
         result: {
-          ok: false,
-          has_package: false,
-          error: "service_slug gerekli",
+          ok: true,
+          has_package: allPackages.length > 0,
+          packages: allPackages.map((pk) => ({
+            package_name: pk.packageName,
+            service_slug: pk.serviceSlug,
+            remaining_sessions: pk.remainingSessions,
+            total_sessions: pk.totalSessions,
+            expires_at: pk.expiresAt,
+          })),
         },
       };
     }
@@ -624,12 +711,22 @@ export async function executeToolCall(
   }
 
   if (name === "reschedule_appointment") {
+    // ID çözümleme sırası. Eskiden yalnızca iptal akışında set edilen
+    // pending_cancel_appointment_id'ye bakılıyordu; "aslında 16:00 olsun" gibi
+    // normal erteleme taleplerinde ID hiç bulunamıyor ve erteleme başarısız
+    // oluyordu (bot da çareyi ikinci bir randevu açmakta buluyordu).
+    // Son çare aramada tenant + müşteri telefonu ile sınırlıdır.
+    const ext = (state?.extracted || {}) as {
+      last_appointment_id?: string;
+      pending_cancel_appointment_id?: string;
+    };
     const aptId =
       (args.appointment_id as string) ||
-      (state?.extracted as { pending_cancel_appointment_id?: string })
-        ?.pending_cancel_appointment_id;
+      ext.last_appointment_id ||
+      ext.pending_cancel_appointment_id ||
+      (await getCustomerLastActiveAppointment(tenantId, customerPhone))?.id;
     if (!aptId) {
-      return { result: { ok: false, error: "Randevu bulunamadı" } };
+      return { result: { ok: false, error: "Taşınacak aktif randevu bulunamadı" } };
     }
     const { data: currentApt } = await supabase
       .from("appointments")
@@ -696,6 +793,8 @@ export async function executeToolCall(
         staffId: carriedStaffId,
         serviceSlug: carriedServiceSlug,
         extraData: carriedExtraData,
+        // Taşınan randevunun kendisi "zaten var" sayılmamalı.
+        excludeAppointmentId: aptId,
       });
       // Aynı personel yeni saatte doluysa havuzdan başka personelle dene.
       if (!reserveResult.ok && reserveResult.error === "SLOT_TAKEN" && carriedStaffId) {
@@ -706,6 +805,7 @@ export async function executeToolCall(
           time: newTime,
           serviceSlug: carriedServiceSlug,
           extraData: carriedExtraData,
+          excludeAppointmentId: aptId,
         });
       }
       if (!reserveResult.ok) {

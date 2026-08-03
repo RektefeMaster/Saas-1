@@ -45,8 +45,13 @@ export const cancelAppointmentSchema = z.object({
   reason: z.string().optional(),
 });
 
+/**
+ * appointment_id opsiyoneldir: müşteri "aslında 16:00 olsun" dediğinde modelin
+ * elinde ID olmuyor ve zorunlu alan yüzünden erteleme hiç çalışmıyordu.
+ * Boş bırakılırsa executor müşterinin kendi en yakın aktif randevusunu bulur.
+ */
 export const rescheduleAppointmentSchema = z.object({
-  appointment_id: z.string().min(1, "appointment_id boş olamaz"),
+  appointment_id: z.string().min(1).optional(),
   new_date: dateSchema,
   new_time: timeSchema,
 });
@@ -65,8 +70,13 @@ export const notifyLateSchema = z.object({
   message: z.string().optional(),
 });
 
+/**
+ * service_slug opsiyonel: "paketimde kaç seans kaldı?" sorusunda müşteri hizmet
+ * adı vermiyor ve zorunlu alan yüzünden bot kalan seansı HİÇ söyleyemiyordu.
+ * Boşsa müşterinin tüm aktif paketleri döner.
+ */
 export const checkCustomerPackageSchema = z.object({
-  service_slug: z.string().min(1),
+  service_slug: z.string().min(1).optional(),
 });
 
 export const getPackagesSchema = z.object({

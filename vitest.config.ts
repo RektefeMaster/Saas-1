@@ -9,6 +9,12 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    /**
+     * Sektörel canlı bot testi varsayılan koşuya girmez: gerçek OpenAI
+     * çağrıları yapar (ücretli, ~8 dk) ve OPENAI_API_KEY gerektirir.
+     * Elle çalıştırmak için: npm run test:bot
+     */
+    exclude: ["**/node_modules/**", "**/dist/**", "src/test/__live__/**"],
   },
   resolve: {
     alias: {

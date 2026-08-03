@@ -193,14 +193,14 @@ function AdminLoginForm() {
         sizes="100vw"
         className="pointer-events-none object-cover opacity-[0.08]"
       />
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_40%_at_20%_0%,rgba(56,189,248,0.18),transparent),radial-gradient(40%_35%_at_85%_10%,rgba(16,185,129,0.17),transparent)]" />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_40%_at_20%_0%,rgba(148,163,184,0.22),transparent),radial-gradient(40%_35%_at_85%_10%,rgba(16,185,129,0.16),transparent)]" />
 
       <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-md items-center px-4 py-8 sm:px-6">
         <section className="w-full rounded-xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
             <div className="mb-5 flex items-center justify-between">
               <div className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-wide text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300">
                 {step === "password" ? (
-                  <KeyRound className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-300" />
+                  <KeyRound className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
                 ) : (
                   <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
                 )}
@@ -301,7 +301,7 @@ function AdminLoginForm() {
                     type="button"
                     onClick={resendOtp}
                     disabled={resending}
-                    className="inline-flex items-center gap-1.5 font-medium text-cyan-700 transition hover:text-cyan-800 disabled:opacity-50 dark:text-cyan-300 dark:hover:text-cyan-200"
+                    className="inline-flex items-center gap-1.5 font-medium text-emerald-700 transition hover:text-emerald-800 disabled:opacity-50 dark:text-emerald-300 dark:hover:text-emerald-200"
                   >
                     <RefreshCw className={`h-4 w-4 ${resending ? "animate-spin" : ""}`} />
                     {resending ? t.resending : t.resend}

@@ -73,15 +73,16 @@ export function DashboardTenantProvider({
 
   const staffPreferenceEnabled = Boolean(featureData?.feature_flags?.staff_preference);
 
+  // Features ile paralel çek — flag waterfall'unu kır. Flag kapalıysa listeyi boş tut.
   const { data: staffData } = useSWR<StaffOption[]>(
-    tenantId && staffPreferenceEnabled ? `/api/tenant/${tenantId}/staff` : null,
+    tenantId ? `/api/tenant/${tenantId}/staff` : null,
     fetcher
   );
 
   const staffOptions = useMemo(() => {
-    if (!Array.isArray(staffData)) return [];
+    if (!staffPreferenceEnabled || !Array.isArray(staffData)) return [];
     return staffData.filter((row) => row && row.active);
-  }, [staffData]);
+  }, [staffData, staffPreferenceEnabled]);
 
   useEffect(() => {
     setTenant(null);

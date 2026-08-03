@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, use} from "react";
 import { ArrowLeft, ListChecks, Loader2, Plus, Trash2 } from "lucide-react";
 import { humanizeMinutes } from "@/lib/humanize-duration";
 import { useDashboardTenant } from "../../DashboardTenantContext";
@@ -34,7 +34,6 @@ export default function PricingPage({
 }: {
   params: Promise<{ tenantId: string }>;
 }) {
-  const [tenantId, setTenantId] = useState<string>("");
   const tenantCtx = useDashboardTenant();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,10 +47,7 @@ export default function PricingPage({
     price_visible: true,
   });
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
-
-  useEffect(() => {
-    params.then((p) => setTenantId(p.tenantId));
-  }, [params]);
+  const { tenantId } = use(params);
 
   const refresh = useCallback(async (includeTenant = false) => {
     if (!tenantId) return;
@@ -188,9 +184,9 @@ export default function PricingPage({
         </Link>
         <div className="mt-4 flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
           <div>
-            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Fiyat Listesi</h1>
+            <h1 className="text-xl font-semibold text-slate-900 dark:text-slate-100">Fiyat listesi</h1>
             <p className="mt-0.5 text-sm text-slate-500 dark:text-slate-400">
-              Hizmetlerinizi tanımlayın. Müşteriler randevu alırken bu listeyi görür.
+              Hizmetleri ve fiyatları buradan yönetin. Müşteri randevu alırken bu listeyi görür.
             </p>
           </div>
           {!loading && sortedServices.length > 0 && (
@@ -202,10 +198,10 @@ export default function PricingPage({
       </header>
 
       {/* Yeni hizmet formu */}
-      <section className="mb-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6">
+      <section className="panel-surface mb-6 p-5 sm:p-6">
         <div className="mb-4 flex items-center gap-2">
-          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 dark:bg-slate-800">
-            <Plus className="h-4 w-4 text-slate-600 dark:text-slate-300" />
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand)]">
+            <Plus className="h-4 w-4" />
           </div>
           <div>
             <h2 className="text-base font-semibold text-slate-900 dark:text-slate-100">Yeni hizmet ekle</h2>

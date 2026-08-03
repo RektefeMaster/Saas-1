@@ -77,10 +77,12 @@ function OverviewViewInner({ onRunAction, onResolveAlert }: OverviewViewProps) {
                 className={`h-5 w-5 ${openAlertCount > 0 ? "text-amber-600 dark:text-amber-400" : "text-slate-400"}`}
                 aria-hidden
               />
-              Bildirimler
+              Dikkat gerekenler
             </h2>
             <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-              {openAlertCount > 0 ? `${openAlertCount} açık bildirim` : "Takip edilmesi gereken konu yok"}
+              {openAlertCount > 0
+                ? `${openAlertCount} konu açık`
+                : "Şu an takip edilecek bir konu yok"}
             </p>
           </div>
           {opsAlertsLoading && (
@@ -95,9 +97,9 @@ function OverviewViewInner({ onRunAction, onResolveAlert }: OverviewViewProps) {
           <div className="flex items-start gap-3 rounded-xl border border-dashed border-slate-200 px-4 py-5 dark:border-slate-700">
             <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden />
             <div>
-              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Her şey yolunda</p>
+              <p className="text-sm font-medium text-slate-800 dark:text-slate-200">Her şey sakin</p>
               <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
-                Yeni bir bildirim olduğunda burada listelenir.
+                Yeni bir uyarı oluşursa burada görünür.
               </p>
             </div>
           </div>

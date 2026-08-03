@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, use} from "react";
 import { ArrowLeft, Plus, Trash2 } from "lucide-react";
 import { useDashboardTenant } from "../../DashboardTenantContext";
 
@@ -32,7 +32,6 @@ export default function StaffPage({
 }: {
   params: Promise<{ tenantId: string }>;
 }) {
-  const [tenantId, setTenantId] = useState("");
   const tenantCtx = useDashboardTenant();
   const enabled = tenantCtx?.staffPreferenceEnabled ?? false;
   const featuresLoading = tenantCtx?.isLoading ?? true;
@@ -49,10 +48,7 @@ export default function StaffPage({
     phone_e164: "",
     service_slugs: [] as string[],
   });
-
-  useEffect(() => {
-    params.then((p) => setTenantId(p.tenantId));
-  }, [params]);
+  const { tenantId } = use(params);
 
   const loadData = useCallback(async () => {
     if (!tenantId || !enabled) return;
@@ -201,7 +197,7 @@ export default function StaffPage({
 
   return (
     <div className="space-y-6 overflow-x-hidden p-4 sm:p-6 lg:p-10">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <header className="panel-surface p-5 sm:p-6">
         <Link
           href={`/dashboard/${tenantId}`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -210,27 +206,27 @@ export default function StaffPage({
           Panele dön
         </Link>
         <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-          Personel Yönetimi
+          Personel
         </h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 sm:text-base">
-          Personel kaydı oluşturun ve hangi hizmetleri sunduklarını eşleyin.
+          Ekibinizi ekleyin; her kişinin sunduğu hizmetleri eşleştirin.
         </p>
         {error && <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p>}
         {info && <p className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">{info}</p>}
       </header>
 
       {featuresLoading ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+        <section className="panel-surface p-5 text-sm text-slate-500 dark:text-slate-300">
           Özellik kontrol ediliyor...
         </section>
       ) : !enabled ? (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 shadow-sm dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
-          Bu işletme tipinde personel tercih modülü kapalı (`feature_flags.staff_preference=false`).
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+          Bu işletme tipinde personel seçimi kapalı. Açılmasını istiyorsanız destek ile görüşün.
         </section>
       ) : (
         <>
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Yeni Personel</h2>
+          <section className="panel-surface p-4 sm:p-5">
+            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Yeni personel</h2>
             <form onSubmit={createStaff} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <div>
                 <label htmlFor="staff-name" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -299,7 +295,7 @@ export default function StaffPage({
             </form>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <section className="panel-surface p-5">
             <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">Personel Listesi</h2>
             {loading ? (
               <p className="text-sm text-slate-500 dark:text-slate-300">Yükleniyor…</p>

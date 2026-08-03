@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, use} from "react";
 import { ArrowLeft, PackagePlus } from "lucide-react";
 import { useDashboardTenant } from "../../DashboardTenantContext";
 
@@ -48,7 +48,6 @@ export default function PackagesPage({
 }: {
   params: Promise<{ tenantId: string }>;
 }) {
-  const [tenantId, setTenantId] = useState("");
   const tenantCtx = useDashboardTenant();
   const packagesEnabled = tenantCtx?.features?.packages === true;
   const featuresLoading = tenantCtx?.isLoading ?? true;
@@ -72,10 +71,7 @@ export default function PackagesPage({
     customer_phone: "",
     package_id: "",
   });
-
-  useEffect(() => {
-    params.then((p) => setTenantId(p.tenantId));
-  }, [params]);
+  const { tenantId } = use(params);
 
   const loadData = useCallback(async () => {
     if (!tenantId || !packagesEnabled) return;
@@ -221,7 +217,7 @@ export default function PackagesPage({
 
   return (
     <div className="space-y-6 overflow-x-hidden p-4 sm:p-6 lg:p-10">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <header className="panel-surface p-5 sm:p-6">
         <Link
           href={`/dashboard/${tenantId}`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -230,27 +226,27 @@ export default function PackagesPage({
           Panele dön
         </Link>
         <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-          Paket & Seans
+          Paket ve seans
         </h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 sm:text-base">
-          Hizmete bağlı paket tanımlayın, müşteriye atayın ve seans kalanını takip edin.
+          Paket tanımlayın, müşteriye atayın; kalan seansı buradan izleyin.
         </p>
         {error && <p className="mt-3 text-sm font-medium text-red-600 dark:text-red-300">{error}</p>}
         {info && <p className="mt-3 text-sm font-medium text-emerald-700 dark:text-emerald-300">{info}</p>}
       </header>
 
       {featuresLoading ? (
-        <section className="rounded-2xl border border-slate-200 bg-white p-5 text-sm text-slate-500 shadow-sm dark:border-slate-800 dark:bg-slate-900 dark:text-slate-300">
+        <section className="panel-surface p-5 text-sm text-slate-500 dark:text-slate-300">
           Özellik kontrol ediliyor...
         </section>
       ) : !packagesEnabled ? (
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 shadow-sm dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
-          Bu işletme tipinde paket modülü kapalı görünüyor (`feature_flags.packages=false`).
+        <section className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-800 dark:border-amber-900/40 dark:bg-amber-900/20 dark:text-amber-200">
+          Bu işletme tipinde paket modülü kapalı. Açılmasını istiyorsanız destek ile görüşün.
         </section>
       ) : (
         <>
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
-            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Yeni Paket</h2>
+          <section className="panel-surface p-4 sm:p-5">
+            <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">Yeni paket</h2>
             <form onSubmit={createPackage} className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
               <div>
                 <label htmlFor="pkg-name" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -267,13 +263,13 @@ export default function PackagesPage({
               </div>
               <div>
                 <label htmlFor="pkg-slug" className="mb-1.5 block text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Hizmet slug
+                  Hizmet kodu
                 </label>
                 <input
                   id="pkg-slug"
                   value={newPackage.service_slug}
                   onChange={(e) => setNewPackage((s) => ({ ...s, service_slug: e.target.value }))}
-                  placeholder="service_slug"
+                  placeholder="Örn: sac-kesimi"
                   className="w-full min-h-11 rounded-lg border border-slate-200 px-3 py-3 text-base outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-300/40 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
                   required
                 />
@@ -337,7 +333,7 @@ export default function PackagesPage({
             </form>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+          <section className="panel-surface p-4 sm:p-5">
             <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
               Müşteriye Paket Ata
             </h2>
@@ -389,7 +385,7 @@ export default function PackagesPage({
             </form>
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <section className="panel-surface p-5">
             <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
               Paket Tanımları
             </h2>
@@ -416,7 +412,7 @@ export default function PackagesPage({
             )}
           </section>
 
-          <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+          <section className="panel-surface p-5">
             <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">
               Müşteri Paketleri
             </h2>

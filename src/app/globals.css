@@ -451,6 +451,67 @@ body.site-menu-open {
 .site-root {
   background: var(--ahi-paper);
   color: var(--ahi-text);
+  /* Mobilde aşırı overscroll bounce + paint azaltır */
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Masaüstü atmosfer blur — mobilde ASLA uygulanmaz (GPU kasması) */
+@media (min-width: 768px) {
+  .site-atm-blur {
+    filter: blur(var(--site-atm-blur, 5px)) saturate(0.88);
+  }
+}
+
+/*
+  NOT: content-visibility:auto hash (#ne-yapar) ve sticky ile bozulma yapıyor.
+  Mobil performansı görsel/blur kısıtlarıyla sağlanıyor; burada kullanılmıyor.
+*/
+.site-section {
+  content-visibility: visible;
+}
+
+@keyframes site-typing-dot {
+  0%,
+  80%,
+  100% {
+    opacity: 0.3;
+  }
+  40% {
+    opacity: 1;
+  }
+}
+
+.site-typing-dot {
+  animation: site-typing-dot 1s ease-in-out infinite;
+}
+.site-typing-dot:nth-child(2) {
+  animation-delay: 0.16s;
+}
+.site-typing-dot:nth-child(3) {
+  animation-delay: 0.32s;
+}
+
+@media (max-width: 767px) {
+  /* Sticky header blur mobilde pahalı — katı zemin */
+  .site-header-bar {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* Panel: mobilde blur GPU maliyetini kes (site ile aynı politika) */
+  .dashboard-shell-header,
+  .dashboard-tabbar,
+  .dashboard-sticky-cta {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .site-typing-dot {
+    animation: none;
+    opacity: 0.55;
+  }
 }
 
 .site-display {

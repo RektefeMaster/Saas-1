@@ -43,7 +43,7 @@ export function AdminHelpPanel() {
         className="flex w-full items-center justify-between px-5 py-4 text-left transition hover:bg-slate-50/50 dark:hover:bg-slate-800/30"
       >
         <div className="flex items-center gap-3">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 text-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-400">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
             <Command className="h-5 w-5" />
           </div>
           <div>

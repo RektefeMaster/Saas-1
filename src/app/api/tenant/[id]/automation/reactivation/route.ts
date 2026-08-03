@@ -31,7 +31,7 @@ export async function GET(
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Reactivation adaylari alinamadi";
+    const message = err instanceof Error ? err.message : "Yeniden kazanım adayları alınamadı";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -100,7 +100,7 @@ export async function POST(
       queued,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Reactivation kuyruklama basarisiz";
+    const message = err instanceof Error ? err.message : "Yeniden kazanım kuyruğa alınamadı";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

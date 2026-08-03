@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState, use } from "react";
 import { ArrowLeft, Bot, ChevronDown, ChevronUp, UserRound } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
+import { VirtualList } from "@/components/ui/VirtualList";
 import type { ConversationRow } from "@/types/conversation.types";
 
 type MessageRow = {
@@ -25,13 +26,13 @@ type Metrics = {
 
 const COPY = {
   tr: {
-    title: "Gelen Kutusu",
+    title: "Gelen kutusu",
     empty: "Henüz konuşma yok",
     noMessages: "Bu konuşmada henüz mesaj yok",
     select: "Bir konuşma seçin",
     back: "Listeye dön",
     takeover: "Devral",
-    resume: "AI'ya bırak",
+    resume: "Asistana bırak",
     resolve: "Çözüldü",
     pending: "Beklemeye al",
     send: "Gönder",
@@ -39,10 +40,10 @@ const COPY = {
     needTakeover: "Önce konuşmayı devralın",
     unanswered: "Cevapsız",
     handoffRate: "Aktarım",
-    aiRate: "AI çözüm",
+    aiRate: "Asistan çözüm",
     qualityMark: "Kalite",
     summary: "Aktarım özeti",
-    conflict: "Konuşma başka personelde — yenilendi, tekrar deneyin",
+    conflict: "Konuşma başka personelde — liste yenilendi, tekrar deneyin",
     failed: "Gönderilemedi",
     accessDenied: "Erişim yok veya konuşma bulunamadı",
     genericError: "Bir hata oluştu",
@@ -53,14 +54,14 @@ const COPY = {
     feedbackFail: "Geri bildirim kaydedilemedi",
     you: "Siz",
     customer: "Müşteri",
-    ai: "AI",
+    ai: "Asistan",
     system: "Sistem",
-    modeAi: "AI yanıtlıyor",
+    modeAi: "Asistan yanıtlıyor",
     modeHuman: "Siz yönetiyorsunuz",
     modePaused: "Beklemede",
-    modeAssist: "AI yardımcı",
-    takeoverOk: "Konuşma devralındı — yazabilirsiniz",
-    resumeOk: "AI devam ediyor",
+    modeAssist: "Asistan yardımcı",
+    takeoverOk: "Konuşma sizde — yazabilirsiniz",
+    resumeOk: "Asistan devam ediyor",
     pendingOk: "Beklemeye alındı",
     resolveOk: "Çözüldü olarak işaretlendi",
     statusPending: "beklemede",
@@ -602,44 +603,46 @@ export function InboxContent({
           {items.length === 0 ? (
             <p className="p-4 text-sm text-slate-500">{t.empty}</p>
           ) : (
-            <ul className="divide-y divide-slate-100 dark:divide-slate-800">
-              {items.map((c) => (
-                <li key={c.id}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setInfo(null);
-                      setError(null);
-                      setSelectedId(c.id);
-                    }}
-                    className={`flex min-h-[4.5rem] w-full flex-col gap-1 px-3 py-3 text-left text-sm transition-colors active:bg-slate-50 dark:active:bg-slate-800 ${
-                      selectedId === c.id
-                        ? "bg-emerald-50 dark:bg-emerald-950/40"
-                        : "hover:bg-slate-50 dark:hover:bg-slate-800"
-                    }`}
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-medium text-slate-800 dark:text-slate-100">
-                        +{c.external_user_id}
+            <VirtualList
+              items={items}
+              height={560}
+              estimateSize={88}
+              className="divide-y divide-slate-100 dark:divide-slate-800"
+              renderItem={(c) => (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setInfo(null);
+                    setError(null);
+                    setSelectedId(c.id);
+                  }}
+                  className={`flex min-h-[4.5rem] w-full flex-col gap-1 px-3 py-3 text-left text-sm transition-colors active:bg-slate-50 dark:active:bg-slate-800 ${
+                    selectedId === c.id
+                      ? "bg-emerald-50 dark:bg-emerald-950/40"
+                      : "hover:bg-slate-50 dark:hover:bg-slate-800"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-slate-800 dark:text-slate-100">
+                      +{c.external_user_id}
+                    </span>
+                    {c.unread_count > 0 && (
+                      <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
+                        {c.unread_count}
                       </span>
-                      {c.unread_count > 0 && (
-                        <span className="rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
-                          {c.unread_count}
-                        </span>
-                      )}
-                    </div>
-                    <span className="truncate text-slate-500">
-                      {c.last_message_preview || "—"}
-                    </span>
-                    <span className="text-xs text-slate-400">
-                      {modeLabel(c.automation_mode, t)}
-                      {c.conversation_status === "PENDING" ? ` · ${t.statusPending}` : ""}
-                      {c.conversation_status === "RESOLVED" ? ` · ${t.statusResolved}` : ""}
-                    </span>
-                  </button>
-                </li>
-              ))}
-            </ul>
+                    )}
+                  </div>
+                  <span className="truncate text-slate-500">
+                    {c.last_message_preview || "—"}
+                  </span>
+                  <span className="text-xs text-slate-400">
+                    {modeLabel(c.automation_mode, t)}
+                    {c.conversation_status === "PENDING" ? ` · ${t.statusPending}` : ""}
+                    {c.conversation_status === "RESOLVED" ? ` · ${t.statusResolved}` : ""}
+                  </span>
+                </button>
+              )}
+            />
           )}
         </aside>
 

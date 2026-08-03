@@ -3,13 +3,12 @@
 import Link from "next/link";
 import { useLocale } from "@/lib/locale-context";
 import { SiteShell, useSiteContact } from "@/components/site/SiteShell";
+import { SiteAtmosphere } from "@/components/site/SiteAtmosphere";
 import { MarkArrow } from "@/components/site/GuildMarks";
-import { ScrollReveal } from "@/components/ui/ScrollReveal";
 
 const COPY = {
   tr: {
     hero: {
-      eyebrow: "Açık anlatım",
       title: "Ahi AI ne yapar, nasıl çalışır?",
       lead:
         "Kısaca: Müşteri WhatsApp’tan yazınca işiniz aksamadan yürüsün diye yapılan bir işletme paneli. Aşağıda abartısız, günlük dille anlattık.",
@@ -102,7 +101,6 @@ const COPY = {
   },
   en: {
     hero: {
-      eyebrow: "Plain explanation",
       title: "What Ahi AI does, and how it works",
       lead:
         "In short: a business panel built so the day keeps moving when customers write on WhatsApp. Below is the unvarnished version.",
@@ -202,60 +200,69 @@ function HowItWorksContent() {
 
   return (
     <main>
-      <section className="mx-auto w-full max-w-3xl px-4 pb-10 pt-12 sm:px-6 sm:pb-12 sm:pt-14">
-        <ScrollReveal variant="fadeUp">
+      <section className="relative overflow-hidden">
+        <SiteAtmosphere
+          src="/site/chat-in-shop.jpg"
+          strength="soft"
+          priority
+          mobile="on"
+          position="center 28%"
+        />
+        <div className="relative z-[1] mx-auto w-full max-w-3xl px-4 pb-10 pt-12 sm:px-6 sm:pb-12 sm:pt-14">
           <h1
             className="site-display text-[clamp(1.9rem,4.5vw,2.75rem)]"
             style={{ color: "var(--ahi-text)" }}
           >
             {t.hero.title}
           </h1>
-          <p className="mt-4 max-w-2xl text-[15px] leading-7" style={{ color: "var(--ahi-text-2)" }}>
+          <p className="mt-4 max-w-2xl text-[16px] leading-8" style={{ color: "var(--ahi-text-2)" }}>
             {t.hero.lead}
           </p>
-        </ScrollReveal>
+        </div>
       </section>
 
-      <section className="mx-auto w-full max-w-3xl px-4 pb-6 sm:px-6">
-        <ScrollReveal variant="fadeUp">
-          <div
-            className="rounded-2xl border px-6 py-7 sm:px-8 sm:py-8"
-            style={{ borderColor: "var(--ahi-line)", background: "var(--ahi-paper)" }}
-          >
-            <h2 className="text-xl font-semibold" style={{ color: "var(--ahi-text)" }}>
-              {t.what.title}
-            </h2>
-            <div className="mt-4 space-y-4 text-[15px] leading-7" style={{ color: "var(--ahi-text-2)" }}>
-              {t.what.body.map((p) => (
-                <p key={p.slice(0, 28)}>{p}</p>
-              ))}
-            </div>
+      <section className="relative mx-auto w-full max-w-3xl px-4 pb-6 sm:px-6">
+        <div
+          className="rounded-2xl border px-6 py-7 sm:px-8 sm:py-8"
+          style={{ borderColor: "var(--ahi-line)", background: "var(--ahi-paper)" }}
+        >
+          <h2 className="text-xl font-semibold" style={{ color: "var(--ahi-text)" }}>
+            {t.what.title}
+          </h2>
+          <div className="mt-4 space-y-4 text-[15px] leading-7" style={{ color: "var(--ahi-text-2)" }}>
+            {t.what.body.map((p) => (
+              <p key={p.slice(0, 28)}>{p}</p>
+            ))}
           </div>
-        </ScrollReveal>
+        </div>
       </section>
 
-      <section style={{ background: "var(--ahi-paper-2)" }}>
-        <div className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-14">
-          <ScrollReveal variant="fadeUp">
-            <h2 className="site-display text-[clamp(1.5rem,3.5vw,2.1rem)]" style={{ color: "var(--ahi-text)" }}>
-              {t.how.title}
-            </h2>
-          </ScrollReveal>
-
+      <section className="relative overflow-hidden">
+        <SiteAtmosphere
+          src="/site/ops-calendar-day.jpg"
+          strength="veil"
+          mobile="off"
+          position="center 40%"
+        />
+        <div className="relative z-[1] mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-14">
+          <h2
+            className="site-display text-[clamp(1.5rem,3.5vw,2.1rem)]"
+            style={{ color: "var(--ahi-text)" }}
+          >
+            {t.how.title}
+          </h2>
           <ol className="mt-8 grid gap-6 sm:grid-cols-2">
             {t.how.steps.map((step, index) => (
               <li key={step.title}>
-                <ScrollReveal delay={0.03 + index * 0.04} variant="fadeUp">
-                  <p className="site-meta text-xs font-semibold" style={{ color: "var(--ahi-brand)" }}>
-                    {index + 1}
-                  </p>
-                  <h3 className="mt-2 text-[15px] font-semibold" style={{ color: "var(--ahi-text)" }}>
-                    {step.title}
-                  </h3>
-                  <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
-                    {step.text}
-                  </p>
-                </ScrollReveal>
+                <p className="site-meta text-xs font-semibold" style={{ color: "var(--ahi-brand)" }}>
+                  {index + 1}
+                </p>
+                <h3 className="mt-2 text-[15px] font-semibold" style={{ color: "var(--ahi-text)" }}>
+                  {step.title}
+                </h3>
+                <p className="mt-2 text-[14px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
+                  {step.text}
+                </p>
               </li>
             ))}
           </ol>
@@ -263,62 +270,53 @@ function HowItWorksContent() {
       </section>
 
       <section className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-14">
-        <ScrollReveal variant="fadeUp">
-          <h2 className="site-display text-[clamp(1.5rem,3.5vw,2.1rem)]" style={{ color: "var(--ahi-text)" }}>
-            {t.includes.title}
-          </h2>
-        </ScrollReveal>
+        <h2
+          className="site-display text-[clamp(1.5rem,3.5vw,2.1rem)]"
+          style={{ color: "var(--ahi-text)" }}
+        >
+          {t.includes.title}
+        </h2>
         <div
           className="mt-6 grid gap-px border sm:grid-cols-2"
           style={{ background: "var(--ahi-line)", borderColor: "var(--ahi-line)" }}
         >
-          {t.includes.items.map((item, index) => (
-            <ScrollReveal key={item.title} delay={0.02 + index * 0.03} variant="fadeUp" className="h-full">
-              <article className="h-full px-5 py-5" style={{ background: "var(--ahi-paper)" }}>
-                <h3 className="text-[15px] font-semibold" style={{ color: "var(--ahi-text)" }}>
-                  {item.title}
-                </h3>
-                <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
-                  {item.text}
-                </p>
-              </article>
-            </ScrollReveal>
+          {t.includes.items.map((item) => (
+            <article key={item.title} className="h-full px-5 py-5" style={{ background: "var(--ahi-paper)" }}>
+              <h3 className="text-[15px] font-semibold" style={{ color: "var(--ahi-text)" }}>
+                {item.title}
+              </h3>
+              <p className="mt-1.5 text-[13.5px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
+                {item.text}
+              </p>
+            </article>
           ))}
         </div>
       </section>
 
       <section style={{ background: "var(--ahi-ink)" }}>
         <div className="mx-auto w-full max-w-3xl px-4 py-10 sm:px-6 sm:py-12">
-          <ScrollReveal variant="fadeUp">
-            <h2 className="text-lg font-semibold" style={{ color: "var(--ahi-on-ink)" }}>
-              {t.forWhom.title}
-            </h2>
-            <p className="mt-3 max-w-2xl text-[15px] leading-7" style={{ color: "var(--ahi-on-ink-2)" }}>
-              {t.forWhom.text}
-            </p>
-          </ScrollReveal>
+          <h2 className="text-lg font-semibold" style={{ color: "var(--ahi-on-ink)" }}>
+            {t.forWhom.title}
+          </h2>
+          <p className="mt-3 max-w-2xl text-[15px] leading-7" style={{ color: "var(--ahi-on-ink-2)" }}>
+            {t.forWhom.text}
+          </p>
         </div>
       </section>
 
       <section className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-14">
-        <ScrollReveal variant="fadeUp">
-          <h2 className="site-display text-[clamp(1.5rem,3.5vw,2.1rem)]" style={{ color: "var(--ahi-text)" }}>
-            {t.faqTitle}
-          </h2>
-        </ScrollReveal>
+        <h2
+          className="site-display text-[clamp(1.5rem,3.5vw,2.1rem)]"
+          style={{ color: "var(--ahi-text)" }}
+        >
+          {t.faqTitle}
+        </h2>
         <div
           className="mt-6 divide-y divide-[var(--ahi-line)] overflow-hidden rounded-2xl border"
-          style={{
-            borderColor: "var(--ahi-line)",
-            background: "var(--ahi-paper)",
-          }}
+          style={{ borderColor: "var(--ahi-line)", background: "var(--ahi-paper)" }}
         >
           {t.faqs.map((item) => (
-            <details
-              key={item.q}
-              className="group px-5 py-4"
-              style={{ borderColor: "var(--ahi-line)" }}
-            >
+            <details key={item.q} className="group px-5 py-4" style={{ borderColor: "var(--ahi-line)" }}>
               <summary
                 className="cursor-pointer list-none text-sm font-semibold [&::-webkit-details-marker]:hidden"
                 style={{ color: "var(--ahi-text)" }}
@@ -342,32 +340,30 @@ function HowItWorksContent() {
       </section>
 
       <section className="mx-auto w-full max-w-3xl px-4 pb-16 sm:px-6 sm:pb-20">
-        <ScrollReveal variant="fadeUp">
-          <div className="rounded-2xl px-6 py-10 sm:px-10 sm:py-12" style={{ background: "var(--ahi-ink)" }}>
-            <h2
-              className="site-display max-w-xl text-[clamp(1.5rem,3.5vw,2.1rem)]"
-              style={{ color: "var(--ahi-on-ink)" }}
+        <div className="rounded-2xl px-6 py-10 sm:px-10 sm:py-12" style={{ background: "var(--ahi-ink)" }}>
+          <h2
+            className="site-display max-w-xl text-[clamp(1.5rem,3.5vw,2.1rem)]"
+            style={{ color: "var(--ahi-on-ink)" }}
+          >
+            {t.cta.title}
+          </h2>
+          <p className="mt-3 max-w-xl text-[15px] leading-7" style={{ color: "var(--ahi-on-ink-2)" }}>
+            {t.cta.text}
+          </p>
+          <div className="mt-7 flex flex-wrap gap-3">
+            <button type="button" onClick={openContact} className="site-btn site-btn-primary">
+              {t.cta.primary}
+              <MarkArrow className="h-4 w-4" />
+            </button>
+            <Link
+              href="/panel-incele"
+              className="site-btn"
+              style={{ border: "1px solid var(--ahi-on-ink-line)", color: "var(--ahi-on-ink)" }}
             >
-              {t.cta.title}
-            </h2>
-            <p className="mt-3 max-w-xl text-[15px] leading-7" style={{ color: "var(--ahi-on-ink-2)" }}>
-              {t.cta.text}
-            </p>
-            <div className="mt-7 flex flex-wrap gap-3">
-              <button type="button" onClick={openContact} className="site-btn site-btn-primary">
-                {t.cta.primary}
-                <MarkArrow className="h-4 w-4" />
-              </button>
-              <Link
-                href="/panel-incele"
-                className="site-btn"
-                style={{ border: "1px solid var(--ahi-on-ink-line)", color: "var(--ahi-on-ink)" }}
-              >
-                {t.cta.secondary}
-              </Link>
-            </div>
+              {t.cta.secondary}
+            </Link>
           </div>
-        </ScrollReveal>
+        </div>
       </section>
     </main>
   );

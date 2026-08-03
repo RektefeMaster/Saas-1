@@ -83,33 +83,33 @@ export async function GET(
 
     if (avgRating > 0 && avgRating < 4.2) {
       actions.push({
-        title: "Dusus yorumu kurtarma",
+        title: "Düşük yorum kurtarma",
         priority: "high",
-        note: "3 ve alt puan veren musteriler icin 24 saat icinde manuel geri donus yapin.",
+        note: "3 ve alt puan veren müşteriler için 24 saat içinde manuel geri dönüş yapın.",
       });
     }
 
     if (noShowRate30d >= 8) {
       actions.push({
-        title: "No-show onleme",
+        title: "Gelmemeyi önleme",
         priority: "high",
-        note: "Cift hatirlatma ve randevu onay adimi aktif edilmeli.",
+        note: "Çift hatırlatma ve randevu onay adımı aktif edilmeli.",
       });
     }
 
     if ((openAlertsByType.cancellation || 0) > 2) {
       actions.push({
-        title: "Iptal sebeplerini azalt",
+        title: "İptal sebeplerini azalt",
         priority: "medium",
-        note: "Son iptal notlarini inceleyip uygun saat politikasini guncelleyin.",
+        note: "Son iptal notlarını inceleyip uygun saat politikasını güncelleyin.",
       });
     }
 
     if (actions.length === 0) {
       actions.push({
-        title: "Iyi gidisati koru",
+        title: "İyi gidişatı koru",
         priority: "low",
-        note: "Memnun musterilerden yorum isteme otomasyonunu duzenli calistirin.",
+        note: "Memnun müşterilerden yorum isteme otomasyonunu düzenli çalıştırın.",
       });
     }
 
@@ -130,7 +130,7 @@ export async function GET(
       actions,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Reputation ozeti alinamadi";
+    const message = err instanceof Error ? err.message : "İtibar özeti alınamadı";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, use} from "react";
 import { ArrowLeft, BookPlus, Check, Archive, Pencil, X } from "lucide-react";
 
 // tenantKnowledge.service.ts'teki KNOWLEDGE_BODY_PROMPT_CHARS ile aynı olmalı.
@@ -76,7 +76,6 @@ export default function KnowledgePage({
 }: {
   params: Promise<{ tenantId: string }>;
 }) {
-  const [tenantId, setTenantId] = useState("");
   const [entries, setEntries] = useState<KnowledgeEntry[]>([]);
   const [approvedCount, setApprovedCount] = useState(0);
   const [maxApproved, setMaxApproved] = useState(15);
@@ -87,10 +86,7 @@ export default function KnowledgePage({
   const [warning, setWarning] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
-
-  useEffect(() => {
-    params.then((p) => setTenantId(p.tenantId));
-  }, [params]);
+  const { tenantId } = use(params);
 
   const loadData = useCallback(async () => {
     if (!tenantId) return;
@@ -211,7 +207,7 @@ export default function KnowledgePage({
 
   return (
     <div className="space-y-6 overflow-x-hidden p-4 sm:p-6 lg:p-10">
-      <header className="rounded-3xl border border-slate-200 bg-white p-6 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <header className="panel-surface p-5 sm:p-6">
         <Link
           href={`/dashboard/${tenantId}`}
           className="inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-semibold text-slate-600 transition hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
@@ -220,11 +216,11 @@ export default function KnowledgePage({
           Panele dön
         </Link>
         <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-          Bilgi Bankası
+          Bilgi bankası
         </h1>
         <p className="mt-2 text-sm text-slate-600 dark:text-slate-300 sm:text-base">
-          İşletmenize özel cevapları yazın. Bot yalnızca <strong>onayladığınız</strong> metinleri
-          kullanır. Fiyat yazmayın — fiyat bilgisi hizmet listesinden gelir.
+          Sık sorulan cevapları buraya yazın. Asistan yalnızca <strong>onayladığınız</strong> metinleri
+          kullanır. Fiyat yazmayın — fiyatlar hizmet listesinden gelir.
         </p>
         <p className="mt-2 text-xs font-medium text-slate-500 dark:text-slate-400">
           Onaylı kayıt: {approvedCount}/{maxApproved}
@@ -236,9 +232,9 @@ export default function KnowledgePage({
         )}
       </header>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900 sm:p-5">
+      <section className="panel-surface p-4 sm:p-5">
         <h2 className="mb-4 text-lg font-semibold text-slate-900 dark:text-slate-100">
-          {editingId ? "Kaydı Düzenle" : "Yeni Bilgi"}
+          {editingId ? "Kaydı düzenle" : "Yeni bilgi"}
         </h2>
         <form onSubmit={submitForm} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -353,7 +349,7 @@ export default function KnowledgePage({
         </form>
       </section>
 
-      <section className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm dark:border-slate-800 dark:bg-slate-900">
+      <section className="panel-surface p-5">
         <h2 className="mb-3 text-lg font-semibold text-slate-900 dark:text-slate-100">Kayıtlar</h2>
         {loading ? (
           <p className="text-sm text-slate-500 dark:text-slate-300">Yükleniyor…</p>

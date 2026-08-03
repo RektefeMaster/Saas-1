@@ -130,25 +130,43 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
       aria-labelledby="contact-modal-title"
     >
       <div
-        className="w-full max-w-md overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
+        className="w-full max-w-md overflow-hidden rounded-2xl border shadow-xl"
+        style={{
+          borderColor: "var(--ahi-line)",
+          background: "var(--ahi-paper)",
+          boxShadow: "0 20px 48px -24px rgba(15, 23, 42, 0.35)",
+        }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4 dark:border-slate-700">
+        <div
+          className="flex items-center justify-between border-b px-5 py-4"
+          style={{ borderColor: "var(--ahi-line)" }}
+        >
           <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-cyan-100 dark:bg-cyan-900/50">
-              <MessageCircle className="h-5 w-5 text-cyan-700 dark:text-cyan-300" />
+            <div
+              className="flex h-10 w-10 items-center justify-center rounded-xl"
+              style={{ background: "var(--ahi-brass-soft)", color: "var(--ahi-brand)" }}
+            >
+              <MessageCircle className="h-5 w-5" />
             </div>
             <div>
-              <h2 id="contact-modal-title" className="text-lg font-semibold text-slate-900 dark:text-slate-100">
+              <h2
+                id="contact-modal-title"
+                className="text-lg font-semibold"
+                style={{ color: "var(--ahi-text)" }}
+              >
                 {t.title}
               </h2>
-              <p className="text-xs text-slate-500 dark:text-slate-400">{t.subtitle}</p>
+              <p className="text-xs" style={{ color: "var(--ahi-text-3)" }}>
+                {t.subtitle}
+              </p>
             </div>
           </div>
           <button
             type="button"
             onClick={handleClose}
-            className="rounded-lg p-2 text-slate-500 transition hover:bg-slate-100 hover:text-slate-700 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+            className="rounded-lg p-2 transition hover:opacity-70"
+            style={{ color: "var(--ahi-text-3)" }}
             aria-label={t.close}
           >
             <X className="h-5 w-5" />
@@ -180,7 +198,12 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
                   {...register("name")}
                   placeholder={t.namePlaceholder}
                   disabled={isSubmitting}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition placeholder:opacity-50 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
+                  style={{
+                    borderColor: "var(--ahi-line)",
+                    background: "var(--ahi-paper)",
+                    color: "var(--ahi-text)",
+                  }}
                 />
                 {errors.name && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.name.message}</p>
@@ -196,7 +219,12 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
                   {...register("email")}
                   placeholder={t.emailPlaceholder}
                   disabled={isSubmitting}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition placeholder:opacity-50 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
+                  style={{
+                    borderColor: "var(--ahi-line)",
+                    background: "var(--ahi-paper)",
+                    color: "var(--ahi-text)",
+                  }}
                 />
                 {errors.email && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.email.message}</p>
@@ -212,7 +240,12 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
                   {...register("phone")}
                   placeholder={t.phonePlaceholder}
                   disabled={isSubmitting}
-                  className="w-full rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  className="w-full rounded-xl border px-4 py-2.5 text-sm outline-none transition placeholder:opacity-50 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
+                  style={{
+                    borderColor: "var(--ahi-line)",
+                    background: "var(--ahi-paper)",
+                    color: "var(--ahi-text)",
+                  }}
                 />
               </div>
               <div>
@@ -225,7 +258,12 @@ export function ContactModal({ isOpen, onClose }: ContactModalProps) {
                   {...register("message")}
                   placeholder={t.messagePlaceholder}
                   disabled={isSubmitting}
-                  className="w-full resize-none rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm outline-none transition placeholder:text-slate-400 focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 disabled:opacity-60 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 dark:placeholder:text-slate-500"
+                  className="w-full resize-none rounded-xl border px-4 py-2.5 text-sm outline-none transition placeholder:opacity-50 focus:ring-2 focus:ring-emerald-500/20 disabled:opacity-60"
+                  style={{
+                    borderColor: "var(--ahi-line)",
+                    background: "var(--ahi-paper)",
+                    color: "var(--ahi-text)",
+                  }}
                 />
                 {errors.message && (
                   <p className="mt-1 text-xs text-red-600 dark:text-red-400">{errors.message.message}</p>

@@ -138,7 +138,7 @@ export default function AdminTimeMachinePage() {
     }
 
     if (fromDate.getTime() > toDate.getTime()) {
-      setError("Baslangic tarihi bitis tarihinden buyuk olamaz.");
+      setError("Başlangıç tarihi bitiş tarihinden büyük olamaz.");
       setResult(null);
       return;
     }
@@ -164,7 +164,7 @@ export default function AdminTimeMachinePage() {
         | { error?: string }
         | null;
       if (!response.ok) {
-        throw new Error(payload && "error" in payload ? payload.error || "Sorgu basarisiz" : "Sorgu basarisiz");
+        throw new Error(payload && "error" in payload ? payload.error || "Sorgu başarısız" : "Sorgu başarısız");
       }
       setResult(payload as TimeMachineResponse);
     } catch (err) {
@@ -213,7 +213,7 @@ export default function AdminTimeMachinePage() {
           </label>
 
           <label className="space-y-1.5">
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Baslangic</span>
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Başlangıç</span>
             <input
               type="datetime-local"
               value={from}
@@ -223,7 +223,7 @@ export default function AdminTimeMachinePage() {
           </label>
 
           <label className="space-y-1.5">
-            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Bitis</span>
+            <span className="text-xs font-medium text-slate-600 dark:text-slate-300">Bitiş</span>
             <input
               type="datetime-local"
               value={to}

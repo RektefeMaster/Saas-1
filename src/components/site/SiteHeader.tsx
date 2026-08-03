@@ -5,24 +5,24 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useLocale } from "@/lib/locale-context";
-import { ThemeLocaleSwitch } from "@/components/ui";
+import { ThemeLocaleSwitch } from "@/components/ui/ThemeLocaleSwitch";
 import { MarkArrow } from "./GuildMarks";
 
 const COPY = {
   tr: {
-    solutions: "Ne yapar",
+    solutions: "Çözüm",
     flow: "Nasıl çalışır",
     businesses: "İşletmeler",
     contact: "İletişim",
-    login: "İşletme girişi",
+    login: "Panele giriş",
     menu: "Menüyü aç veya kapat",
   },
   en: {
-    solutions: "What it does",
+    solutions: "Product",
     flow: "How it works",
     businesses: "Businesses",
     contact: "Contact",
-    login: "Business login",
+    login: "Sign in",
     menu: "Toggle menu",
   },
 } as const;
@@ -77,10 +77,10 @@ export function SiteHeader({ onContact, solutionsHref = "/#ne-yapar" }: SiteHead
   return (
     <header className="sticky top-0 z-50">
       <div
-        className="transition-[background-color,box-shadow,backdrop-filter] duration-200"
+        className="site-header-bar transition-[background-color,box-shadow] duration-200 md:transition-[background-color,box-shadow,backdrop-filter]"
         style={{
           background: scrolled
-            ? "color-mix(in oklab, var(--ahi-paper) 92%, transparent)"
+            ? "color-mix(in oklab, var(--ahi-paper) 96%, transparent)"
             : "var(--ahi-paper)",
           backdropFilter: scrolled ? "blur(10px)" : undefined,
           boxShadow: scrolled ? "0 1px 0 var(--ahi-line)" : undefined,

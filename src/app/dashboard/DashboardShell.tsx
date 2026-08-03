@@ -27,7 +27,7 @@ import type { User } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase-client";
 import { loginEmailToUsernameDisplay } from "@/lib/username-auth";
 import { useLocale } from "@/lib/locale-context";
-import { ThemeLocaleSwitch } from "@/components/ui";
+import { ThemeLocaleSwitch } from "@/components/ui/ThemeLocaleSwitch";
 import { DashboardTenantProvider, useDashboardTenant } from "./DashboardTenantContext";
 import { applyModuleOrder } from "./nav-order";
 
@@ -63,7 +63,7 @@ const COPY = {
       pricing: "Fiyat Listesi",
       packages: "Paket & Seans",
       campaigns: "Kampanyalar",
-      workflow: "İş Akışı",
+      workflow: "Gün Takibi",
       crm: "Müşteri Defteri",
       knowledge: "Bilgi Bankası",
       staff: "Personel",
@@ -85,7 +85,7 @@ const COPY = {
       pricing: "Pricing",
       packages: "Packages",
       campaigns: "Campaigns",
-      workflow: "Workflow",
+      workflow: "Day Board",
       crm: "Customer Book",
       knowledge: "Knowledge Base",
       staff: "Staff",
@@ -105,16 +105,16 @@ const MOBILE_PRIMARY_KEYS: NavKey[] = ["overview", "inbox", "crm", "workflow"];
 const MOBILE_SHORT_LABELS: Record<"tr" | "en", Partial<Record<NavKey, string>>> = {
   tr: {
     overview: "Özet",
-    inbox: "Mesaj",
-    crm: "CRM",
-    workflow: "Akış",
-    settings: "Ayar",
+    inbox: "Gelen",
+    crm: "Müşteri",
+    workflow: "Takip",
+    settings: "Ayarlar",
   },
   en: {
     overview: "Home",
     inbox: "Inbox",
     crm: "CRM",
-    workflow: "Flow",
+    workflow: "Board",
     settings: "Settings",
   },
 };
@@ -237,18 +237,61 @@ const UserMenu = React.memo(function UserMenu({
   );
 });
 
+
 export default function DashboardShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { locale } = useLocale();
   const t = COPY[locale];
   const isLogin = pathname === "/dashboard/login" || pathname.startsWith("/dashboard/login/");
+  const [user, setUser] = useState<User | null>(null);
 
-  const [tenantId, setTenantId] = useState<string | null>(null);
+  const parts = pathname.split("/").filter(Boolean);
+  const extractedTenantId = parts[1] && parts[0] === "dashboard" ? parts[1] : null;
+
+  useEffect(() => {
+    if (isLogin) return;
+    const supabase = createClient();
+    supabase.auth.getUser().then((res: { data: { user: User | null } }) => setUser(res.data.user ?? null));
+  }, [isLogin]);
+
+  const safeChildren = children ?? null;
+  if (isLogin) return <>{safeChildren}</>;
+
+  return (
+    <DashboardTenantProvider tenantId={extractedTenantId}>
+      <DashboardShellChrome
+        pathname={pathname}
+        locale={locale}
+        t={t}
+        user={user}
+        extractedTenantId={extractedTenantId}
+      >
+        {safeChildren}
+      </DashboardShellChrome>
+    </DashboardTenantProvider>
+  );
+}
+
+function DashboardShellChrome({
+  children,
+  pathname,
+  locale,
+  t,
+  user,
+  extractedTenantId,
+}: {
+  children: React.ReactNode;
+  pathname: string;
+  locale: "tr" | "en";
+  t: (typeof COPY)[keyof typeof COPY];
+  user: User | null;
+  extractedTenantId: string | null;
+}) {
+  const tenantId = extractedTenantId;
   const [showQRModal, setShowQRModal] = useState(false);
   const [showLinkModal, setShowLinkModal] = useState(false);
   const closeQRModal = useCallback(() => setShowQRModal(false), []);
   const closeLinkModal = useCallback(() => setShowLinkModal(false), []);
-  const [user, setUser] = useState<User | null>(null);
   const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
@@ -263,14 +306,6 @@ export default function DashboardShell({ children }: { children: React.ReactNode
     };
   }, [mobileOpen]);
 
-  const parts = pathname.split("/").filter(Boolean);
-  const extractedTenantId = parts[1] && parts[0] === "dashboard" ? parts[1] : null;
-
-  useEffect(() => {
-    if (isLogin) return;
-    setTenantId(extractedTenantId);
-  }, [pathname, isLogin, extractedTenantId]);
-
   const tenantCtx = useDashboardTenant();
   const tenantData = tenantCtx?.tenant ?? null;
   const tenantName = tenantData?.name ?? null;
@@ -282,12 +317,6 @@ export default function DashboardShell({ children }: { children: React.ReactNode
   const moduleVisibility = (uiPrefs.moduleVisibility as Record<string, boolean>) || null;
   const moduleOrder = Array.isArray(uiPrefs.moduleOrder) ? (uiPrefs.moduleOrder as string[]) : null;
   const featureFlags = tenantCtx?.features ?? null;
-
-  useEffect(() => {
-    if (isLogin) return;
-    const supabase = createClient();
-    supabase.auth.getUser().then((res: { data: { user: User | null } }) => setUser(res.data.user ?? null));
-  }, [isLogin]);
 
   const baseNav = useMemo(
     () =>
@@ -345,23 +374,13 @@ export default function DashboardShell({ children }: { children: React.ReactNode
 
   const isTenantPage = !!tenantId;
 
-  // Null check ekle
-  const safeChildren = children ?? null;
-
-  if (isLogin) return <>{safeChildren}</>;
-
   return (
-    <DashboardTenantProvider tenantId={extractedTenantId}>
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
-      <header className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+      <header className="dashboard-shell-header sticky top-0 z-40 border-b border-slate-200/80 bg-white dark:border-slate-800 dark:bg-slate-900 md:bg-white/95 md:backdrop-blur-sm dark:md:bg-slate-900/95">
         <div className="mx-auto flex h-[var(--dashboard-header-height)] w-full max-w-[1600px] items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
           <div className="flex min-w-0 flex-1 items-center gap-3">
             <Link
-              href={
-                extractedTenantId
-                  ? `/dashboard/${extractedTenantId}`
-                  : "/dashboard"
-              }
+              href={extractedTenantId ? `/dashboard/${extractedTenantId}` : "/dashboard"}
               className="inline-flex shrink-0 items-center gap-2.5"
               aria-label={extractedTenantId ? t.nav.overview : "Ahi AI"}
             >
@@ -370,6 +389,8 @@ export default function DashboardShell({ children }: { children: React.ReactNode
                 alt=""
                 width={32}
                 height={32}
+                sizes="32px"
+                priority
                 className="rounded-lg border border-slate-200 bg-white dark:border-slate-700"
               />
               <span className="hidden text-sm font-semibold tracking-tight sm:inline">Ahi AI</span>
@@ -469,29 +490,29 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           </aside>
 
           <main className="min-h-[calc(100dvh-var(--dashboard-header-height))] pb-[calc(var(--dashboard-mobile-tab-height)+env(safe-area-inset-bottom))] lg:ml-64 lg:pb-0">
-            {safeChildren}
+            {children}
           </main>
 
-          {tenantId && (
-            <>
-              <QRCodeModal
-                tenantId={tenantId}
-                tenantCode={tenantCode ?? undefined}
-                isOpen={showQRModal}
-                onClose={closeQRModal}
-              />
-              <WhatsAppLinkModal
-                tenantId={tenantId}
-                tenantCode={tenantCode ?? undefined}
-                isOpen={showLinkModal}
-                onClose={closeLinkModal}
-              />
-            </>
+          {tenantId && showQRModal && (
+            <QRCodeModal
+              tenantId={tenantId}
+              tenantCode={tenantCode ?? undefined}
+              isOpen
+              onClose={closeQRModal}
+            />
+          )}
+          {tenantId && showLinkModal && (
+            <WhatsAppLinkModal
+              tenantId={tenantId}
+              tenantCode={tenantCode ?? undefined}
+              isOpen
+              onClose={closeLinkModal}
+            />
           )}
 
           {mobileBottomNav.length > 0 && (
             <nav
-              className="dashboard-tabbar fixed inset-x-0 bottom-0 z-40 bg-white/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-xl dark:bg-slate-950/95 lg:hidden"
+              className="dashboard-tabbar fixed inset-x-0 bottom-0 z-40 bg-white pb-[env(safe-area-inset-bottom)] dark:bg-slate-950 lg:hidden"
               aria-label={t.section}
             >
               <div
@@ -567,9 +588,8 @@ export default function DashboardShell({ children }: { children: React.ReactNode
           )}
         </div>
       ) : (
-        <main className="min-h-[calc(100vh-4rem)]">{safeChildren}</main>
+        <main className="min-h-[calc(100vh-4rem)]">{children}</main>
       )}
     </div>
-    </DashboardTenantProvider>
   );
 }

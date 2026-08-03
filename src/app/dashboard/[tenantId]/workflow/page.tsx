@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import type { ComponentType } from "react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useState } from "react";
 import {
   Activity,
   AlertTriangle,
@@ -54,48 +54,48 @@ const STATUS_ORDER: AppointmentStatus[] = ["pending", "confirmed", "completed", 
 const STATUS_CONFIG: Record<AppointmentStatus, StatusColumnConfig> = {
   pending: {
     title: "Yeni",
-    description: "Henüz onaylanmamış yeni randevu talepleri",
+    description: "Onay bekleyen talepler",
     icon: Sparkles,
     columnClass: "border-amber-200 bg-amber-50/80 dark:border-amber-800 dark:bg-amber-950/20",
     badgeClass: "bg-amber-100 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200",
     emptyClass: "border-amber-200/80 text-amber-700 dark:border-amber-800/80 dark:text-amber-300",
-    emptyMessage: "Yeni bekleyen randevu yok",
+    emptyMessage: "Bekleyen talep yok",
   },
   confirmed: {
     title: "Onaylı",
-    description: "Onaylanmış, bugün gerçekleşecek randevular",
+    description: "Saatine hazır randevular",
     icon: Check,
-    columnClass: "border-cyan-200 bg-cyan-50/70 dark:border-cyan-800 dark:bg-cyan-950/20",
-    badgeClass: "bg-cyan-100 text-cyan-900 dark:bg-cyan-900/50 dark:text-cyan-200",
-    emptyClass: "border-cyan-200/80 text-cyan-700 dark:border-cyan-800/80 dark:text-cyan-300",
+    columnClass: "border-sky-200 bg-sky-50/70 dark:border-sky-800 dark:bg-sky-950/20",
+    badgeClass: "bg-sky-100 text-sky-900 dark:bg-sky-900/50 dark:text-sky-200",
+    emptyClass: "border-sky-200/80 text-sky-700 dark:border-sky-800/80 dark:text-sky-300",
     emptyMessage: "Onaylı randevu yok",
   },
   completed: {
     title: "Tamamlandı",
-    description: "Tamamlanmış randevular",
+    description: "Günü bitenler",
     icon: CheckCircle2,
     columnClass: "border-emerald-200 bg-emerald-50/70 dark:border-emerald-800 dark:bg-emerald-950/20",
     badgeClass: "bg-emerald-100 text-emerald-900 dark:bg-emerald-900/50 dark:text-emerald-200",
     emptyClass: "border-emerald-200/80 text-emerald-700 dark:border-emerald-800/80 dark:text-emerald-300",
-    emptyMessage: "Bugün tamamlanan randevu yok",
+    emptyMessage: "Tamamlanan yok",
   },
   cancelled: {
     title: "İptal",
-    description: "İptal edilmiş randevular",
+    description: "İptal edilenler",
     icon: XOctagon,
     columnClass: "border-rose-200 bg-rose-50/70 dark:border-rose-800 dark:bg-rose-950/20",
     badgeClass: "bg-rose-100 text-rose-900 dark:bg-rose-900/50 dark:text-rose-200",
     emptyClass: "border-rose-200/80 text-rose-700 dark:border-rose-800/80 dark:text-rose-300",
-    emptyMessage: "İptal edilen randevu yok",
+    emptyMessage: "İptal yok",
   },
   no_show: {
     title: "Gelmedi",
-    description: "Randevuya gelmeyen müşteriler",
+    description: "Randevuya gelmeyenler",
     icon: UserX,
     columnClass: "border-orange-200 bg-orange-50/70 dark:border-orange-800 dark:bg-orange-950/20",
     badgeClass: "bg-orange-100 text-orange-900 dark:bg-orange-900/50 dark:text-orange-200",
     emptyClass: "border-orange-200/80 text-orange-700 dark:border-orange-800/80 dark:text-orange-300",
-    emptyMessage: "Gelmeyen müşteri yok",
+    emptyMessage: "Gelmedi kaydı yok",
   },
 };
 
@@ -123,7 +123,7 @@ const ACTION_CONFIG: Record<AppointmentStatus, StatusActionConfig> = {
     label: "Tamamla",
     icon: CheckCircle2,
     className:
-      "border border-cyan-500 bg-cyan-600 text-white shadow-sm hover:bg-cyan-700 hover:border-cyan-600",
+      "border border-emerald-500 bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 hover:border-emerald-600",
   },
   cancelled: {
     label: "İptal",
@@ -228,7 +228,7 @@ export default function WorkflowPage({
 }: {
   params: Promise<{ tenantId: string }>;
 }) {
-  const [tenantId, setTenantId] = useState("");
+  const { tenantId } = use(params);
   const [date, setDate] = useState(getTodayIso);
   const [loading, setLoading] = useState(true);
   const [statuses, setStatuses] = useState<Record<AppointmentStatus, WorkflowAppointment[]>>(
@@ -239,16 +239,6 @@ export default function WorkflowPage({
   const [lastSyncedAt, setLastSyncedAt] = useState<Date | null>(null);
   const [mobileTab, setMobileTab] = useState<AppointmentStatus>("pending");
 
-  useEffect(() => {
-    let mounted = true;
-    params.then((p) => {
-      if (mounted) setTenantId(p.tenantId);
-    });
-    return () => {
-      mounted = false;
-    };
-  }, [params]);
-
   const refresh = useCallback(async (silent = false) => {
     if (!tenantId) return false;
     if (!silent) {
@@ -256,15 +246,13 @@ export default function WorkflowPage({
       setError(null);
     }
     try {
-      const res = await fetch(`/api/tenant/${tenantId}/workflow?date=${date}`, {
-        cache: "no-store",
-      });
+      const res = await fetch(`/api/tenant/${tenantId}/workflow?date=${date}`);
       const payload = (await res.json().catch(() => ({}))) as {
         statuses?: Record<string, WorkflowAppointment[]>;
         error?: string;
       };
       if (!res.ok) {
-        throw new Error(payload.error || "İş akışı verisi alınamadı.");
+        throw new Error(payload.error || "Gün takibi verisi alınamadı.");
       }
       setStatuses(normalizeStatuses(payload.statuses));
       setLastSyncedAt(new Date());
@@ -275,7 +263,7 @@ export default function WorkflowPage({
         setError(
           requestError instanceof Error
             ? requestError.message
-            : "İş akışı verisi alınamadı. Lütfen tekrar deneyin."
+            : "Gün takibi verisi alınamadı. Lütfen tekrar deneyin."
         );
       }
       return false;
@@ -360,7 +348,7 @@ export default function WorkflowPage({
               {extractCustomerName(item)}
             </p>
             <p className="mt-1 inline-flex items-center gap-1.5 text-xs font-medium text-slate-600 dark:text-slate-300">
-              <Clock3 className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-300" />
+              <Clock3 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
               {formatSlotTime(item.slot_start)}
             </p>
           </div>
@@ -467,56 +455,56 @@ export default function WorkflowPage({
               </Link>
               <div>
                 <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
-                  İş Akışı
+                  Gün takibi
                 </h1>
                 <p className="mt-2 max-w-2xl text-sm text-slate-600 dark:text-slate-300">
-                  Günlük randevularınızı tek ekranda takip edin. Kartlara tıklayarak durum güncelleyebilirsiniz.
+                  Seçtiğiniz günün randevularını kolonlarda görün. Karttaki düğmelerle onaylayın, tamamlayın veya iptal edin.
                 </p>
               </div>
             </div>
-            <div className="w-full rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900/95 lg:min-w-[16rem] lg:w-auto">
+            <div className="panel-surface w-full p-3 lg:min-w-[16rem] lg:w-auto">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
                 Son güncelleme
               </p>
               <p className="mt-1 text-sm font-semibold text-slate-800 dark:text-slate-100">{lastSyncedLabel}</p>
-              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Her dakika otomatik yenilenir.</p>
+              <p className="mt-2 text-xs text-slate-500 dark:text-slate-400">Liste her dakika yenilenir.</p>
             </div>
           </div>
 
           <div className="grid grid-cols-2 gap-3 lg:flex lg:gap-3 lg:overflow-x-auto lg:pb-1">
-            <article className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:min-w-[11.5rem]">
+            <article className="panel-surface p-3 lg:min-w-[11.5rem]">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Toplam</p>
               <p className="mt-1 inline-flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
-                <Activity className="h-5 w-5 text-cyan-600 dark:text-cyan-300" />
+                <Activity className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
                 {totalCount}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Seçilen günün randevuları</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Bu güne ait randevu</p>
             </article>
-            <article className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:min-w-[11.5rem]">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Bekleyen</p>
+            <article className="panel-surface p-3 lg:min-w-[11.5rem]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Açık</p>
               <p className="mt-1 inline-flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 <Clock3 className="h-5 w-5 text-amber-600 dark:text-amber-300" />
                 {activeCount}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Yeni ve onaylı randevular</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Yeni veya onaylı</p>
             </article>
-            <article className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:min-w-[11.5rem]">
+            <article className="panel-surface p-3 lg:min-w-[11.5rem]">
               <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Tamamlama
+                Tamamlanan
               </p>
               <p className="mt-1 inline-flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-300" />
                 %{completionRate}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{completedCount} randevu tamamlandı</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">{completedCount} randevu bitti</p>
             </article>
-            <article className="rounded-2xl border border-slate-200 bg-white/95 p-3 shadow-sm dark:border-slate-700 dark:bg-slate-900 lg:min-w-[11.5rem]">
-              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Risk</p>
+            <article className="panel-surface p-3 lg:min-w-[11.5rem]">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Kaçan</p>
               <p className="mt-1 inline-flex items-center gap-2 text-2xl font-bold text-slate-900 dark:text-slate-100">
                 <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-300" />
                 {riskCount}
               </p>
-              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">İptal ve gelmeyenler</p>
+              <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">İptal veya gelmeyen</p>
             </article>
           </div>
 
@@ -529,7 +517,7 @@ export default function WorkflowPage({
                 type="date"
                 value={date}
                 onChange={(event) => setDate(event.target.value)}
-                className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base font-medium text-slate-800 outline-none transition focus:border-cyan-500 focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:w-auto sm:text-sm"
+                className="min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 py-2 text-base font-medium text-slate-800 outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 sm:w-auto sm:text-sm"
               />
             </div>
             <button
@@ -537,7 +525,7 @@ export default function WorkflowPage({
               onClick={() => setDate(todayIso)}
               className={`min-h-11 w-full rounded-xl border px-4 py-2 text-sm font-semibold transition sm:w-auto ${
                 isToday
-                  ? "border-cyan-600 bg-cyan-600 text-white"
+                  ? "border-emerald-600 bg-emerald-600 text-white"
                   : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-200 dark:hover:bg-slate-800"
               }`}
             >
@@ -565,8 +553,8 @@ export default function WorkflowPage({
       {firstLoad ? (
         <section className="rounded-3xl border border-slate-200 bg-white/90 p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900/80">
           <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-600 dark:text-slate-300">
-            <Loader2 className="h-4 w-4 animate-spin text-cyan-600 dark:text-cyan-300" />
-            İş akışı yükleniyor...
+            <Loader2 className="h-4 w-4 animate-spin text-emerald-600 dark:text-emerald-300" />
+            Gün takibi yükleniyor…
           </div>
           <div className="overflow-x-auto pb-2">
             <div className="grid min-w-max grid-flow-col auto-cols-[minmax(19rem,19rem)] gap-4">
@@ -594,7 +582,7 @@ export default function WorkflowPage({
             Başka bir tarih seçin veya{" "}
             <Link
               href={`/dashboard/${tenantId}`}
-              className="font-semibold text-cyan-700 underline decoration-cyan-300 underline-offset-2 dark:text-cyan-300"
+              className="font-semibold text-emerald-700 underline decoration-emerald-300 underline-offset-2 dark:text-emerald-300"
             >
               Özet
             </Link>{" "}
@@ -616,7 +604,7 @@ export default function WorkflowPage({
                   onClick={() => setMobileTab(status)}
                   className={`inline-flex min-h-10 shrink-0 items-center gap-2 rounded-full border px-3 py-2 text-xs font-semibold transition ${
                     active
-                      ? "border-cyan-600 bg-cyan-600 text-white"
+                      ? "border-emerald-600 bg-emerald-600 text-white"
                       : "border-slate-200 bg-white text-slate-600 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-300"
                   }`}
                 >

@@ -44,7 +44,7 @@ export function isValidStep(step: unknown): step is Step {
 
 export const DEFAULT_MESSAGES: TenantMessagesConfig = {
   welcome:
-    "Merhaba! Ben {tenant_name} asistanıyım, size nasıl yardımcı olabilirim?",
+    "Merhaba! Ben {tenant_name} asistanım, size nasıl yardımcı olabilirim?",
   tone: "sen",
   personality: "Samimi, kısa ve doğal konuş",
 };
@@ -124,6 +124,32 @@ export const ABUSIVE_KEYWORDS = [
   "orospu",
   "pic",
   "yavsak",
+];
+
+/**
+ * Kök + Türkçe ek ile eşleşen küfür kökleri (bkz. containsStem).
+ * "salaksın", "aptalsın", "gerizekalısın" tam kelime eşleşmesiyle kaçıyordu.
+ *
+ * Buraya yalnızca başka bir kelimenin başlangıcı OLAMAYACAK kökler girer.
+ * "sik" YASAK: "sıkıldım", "sıkıntı", "sıkı" hepsi normalize edilince
+ * "sik..." oluyor ve masum müşteriyi küfürbaz sayardı.
+ */
+export const ABUSIVE_STEMS = [
+  "aptal",
+  "salak",
+  "gerizekali",
+  "siktir",
+  "sikeyim",
+  "siktigimin",
+  "orospu",
+  "yavsak",
+  "amina",
+  "amk",
+  "pezevenk",
+  "serefsiz",
+  "seresiz",
+  "godos",
+  "ibne",
 ];
 
 export const GREETING_KEYWORDS = [

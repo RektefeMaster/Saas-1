@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import dynamic from "next/dynamic";
+import { use, useEffect, useState } from "react";
 import {
   ArrowLeft,
   Bell,
@@ -19,8 +20,13 @@ import {
 } from "lucide-react";
 import { useLocale } from "@/lib/locale-context";
 import { humanizeMinutes } from "@/lib/humanize-duration";
-import { LottieAnimationLazy, QRCodeModal } from "@/components/ui";
+import { LottieAnimationLazy } from "@/components/ui/LottieAnimationLazy";
 import { useDashboardTenant } from "../../DashboardTenantContext";
+
+const QRCodeModal = dynamic(
+  () => import("@/components/ui/QRCodeModal").then((m) => ({ default: m.QRCodeModal })),
+  { ssr: false, loading: () => null }
+);
 
 interface TenantData {
   id: string;
@@ -53,82 +59,82 @@ interface TenantData {
 const COPY = {
   tr: {
     title: "Ayarlar",
-    subtitle: "İşletme bilgilerinizi, randevu kurallarınızı ve mesaj şablonlarınızı buradan düzenleyebilirsiniz.",
+    subtitle: "İletişim bilgileri, randevu kuralları ve otomatik mesajları buradan yönetin.",
     backToPanel: "Panele dön",
     save: "Kaydet",
     saving: "Kaydediliyor…",
     saved: "Değişiklikler kaydedildi",
     saveError: "Kaydedilemedi. Lütfen tekrar deneyin.",
-    loading: "Ayarlar yükleniyor...",
-    loadError: "Ayarlar yüklenemedi. Lütfen sayfayı yenileyin.",
+    loading: "Ayarlar yükleniyor…",
+    loadError: "Ayarlar yüklenemedi. Sayfayı yenileyip tekrar deneyin.",
 
     // İletişim
-    contactTitle: "İletişim ve Çalışma Saati",
-    contactDesc: "Müşterilerin sizinle iletişime geçebileceği bilgiler.",
+    contactTitle: "İletişim ve çalışma saati",
+    contactDesc: "Müşterinin sizi bulması ve size yazması için gereken bilgiler.",
     contactPhone: "İletişim telefonu",
-    contactPhoneHint: "Müşteri bilgilendirme ve acil durum mesajlarında kullanılır",
+    contactPhoneHint: "Yönlendirme ve bilgilendirme mesajlarında kullanılır",
     workingHours: "Çalışma saatleri metni",
-    workingHoursHint: "Örn: Hafta içi 09:00-18:00, Cumartesi 10:00-14:00",
+    workingHoursHint: "Örn: Hafta içi 09:00–18:00, Cumartesi 10:00–14:00",
     address: "Adres",
-    addressHint: "Müşterilere gösterilecek adres",
+    addressHint: "Müşteriye gösterilecek adres",
     mapsUrl: "Google Maps linki",
-    mapsUrlHint: "Opsiyonel, harita yönlendirmesi için",
+    mapsUrlHint: "İsteğe bağlı — harita yönlendirmesi için",
 
     // Puanlama
     reviewTitle: "Randevu sonrası puanlama",
-    reviewDesc: "Randevudan sonra müşteriye puanlama talebi gönderilsin mi?",
-    reviewEnabled: "Puanlama talebi gönder",
+    reviewDesc: "Randevu bittikten sonra müşteriden puan isteyin.",
+    reviewEnabled: "Puanlama isteği gönder",
     reviewDelayHours: "Kaç saat sonra gönderilsin",
-    reviewDelayHint: "Randevu bitiminden sonra (varsayılan: 2)",
+    reviewDelayHint: "Randevu bitişinden sonra (varsayılan: 2)",
 
     // Randevu
-    schedulingTitle: "Randevu Ayarları",
-    schedulingDesc: "Randevu slot süresi, ileri rezervasyon ve iptal kuralları.",
+    schedulingTitle: "Randevu kuralları",
+    schedulingDesc: "Süre, ara, ileri rezervasyon ve iptal penceresi.",
     slotDuration: "Randevu süresi (dakika)",
     slotDurationHint: "Her randevu için ayrılan süre",
     bufferMinutes: "Randevular arası boşluk (dakika)",
     bufferMinutesHint:
-      "Toparlanma/hazırlık payı. 0 = arka arkaya randevu. Hizmet süresine ek olarak uygulanır.",
+      "Hazırlık payı. 0 = arka arkaya. Hizmet süresine ek uygulanır.",
     advanceBooking: "İleri rezervasyon (gün)",
-    advanceBookingHint: "Müşteriler kaç gün önceden randevu alabilsin",
+    advanceBookingHint: "Müşteri en fazla kaç gün sonrasına randevu alabilsin",
     cancellationHours: "İptal süresi (saat)",
-    cancellationHoursHint: "Randevudan kaç saat önce iptal yapılabilsin",
+    cancellationHoursHint: "Randevudan kaç saat önceye kadar iptal edilebilsin",
 
     // Hatırlatma
-    reminderTitle: "Hatırlatma Ayarları",
-    reminderDesc: "Randevu öncesi hatırlatma mesajlarını kim alacak?",
+    reminderTitle: "Hatırlatmalar",
+    reminderDesc: "Randevu öncesi hatırlatmayı kim alsın?",
     reminderOff: "Kapalı",
-    reminderCustomer: "Sadece müşteri",
-    reminderMerchant: "Sadece siz",
-    reminderBoth: "Her ikisi",
+    reminderCustomer: "Yalnızca müşteri",
+    reminderMerchant: "Yalnızca siz",
+    reminderBoth: "İkisi birden",
 
     // Mesajlar
-    messagesTitle: "Mesaj Şablonları",
-    messagesDesc: "Müşterilere gönderilen otomatik mesajları özelleştirin.",
+    messagesTitle: "Mesaj şablonları",
+    messagesDesc: "Otomatik WhatsApp metinlerini işletmenize göre uyarlayın.",
     welcomeMsg: "Karşılama mesajı",
-    welcomeMsgHint: "Müşteri ilk yazdığında gönderilir. {işletme_adınız} yazarsanız işletme adınız otomatik gelir",
-    whatsappGreeting: "WhatsApp karşılama mesajı",
-    whatsappGreetingHint: "Müşteri linke tıkladığında hazır görünen mesaj. {işletme_adınız} yazarsanız işletme adınız otomatik gelir",
-    openingMessage: "Açılış mesajı",
-    openingMessageHint: "Randevu sürecinde asistanın ilk sorduğu soru",
+    welcomeMsgHint: "Müşteri ilk yazdığında gider. {işletme_adınız} yazarsanız adınız otomatik gelir",
+    whatsappGreeting: "WhatsApp hazır mesajı",
+    whatsappGreetingHint: "Linke tıklanınca görünen metin. {işletme_adınız} otomatik dolar",
+    openingMessage: "Açılış sorusu",
+    openingMessageHint: "Randevu akışında asistanın ilk sorduğu soru",
     confirmationMsg: "Onay mesajı",
-    confirmationMsgHint: "Randevu onaylandığında müşteriye giden mesaj. {date} ve {time} otomatik gelir",
+    confirmationMsgHint: "Randevu onayında gider. {date} ve {time} otomatik dolar",
     reminderMsg: "Hatırlatma mesajı",
-    reminderMsgHint: "Randevudan 24 saat önce gönderilir. {time} otomatik gelir",
+    reminderMsgHint: "Randevudan 24 saat önce gider. {time} otomatik dolar",
 
     // Fiyat
-    pricingTitle: "Fiyatı Olmayan Hizmetler",
-    pricingDesc: "Fiyat girmediğiniz hizmetlerde müşteriye ne gösterilsin",
+    pricingTitle: "Fiyatı olmayan hizmetler",
+    pricingDesc: "Listede fiyat yoksa müşteriye ne gösterilsin",
     fallbackLabel: "Gösterilecek metin",
     fallbackLabelHint: "Örn: Fiyat için arayın",
     fallbackPhone: "Aranacak telefon",
     fallbackPhoneHint: "Boş bırakırsanız iletişim telefonunuz kullanılır",
 
-    whatsappTitle: "WhatsApp Bağlantısı",
-    whatsappDesc: "Müşterilerinizin size ulaşması için link ve QR kod.",
+    whatsappTitle: "WhatsApp bağlantısı",
+    whatsappDesc: "Müşterinin size ulaşması için link ve QR kod.",
     copyLink: "Linki kopyala",
     copied: "Kopyalandı",
-    openWhatsApp: "WhatsApp'ta aç",
+    openWhatsApp: "WhatsApp’ta aç",
     showQR: "QR kod göster",
   },
   en: {
@@ -225,9 +231,9 @@ function SectionCard({
   const [open, setOpen] = useState(defaultOpen);
 
   return (
-    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+    <section className="panel-surface overflow-hidden p-4 sm:p-5">
       <div className="mb-4 flex items-start gap-3">
-        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-300">
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-soft)] text-[var(--brand)]">
           <Icon className="h-4 w-4" />
         </div>
         <div className="min-w-0 flex-1">
@@ -317,8 +323,6 @@ export default function TenantSettingsPage({
 }) {
   const { locale } = useLocale();
   const t = COPY[locale];
-
-  const [tenantId, setTenantId] = useState("");
   const tenantCtx = useDashboardTenant();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -358,10 +362,7 @@ export default function TenantSettingsPage({
   // Fiyat
   const [fallbackLabel, setFallbackLabel] = useState(locale === "tr" ? "Fiyat için arayın" : "Call for price");
   const [fallbackPhone, setFallbackPhone] = useState("");
-
-  useEffect(() => {
-    params.then((p) => setTenantId(p.tenantId));
-  }, [params]);
+  const { tenantId } = use(params);
 
   useEffect(() => {
     if (!tenantId) return;
@@ -692,7 +693,7 @@ export default function TenantSettingsPage({
                 key={opt.value}
                 className={`inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl border px-4 py-2.5 text-sm font-medium transition sm:justify-start ${
                   reminderPref === opt.value
-                    ? "border-slate-900 bg-slate-900 text-white dark:border-emerald-500 dark:bg-emerald-500 dark:text-slate-950"
+                    ? "border-[var(--brand)] bg-[var(--brand)] text-[var(--brand-foreground)]"
                     : "border-slate-200 bg-slate-50 text-slate-700 hover:bg-slate-100 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700"
                 }`}
               >
@@ -723,7 +724,7 @@ export default function TenantSettingsPage({
                 value={welcomeMsg}
                 onChange={setWelcomeMsg}
                 type="textarea"
-                placeholder="Merhaba! Ben {işletme_adınız} asistanıyım, size nasıl yardımcı olabilirim?"
+                placeholder="Merhaba! Ben {işletme_adınız} asistanım, size nasıl yardımcı olabilirim?"
               />
               <InputField
                 id="msg-whatsapp"
@@ -798,7 +799,7 @@ export default function TenantSettingsPage({
             type="button"
             onClick={save}
             disabled={saving}
-            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+            className="inline-flex min-h-11 items-center gap-2 rounded-lg bg-[var(--brand)] px-4 py-2.5 text-sm font-medium text-[var(--brand-foreground)] transition-opacity hover:opacity-90 disabled:opacity-60"
           >
             <Save className="h-4 w-4" />
             {saving ? t.saving : t.save}
@@ -826,20 +827,20 @@ export default function TenantSettingsPage({
           type="button"
           onClick={save}
           disabled={saving}
-          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-slate-900 px-5 py-3 text-sm font-medium text-white transition hover:bg-slate-800 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+          className="flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-5 py-3 text-sm font-medium text-[var(--brand-foreground)] transition-opacity hover:opacity-90 disabled:opacity-60"
         >
           <Save className="h-4 w-4" />
           {saving ? t.saving : t.save}
         </button>
       </div>
 
-      {tenantId && (
+      {tenantId && showQRModal ? (
         <QRCodeModal
           tenantId={tenantId}
-          isOpen={showQRModal}
+          isOpen
           onClose={() => setShowQRModal(false)}
         />
-      )}
+      ) : null}
     </div>
   );
 }

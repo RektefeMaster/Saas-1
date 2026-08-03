@@ -490,7 +490,7 @@ export default function TenantsListPage() {
             <Drawer.Trigger asChild>
               <button
                 type="button"
-                className="group inline-flex items-center gap-2 rounded-xl bg-cyan-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/25 transition hover:bg-cyan-700 hover:shadow-cyan-500/30 dark:bg-cyan-500 dark:shadow-cyan-500/20 dark:hover:bg-cyan-600"
+                className="group inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-emerald-500/25 transition hover:bg-emerald-700 hover:shadow-emerald-500/30 dark:bg-emerald-500 dark:shadow-emerald-500/20 dark:hover:bg-emerald-600"
                 title="60 saniyede yeni işletme aç"
               >
                 <Plus className="h-4 w-4 transition group-hover:scale-110" />
@@ -504,7 +504,7 @@ export default function TenantsListPage() {
                 style={{ boxShadow: "-8px 0 24px rgba(0,0,0,0.12)" }}
               >
                 <div className="flex flex-1 flex-col overflow-hidden p-6">
-                  <div className="rounded-xl bg-cyan-50 p-4 dark:bg-cyan-950/30">
+                  <div className="rounded-xl bg-emerald-50 p-4 dark:bg-emerald-950/30">
                     <Drawer.Title className="text-lg font-bold text-slate-900 dark:text-slate-100">
                       Hızlı İşletme Ekle
                     </Drawer.Title>
@@ -521,7 +521,7 @@ export default function TenantsListPage() {
                         value={quickName}
                         onChange={(e) => setQuickName(e.target.value)}
                         placeholder="Örn: Kuaför Ahmet"
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                       />
                     </label>
                     <label className="block">
@@ -531,7 +531,7 @@ export default function TenantsListPage() {
                       <select
                         value={quickTypeId}
                         onChange={(e) => setQuickTypeId(e.target.value)}
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-cyan-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 focus:border-emerald-500 focus:outline-none dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                       >
                         <option value="">Seçin</option>
                         {businessTypes.map((type) => (
@@ -549,7 +549,7 @@ export default function TenantsListPage() {
                         value={quickOwnerPhone}
                         onChange={(e) => setQuickOwnerPhone(e.target.value)}
                         placeholder="+905551234567"
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100"
                       />
                     </label>
                     {quickError && (
@@ -665,7 +665,7 @@ export default function TenantsListPage() {
               placeholder="İşletme adı, kodu veya tipi ile ara..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-1 focus:ring-cyan-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
+              className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100"
             />
           </label>
           <label className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2 text-sm text-slate-700 dark:border-slate-700 dark:text-slate-300">

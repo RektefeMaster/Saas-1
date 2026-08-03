@@ -26,7 +26,7 @@ export async function GET(
       catalog: listBlueprintCatalog(),
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Blueprint alinamadi";
+    const message = err instanceof Error ? err.message : "Blueprint alınamadı";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -61,7 +61,7 @@ export async function PATCH(
 
     return NextResponse.json(updated);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Blueprint guncellenemedi";
+    const message = err instanceof Error ? err.message : "Blueprint güncellenemedi";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

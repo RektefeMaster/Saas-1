@@ -57,10 +57,10 @@ export const CommandCenterSection = memo(function CommandCenterSection({
         <div>
           <h2 className="flex items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100">
             <Target className="h-5 w-5 text-emerald-600 dark:text-emerald-400" aria-hidden />
-            Kontrol Merkezi
+            Bugünün özeti
           </h2>
           <p className="mt-1 text-sm text-slate-600 dark:text-slate-400">
-            Gelir ve günlük aksiyonları buradan yönetin
+            Ciro, doluluk ve önerilen sonraki adımlar
           </p>
         </div>
         {loading && (
@@ -74,7 +74,7 @@ export const CommandCenterSection = memo(function CommandCenterSection({
       {!commandCenter ? (
         <div className="flex flex-col items-center justify-center py-12" role="status" aria-live="polite">
           <Loader2 className="h-7 w-7 animate-spin text-slate-400" aria-hidden />
-          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Panel verisi alınıyor…</p>
+          <p className="mt-3 text-sm text-slate-500 dark:text-slate-400">Özet yükleniyor…</p>
         </div>
       ) : (
         <>
@@ -89,11 +89,11 @@ export const CommandCenterSection = memo(function CommandCenterSection({
                 value: `%${commandCenter.kpis.fill_rate_pct.toFixed(1)}`,
               },
               {
-                label: "Gelmeme",
+                label: "Gelmeme oranı",
                 value: `%${commandCenter.kpis.no_show_rate_pct.toFixed(1)}`,
               },
               {
-                label: "Riskli Müşteri",
+                label: "Riskli müşteri",
                 value: String(commandCenter.kpis.at_risk_customers),
               },
             ].map((kpi) => (
@@ -110,10 +110,10 @@ export const CommandCenterSection = memo(function CommandCenterSection({
             {commandCenter.actions.length === 0 ? (
               <div className="rounded-xl border border-dashed border-slate-200 px-4 py-8 text-center dark:border-slate-700">
                 <p className="text-sm font-medium text-slate-700 dark:text-slate-200">
-                  Bugün için kritik aksiyon yok
+                  Şu an önerilen bir adım yok
                 </p>
                 <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                  Yeni öneriler oluştuğunda burada görünecek.
+                  Yeni bir öneri oluşunca burada listelenir.
                 </p>
               </div>
             ) : (
@@ -145,7 +145,7 @@ export const CommandCenterSection = memo(function CommandCenterSection({
                     type="button"
                     onClick={() => onRunAction(action)}
                     disabled={runningActionId === action.id}
-                    className="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors duration-150 hover:bg-emerald-700 disabled:opacity-60 sm:w-auto dark:bg-emerald-500 dark:hover:bg-emerald-400 dark:hover:text-slate-950"
+                    className="inline-flex min-h-11 w-full shrink-0 items-center justify-center rounded-xl bg-[var(--brand)] px-4 py-2.5 text-sm font-semibold text-[var(--brand-foreground)] transition-opacity hover:opacity-90 disabled:opacity-60 sm:w-auto"
                   >
                     {runningActionId === action.id ? (
                       <span className="flex items-center gap-2">

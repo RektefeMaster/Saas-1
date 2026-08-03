@@ -20,9 +20,31 @@ export function capEmojiUsage(text: string, maxCount = 1): string {
   });
 }
 
+/**
+ * WhatsApp kendi biçimlendirmesini kullanır: kalın `*metin*`, italik `_metin_`.
+ * Model standart Markdown üretince (`**metin**`, `### Başlık`, `[a](b)`)
+ * müşteri ekranında ham yıldızlar ve köşeli parantezler görünüyordu.
+ */
+function toWhatsAppFormatting(input: string): string {
+  return (
+    input
+      // **kalın** → *kalın*  (üç yıldızlı `***x***` de tek yıldıza iner)
+      .replace(/\*{2,3}([^*\n]+)\*{2,3}/g, "*$1*")
+      // __italik__ → _italik_
+      .replace(/_{2}([^_\n]+)_{2}/g, "_$1_")
+      // [metin](url) → metin (url)
+      .replace(/\[([^\]\n]+)\]\((https?:\/\/[^)\s]+)\)/g, "$1 ($2)")
+      // Markdown başlıkları WhatsApp'ta anlamsız
+      .replace(/^#{1,6}\s+/gm, "")
+      // Yatay çizgi
+      .replace(/^\s*([-*_])\1{2,}\s*$/gm, "")
+  );
+}
+
 export function normalizeAssistantReply(reply: string): string {
   let text = (reply || "").trim();
   if (!text) return "";
+  text = toWhatsAppFormatting(text);
   text = text.replace(/\n{3,}/g, "\n\n");
   text = capEmojiUsage(text, 1);
   if (/yanlis anladin|yanlış anladın|oyle bir sey demedim|öyle bir şey demedim/i.test(text)) {
@@ -33,8 +55,10 @@ export function normalizeAssistantReply(reply: string): string {
 }
 
 export function normalizeHalfHourRequest(message: string): string {
+  // Sondaki ek serbest: "3 buçukta", "3 buçuğa" da yakalanmalı. Eskiden `\b`
+  // yüzünden yalnızca ek almamış "3 buçuk" biçimi dönüştürülüyordu.
   const halfMatch = message.match(
-    /(?:^|\s)(\d{1,2})\s*(?:buçuk|bucuk|b[uıi]?[cç]?[uoö]?[uıi]?k)\b/i
+    /(?:^|\s)(\d{1,2})\s*(?:buçu[kğ]|bucu[kg]|b[uıi]?[cç]?[uoö]?[uıi]?[kğg])\p{L}*/iu
   );
   if (!halfMatch) return message;
   const rawHour = Number(halfMatch[1]);

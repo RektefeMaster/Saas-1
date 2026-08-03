@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json(nextState);
   } catch (err) {
     return NextResponse.json(
-      { error: err instanceof Error ? err.message : "Kill switch guncellenemedi" },
+      { error: err instanceof Error ? err.message : "Kill switch güncellenemedi" },
       { status: 500 }
     );
   }

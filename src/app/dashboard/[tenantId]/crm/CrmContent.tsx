@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { preload } from "swr";
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { use, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import useSWR from "swr";
 import {
   ArrowLeft,
@@ -62,54 +62,54 @@ type ReminderFilter = "all" | "pending" | "sent" | "cancelled";
 
 const COPY = {
   tr: {
-    title: "Müşteri Defteri",
-    subtitle: "Müşteri bilgilerinizi, notlarınızı ve hatırlatmalarınızı tek yerden yönetin.",
+    title: "Müşteri defteri",
+    subtitle: "Profil, not ve hatırlatmaları tek yerde tutun; bir sonraki ziyaret için hazır olun.",
     back: "Panele dön",
     backToList: "Listeye dön",
-    search: "Telefon, ad veya etikete göre ara...",
-    index: "İndeks",
-    noCustomers: "Müşteri bulunamadı.",
-    selectCustomer: "Soldaki listeden bir müşteri seçin.",
-    profile: "Müşteri Kartı",
-    notes: "Not Geçmişi",
-    reminders: "Hatırlatma Planla",
-    upcoming: "Hatırlatma Listesi",
+    search: "Telefon, ad veya etiket ara…",
+    index: "Müşteriler",
+    noCustomers: "Henüz müşteri yok.",
+    selectCustomer: "Listeden bir müşteri seçin.",
+    profile: "Müşteri kartı",
+    notes: "Notlar",
+    reminders: "Hatırlatma ekle",
+    upcoming: "Hatırlatmalar",
     noNotes: "Henüz not yok.",
-    noReminder: "Hatırlatma yok.",
+    noReminder: "Planlanmış hatırlatma yok.",
     loading: "Yükleniyor…",
     save: "Kaydet",
-    saving: "Kaydediliyor...",
-    addNote: "Not Ekle",
-    addTag: "Etiket Ekle",
-    summary: "Kısa müşteri özeti",
-    extendedProfile: "Müşteri Detayları",
+    saving: "Kaydediliyor…",
+    addNote: "Not ekle",
+    addTag: "Etiket ekle",
+    summary: "Kısa özet",
+    extendedProfile: "Ek bilgiler",
     extendedProfileHint:
-      "Bu alanlar işletme tipinize göre hazırlandı. Doldurduğunuz bilgiler müşteri kartında saklanır.",
+      "Alanlar işletme tipinize göre gelir. Girdiğiniz bilgiler bu müşteri kartında saklanır.",
     advancedJson: "Gelişmiş (JSON)",
     advancedJsonHint:
-      "Formdaki alanların dışındaki bilgileri buradan düzenleyebilirsiniz. Geçerli bir JSON nesnesi olmalı.",
-    keptKeys: "Formda olmayan ve korunan alanlar",
+      "Formda olmayan alanları buradan düzenleyin. Geçerli bir JSON nesnesi olmalı.",
+    keptKeys: "Formda olmayan korunan alanlar",
     healthNotice:
-      "KVKK: Sağlık bilgisi özel nitelikli kişisel veridir. Yalnızca hizmet için gerekli olan, müşterinin açık rızasıyla paylaştığı notları girin.",
+      "KVKK: Sağlık notları özel nitelikli veridir. Yalnızca hizmet için gerekli ve müşterinin açık rızasıyla paylaştığı bilgileri yazın.",
     customerName: "Müşteri adı",
     lastVisit: "Son ziyaret",
     visits: "ziyaret",
     reminderTitle: "Başlık",
-    reminderNote: "Not (opsiyonel)",
+    reminderNote: "Not (isteğe bağlı)",
     remindAt: "Hatırlatma zamanı",
-    createReminder: "Hatırlatma Oluştur",
-    updating: "Güncelleniyor...",
+    createReminder: "Hatırlatma oluştur",
+    updating: "Güncelleniyor…",
     sent: "Gönderildi",
-    cancel: "İptal Et",
-    reopen: "Tekrar Aç",
+    cancel: "İptal et",
+    reopen: "Yeniden aç",
     statusAll: "Tümü",
     statusPending: "Bekleyen",
     statusSent: "Gönderilen",
-    statusCancelled: "İptal Edilen",
+    statusCancelled: "İptal",
     channels: {
-      panel: "Sadece panel",
-      whatsapp: "Sadece WhatsApp",
-      both: "Panel + WhatsApp",
+      panel: "Yalnızca panel",
+      whatsapp: "Yalnızca WhatsApp",
+      both: "Panel ve WhatsApp",
     },
   },
   en: {
@@ -204,7 +204,7 @@ export function CrmContent({
   const t = COPY[locale];
   const isLgUp = useIsLgUp();
 
-  const [tenantId, setTenantId] = useState("");
+  const { tenantId } = use(params);
   const tenantCtx = useDashboardTenant();
   const sectorKey = tenantCtx?.sector?.key ?? null;
   const isHealthcareSector = Boolean(tenantCtx?.sector?.healthcare);
@@ -252,12 +252,9 @@ export function CrmContent({
   const [listHeight, setListHeight] = useState(400);
 
   useEffect(() => {
-    params.then((p) => {
-      setTenantId(p.tenantId);
-      useCrmStore.getState().setSearch("");
-      useCrmStore.getState().setSelectedPhone("");
-    });
-  }, [params]);
+    useCrmStore.getState().setSearch("");
+    useCrmStore.getState().setSelectedPhone("");
+  }, [tenantId]);
 
   useEffect(() => {
     const update = () => {
@@ -569,7 +566,7 @@ export function CrmContent({
   return (
     <div className="space-y-4 p-4 sm:space-y-6 sm:p-6 lg:p-10">
       <header
-        className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-6 ${showMobileDetail ? "hidden lg:block" : ""}`}
+        className={`panel-surface p-4 sm:p-6 ${showMobileDetail ? "hidden lg:block" : ""}`}
       >
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
@@ -608,7 +605,7 @@ export function CrmContent({
 
       <div className="grid gap-4 lg:grid-cols-[minmax(0,320px)_1fr] lg:gap-6">
         <aside
-          className={`rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 ${showMobileDetail ? "hidden lg:block" : ""}`}
+          className={`panel-surface p-4 ${showMobileDetail ? "hidden lg:block" : ""}`}
         >
           <h2 className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
             {t.index}
@@ -678,7 +675,7 @@ export function CrmContent({
 
         <section className={`min-w-0 space-y-4 lg:space-y-6 ${showMobileDetail ? "" : "hidden lg:block"}`}>
           {!selectedPhone ? (
-            <div className="flex min-h-[280px] items-center justify-center rounded-2xl border border-slate-200 bg-white p-8 text-center text-slate-500 shadow-sm dark:border-slate-700 dark:bg-slate-900 dark:text-slate-400">
+            <div className="flex min-h-[280px] panel-surface items-center justify-center p-8 text-center text-slate-500 dark:text-slate-400">
               {t.selectCustomer}
             </div>
           ) : (
@@ -710,7 +707,7 @@ export function CrmContent({
                 )}
               </div>
 
-              <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+              <article className="panel-surface overflow-hidden p-4 sm:p-5">
                 <h2 className="mb-4 hidden items-center gap-2 text-lg font-semibold text-slate-900 dark:text-slate-100 lg:flex">
                   <UserRound className="h-4 w-4" />
                   {t.profile}
@@ -928,7 +925,7 @@ export function CrmContent({
                 </div>
               </article>
 
-              <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm dark:border-slate-700 dark:bg-slate-900">
+              <article className="panel-surface overflow-hidden">
                 <h3 className="border-b border-slate-100 px-4 py-3 font-semibold text-slate-900 dark:border-slate-800 dark:text-slate-100 sm:px-5">
                   {t.notes}
                 </h3>
@@ -980,7 +977,7 @@ export function CrmContent({
                 </div>
               </article>
 
-              <article className="overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5">
+              <article className="panel-surface overflow-hidden p-4 sm:p-5">
                 <h3 className="mb-4 font-semibold text-slate-900 dark:text-slate-100">{t.reminders}</h3>
                 <form onSubmit={createReminder} className="grid grid-cols-1 gap-3 lg:grid-cols-2">
                   <input
@@ -1032,7 +1029,7 @@ export function CrmContent({
       </div>
 
       <section
-        className={`overflow-hidden rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-700 dark:bg-slate-900 sm:p-5 ${showMobileDetail ? "hidden lg:block" : ""}`}
+        className={`panel-surface overflow-hidden p-4 sm:p-5 ${showMobileDetail ? "hidden lg:block" : ""}`}
       >
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
           <h3 className="font-semibold text-slate-900 dark:text-slate-100">{t.upcoming}</h3>

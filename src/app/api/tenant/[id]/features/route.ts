@@ -158,7 +158,7 @@ export async function GET(
     }
     return NextResponse.json(result);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Feature bilgisi alinamadi";
+    const message = err instanceof Error ? err.message : "Özellik bilgisi alınamadı";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

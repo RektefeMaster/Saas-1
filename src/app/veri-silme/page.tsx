@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteShell } from "@/components/site/SiteShell";
+import { SiteAtmosphere } from "@/components/site/SiteAtmosphere";
 
 export const metadata: Metadata = {
   title: "Veri Silme Talebi | Ahi AI",
@@ -13,15 +14,27 @@ const CONTACT_EMAIL = "nuronuro458@gmail.com";
 export default function VeriSilmePage() {
   return (
     <SiteShell>
-      <main className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
-        <h1
-          className="site-display text-[clamp(1.9rem,4.5vw,2.75rem)]"
-          style={{ color: "var(--ahi-text)" }}
-        >
-          Veri Silme Talebi
-        </h1>
+      <main>
+        <section className="relative overflow-hidden">
+          <SiteAtmosphere
+            src="/site/trust-secure.jpg"
+            strength="veil"
+            priority
+            mobile="on"
+            position="center"
+          />
+          <div className="relative z-[1] mx-auto w-full max-w-3xl px-4 pb-8 pt-12 sm:px-6 sm:pb-10 sm:pt-16">
+            <h1
+              className="site-display text-[clamp(1.9rem,4.5vw,2.75rem)]"
+              style={{ color: "var(--ahi-text)" }}
+            >
+              Veri Silme Talebi
+            </h1>
+          </div>
+        </section>
 
-        <div className="mt-6 space-y-4 text-[15px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
+        <div className="mx-auto w-full max-w-3xl px-4 pb-12 sm:px-6 sm:pb-16">
+        <div className="space-y-4 text-[16px] leading-8" style={{ color: "var(--ahi-text-2)" }}>
           <p>
             Ahi AI üzerinde saklanan kişisel verilerinizin silinmesini istiyorsanız
             aşağıdaki yollardan biriyle talepte bulunabilirsiniz. Talebiniz en geç
@@ -98,6 +111,7 @@ export default function VeriSilmePage() {
             </Link>{" "}
             sayfamıza bakabilirsiniz.
           </p>
+        </div>
         </div>
       </main>
     </SiteShell>

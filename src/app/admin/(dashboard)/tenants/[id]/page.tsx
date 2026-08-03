@@ -111,16 +111,16 @@ export default function TenantDetailPage() {
         subscription_plan?: string | null;
       };
       if (!res.ok) {
-        throw new Error(payload.error || "Abonelik uzatilamadi");
+        throw new Error(payload.error || "Abonelik uzatılamadı");
       }
       setSubscriptionEndAt(payload.subscription_end_at || null);
       if (payload.subscription_plan) setSubscriptionPlan(payload.subscription_plan);
       setOpsMessage(
-        action === "1w" ? "Abonelik 1 hafta uzatildi." : "Abonelik 1 ay uzatildi."
+        action === "1w" ? "Abonelik 1 hafta uzatıldı." : "Abonelik 1 ay uzatıldı."
       );
     } catch (err) {
       setDeleteError(
-        err instanceof Error ? err.message : "Abonelik uzatma islemi basarisiz"
+        err instanceof Error ? err.message : "Abonelik uzatma işlemi başarısız"
       );
     } finally {
       setSubscriptionLoading(false);
@@ -145,14 +145,14 @@ export default function TenantDetailPage() {
         magic_url?: string;
       };
       if (!res.ok) {
-        throw new Error(payload.error || "Magic link olusturulamadi");
+        throw new Error(payload.error || "Magic link oluşturulamadı");
       }
       if (payload.magic_url) {
         setMagicLink(payload.magic_url);
-        setOpsMessage("Magic link olusturuldu.");
+        setOpsMessage("Magic link oluşturuldu.");
       }
     } catch (err) {
-      setDeleteError(err instanceof Error ? err.message : "Magic link olusturulamadi");
+      setDeleteError(err instanceof Error ? err.message : "Magic link oluşturulamadı");
     } finally {
       setMagicLinkLoading(false);
     }
@@ -215,7 +215,7 @@ export default function TenantDetailPage() {
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-semibold uppercase tracking-[0.14em] text-slate-600 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-400">
-              <UserRoundCog className="h-3.5 w-3.5 text-cyan-600 dark:text-cyan-300" />
+              <UserRoundCog className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-300" />
               İşletme Detayı
             </p>
             <h1 className="mt-3 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 sm:text-3xl">
@@ -258,7 +258,7 @@ export default function TenantDetailPage() {
               </div>
               <Link
                 href={`/admin/campaigns?tenant_id=${tenant.id}`}
-                className="inline-flex items-center justify-center gap-2 rounded-xl border border-cyan-300 bg-cyan-50 px-4 py-2.5 text-sm font-semibold text-cyan-800 transition hover:bg-cyan-100 dark:border-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-200 dark:hover:bg-cyan-900/50"
+                className="inline-flex items-center justify-center gap-2 rounded-xl border border-emerald-300 bg-emerald-50 px-4 py-2.5 text-sm font-semibold text-emerald-800 transition hover:bg-emerald-100 dark:border-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-200 dark:hover:bg-emerald-900/50"
               >
                 <Megaphone className="h-4 w-4" />
                 Kampanya Gönder
@@ -294,11 +294,11 @@ export default function TenantDetailPage() {
       <section className="grid gap-4 lg:grid-cols-2">
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-            <CalendarPlus2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
-            Abonelik Uzatma
+            <CalendarPlus2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
+            Abonelik uzatma
           </h2>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Tenant aboneligini hizli uzatmak icin kullanin.
+            İşletme aboneliğini hızlı uzatmak için kullanın.
           </p>
           <div className="mt-3 grid gap-2 sm:grid-cols-2">
             <label className="text-xs font-medium text-slate-600 dark:text-slate-300">
@@ -316,11 +316,11 @@ export default function TenantDetailPage() {
               </select>
             </label>
             <div className="text-xs font-medium text-slate-600 dark:text-slate-300">
-              Bitis
+              Bitiş
               <div className="mt-1 rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-2 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200">
                 {subscriptionEndAt
                   ? new Date(subscriptionEndAt).toLocaleString("tr-TR")
-                  : "Tanimsiz"}
+                  : "Tanımsız"}
               </div>
             </div>
           </div>
@@ -338,7 +338,7 @@ export default function TenantDetailPage() {
               type="button"
               onClick={() => handleExtendSubscription("1m")}
               disabled={subscriptionLoading}
-              className="inline-flex items-center gap-2 rounded-lg border border-cyan-300 bg-cyan-50 px-3 py-2 text-sm font-semibold text-cyan-700 transition hover:bg-cyan-100 disabled:opacity-60 dark:border-cyan-800 dark:bg-cyan-950/30 dark:text-cyan-300"
+              className="inline-flex items-center gap-2 rounded-lg border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700 transition hover:bg-emerald-100 disabled:opacity-60 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-300"
             >
               {subscriptionLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               +1 Ay
@@ -348,11 +348,11 @@ export default function TenantDetailPage() {
 
         <article className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm dark:border-slate-800 dark:bg-slate-900">
           <h2 className="inline-flex items-center gap-2 text-sm font-semibold text-slate-900 dark:text-slate-100">
-            <Link2 className="h-4 w-4 text-cyan-600 dark:text-cyan-300" />
+            <Link2 className="h-4 w-4 text-emerald-600 dark:text-emerald-300" />
             Magic Link
           </h2>
           <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-            Tek kullanimlik baglanti olusturup tenanta iletebilirsiniz.
+            Tek kullanımlık bağlantı oluşturup işletmeye iletebilirsiniz.
           </p>
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <select
@@ -362,17 +362,17 @@ export default function TenantDetailPage() {
             >
               <option value="15m">15 dakika</option>
               <option value="1h">1 saat</option>
-              <option value="1d">1 gun</option>
-              <option value="7d">7 gun</option>
+              <option value="1d">1 gün</option>
+              <option value="7d">7 gün</option>
             </select>
             <button
               type="button"
               onClick={handleCreateMagicLink}
               disabled={magicLinkLoading}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-900 px-3 py-2 text-sm font-semibold text-white transition hover:bg-slate-700 disabled:opacity-60 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+              className="inline-flex items-center gap-2 rounded-lg bg-[var(--brand)] px-3 py-2 text-sm font-semibold text-[var(--brand-foreground)] transition-opacity hover:opacity-90 disabled:opacity-60"
             >
               {magicLinkLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Magic Link Uret
+              Magic link üret
             </button>
           </div>
           {magicLink && (

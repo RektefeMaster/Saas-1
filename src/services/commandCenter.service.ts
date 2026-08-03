@@ -340,10 +340,10 @@ export async function getCommandCenterSnapshot(
   if (atRiskCustomers.length > 0) {
     actions.push({
       id: "reactivation",
-      title: "Musteri geri kazanimi",
-      description: `${atRiskCustomers.length} musteri yeniden kazanilmaya aday.`,
+      title: "Müşteri geri kazanımı",
+      description: `${atRiskCustomers.length} müşteri yeniden kazanılmaya aday.`,
       severity: "high",
-      cta_label: "Kampanyayi hazirla",
+      cta_label: "Kampanyayı hazırla",
       cta_endpoint: `/api/tenant/${tenantId}/automation/reactivation`,
       estimated_impact_try: round(atRiskCustomers.length * Math.max(avgTicketTry, 300) * 0.2, 2),
     });
@@ -352,10 +352,10 @@ export async function getCommandCenterSnapshot(
   if (fillRatePct < 60) {
     actions.push({
       id: "slot_fill",
-      title: "Bos saatleri doldur",
-      description: `Doluluk orani %${fillRatePct}. Bekleme listesi ve hatirlatma ile artis firsati var.`,
+      title: "Boş saatleri doldur",
+      description: `Doluluk oranı %${fillRatePct}. Bekleme listesi ve hatırlatma ile artış fırsatı var.`,
       severity: "medium",
-      cta_label: "Slot doldurma kurali",
+      cta_label: "Doldurma kuralını aç",
       cta_endpoint: `/api/tenant/${tenantId}/automation/reactivation`,
       estimated_impact_try: round(Math.max(avgTicketTry, 250) * 6, 2),
     });
@@ -364,10 +364,10 @@ export async function getCommandCenterSnapshot(
   if (noShowRatePct >= 8) {
     actions.push({
       id: "no_show_mitigation",
-      title: "No-show azalt",
-      description: `No-show orani %${noShowRatePct}. Cift hatirlatma ve onay akislarini acin.`,
+      title: "Gelmeme oranını azalt",
+      description: `Gelmeme oranı %${noShowRatePct}. Çift hatırlatma ve onay akışlarını açın.`,
       severity: "high",
-      cta_label: "No-show otomasyonu",
+      cta_label: "Hatırlatmayı güçlendir",
       cta_endpoint: `/api/tenant/${tenantId}/automation/reactivation`,
       estimated_impact_try: round(Math.max(avgTicketTry, 250) * 4, 2),
     });
@@ -376,10 +376,10 @@ export async function getCommandCenterSnapshot(
   if (avgRating > 0 && avgRating < 4.2) {
     actions.push({
       id: "reputation_recovery",
-      title: "Itibar iyilestirme",
-      description: `Ortalama puan ${avgRating}. Memnuniyet takibi ve kurtarma akislarini hizlandirin.`,
+      title: "İtibar iyileştirme",
+      description: `Ortalama puan ${avgRating}. Memnuniyet takibi ve kurtarma akışlarını hızlandırın.`,
       severity: "medium",
-      cta_label: "Itibar ozeti",
+      cta_label: "İtibar özeti",
       cta_endpoint: `/api/tenant/${tenantId}/reputation/summary`,
       estimated_impact_try: round(Math.max(avgTicketTry, 250) * 2, 2),
     });
@@ -388,10 +388,10 @@ export async function getCommandCenterSnapshot(
   if (openOpsAlerts > 0) {
     actions.push({
       id: "ops_alerts",
-      title: "Onemli bildirimler",
-      description: `${openOpsAlerts} acik bildirim var.`,
+      title: "Önemli bildirimler",
+      description: `${openOpsAlerts} açık bildirim var.`,
       severity: openOpsAlerts > 3 ? "high" : "medium",
-      cta_label: "Bildirimleri gor",
+      cta_label: "Bildirimleri gör",
       cta_endpoint: `/api/tenant/${tenantId}/ops-alerts`,
       estimated_impact_try: 0,
     });

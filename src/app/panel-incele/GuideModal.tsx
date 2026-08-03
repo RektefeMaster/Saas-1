@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect } from "react";
 import { X } from "lucide-react";
 import type { DemoNavKey } from "./data";
 import type { PanelCopy } from "./i18n";
@@ -15,9 +16,17 @@ export function GuideModal({
 }) {
   const guide = copy.guides[navKey];
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [onClose]);
+
   return (
     <div
-      className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/45 p-4 sm:items-center"
+      className="fixed inset-0 z-[80] flex items-end justify-center bg-slate-900/45 p-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:items-center"
       role="dialog"
       aria-modal="true"
       aria-labelledby="demo-guide-title"

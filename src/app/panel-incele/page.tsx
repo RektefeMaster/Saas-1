@@ -184,9 +184,24 @@ export default function PanelIncelePage() {
     }
   }, []);
 
+  // Modal / drawer açıkken arka plan scroll'u kilitle — mobilde jank ve kayma önler
+  useEffect(() => {
+    if (!guideOpen && !mobileNav) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = prev;
+    };
+  }, [guideOpen, mobileNav]);
+
+  useEffect(() => {
+    if (!toast) return;
+    const id = window.setTimeout(() => setToast(null), 2600);
+    return () => window.clearTimeout(id);
+  }, [toast]);
+
   const showToast = useCallback((msg: string) => {
     setToast(msg);
-    window.setTimeout(() => setToast(null), 2600);
   }, []);
 
   const openGuide = useCallback(
@@ -304,33 +319,33 @@ export default function PanelIncelePage() {
   return (
     <div className="min-h-screen bg-[var(--background)] text-[var(--foreground)]">
       <div
-        className="sticky top-0 z-50 border-b text-white"
+        className="sticky top-0 z-50 border-b"
         style={{ background: "var(--ahi-ink)", borderColor: "var(--ahi-on-ink-line)" }}
       >
-        <div className="site-rule-brass h-[2px] w-full" />
-        <div className="mx-auto flex max-w-7xl flex-wrap items-center justify-between gap-2 px-4 py-2.5 text-sm sm:px-6">
+        <div className="mx-auto flex h-11 max-w-7xl items-center justify-between gap-2 px-3 text-sm sm:px-6">
           <Link
             href="/"
-            className="inline-flex items-center gap-1.5 font-medium transition-colors hover:opacity-90"
+            className="inline-flex min-h-9 max-w-[40%] items-center gap-1.5 font-medium transition-opacity hover:opacity-90 sm:max-w-none"
             style={{ color: "var(--ahi-on-ink)" }}
           >
-            <ArrowLeft className="h-4 w-4" />
-            {t.home}
+            <ArrowLeft className="h-4 w-4 shrink-0" />
+            <span className="truncate">{t.home}</span>
           </Link>
-          <div className="flex items-center gap-2">
+          <div className="flex shrink-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
               onClick={() => setGuideOpen(true)}
-              className="inline-flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
+              className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors sm:px-3"
               style={{ background: "var(--ahi-on-ink-line)", color: "var(--ahi-on-ink)" }}
+              aria-label={t.whatIsThis}
             >
-              <CircleHelp className="h-3.5 w-3.5" />
-              {t.whatIsThis}
+              <CircleHelp className="h-3.5 w-3.5 shrink-0" />
+              <span className="hidden sm:inline">{t.whatIsThis}</span>
             </button>
             <Link
               href="/dashboard/login"
-              className="rounded-full px-3 py-1.5 text-xs font-semibold transition-colors"
-              style={{ background: "var(--ahi-brass)", color: "#160f02" }}
+              className="inline-flex min-h-9 items-center rounded-lg px-2.5 py-1.5 text-xs font-semibold transition-colors sm:px-3"
+              style={{ background: "var(--ahi-brand)", color: "#fff" }}
             >
               {t.login}
             </Link>
@@ -338,7 +353,7 @@ export default function PanelIncelePage() {
         </div>
       </div>
 
-      <div className="mx-auto flex min-h-[calc(100vh-48px)] max-w-7xl">
+      <div className="mx-auto flex min-h-[calc(100vh-2.75rem)] max-w-7xl">
         <aside className="hidden w-60 shrink-0 border-r border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:block">
           <div className="flex items-center gap-3 border-b border-slate-100 px-4 py-4 dark:border-slate-800">
             <Image
@@ -388,13 +403,14 @@ export default function PanelIncelePage() {
         </aside>
 
         <div className="flex min-w-0 flex-1 flex-col">
-          <header className="sticky top-[44px] z-40 border-b border-slate-200/80 bg-white/95 backdrop-blur-sm dark:border-slate-800 dark:bg-slate-900/95">
+          <header className="sticky top-11 z-40 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900 lg:border-slate-200/80 lg:bg-white/95 lg:backdrop-blur-sm lg:dark:border-slate-800 lg:dark:bg-slate-900/95">
             <div className="flex items-center justify-between gap-3 px-4 py-3 sm:px-6">
-              <div className="flex items-center gap-3">
+              <div className="flex min-w-0 items-center gap-3">
                 <button
                   type="button"
-                  className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-slate-200 lg:hidden dark:border-slate-700"
+                  className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-slate-200 lg:hidden dark:border-slate-700"
                   onClick={() => setMobileNav(true)}
+                  aria-label="Menü"
                 >
                   <Menu className="h-5 w-5" />
                 </button>
@@ -409,7 +425,7 @@ export default function PanelIncelePage() {
             </div>
           </header>
 
-          <main className="flex-1 px-4 py-5 pb-28 sm:px-6 lg:pb-8">
+          <main className="flex-1 px-4 py-5 pb-[calc(5.5rem+env(safe-area-inset-bottom))] sm:px-6 lg:pb-8">
             {nav === "overview" && (
               <OverviewView
                 copy={t}
@@ -555,7 +571,7 @@ export default function PanelIncelePage() {
         </div>
       )}
 
-      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white/95 px-2 py-2 backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-900/95">
+      <nav className="fixed inset-x-0 bottom-0 z-40 border-t border-slate-200 bg-white px-2 pt-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] lg:hidden dark:border-slate-800 dark:bg-slate-900">
         <div className="mx-auto grid max-w-lg grid-cols-5 gap-1">
           {NAV_ITEMS.slice(0, 5).map((item) => {
             const Icon = item.icon;
@@ -565,7 +581,7 @@ export default function PanelIncelePage() {
                 key={item.key}
                 type="button"
                 onClick={() => goNav(item.key)}
-                className={`flex flex-col items-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-medium ${
+                className={`flex min-h-11 flex-col items-center justify-center gap-0.5 rounded-xl px-1 py-1.5 text-[10px] font-medium ${
                   active ? "text-emerald-700 dark:text-emerald-400" : "text-slate-500"
                 }`}
               >

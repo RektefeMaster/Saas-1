@@ -16,6 +16,14 @@ import {
 import {
   SERVICE_FIRST_FLOW_RULE,
   SERVICE_SELECTED_CONTINUE_RULE,
+  OUT_OF_HOURS_RULE,
+  NEGOTIATION_RULE,
+  RESCHEDULE_RULE,
+  DATE_OPEN_CHECK_RULE,
+  RETURNING_CUSTOMER_RULE,
+  SCOPE_RULE,
+  NO_REPEAT_RULE,
+  LEGAL_REQUEST_RULE,
   IMAGE_CONTENT_RULE,
 } from "@/lib/bot-v1/conversation/prompt-rules";
 
@@ -69,7 +77,9 @@ export function buildSystemPrompt(
   const contextBlock = buildContextBlock(context);
 
   const escalationInstructions = `
-Yapamayacağın bir şey çıkarsa nazikçe "Bu konuda yardımcı olamıyorum; randevu, fiyat veya müsaitlik için yazabilirsiniz" de.
+Yapamayacağın bir şey çıkarsa nazikçe "Bu konuda yardımcı olamıyorum" de AMA müşteriyi boşlukta bırakma:
+konu işletmeyle ilgiliyse (şikâyet, iade, yasal talep, özel durum) get_tenant_info ile iletişim bilgisini paylaş
+ve ekibe iletileceğini söyle. Sadece işletmeyle tamamen ilgisiz taleplerde (kod, ödev, genel kültür) kısaca reddet.
 Müşteri "insan", "yetkili", "sizi aramak istiyorum" yazarsa iletişim bilgilerini ver. [[INSAN]] yazma.`;
 
   const kurallar = [
@@ -154,16 +164,28 @@ function buildToolUsageInstructions(sector: SectorProfile): string {
   const lines: string[] = [
     `ÖNCE HİZMET: ${SERVICE_FIRST_FLOW_RULE.replace(/^HİZMET ÖNCELİKLİ AKIŞ:\s*/u, "")}`,
     SERVICE_SELECTED_CONTINUE_RULE,
+    OUT_OF_HOURS_RULE,
+    NEGOTIATION_RULE,
+    RESCHEDULE_RULE,
+    DATE_OPEN_CHECK_RULE,
+    RETURNING_CUSTOMER_RULE,
+    SCOPE_RULE,
+    NO_REPEAT_RULE,
+    LEGAL_REQUEST_RULE,
     IMAGE_CONTENT_RULE,
     "GERÇEK KAYNAK ARAÇLARDIR: Müsaitlik, fiyat, süre ve randevu bilgisini ASLA tahmin etme; ilgili aracı çağır ve dönen değeri aynen kullan.",
     'MÜSAİTLİK SONUCU: has_available_slots→saatleri sun. fully_booked→"o gün dolu". too_late_today→"bugün DOLU DEĞİL, kapanışa yetişmiyor" de ve en yakın günü öner. closed_day/blocked_holiday→"o gün kapalıyız". Listede olmayan saate "olur" deme, listedekini "yetmez" diye eleme.',
     "SÜRE: get_services.duration_minutes dışında süre söyleme. create_appointment end_time dönerse bitiş saatini de belirt.",
     'İPTAL: Önce get_last_appointment, sonra açık onay ("evet iptal"), sonra cancel_appointment. Müşteri aynı mesajda yeni saat de istediyse iptalden sonra DURMA, yeni randevuyu da oluştur.',
-    "ÇOKLU KİŞİ: Bir mesajda birden fazla isim geçiyorsa her kişi için ayrı create_appointment çağır; ilkini alıp durma.",
+    // Canlı testte model ilk kişiyi yazıp ikinciyi sessizce düşürüyordu; onay
+    // mesajı da tekil olduğu için müşteri eksiği fark etmiyordu.
+    "ÇOKLU KİŞİ: Bir mesajda birden fazla isim geçiyorsa AYNI turda her kişi için AYRI create_appointment çağır; ilkini alıp durma. Bittiğinde kaç randevu açtığını isimleriyle say (\"Emre 13:00, Kaan 13:30\"). Biri için saat doluysa o kişiye alternatif saat öner; sessizce atlama. Sadece bir randevu açabildiysen bunu açıkça söyle.",
   ];
 
   if (flags.staff_preference) {
-    lines.push("PERSONEL: Müşteri belirli bir uzman isterse staff_id ile müsaitliğe bak ve randevuyu onunla aç.");
+    lines.push(
+      "PERSONEL: Müşteri belirli bir uzman isterse staff_id alanına o kişinin ADINI yaz (ID'leri bilmiyorsun; sistem adı eşleştirir) ve randevuyu onunla aç. Personel tercihini sessizce yok sayma."
+    );
   }
   if (flags.packages) {
     lines.push(

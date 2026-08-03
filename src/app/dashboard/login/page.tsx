@@ -9,7 +9,8 @@ import { createClient } from "@/lib/supabase-client";
 import { setRememberMeCookie } from "@/lib/remember-me";
 import { useLocale } from "@/lib/locale-context";
 import { isValidUsername, usernameToLoginEmail } from "@/lib/username-auth";
-import { Button, ContactModal, ThemeLocaleSwitch } from "@/components/ui";
+import { ContactModal, ThemeLocaleSwitch } from "@/components/ui";
+import { SiteAtmosphere } from "@/components/site/SiteAtmosphere";
 
 const COPY = {
   tr: {
@@ -266,95 +267,112 @@ export default function DashboardLoginPage() {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-slate-50 dark:bg-slate-950">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(45%_40%_at_15%_0%,rgba(56,189,248,0.22),transparent),radial-gradient(35%_30%_at_90%_10%,rgba(16,185,129,0.18),transparent)]" />
-
+    <div className="site-root relative min-h-screen overflow-hidden">
+      <SiteAtmosphere
+        src="/site/hero-whatsapp-desk.jpg"
+        strength="soft"
+        priority
+        mobile="on"
+        position="center"
+      />
       <div className="absolute right-4 top-4 z-20">
         <ThemeLocaleSwitch compact />
       </div>
 
-      <div className="relative z-10 mx-auto grid min-h-screen w-full max-w-6xl items-center gap-8 px-4 py-10 sm:px-6 lg:grid-cols-[1.05fr_0.95fr]">
-        <section className="hidden rounded-3xl border border-slate-200 bg-white p-7 shadow-sm lg:block dark:border-slate-800 dark:bg-slate-900">
-          <Link href="/" className="inline-flex items-center gap-3">
-            <Image
-              src="/appicon.png"
-              alt="Ahi AI"
-              width={36}
-              height={36}
-              sizes="36px"
-              className="rounded-lg border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
-            />
-            <span className="font-mono text-sm font-semibold">Ahi AI Workspace</span>
+      <div className="relative z-[1] mx-auto grid min-h-screen w-full max-w-5xl items-center gap-10 px-4 py-12 sm:px-6 lg:grid-cols-2">
+        <section className="hidden lg:block">
+          <Link href="/" className="inline-flex items-center gap-2.5">
+            <Image src="/appicon.png" alt="" width={28} height={28} sizes="28px" />
+            <span className="site-display text-xl" style={{ color: "var(--ahi-text)" }}>
+              Ahi AI
+            </span>
           </Link>
-          <h1 className="mt-7 text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
+          <h1
+            className="mt-8 text-[clamp(1.75rem,3vw,2.25rem)] font-semibold tracking-[-0.02em] leading-tight"
+            style={{ color: "var(--ahi-text)" }}
+          >
             {t.title}
           </h1>
-          <p className="mt-3 text-sm leading-relaxed text-slate-600 dark:text-slate-300">{t.subtitle}</p>
-
-          <ul className="mt-8 space-y-3">
+          <p className="mt-3 max-w-md text-[15px] leading-7" style={{ color: "var(--ahi-text-2)" }}>
+            {t.subtitle}
+          </p>
+          <ul className="mt-8 grid gap-2.5">
             {featureItems.map((item) => (
-              <li
-                key={item}
-                className="rounded-2xl border border-slate-200 bg-slate-50/80 px-4 py-3 text-sm text-slate-700 dark:border-slate-700 dark:bg-slate-800/60 dark:text-slate-200"
-              >
+              <li key={item} className="text-sm" style={{ color: "var(--ahi-text-3)" }}>
                 {item}
               </li>
             ))}
           </ul>
         </section>
 
-        <section className="rounded-3xl border border-slate-200 bg-white p-6 shadow-xl shadow-slate-200/50 dark:border-slate-800 dark:bg-slate-900 dark:shadow-black/20 sm:p-7">
-          <div className="mb-5">
-            <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold text-slate-500 dark:text-slate-300">
-              <Image
-                src="/appicon.png"
-                alt="Ahi AI"
-                width={28}
-                height={28}
-                className="rounded-md border border-slate-200 bg-white p-0.5 dark:border-slate-700 dark:bg-slate-800"
-              />
-              Ahi AI
+        <section
+          className="rounded-2xl border p-6 sm:p-8"
+          style={{ borderColor: "var(--ahi-line)", background: "var(--ahi-paper)" }}
+        >
+          <div className="mb-6 lg:hidden">
+            <Link href="/" className="inline-flex items-center gap-2">
+              <Image src="/appicon.png" alt="" width={28} height={28} sizes="28px" />
+              <span className="site-display text-lg" style={{ color: "var(--ahi-text)" }}>
+                Ahi AI
+              </span>
             </Link>
-            <h2 className="mt-5 text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100">
-              {t.title}
-            </h2>
           </div>
+          <h2 className="text-xl font-semibold tracking-[-0.015em]" style={{ color: "var(--ahi-text)" }}>
+            {t.title}
+          </h2>
 
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
+              <span className="mb-1.5 block text-sm font-medium" style={{ color: "var(--ahi-text-2)" }}>
                 {t.username}
               </span>
               <div className="relative">
-                <UserRound className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <UserRound
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                  style={{ color: "var(--ahi-text-3)" }}
+                />
                 <input
                   value={username}
                   onChange={(e) => setUsername(e.target.value.toLowerCase())}
                   autoComplete="username"
                   disabled={loading}
-                  className="min-h-11 w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-3 text-base outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                  className="min-h-11 w-full rounded-xl border py-2.5 pl-10 pr-3 text-base outline-none transition sm:text-sm"
+                  style={{
+                    borderColor: "var(--ahi-line)",
+                    background: "var(--ahi-paper)",
+                    color: "var(--ahi-text)",
+                  }}
                 />
               </div>
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium text-slate-600 dark:text-slate-300">
+              <span className="mb-1.5 block text-sm font-medium" style={{ color: "var(--ahi-text-2)" }}>
                 {t.password}
               </span>
               <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <Lock
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2"
+                  style={{ color: "var(--ahi-text-3)" }}
+                />
                 <input
                   type={showPassword ? "text" : "password"}
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   autoComplete="current-password"
                   disabled={loading}
-                  className="min-h-11 w-full rounded-xl border border-slate-200 bg-white py-2.5 pl-10 pr-11 text-base outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-100 sm:text-sm"
+                  className="min-h-11 w-full rounded-xl border py-2.5 pl-10 pr-11 text-base outline-none transition sm:text-sm"
+                  style={{
+                    borderColor: "var(--ahi-line)",
+                    background: "var(--ahi-paper)",
+                    color: "var(--ahi-text)",
+                  }}
                 />
                 <button
                   type="button"
                   onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-1.5 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
+                  className="absolute right-1.5 top-1/2 inline-flex h-10 w-10 -translate-y-1/2 items-center justify-center rounded-lg"
+                  style={{ color: "var(--ahi-text-3)" }}
                   aria-label={showPassword ? "Hide password" : "Show password"}
                 >
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -368,9 +386,11 @@ export default function DashboardLoginPage() {
                 checked={rememberMe}
                 onChange={(e) => setRememberMe(e.target.checked)}
                 disabled={loading}
-                className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 dark:border-slate-600 dark:bg-slate-800"
+                className="h-5 w-5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
               />
-              <span className="text-sm text-slate-600 dark:text-slate-300">{t.rememberMe}</span>
+              <span className="text-sm" style={{ color: "var(--ahi-text-2)" }}>
+                {t.rememberMe}
+              </span>
             </label>
 
             {error && (
@@ -380,17 +400,18 @@ export default function DashboardLoginPage() {
               </div>
             )}
 
-            <Button type="submit" fullWidth size="lg" loading={loading}>
+            <button type="submit" disabled={loading} className="site-btn site-btn-primary w-full">
               {loading ? t.submitting : t.submit}
-            </Button>
+            </button>
           </form>
 
-          <p className="mt-5 text-center text-sm text-slate-500 dark:text-slate-400">
+          <p className="mt-5 text-center text-sm" style={{ color: "var(--ahi-text-3)" }}>
             {t.contact}{" "}
             <button
               type="button"
               onClick={() => setShowContactModal(true)}
-              className="font-semibold text-cyan-700 hover:text-cyan-800 hover:underline dark:text-cyan-300 dark:hover:text-cyan-200"
+              className="font-semibold"
+              style={{ color: "var(--ahi-brand)" }}
             >
               {t.contactBtn}
             </button>
@@ -399,7 +420,7 @@ export default function DashboardLoginPage() {
           <ContactModal isOpen={showContactModal} onClose={() => setShowContactModal(false)} />
 
           <div className="mt-4 text-center">
-            <Link href="/" className="text-sm font-medium text-slate-600 hover:text-slate-900 dark:text-slate-300 dark:hover:text-slate-100">
+            <Link href="/" className="text-sm font-medium" style={{ color: "var(--ahi-text-2)" }}>
               {t.back}
             </Link>
           </div>

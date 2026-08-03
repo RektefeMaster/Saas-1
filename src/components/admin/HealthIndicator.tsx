@@ -17,9 +17,10 @@ async function fetcher(url: string) {
 export function HealthIndicator() {
   const [hover, setHover] = useState(false);
   const { data, isLoading } = useSWR("/api/admin/tools/health", fetcher, {
-    refreshInterval: 60_000,
-    revalidateOnFocus: true,
-    dedupingInterval: 30_000,
+    refreshInterval: 180_000,
+    revalidateOnFocus: false,
+    dedupingInterval: 60_000,
+    isPaused: () => typeof document !== "undefined" && document.visibilityState !== "visible",
   });
 
   const rawStatus = data?.status ?? "unknown";

@@ -133,6 +133,13 @@ export interface ReserveAppointmentInput {
   holdTtlSeconds?: number;
   /** Caller already verified blacklist — skip repeat DB check. */
   skipBlacklistCheck?: boolean;
+  /**
+   * Aynı-gün çift randevu kontrolünden hariç tutulacak randevu.
+   * ERTELEME için şart: yeni randevu, eskisi iptal edilmeden önce açılıyor;
+   * hariç tutulmazsa taşınan randevunun kendisi "zaten var" sayılıp erteleme
+   * başarısız oluyor.
+   */
+  excludeAppointmentId?: string | null;
 }
 
 export interface ReserveAppointmentResult {
@@ -143,6 +150,9 @@ export interface ReserveAppointmentResult {
   hold_expires_at?: string;
   duration_minutes?: number;
   staff_id?: string | null;
+  /** ALREADY_BOOKED_SAME_DAY: taşınabilecek mevcut randevu. */
+  existing_appointment_id?: string;
+  existing_time?: string;
 }
 
 /** Single-pass shared context for one or many local dates. */
@@ -306,6 +316,15 @@ function overlaps(a: TimeInterval, b: TimeInterval): boolean {
 
 function normalizePhone(phone: string): string {
   return normalizePhoneDigits(phone);
+}
+
+/** Telefonun DB'de bulunabilecek yazım biçimleri. */
+function phoneVariantsFor(phone: string): string[] {
+  const digits = normalizePhoneDigits(phone);
+  const last10 = digits.slice(-10);
+  return [...new Set([phone, digits, `+${digits}`, `+90${last10}`, `0${last10}`, last10])].filter(
+    Boolean
+  );
 }
 
 function addDays(dateStr: string, days: number): string {
@@ -1032,8 +1051,15 @@ export async function getDailyAvailability(
     if (ctx.blockedCheckFailed && ctx.eligibleStaffIds.length === 0 && options?.staffId == null) {
       // staff eligibility failed surfaced as checkFailed above
     }
-    if (options?.staffId) {
-      return computeDailyAvailabilityFromContext(ctx, normalizedDate, options.staffId);
+    // Tanınmayan personel kimliği müsaitliği YANLIŞ hesaplatıyordu: mevcut
+    // randevular "başka personelin" sayılıp bütün gün boş görünüyordu.
+    // Bilinmeyen id'de havuz görünümüne düşülür.
+    const knownStaffId =
+      options?.staffId && ctx.eligibleStaffIds.includes(options.staffId)
+        ? options.staffId
+        : null;
+    if (knownStaffId) {
+      return computeDailyAvailabilityFromContext(ctx, normalizedDate, knownStaffId);
     }
     if (ctx.eligibleStaffIds.length >= 1) {
       return unionStaffAvailability(ctx, normalizedDate);
@@ -1141,6 +1167,59 @@ export async function getAvailabilityRange(
   }
 }
 
+
+/**
+ * Aynı gün, aynı hizmet ve aynı kişi adına zaten aktif bir randevu var mı?
+ * Varsa {id, time} döner. Çoklu kişi randevularını engellememek için ad
+ * karşılaştırması yapılır; ad yoksa yalnızca gün+hizmet eşleşmesi aranır.
+ */
+async function findSameDayDuplicate(input: {
+  tenantId: string;
+  customerPhone: string;
+  date: string;
+  timeZone: string;
+  serviceSlug: string | null;
+  customerName: string | null;
+  excludeId?: string | null;
+}): Promise<{ id: string; time: string } | null> {
+  const window = getUtcSearchWindowForDate(input.date, input.timeZone);
+  const { data, error } = await supabase
+    .from("appointments")
+    .select("id, slot_start, service_slug, extra_data, customer_phone")
+    .eq("tenant_id", input.tenantId)
+    .in("customer_phone", phoneVariantsFor(input.customerPhone))
+    .in("status", ["confirmed", "pending"])
+    .gte("slot_start", window.from)
+    .lte("slot_start", window.to);
+
+  if (error || !data?.length) return null;
+
+  const norm = (v: string | null | undefined) =>
+    (v || "").toLocaleLowerCase("tr-TR").replace(/\s+/g, " ").trim();
+  const wantName = norm(input.customerName);
+
+  for (const row of data) {
+    if (input.excludeId && String(row.id) === input.excludeId) continue;
+    if (input.serviceSlug && row.service_slug && row.service_slug !== input.serviceSlug) {
+      continue;
+    }
+    const rowName = norm(
+      (row.extra_data as Record<string, unknown> | null)?.customer_name as string | undefined
+    );
+    // İki taraf da isim taşıyorsa ve isimler FARKLIYSA bu başka bir kişidir.
+    if (wantName && rowName && wantName !== rowName) continue;
+
+    const time = new Intl.DateTimeFormat("tr-TR", {
+      timeZone: input.timeZone,
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false,
+    }).format(new Date(row.slot_start as string));
+    return { id: String(row.id), time };
+  }
+  return null;
+}
+
 export async function reserveAppointment(
   input: ReserveAppointmentInput
 ): Promise<ReserveAppointmentResult> {
@@ -1198,6 +1277,24 @@ export async function reserveAppointment(
       typeof input.staffId === "string" && input.staffId.trim()
         ? input.staffId.trim()
         : null;
+
+    // Personel kimliği DOĞRULANMADAN kullanılıyordu. Model personel adından
+    // uydurma bir id türetebiliyor ("Ahmet Usta" → "ahmet-usta") ve bu değer
+    // doğrudan appointments.staff_id'ye yazılıyordu. Sonuçları:
+    //   1) Randevu panelde hiçbir personelin takviminde görünmüyor,
+    //   2) Var olmayan personelin doluluğu boş sayıldığı için AYNI SAATE
+    //      ikinci bir randevu açılabiliyor (çift rezervasyon),
+    //   3) FK kısıtı olan kurulumlarda insert hata veriyor.
+    // Tanınmayan id sessizce düşürülür; otomatik personel ataması devreye girer.
+    if (resolvedStaffId && !ctx.eligibleStaffIds.includes(resolvedStaffId)) {
+      console.warn(
+        "[booking] bilinmeyen staff_id yok sayıldı:",
+        resolvedStaffId,
+        "tenant:",
+        input.tenantId
+      );
+      resolvedStaffId = null;
+    }
 
     let availability: DailyAvailabilityResult;
 
@@ -1285,6 +1382,35 @@ export async function reserveAppointment(
     const tzOffset = getTimezoneOffsetString(tenantTimezone, refDate);
     const localSlot = `${normalizedDate}T${normalizedTime}:00${tzOffset}`;
     const slotStartIso = new Date(localSlot).toISOString();
+
+    // AYNI GÜN / AYNI HİZMET / AYNI KİŞİ koruması.
+    //
+    // Canlı testin 4 turunda da tekrarladı: müşteri randevusunu aldıktan sonra
+    // "evet oluştur" veya "aslında 16:00 olsun" dediğinde model İKİNCİ bir
+    // create_appointment çağırıyordu. Sonuç: aynı kişiye aynı gün iki randevu;
+    // biri takvimde boşuna yer kaplıyor ve kesin no-show oluyor.
+    // Prompt kuralı tek başına yetmedi; kapıyı veri katmanında kapatıyoruz.
+    //
+    // "Ben ve kardeşim" gibi meşru çoklu randevular ENGELLENMEZ: ayrım
+    // extra_data.customer_name üzerinden yapılır.
+    const duplicateCheck = await findSameDayDuplicate({
+      tenantId: input.tenantId,
+      customerPhone: input.customerPhone,
+      date: normalizedDate,
+      timeZone: tenantTimezone,
+      serviceSlug: input.serviceSlug || null,
+      customerName: (input.extraData?.customer_name as string | undefined) || null,
+      excludeId: input.excludeAppointmentId || null,
+    });
+    if (duplicateCheck) {
+      return {
+        ok: false,
+        error: "ALREADY_BOOKED_SAME_DAY",
+        existing_appointment_id: duplicateCheck.id,
+        existing_time: duplicateCheck.time,
+      };
+    }
+
     const { data, error } = await supabase
       .from("appointments")
       .insert({

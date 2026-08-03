@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, use} from "react";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -190,8 +190,6 @@ export default function CampaignsPage({
 }) {
   const { locale } = useLocale();
   const t = COPY[locale];
-
-  const [tenantId, setTenantId] = useState("");
   const [messageText, setMessageText] = useState("");
   const [channel, setChannel] = useState<"whatsapp" | "sms" | "both">("whatsapp");
   const [filterTags, setFilterTags] = useState<string[]>([]);
@@ -220,10 +218,7 @@ export default function CampaignsPage({
   const campaignEnabled = tenantCtx?.tenant
     ? (tenantCtx.tenant as { campaign_enabled?: boolean }).campaign_enabled !== false
     : null;
-
-  useEffect(() => {
-    params.then((p) => setTenantId(p.tenantId));
-  }, [params]);
+  const { tenantId } = use(params);
 
   const loadRecipients = useCallback(() => {
     if (!tenantId) return;

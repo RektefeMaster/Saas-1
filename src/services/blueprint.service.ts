@@ -40,7 +40,7 @@ const BLUEPRINTS: Record<BlueprintSlug, BlueprintDefinition> = {
     financeDefaults: {
       currency: "TRY",
       tax_mode: "gross",
-      fallback_price_label: "Fiyat icin arayin",
+      fallback_price_label: "Fiyat için arayın",
     },
   },
   "dental-esthetic": {
@@ -66,7 +66,7 @@ const BLUEPRINTS: Record<BlueprintSlug, BlueprintDefinition> = {
     financeDefaults: {
       currency: "TRY",
       tax_mode: "gross",
-      fallback_price_label: "Muayene ucreti icin arayin",
+      fallback_price_label: "Muayene ücreti için arayın",
     },
   },
   "auto-service": {
@@ -92,7 +92,7 @@ const BLUEPRINTS: Record<BlueprintSlug, BlueprintDefinition> = {
     financeDefaults: {
       currency: "TRY",
       tax_mode: "gross",
-      fallback_price_label: "Is emri fiyati icin arayin",
+      fallback_price_label: "İş emri fiyatı için arayın",
     },
   },
   "generic-local": {
@@ -118,7 +118,7 @@ const BLUEPRINTS: Record<BlueprintSlug, BlueprintDefinition> = {
     financeDefaults: {
       currency: "TRY",
       tax_mode: "gross",
-      fallback_price_label: "Fiyat icin arayin",
+      fallback_price_label: "Fiyat için arayın",
     },
   },
 };

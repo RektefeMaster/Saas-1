@@ -5,7 +5,7 @@ import Link from "next/link";
 import useSWR from "swr";
 import { useEffect, useMemo, useState, type ComponentType, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { CommandMenu } from "@/components/admin/CommandMenu";
+import dynamic from "next/dynamic";
 import { HealthIndicator } from "@/components/admin/HealthIndicator";
 import {
   BarChart3,
@@ -18,6 +18,7 @@ import {
   Loader2,
   Megaphone,
   Menu,
+  MoreHorizontal,
   Power,
   Plus,
   Search,
@@ -28,6 +29,11 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { AdminLogout } from "../admin-logout";
+
+const CommandMenu = dynamic(
+  () => import("@/components/admin/CommandMenu").then((m) => ({ default: m.CommandMenu })),
+  { ssr: false, loading: () => null }
+);
 
 async function killSwitchFetcher(url: string): Promise<{ enabled?: boolean }> {
   const res = await fetch(url);
@@ -59,6 +65,14 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/admin/time-machine", label: "Time Machine", shortLabel: "Zaman", icon: History },
   { href: "/admin/langfuse", label: "LLM Gözlemi", shortLabel: "LLM", icon: BarChart3 },
 ];
+
+/** Mobil alt çubuk: 4 birincil + Diğer (sidebar). */
+const MOBILE_PRIMARY_HREFS = ["/admin", "/admin/tenants", "/admin/campaigns", "/admin/security"] as const;
+
+const BRAND_ACTIVE =
+  "bg-[var(--brand)] text-[var(--brand-foreground)]";
+const BRAND_CTA =
+  "bg-[var(--brand)] text-[var(--brand-foreground)] hover:opacity-90";
 
 export default function AdminDashboardLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
@@ -92,7 +106,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
           source: "admin_header",
         }),
       });
-      if (!res.ok) throw new Error("Kill switch guncellenemedi");
+      if (!res.ok) throw new Error("Kill switch güncellenemedi");
       const payload = (await res.json().catch(() => null)) as { enabled?: boolean } | null;
       await mutateKillSwitch({ enabled: Boolean(payload?.enabled) });
     } catch (err) {
@@ -107,10 +121,26 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
     [pathname]
   );
 
+  const mobilePrimaryItems = useMemo(
+    () =>
+      MOBILE_PRIMARY_HREFS.map((href) => NAV_ITEMS.find((item) => item.href === href)).filter(
+        (item): item is NavItem => !!item
+      ),
+    []
+  );
+
+  const isOverflowRouteActive = useMemo(() => {
+    const primarySet = new Set<string>(MOBILE_PRIMARY_HREFS);
+    return NAV_ITEMS.some((item) => !primarySet.has(item.href) && isItemActive(pathname, item.href));
+  }, [pathname]);
+
   return (
     <div className="min-h-screen bg-slate-50 text-slate-900 dark:bg-slate-950 dark:text-slate-100">
       <div
-        className={cn("fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-sm lg:hidden", mobileOpen ? "opacity-100" : "pointer-events-none opacity-0")}
+        className={cn(
+          "fixed inset-0 z-40 bg-slate-900/40 lg:hidden",
+          mobileOpen ? "opacity-100" : "pointer-events-none opacity-0"
+        )}
         onClick={() => setMobileOpen(false)}
       />
 
@@ -138,7 +168,10 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
           <nav className="flex flex-col gap-0.5 overflow-y-auto p-3">
             <Link
               href="/admin/tenants/new"
-              className="mb-2 flex items-center justify-center gap-2 rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-medium text-white hover:bg-slate-800 dark:bg-slate-100 dark:text-slate-900 dark:hover:bg-slate-200"
+              className={cn(
+                "mb-2 flex items-center justify-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium transition",
+                BRAND_CTA
+              )}
             >
               <Plus className="h-4 w-4" />
               Yeni İşletme
@@ -146,11 +179,12 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
             {NAV_ITEMS.map((item) => {
               const active = !item.external && isItemActive(pathname, item.href);
               const Icon = item.icon;
-              const linkClass = `flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition ${
+              const linkClass = cn(
+                "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition",
                 active
-                  ? "bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-900"
+                  ? BRAND_ACTIVE
                   : "text-slate-600 hover:bg-slate-100 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-slate-800 dark:hover:text-slate-100"
-              }`;
+              );
               if (item.external) {
                 return (
                   <a
@@ -181,7 +215,7 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
       </aside>
 
       <div className="lg:pl-64">
-        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 backdrop-blur dark:border-slate-800 dark:bg-slate-900/95">
+        <header className="sticky top-0 z-30 border-b border-slate-200 bg-white dark:border-slate-800 dark:bg-slate-900">
           <div className="flex h-14 items-center justify-between px-4 sm:px-6">
             <button
               type="button"
@@ -223,7 +257,10 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
               </button>
               <Link
                 href="/admin/tenants/new"
-                className="hidden items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 sm:flex dark:border-slate-600 dark:text-slate-200 dark:hover:bg-slate-800"
+                className={cn(
+                  "hidden items-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition sm:flex",
+                  BRAND_CTA
+                )}
               >
                 Yeni İşletme
                 <ChevronRight className="h-4 w-4" />
@@ -239,34 +276,18 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
         <CommandMenu open={cmdOpen} onOpenChange={setCmdOpen} />
         <HealthIndicator />
 
-        {/* Sabit kolon sayısı NAV_ITEMS uzunluğuyla uyuşmadığında son sekmeler
-            ikinci satıra taşıp çubuğu bozuyordu; kolon sayısı listeden türetilir. */}
         <nav
-          className="fixed inset-x-0 bottom-0 z-40 grid gap-1 border-t border-slate-200 bg-white/95 p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] backdrop-blur lg:hidden dark:border-slate-800 dark:bg-slate-900/95"
-          style={{ gridTemplateColumns: `repeat(${NAV_ITEMS.length}, minmax(0, 1fr))` }}
+          className="fixed inset-x-0 bottom-0 z-40 grid grid-cols-5 gap-1 border-t border-slate-200 bg-white p-2 pb-[calc(0.5rem+env(safe-area-inset-bottom))] lg:hidden dark:border-slate-800 dark:bg-slate-900"
+          aria-label="Admin mobil gezinme"
         >
-          {NAV_ITEMS.map((item) => {
+          {mobilePrimaryItems.map((item) => {
             const active = !item.external && isItemActive(pathname, item.href);
             const Icon = item.icon;
-            const navClass = `flex min-w-0 flex-col items-center justify-center rounded-lg px-0.5 py-2 text-center text-[10px] font-medium ${
-              active ? "bg-slate-200 text-slate-900 dark:bg-slate-700 dark:text-slate-100" : "text-slate-500 dark:text-slate-400"
-            }`;
+            const navClass = cn(
+              "flex min-w-0 flex-col items-center justify-center rounded-lg px-0.5 py-2 text-center text-[10px] font-medium",
+              active ? BRAND_ACTIVE : "text-slate-500 dark:text-slate-400"
+            );
             const shortLabel = item.shortLabel ?? item.label;
-            if (item.external) {
-              return (
-                <a
-                  key={item.href}
-                  href={item.href}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={navClass}
-                  title={item.label}
-                >
-                  <Icon className="mb-1 h-4 w-4 shrink-0" />
-                  <span className="w-full truncate">{shortLabel}</span>
-                </a>
-              );
-            }
             return (
               <Link key={item.href} href={item.href} className={navClass} title={item.label}>
                 <Icon className="mb-1 h-4 w-4 shrink-0" />
@@ -274,6 +295,21 @@ export default function AdminDashboardLayout({ children }: { children: ReactNode
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setMobileOpen(true)}
+            aria-label="Diğer"
+            aria-expanded={mobileOpen}
+            className={cn(
+              "flex min-w-0 flex-col items-center justify-center rounded-lg px-0.5 py-2 text-center text-[10px] font-medium",
+              isOverflowRouteActive || mobileOpen
+                ? "text-[var(--brand)]"
+                : "text-slate-500 dark:text-slate-400"
+            )}
+          >
+            <MoreHorizontal className="mb-1 h-4 w-4 shrink-0" />
+            <span className="w-full truncate">Diğer</span>
+          </button>
         </nav>
       </div>
     </div>

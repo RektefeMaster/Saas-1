@@ -22,7 +22,7 @@ const PAGES = [
   { href: "/admin/business-types", label: "İşletme Tipleri", icon: Building2 },
   { href: "/admin/campaigns", label: "Kampanyalar", icon: Megaphone },
   { href: "/admin/security", label: "Güvenlik", icon: ShieldCheck },
-  { href: "/admin/conversations", label: "Konusmalar", icon: MessageSquareWarning },
+  { href: "/admin/conversations", label: "Konuşmalar", icon: MessageSquareWarning },
   { href: "/admin/tools", label: "Araçlar", icon: Wrench },
   { href: "/admin/time-machine", label: "Time Machine", icon: History },
   { href: "/admin/langfuse", label: "LLM Gözlemi", icon: BarChart3 },
@@ -99,7 +99,7 @@ export function CommandMenu({ open, onOpenChange }: CommandMenuProps) {
       className="fixed left-1/2 top-1/4 z-50 w-full max-w-xl -translate-x-1/2 rounded-2xl border border-slate-200 bg-white shadow-2xl dark:border-slate-700 dark:bg-slate-900"
     >
       <div className="flex items-center gap-3 border-b border-slate-200 px-4 py-3 dark:border-slate-700">
-        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-cyan-100 text-cyan-600 dark:bg-cyan-900/40 dark:text-cyan-400">
+        <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-100 text-emerald-600 dark:bg-emerald-900/40 dark:text-emerald-400">
           <Search className="h-4 w-4" />
         </div>
         <Command.Input

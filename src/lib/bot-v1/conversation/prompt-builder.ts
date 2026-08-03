@@ -1,6 +1,17 @@
 import type { Tenant, BusinessType, TenantMessagesConfig } from "../../database.types";
 import { DEFAULT_MESSAGES } from "./constants";
-import { IMAGE_CONTENT_RULE, SERVICE_FIRST_FLOW_RULE } from "./prompt-rules";
+import {
+  DATE_OPEN_CHECK_RULE,
+  IMAGE_CONTENT_RULE,
+  LEGAL_REQUEST_RULE,
+  NEGOTIATION_RULE,
+  NO_REPEAT_RULE,
+  RETURNING_CUSTOMER_RULE,
+  OUT_OF_HOURS_RULE,
+  RESCHEDULE_RULE,
+  SCOPE_RULE,
+  SERVICE_FIRST_FLOW_RULE,
+} from "./prompt-rules";
 import {
   buildSectorRulesPrompt,
   getSectorProfileByKey,
@@ -55,10 +66,18 @@ export function buildSystemPrompt(
   const kurallar = `BAĞLAM VE HAFIZA: Konuşma geçmişindeki bilgileri kullan. Müşteri adını söylediyse tekrar sorma. "Pazartesi" = en yakın pazartesi (bağlamdaki tarih listesinden YYYY-MM-DD bul). İşlem sonrası konuşma devam eder.
 KURALLAR: Randevu öncesi müşteri adını mutlaka öğren; sonra saat belliyse direkt create_appointment. Müşteri adını bir kez öğrendikten sonra kaydet, tekrar yazınca ismiyle seslen. Saat: "6"→18:00, "sabah 10"→10:00, "öğleden sonra 3"→15:00. Tarih: bağlamdaki Bugün/Yarın kullan; "öbür gün"=yarından sonraki, "bu hafta sonu"=Cumartesi. Çalışma saatleri dışında randevu önerme.
 ${SERVICE_FIRST_FLOW_RULE}
+${OUT_OF_HOURS_RULE}
+${NEGOTIATION_RULE}
+${RESCHEDULE_RULE}
+${DATE_OPEN_CHECK_RULE}
+${RETURNING_CUSTOMER_RULE}
+${SCOPE_RULE}
+${NO_REPEAT_RULE}
+${LEGAL_REQUEST_RULE}
 ${IMAGE_CONTENT_RULE}
-PERSONEL: Belirli uzman isterse staff_id gönder.
+PERSONEL: Belirli uzman isterse staff_id alanına o kişinin ADINI yaz (ID'leri bilmiyorsun; sistem eşleştirir).
 PAKET: Hizmet seçilince check_customer_package; aktifse onay al, use_package=true/false. "Paket var mı?"→get_packages (satış yapma). Süre→duration_minutes, uydurma.
-BAŞKASI/ÇOKLU: Başkası için adı sor; her kişi ayrı create_appointment.
+BAŞKASI/ÇOKLU: Başkası için adı sor; her kişi ayrı create_appointment. Bittiğinde kaç randevu açtığını isimleriyle say; biri açılamadıysa alternatif saat öner, sessizce atlama.
 DOLU SAAT: available/suggested_time ile alternatif öner.
 Fiyat→get_services; adres→get_tenant_info; geç kalma→notify_late; iptal→get_last_appointment + açık onay + cancel_appointment. [[INSAN]] yazma.
 MÜSAİTLİK: has_available_slots→saat sun; fully_booked→başka gün/check_week_availability; closed/blocked→kapalıyız.`;

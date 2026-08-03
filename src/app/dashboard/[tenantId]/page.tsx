@@ -1,10 +1,12 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect, useState, useCallback, useMemo, useRef } from "react";
+import { use, useEffect, useCallback, useMemo, useRef } from "react";
+import useSWR from "swr";
 import { BarChart3, CalendarDays, Plus, Settings2 } from "lucide-react";
 import { useDashboardTenant } from "../DashboardTenantContext";
 import { useDashboardStore } from "@/stores/dashboard-store";
+import { fetcher } from "@/lib/swr-fetcher";
 import {
   groupByDate,
   getAppointmentServiceLabel,
@@ -40,33 +42,29 @@ const APPOINTMENTS_POLL_MS = 30000;
 const OPS_ALERTS_POLL_MS = 60000;
 const COMMAND_CENTER_POLL_MS = 120000;
 
+function appointmentsRangeKey(tenantId: string): string {
+  const now = new Date();
+  const from = now.toISOString().split("T")[0];
+  const to = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+  return `/api/tenant/${tenantId}/appointments?from=${from}T00:00:00&to=${to}T23:59:59`;
+}
+
 export default function EsnafDashboard({
   params,
 }: {
   params: Promise<{ tenantId: string }>;
 }) {
-  const [resolvedParams, setResolvedParams] = useState<{ tenantId: string } | null>(null);
+  const { tenantId } = use(params);
   const tenantCtx = useDashboardTenant();
   const tenant = tenantCtx?.tenant ?? null;
   const setTenant = tenantCtx?.setTenant ?? (() => {});
-  const staffPreferenceEnabled = tenantCtx?.staffPreferenceEnabled ?? false;
-  const staffOptions = tenantCtx?.staffOptions ?? [];
 
-  // Zustand store - selector pattern ile sadece gerekli state'leri çek
+  // Zustand — yalnızca bu sayfanın gerçekten okuduğu alanlar
   const appointments = useDashboardStore((state) => state.appointments);
-  const blockedDates = useDashboardStore((state) => state.blockedDates);
-  const reviews = useDashboardStore((state) => state.reviews);
   const opsAlerts = useDashboardStore((state) => state.opsAlerts);
   const commandCenter = useDashboardStore((state) => state.commandCenter);
   const activeView = useDashboardStore((state) => state.activeView);
-  const loading = useDashboardStore((state) => state.appointmentsLoading);
-  const opsAlertsLoading = useDashboardStore((state) => state.opsAlertsLoading);
-  const commandCenterLoading = useDashboardStore((state) => state.commandCenterLoading);
-  const updatingAptId = useDashboardStore((state) => state.updatingAptId);
-  const resolvingAlertId = useDashboardStore((state) => state.resolvingAlertId);
-  const runningActionId = useDashboardStore((state) => state.runningActionId);
 
-  // Store actions
   const setAppointments = useDashboardStore((state) => state.setAppointments);
   const setBlockedDates = useDashboardStore((state) => state.setBlockedDates);
   const setReviews = useDashboardStore((state) => state.setReviews);
@@ -80,189 +78,108 @@ export default function EsnafDashboard({
   const setResolvingAlertId = useDashboardStore((state) => state.setResolvingAlertId);
   const setRunningActionId = useDashboardStore((state) => state.setRunningActionId);
   const updateAppointment = useDashboardStore((state) => state.updateAppointment);
-  const addAppointment = useDashboardStore((state) => state.addAppointment);
-  const addBlockedDate = useDashboardStore((state) => state.addBlockedDate);
-  const removeBlockedDate = useDashboardStore((state) => state.removeBlockedDate);
   const resolveAlert = useDashboardStore((state) => state.resolveAlert);
-  const runCommandAction = useDashboardStore((state) => state.runCommandAction);
   const resetStore = useDashboardStore((state) => state.reset);
 
   const modalRef = useRef<DashboardModalsHandle | null>(null);
-  const appointmentsSignatureRef = useRef("");
-  const opsAlertsSignatureRef = useRef("");
-  const commandCenterSignatureRef = useRef("");
-  const appointmentsAbortRef = useRef<AbortController | null>(null);
+  const isTabVisible = () =>
+    typeof document === "undefined" || document.visibilityState === "visible";
 
   useEffect(() => {
-    params.then(setResolvedParams);
-  }, [params]);
-
-  const tenantId = resolvedParams?.tenantId;
-
-  // Tenant değiştiğinde store'u resetle
-  useEffect(() => {
-    if (tenantId) {
-      resetStore();
-    }
+    if (tenantId) resetStore();
   }, [tenantId, resetStore]);
 
-  useEffect(() => {
-    if (!tenantId) return;
-    appointmentsSignatureRef.current = "";
-    let active = true;
+  const appointmentsKey = tenantId ? appointmentsRangeKey(tenantId) : null;
+  const { data: appointmentsData, isLoading: appointmentsSwrLoading } = useSWR<Appointment[]>(
+    appointmentsKey,
+    fetcher,
+    {
+      refreshInterval: APPOINTMENTS_POLL_MS,
+      dedupingInterval: 10_000,
+      revalidateOnFocus: true,
+      isPaused: () => !isTabVisible(),
+    }
+  );
 
-    const fetchAppointments = async () => {
-      if (document.visibilityState !== "visible") return;
+  const { data: opsAlertsData, isLoading: opsSwrLoading, mutate: mutateOpsAlerts } = useSWR<
+    OpsAlert[]
+  >(tenantId ? `/api/tenant/${tenantId}/ops-alerts?status=open&limit=8` : null, fetcher, {
+    refreshInterval: OPS_ALERTS_POLL_MS,
+    dedupingInterval: 15_000,
+    revalidateOnFocus: true,
+    isPaused: () => !isTabVisible(),
+  });
 
-      const now = new Date();
-      const from = now.toISOString().split("T")[0];
-      const to = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
-        .toISOString()
-        .split("T")[0];
+  const {
+    data: commandCenterData,
+    isLoading: commandSwrLoading,
+    mutate: mutateCommandCenter,
+  } = useSWR<CommandCenterSnapshot>(
+    tenantId ? `/api/tenant/${tenantId}/command-center` : null,
+    fetcher,
+    {
+      refreshInterval: COMMAND_CENTER_POLL_MS,
+      dedupingInterval: 30_000,
+      revalidateOnFocus: true,
+      isPaused: () => !isTabVisible(),
+    }
+  );
 
-      appointmentsAbortRef.current?.abort();
-      const controller = new AbortController();
-      appointmentsAbortRef.current = controller;
-
-      try {
-        const res = await fetch(
-          `/api/tenant/${tenantId}/appointments?from=${from}T00:00:00&to=${to}T23:59:59`,
-          { signal: controller.signal, cache: "no-store" }
-        );
-        if (!res.ok) return;
-        const raw = await res.text();
-        if (!active) return;
-        if (raw === appointmentsSignatureRef.current) return;
-
-        appointmentsSignatureRef.current = raw;
-        const payload = (JSON.parse(raw) as unknown) ?? [];
-        const appointmentsData = Array.isArray(payload) ? (payload as Appointment[]) : [];
-        setAppointments(appointmentsData);
-      } catch (err) {
-        if (err instanceof DOMException && err.name === "AbortError") return;
-      } finally {
-        if (active) setAppointmentsLoading(false);
-      }
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        void fetchAppointments();
-      }
-    };
-
-    void fetchAppointments();
-    const interval = window.setInterval(() => {
-      void fetchAppointments();
-    }, APPOINTMENTS_POLL_MS);
-    document.addEventListener("visibilitychange", handleVisibility);
-
-    return () => {
-      active = false;
-      appointmentsAbortRef.current?.abort();
-      window.clearInterval(interval);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [tenantId]);
+  const { data: blockedDatesData } = useSWR(
+    tenantId ? `/api/tenant/${tenantId}/blocked-dates` : null,
+    fetcher
+  );
+  const { data: reviewsData } = useSWR(tenantId ? `/api/tenant/${tenantId}/reviews` : null, fetcher);
 
   useEffect(() => {
-    if (!tenantId) return;
-    const controller = new AbortController();
-    const { signal } = controller;
-    let active = true;
-    Promise.all([
-      fetch(`/api/tenant/${tenantId}/blocked-dates`, { signal })
-        .then((r) => r.json())
-        .then((d) => active && setBlockedDates(Array.isArray(d) ? d : []))
-        .catch(() => {}),
-      fetch(`/api/tenant/${tenantId}/reviews`, { signal })
-        .then((r) => r.json())
-        .then((d) => active && setReviews(d))
-        .catch(() => {}),
-    ]);
-    return () => {
-      active = false;
-      controller.abort();
-    };
-  }, [tenantId, setBlockedDates, setReviews]);
-
-  const fetchOpsAlerts = useCallback(async (silent = false) => {
-    if (!tenantId) return;
-    if (!silent) setOpsAlertsLoading(true);
-    try {
-      const res = await fetch(
-        `/api/tenant/${tenantId}/ops-alerts?status=open&limit=8`,
-        { cache: "no-store" }
-      );
-      if (!res.ok) return;
-      const raw = await res.text();
-      if (raw === opsAlertsSignatureRef.current) return;
-      opsAlertsSignatureRef.current = raw;
-      const payload = (JSON.parse(raw) as unknown) ?? [];
-      const alertsData = Array.isArray(payload) ? (payload as OpsAlert[]) : [];
-      setOpsAlerts(alertsData);
-    } catch {
-      // Background polling errors should not interrupt user interaction.
-    } finally {
-      if (!silent) setOpsAlertsLoading(false);
-    }
-  }, [tenantId, setOpsAlertsLoading, setOpsAlerts]);
-
-  const fetchCommandCenter = useCallback(async (silent = false) => {
-    if (!tenantId) return;
-    if (!silent) setCommandCenterLoading(true);
-    try {
-      const res = await fetch(`/api/tenant/${tenantId}/command-center`, {
-        cache: "no-store",
-      });
-      if (!res.ok) return;
-      const raw = await res.text();
-      if (raw === commandCenterSignatureRef.current) return;
-      commandCenterSignatureRef.current = raw;
-      const data = (JSON.parse(raw) as CommandCenterSnapshot | null) ?? null;
-      if (data && typeof data === "object" && data.kpis) {
-        setCommandCenter(data);
-      }
-    } catch {
-      // Background polling errors should not interrupt user interaction.
-    } finally {
-      if (!silent) setCommandCenterLoading(false);
-    }
-  }, [tenantId, setCommandCenterLoading, setCommandCenter]);
+    if (Array.isArray(appointmentsData)) setAppointments(appointmentsData);
+  }, [appointmentsData, setAppointments]);
 
   useEffect(() => {
-    if (!tenantId) return;
-    opsAlertsSignatureRef.current = "";
-    commandCenterSignatureRef.current = "";
+    setAppointmentsLoading(appointmentsSwrLoading && !appointmentsData);
+  }, [appointmentsSwrLoading, appointmentsData, setAppointmentsLoading]);
 
-    const runBoth = (silent: boolean) => {
-      if (document.visibilityState !== "visible") return;
-      void fetchOpsAlerts(silent);
-      void fetchCommandCenter(silent);
-    };
+  useEffect(() => {
+    if (Array.isArray(opsAlertsData)) setOpsAlerts(opsAlertsData);
+  }, [opsAlertsData, setOpsAlerts]);
 
-    if (document.visibilityState === "visible") {
-      runBoth(false);
+  useEffect(() => {
+    setOpsAlertsLoading(opsSwrLoading && !opsAlertsData);
+  }, [opsSwrLoading, opsAlertsData, setOpsAlertsLoading]);
+
+  useEffect(() => {
+    if (commandCenterData && typeof commandCenterData === "object" && commandCenterData.kpis) {
+      setCommandCenter(commandCenterData);
     }
+  }, [commandCenterData, setCommandCenter]);
 
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") runBoth(true);
-    };
+  useEffect(() => {
+    setCommandCenterLoading(commandSwrLoading && !commandCenterData);
+  }, [commandSwrLoading, commandCenterData, setCommandCenterLoading]);
 
-    const opsInterval = window.setInterval(() => {
-      if (document.visibilityState === "visible") void fetchOpsAlerts(true);
-    }, OPS_ALERTS_POLL_MS);
-    const cmdInterval = window.setInterval(() => {
-      if (document.visibilityState === "visible") void fetchCommandCenter(true);
-    }, COMMAND_CENTER_POLL_MS);
+  useEffect(() => {
+    if (Array.isArray(blockedDatesData)) setBlockedDates(blockedDatesData);
+  }, [blockedDatesData, setBlockedDates]);
 
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      window.clearInterval(opsInterval);
-      window.clearInterval(cmdInterval);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [tenantId, fetchOpsAlerts, fetchCommandCenter]);
+  useEffect(() => {
+    if (
+      reviewsData &&
+      typeof reviewsData === "object" &&
+      "avgRating" in reviewsData &&
+      "totalCount" in reviewsData &&
+      "reviews" in reviewsData
+    ) {
+      setReviews(reviewsData as Parameters<typeof setReviews>[0]);
+    }
+  }, [reviewsData, setReviews]);
+
+  const fetchOpsAlerts = useCallback(async () => {
+    await mutateOpsAlerts();
+  }, [mutateOpsAlerts]);
+
+  const fetchCommandCenter = useCallback(async () => {
+    await mutateCommandCenter();
+  }, [mutateCommandCenter]);
 
   // runCommandAction store'da tanımlı, ama tenantId'ye ihtiyacı var
   // Bu yüzden wrapper function oluşturuyoruz
@@ -338,10 +255,7 @@ export default function EsnafDashboard({
 
   // Computed values - sadece header'da kullanılanlar
   const grouped = useMemo(() => groupByDate(appointments), [appointments]);
-  const todayIso = useMemo(
-    () => new Date().toISOString().slice(0, 10),
-    [Math.floor(Date.now() / 86400000)]
-  );
+  const todayIso = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const sortedDates = useMemo(() => getWeekDates(new Date()), []);
   const nextAppointment = useMemo(() => {
     const now = Date.now();
@@ -391,7 +305,7 @@ export default function EsnafDashboard({
               className="inline-flex min-h-11 w-full items-center justify-center gap-2 rounded-lg bg-[var(--brand)] px-5 py-2.5 text-sm font-semibold text-[var(--brand-foreground)] transition-opacity duration-150 hover:opacity-90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand)] focus-visible:ring-offset-2 sm:w-auto"
             >
               <Plus className="h-4 w-4" aria-hidden />
-              Randevu Ekle
+              Randevu ekle
             </button>
           </div>
 
@@ -434,7 +348,7 @@ export default function EsnafDashboard({
                 [
                   {
                     key: "overview" as const,
-                    label: "Genel Bakış",
+                    label: "Özet",
                     icon: BarChart3,
                     badge: opsAlerts.length > 0 ? opsAlerts.length : null,
                     badgeTone: "alert" as const,

@@ -42,7 +42,7 @@ async function consumeMagicToken(token: string): Promise<{ tenantId: string } | 
     .maybeSingle();
 
   if (updateError) {
-    return { error: "Magic link kullanima alinamadi." };
+    return { error: "Magic link kullanıma alınamadı." };
   }
 
   if (!updated?.tenant_id) {

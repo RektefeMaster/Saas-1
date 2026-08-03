@@ -48,6 +48,7 @@ import {
 import { phonesMatch } from "@/lib/phone";
 import {
   applyCriticalGuardrails,
+  KNOWLEDGE_EVIDENCE_NAME,
   type ToolEvidence,
 } from "./critical-guardrails";
 import {
@@ -156,6 +157,28 @@ export function buildHumanEscalationMessage(
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────────────────
+
+/** Randevu durumunu değiştiren araçlar. */
+const MUTATING_TOOL_NAMES = new Set([
+  "create_appointment",
+  "cancel_appointment",
+  "reschedule_appointment",
+  "create_recurring",
+  "add_to_waitlist",
+]);
+
+/** Şablonun zaten söylediği onay cümlelerini modelin metninden ayıklar. */
+const CONFIRMATION_SENTENCE_RE =
+  /randevu(?:nuz|n|nı|nu|su)?\s+(?:oluşturuldu|alındı|kaydedildi|onaylandı)|(?:oluşturdum|kaydettim|yazdım seni)/i;
+
+function stripConfirmationSentences(text: string): string {
+  return (text || "")
+    .split(/(?<=[.!?…])\s+|\n+/u)
+    .map((s) => s.trim())
+    .filter((s) => s && !CONFIRMATION_SENTENCE_RE.test(s))
+    .join(" ")
+    .trim();
+}
 
 function isValidBotConfig(c: unknown): c is BotConfig {
   if (!c || typeof c !== "object") return false;
@@ -497,9 +520,13 @@ export async function processMessage(
       if (!consentResult.ok && consentResult.error !== "migration_missing") {
         console.warn("[ai] opt-out kaydedilemedi:", consentResult.error);
       }
+      // Bu iki cevap hiç tona bağlı değildi: "siz" diliyle konuşan bir klinik
+      // bile müşteriye "hatırlatmaların devam eder ... yaz" diyordu.
       return persistAndReply(
         optOut
-          ? "Tamam, bundan sonra kampanya mesajı göndermeyeceğim. Randevu hatırlatmaların devam eder. Tekrar açmak istersen \"BAŞLA\" yaz."
+          ? tone === "siz"
+            ? "Tamam, bundan sonra kampanya mesajı göndermeyeceğim. Randevu hatırlatmalarınız devam eder. Tekrar açmak isterseniz \"BAŞLA\" yazabilirsiniz."
+            : "Tamam, bundan sonra kampanya mesajı göndermeyeceğim. Randevu hatırlatmaların devam eder. Tekrar açmak istersen \"BAŞLA\" yaz."
           : "Tamam, kampanya mesajlarını tekrar açtım."
       );
     }
@@ -710,7 +737,16 @@ export async function processMessage(
       return persistAndReply(reviewResult.reply);
     }
 
-    const globalInterrupt = detectGlobalInterruptIntent(effectiveMessage);
+    // Bekleyen iptal onayı varken "vazgeçtim/boşver" AKIŞI değil İPTALİ reddeder.
+    // Global interrupt önce çalıştığı için müşteri "randevun duruyor" yerine
+    // "akışı kapattım" cevabı alıyordu; aşağıdaki iptal-reddi dalına hiç girilmiyordu.
+    const hasPendingCancelFlag = Boolean(
+      (state.extracted as { pending_cancel_appointment_id?: string } | undefined)
+        ?.pending_cancel_appointment_id
+    );
+    const globalInterrupt = hasPendingCancelFlag && isCancelReject(effectiveMessage)
+      ? null
+      : detectGlobalInterruptIntent(effectiveMessage);
     if (globalInterrupt === "RESET" || globalInterrupt === "CANCEL_FLOW") {
       const replyText =
         tone === "siz"
@@ -815,8 +851,12 @@ export async function processMessage(
             (tone === "siz"
               ? `İptal için randevu saatine en az ${cancellationHrs} saat kala bildirmeniz gerekiyor, o yüzden buradan iptal edemiyorum.`
               : `İptal için randevu saatine en az ${cancellationHrs} saat kala haber vermen gerekiyor, o yüzden buradan iptal edemiyorum.`) +
+              // Ek cümle de hitaba uymalı: "siz" tonundaki bir klinikte
+              // "bildirmeniz gerekiyor ... arayabilirsin" karışımı çıkıyordu.
               (contactPhone
-                ? ` İşletmeyi doğrudan arayabilirsin: ${contactPhone}`
+                ? tone === "siz"
+                  ? ` İşletmeyi doğrudan arayabilirsiniz: ${contactPhone}`
+                  : ` İşletmeyi doğrudan arayabilirsin: ${contactPhone}`
                 : ""),
             {
               step: "devam",
@@ -1414,7 +1454,23 @@ export async function processMessage(
         );
         if (msg) parts.push(msg);
       }
-      if (parts.length) finalReply = parts.join("\n\n");
+      if (parts.length) {
+        // Şablon işletmenin kontrolündeki onay metnidir ve korunur. Ancak eskiden
+        // modelin AYNI turda yazdığı her şeyi siliyordu: iki kişilik randevuda
+        // biri açılıp diğeri için "o saat dolu, 13:30 uygun mu?" denildiğinde
+        // müşteriye yalnızca tekil onay gidiyor, ikinci kişinin düştüğü hiç
+        // söylenmiyordu. Bu turda bir işlem BAŞARISIZ olduysa modelin metni de
+        // eklenir; onay cümleleri şablonla çakışmasın diye ayıklanır.
+        const failedMutation = toolEvidence.some(
+          (e) => MUTATING_TOOL_NAMES.has(e.name) && !e.ok
+        );
+        const extraFromModel = failedMutation
+          ? stripConfirmationSentences(finalReply)
+          : "";
+        finalReply = extraFromModel
+          ? `${parts.join("\n\n")}\n\n${extraFromModel}`
+          : parts.join("\n\n");
+      }
     }
 
     // Yeni randevu alındıysa/ertelendiyse bekleyen iptal onayı anlamını yitirir.
@@ -1466,10 +1522,51 @@ export async function processMessage(
     finalReply = normalizeAssistantReply(finalReply);
     if (!finalReply) finalReply = getProcessErrorReply(tone);
 
+    // AYNI CEVABI TEKRARLAMA.
+    // Canlı testte müşteri aynı mesajı yazınca bot 4 kez kelimesi kelimesine
+    // aynı cümleyi döndü; konuşma tıkanıyor ve robotik görünüyor. Prompt kuralı
+    // tek başına yetmedi, burada garanti altına alınır.
+    {
+      const previousAssistant = [...(state?.chat_history || [])]
+        .reverse()
+        .find((m) => m.role === "assistant")?.content;
+      const squash = (v: string) =>
+        v.replace(/[^\p{L}\p{N}]/gu, "").toLocaleLowerCase("tr-TR");
+      if (previousAssistant && squash(previousAssistant) === squash(finalReply)) {
+        const nudge =
+          tone === "siz"
+            ? "\n\nAnlaşamadıysak farklı anlatayım: bana sadece hizmet adını yazmanız yeterli. İsterseniz sizi ekibimize de bağlayabilirim."
+            : "\n\nAnlaşamadıysak farklı anlatayım: bana sadece hizmet adını yazman yeterli. İstersen seni ekibimize de bağlayabilirim.";
+        finalReply = `${finalReply}${nudge}`;
+      }
+    }
+
     // A0 — Critical runtime guardrails (tool/DB evidence required for hard claims)
+    //
+    // Panelde ONAYLANMIŞ bilgi bankası kayıtları da kanıttır: kampanya döndüren
+    // bir tool yok, bu yüzden işletmenin panelde girdiği kampanya bilgisini bot
+    // eskiden asla söyleyemiyor, her seferinde "doğrulamam gerekiyor" diyordu.
+    // Fiyat bilinçli olarak kapsam dışı: tek doğru kaynak `services` tablosu.
+    const guardrailEvidence: ToolEvidence[] = knowledgeEntries.length
+      ? [
+          ...toolEvidence,
+          {
+            name: KNOWLEDGE_EVIDENCE_NAME,
+            ok: true,
+            result: {
+              entries: knowledgeEntries.map((e) => ({
+                category: e.category,
+                title: e.title,
+                body: e.body,
+              })),
+            },
+          },
+        ]
+      : toolEvidence;
+
     const guardrail = applyCriticalGuardrails(finalReply, {
       healthcare: sector.healthcare,
-      toolEvidence,
+      toolEvidence: guardrailEvidence,
       tone,
     });
     if (guardrail.action !== "allow") {
@@ -1488,13 +1585,17 @@ export async function processMessage(
       llm_latency_ms: llmLatencyMs,
     };
 
-    // ── Check for human escalation tag (legacy; LLM artık [[INSAN]] yazmıyor) ──
+    // ── [[INSAN]] etiketi ──
+    // "Artık yazılmıyor" varsayımı yanlıştı: canlı testte model indirim/pazarlık
+    // baskısında hâlâ etiketi üretiyor. Eski davranış cevabın TAMAMINI atıp
+    // "Bu konuda yardımcı olamıyorum" gönderiyordu; modelin yazdığı işe yarar
+    // metin de çöpe gidiyor ve müşteri çıkışsız kalıyordu. Artık etiket
+    // temizlenir, kalan metin korunur ve iletişim bilgisi eklenir.
     if (finalReply.includes(HUMAN_ESCALATION_TAG)) {
-      const softMsg =
-        tone === "siz"
-          ? "Bu konuda yardımcı olamıyorum; randevu, fiyat veya müsaitlik için yazabilirsiniz."
-          : "Bu konuda yardımcı olamıyorum; randevu, fiyat veya müsaitlik için yazabilirsin.";
-      const persisted = await persistAndReply(softMsg);
+      const stripped = finalReply.split(HUMAN_ESCALATION_TAG).join(" ").replace(/\s+/g, " ").trim();
+      const contact = buildHumanEscalationMessage(tenant, tone);
+      const merged = stripped.length >= 15 ? `${stripped}\n\n${contact}` : contact;
+      const persisted = await persistAndReply(merged);
       return { ...persisted, metrics };
     }
 

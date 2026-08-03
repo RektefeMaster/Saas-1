@@ -32,7 +32,7 @@ const FLOW_LABELS: Record<string, string> = {
 };
 
 const FLOW_COLORS: Record<string, string> = {
-  appointment: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900/40 dark:text-cyan-300",
+  appointment: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
   appointment_with_extras: "bg-violet-100 text-violet-800 dark:bg-violet-900/40 dark:text-violet-300",
   order: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300",
   reservation: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-300",
@@ -154,7 +154,7 @@ export default function BusinessTypesListPage() {
           <p className="text-xs font-medium text-slate-500 dark:text-slate-400">
             Akış Türü
           </p>
-          <p className="mt-2 text-2xl font-bold text-cyan-700 dark:text-cyan-300">
+          <p className="mt-2 text-2xl font-bold text-emerald-700 dark:text-emerald-300">
             {uniqueFlows.length}
           </p>
         </article>
@@ -202,7 +202,7 @@ export default function BusinessTypesListPage() {
               placeholder="İsim veya slug ile ara..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-cyan-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-cyan-400"
+              className="w-full rounded-xl border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-700 dark:bg-slate-900 dark:text-slate-100 dark:focus:border-emerald-400"
             />
           </label>
           <label className="inline-flex items-center gap-2 rounded-xl border border-slate-300 px-3 py-2.5 text-sm text-slate-700 dark:border-slate-700 dark:text-slate-300">

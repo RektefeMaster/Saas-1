@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { SiteShell } from "@/components/site/SiteShell";
+import { SiteAtmosphere } from "@/components/site/SiteAtmosphere";
 
 export const metadata: Metadata = {
   title: "Gizlilik Politikası ve KVKK Aydınlatma Metni | Ahi AI",
@@ -24,7 +25,7 @@ function Section({
       <h2 className="site-display text-xl" style={{ color: "var(--ahi-text)" }}>
         {title}
       </h2>
-      <div className="mt-3 space-y-3 text-[15px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
+      <div className="mt-3 space-y-3 text-[16px] leading-8" style={{ color: "var(--ahi-text-2)" }}>
         {children}
       </div>
     </section>
@@ -46,23 +47,35 @@ function LegalLink({ href, children }: { href: string; children: React.ReactNode
 export default function GizlilikPage() {
   return (
     <SiteShell>
-      <main className="mx-auto w-full max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
-        <h1
-          className="site-display text-[clamp(1.9rem,4.5vw,2.75rem)]"
-          style={{ color: "var(--ahi-text)" }}
-        >
-          Gizlilik Politikası ve KVKK Aydınlatma Metni
-        </h1>
-        <p className="site-meta mt-3 text-sm" style={{ color: "var(--ahi-text-3)" }}>
-          Son güncelleme: {LAST_UPDATED}
-        </p>
+      <main>
+        <section className="relative overflow-hidden">
+          <SiteAtmosphere
+            src="/site/trust-secure.jpg"
+            strength="veil"
+            priority
+            mobile="on"
+            position="center"
+          />
+          <div className="relative z-[1] mx-auto w-full max-w-3xl px-4 pb-8 pt-12 sm:px-6 sm:pb-10 sm:pt-16">
+            <h1
+              className="site-display text-[clamp(1.9rem,4.5vw,2.75rem)]"
+              style={{ color: "var(--ahi-text)" }}
+            >
+              Gizlilik Politikası ve KVKK Aydınlatma Metni
+            </h1>
+            <p className="site-meta mt-3 text-sm" style={{ color: "var(--ahi-text-3)" }}>
+              Son güncelleme: {LAST_UPDATED}
+            </p>
+            <p className="mt-6 text-[16px] leading-8" style={{ color: "var(--ahi-text-2)" }}>
+              Ahi AI, işletmelerin WhatsApp üzerinden gelen randevu ve bilgi
+              taleplerini otomatik yanıtlayan bir hizmettir. Bu metin, hizmeti
+              kullanan işletmelerin ve o işletmelere WhatsApp&apos;tan yazan
+              müşterilerin kişisel verilerinin nasıl işlendiğini açıklar.
+            </p>
+          </div>
+        </section>
 
-        <p className="mt-6 text-[15px] leading-relaxed" style={{ color: "var(--ahi-text-2)" }}>
-          Ahi AI, işletmelerin WhatsApp üzerinden gelen randevu ve bilgi
-          taleplerini otomatik yanıtlayan bir hizmettir. Bu metin, hizmeti
-          kullanan işletmelerin ve o işletmelere WhatsApp&apos;tan yazan
-          müşterilerin kişisel verilerinin nasıl işlendiğini açıklar.
-        </p>
+        <div className="mx-auto w-full max-w-3xl px-4 pb-12 sm:px-6 sm:pb-16">
 
         <Section title="1. Veri sorumlusu">
           <p>
@@ -283,6 +296,7 @@ export default function GizlilikPage() {
           Sorularınız için:{" "}
           <LegalLink href={`mailto:${CONTACT_EMAIL}`}>{CONTACT_EMAIL}</LegalLink>
         </p>
+        </div>
       </main>
     </SiteShell>
   );

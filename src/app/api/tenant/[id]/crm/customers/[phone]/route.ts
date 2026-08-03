@@ -140,7 +140,7 @@ export async function GET(
       notes: notes ?? [],
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Musteri detayi alinamadi";
+    const message = err instanceof Error ? err.message : "Müşteri detayı alınamadı";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }
@@ -219,5 +219,5 @@ export async function PATCH(
     return NextResponse.json({ error: result.error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ error: "CRM guncellenemedi" }, { status: 500 });
+  return NextResponse.json({ error: "CRM güncellenemedi" }, { status: 500 });
 }

@@ -18,7 +18,7 @@ export async function GET(
     const snapshot = await getCachedSnapshot();
     return NextResponse.json(snapshot);
   } catch (err) {
-    const message = err instanceof Error ? err.message : "Command center verisi alinamadi";
+    const message = err instanceof Error ? err.message : "Özet verisi alınamadı";
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

@@ -56,6 +56,13 @@ export function fuzzySearch<T>({
  * Tek bir en iyi eşleşme döndürür (match_service benzeri).
  * Eşleşme yoksa veya skor eşiğin üstündeyse null döner.
  */
+/**
+ * Fuse varsayılan olarak eşleşmenin metnin BAŞINA yakınlığını ödüllendirir
+ * (location/distance). Hizmet adlarında ayırt edici kelime sonda olur
+ * ("Lazer Epilasyon - Koltuk Altı"); bu yüzden "koltuk altı lazer epilasyon"
+ * sorgusu ortak öneki taşıyan "Lazer Epilasyon - Bacak" ile eşleşiyordu.
+ * Konum cezasını kaldırmak eşleşmeyi kelime bazlı ve doğru hale getirir.
+ */
 export function fuzzySearchBest<T>(
   list: T[],
   query: string,
@@ -68,6 +75,8 @@ export function fuzzySearchBest<T>(
   const fuse = new Fuse(list, {
     keys: keys as FuseOptionKey<T>[],
     threshold,
+    ignoreLocation: true,
+    minMatchCharLength: 2,
     includeScore: true,
   });
 

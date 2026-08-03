@@ -27,13 +27,16 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "check_customer_package",
-      description: "Müşterinin seçilen hizmet için aktif paketi olup olmadığını kontrol et.",
+      description:
+        "Müşterinin AKTİF paketlerini ve KALAN SEANS sayısını getirir. \"Paketimde kaç seans kaldı?\" sorusunda service_slug OLMADAN çağır; tüm paketleri döner.",
       parameters: {
         type: "object",
         properties: {
-          service_slug: { type: "string", description: "Hizmet slug" },
+          service_slug: {
+            type: "string",
+            description: "Opsiyonel. Verilmezse müşterinin tüm aktif paketleri listelenir.",
+          },
         },
-        required: ["service_slug"],
       },
     },
   },
@@ -89,7 +92,11 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
             type: "string",
             description: "Hizmet slug (match_service sonucundan veya get_services listesinden)",
           },
-          staff_id: { type: "string", description: "Opsiyonel personel ID" },
+          staff_id: {
+            type: "string",
+            description:
+              "Opsiyonel personel. ID bilmiyorsan PERSONELİN ADINI yaz (örn. \"Ahmet Usta\"); sistem eşleştirir.",
+          },
           use_package: {
             type: "boolean",
             description: "Aktif paketten 1 seans düşülerek randevu alınacaksa true gönder.",
@@ -145,15 +152,20 @@ export const TOOLS: OpenAI.Chat.Completions.ChatCompletionTool[] = [
     type: "function",
     function: {
       name: "reschedule_appointment",
-      description: "Mevcut randevuyu iptal edip yeni saate al.",
+      description:
+        "Mevcut randevuyu yeni gün/saate taşır. Müşteri zaten aldığı randevunun saatini değiştirmek istediğinde create_appointment YERİNE bunu kullan.",
       parameters: {
         type: "object",
         properties: {
-          appointment_id: { type: "string" },
+          appointment_id: {
+            type: "string",
+            description:
+              "Opsiyonel. Boş bırakılırsa müşterinin en yakın aktif randevusu taşınır.",
+          },
           new_date: { type: "string", description: "YYYY-MM-DD" },
           new_time: { type: "string", description: "HH:MM" },
         },
-        required: ["appointment_id", "new_date", "new_time"],
+        required: ["new_date", "new_time"],
       },
     },
   },

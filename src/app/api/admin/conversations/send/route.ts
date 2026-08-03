@@ -88,7 +88,7 @@ export async function POST(request: NextRequest) {
     });
     return NextResponse.json(
       {
-        error: sendResult.errorMessage || "WhatsApp gonderimi basarisiz",
+        error: sendResult.errorMessage || "WhatsApp gönderimi başarısız",
         details: sendResult,
         queued_id: queued.id,
       },

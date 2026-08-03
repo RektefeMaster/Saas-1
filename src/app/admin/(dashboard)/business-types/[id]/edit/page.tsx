@@ -211,7 +211,7 @@ export default function EditBusinessTypePage() {
               className="w-full rounded-xl border border-slate-300 bg-white px-4 py-3 font-mono text-sm text-slate-900 placeholder:text-slate-400 focus:border-emerald-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:placeholder-slate-500"
             />
             <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Isletme tipine gore acilacak ozellikleri belirler.
+              İşletme tipine göre açılacak özellikleri belirler.
             </p>
           </div>
         </div>
