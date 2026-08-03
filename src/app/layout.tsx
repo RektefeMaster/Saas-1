@@ -109,16 +109,10 @@ export default function RootLayout({
         className={`${manrope.variable} ${spaceGrotesk.variable} ${bricolage.variable} antialiased`}
       >
         <div id="ahi-boot-intro" style={{ display: "none" }} aria-hidden="true">
-          <div className="ahi-boot-glow" />
           <div className="ahi-boot-mark">
-            <span className="ahi-boot-ring" />
             {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img src="/appicon.png" alt="" width={56} height={56} className="ahi-boot-icon" />
-          </div>
-          <p className="ahi-boot-brand site-display">Ahi AI</p>
-          <p className="ahi-boot-status">Hazırlanıyor</p>
-          <div className="ahi-boot-track">
-            <div className="ahi-boot-bar" />
+            <img src="/appicon.png" alt="" width={28} height={28} className="ahi-boot-icon" />
+            <p className="ahi-boot-brand">Ahi AI</p>
           </div>
         </div>
         <script

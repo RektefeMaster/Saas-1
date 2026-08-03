@@ -2,17 +2,11 @@
 
 import Image from "next/image";
 import { useEffect, useState } from "react";
-import { useLocale } from "@/lib/locale-context";
 
 const SESSION_KEY = "ahi-intro-seen";
-const MIN_MS = 1400;
-const MAX_MS = 2800;
-const EXIT_MS = 480;
-
-const COPY = {
-  tr: { status: "Hazırlanıyor" },
-  en: { status: "Getting ready" },
-} as const;
+const MIN_MS = 900;
+const MAX_MS = 2200;
+const EXIT_MS = 550;
 
 type Visual = "pending" | "boot" | "react";
 type Phase = "show" | "exit" | "done";
@@ -23,13 +17,10 @@ function unlockScroll() {
 }
 
 /**
- * Ana sayfa ilk yüklemesinde markalı intro.
- * Hard refresh’te `#ahi-boot-intro` (layout) anında boyanır;
- * soft navigasyonda React overlay kullanılır.
+ * Ana sayfa ilk yüklemesinde sade marka girişi.
+ * Hard refresh’te `#ahi-boot-intro` boyanır; soft navigasyonda React overlay.
  */
 export function SiteIntro() {
-  const { locale } = useLocale();
-  const t = COPY[locale];
   const [visual, setVisual] = useState<Visual>("pending");
   const [phase, setPhase] = useState<Phase>("show");
 
@@ -43,15 +34,6 @@ export function SiteIntro() {
     if (boot) {
       document.documentElement.style.overflow = "hidden";
       document.body.style.overflow = "hidden";
-      const statusEl = boot.querySelector(".ahi-boot-status");
-      if (statusEl) {
-        const stored =
-          typeof window !== "undefined"
-            ? window.localStorage.getItem("ahi-ai-locale")
-            : null;
-        statusEl.textContent =
-          stored === "en" ? COPY.en.status : COPY.tr.status;
-      }
     }
 
     const finish = () => {
@@ -87,8 +69,8 @@ export function SiteIntro() {
       skipLong = false;
     }
 
-    const minWait = skipLong ? 320 : MIN_MS;
-    const maxWait = skipLong ? 700 : MAX_MS;
+    const minWait = skipLong ? 240 : MIN_MS;
+    const maxWait = skipLong ? 500 : MAX_MS;
 
     const run = async () => {
       await Promise.race([
@@ -128,25 +110,19 @@ export function SiteIntro() {
       role="status"
       aria-live="polite"
       aria-busy={phase === "show"}
-      aria-label={t.status}
+      aria-label="Ahi AI"
     >
-      <div className="site-intro__glow" aria-hidden />
       <div className="site-intro__mark">
-        <span className="site-intro__ring" aria-hidden />
         <Image
           src="/appicon.png"
           alt=""
-          width={56}
-          height={56}
-          sizes="56px"
+          width={28}
+          height={28}
+          sizes="28px"
           priority
           className="site-intro__icon"
         />
-      </div>
-      <p className="site-intro__brand site-display">Ahi AI</p>
-      <p className="site-intro__status">{t.status}</p>
-      <div className="site-intro__track" aria-hidden>
-        <div className="site-intro__bar" />
+        <p className="site-intro__brand">Ahi AI</p>
       </div>
     </div>
   );

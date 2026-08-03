@@ -455,45 +455,15 @@ body.site-menu-open {
   -webkit-tap-highlight-color: transparent;
 }
 
-/* —— Ana sayfa intro (boot + React) —— */
-@keyframes site-intro-in {
+/* —— Ana sayfa intro: yalnızca marka, loader yok —— */
+@keyframes site-intro-mark {
   from {
     opacity: 0;
-    transform: translateY(8px) scale(0.96);
+    transform: translateY(6px);
   }
   to {
     opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes site-intro-bar {
-  0% {
-    transform: scaleX(0.08);
-    opacity: 0.55;
-  }
-  55% {
-    transform: scaleX(0.72);
-    opacity: 1;
-  }
-  100% {
-    transform: scaleX(1);
-    opacity: 1;
-  }
-}
-
-@keyframes site-intro-ring {
-  0% {
-    transform: scale(0.85);
-    opacity: 0.5;
-  }
-  70% {
-    transform: scale(1.35);
-    opacity: 0;
-  }
-  100% {
-    transform: scale(1.35);
-    opacity: 0;
+    transform: translateY(0);
   }
 }
 
@@ -503,135 +473,52 @@ body.site-menu-open {
   inset: 0;
   z-index: 9999;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 0.75rem;
   background: var(--ahi-paper, #f8fafc);
   color: var(--ahi-text, #0f172a);
-  transition:
-    opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1),
-    visibility 0.48s;
+  transition: opacity 0.55s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .site-intro--exit,
 #ahi-boot-intro.ahi-boot-exit {
   opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-}
-
-.site-intro__glow,
-#ahi-boot-intro .ahi-boot-glow {
-  position: absolute;
-  width: min(28rem, 80vw);
-  height: min(28rem, 80vw);
-  border-radius: 9999px;
-  background: radial-gradient(
-    circle,
-    color-mix(in oklab, var(--ahi-brand, #059669) 22%, transparent) 0%,
-    transparent 68%
-  );
   pointer-events: none;
 }
 
 .site-intro__mark,
 #ahi-boot-intro .ahi-boot-mark {
-  position: relative;
-  display: grid;
-  place-items: center;
-  width: 4.5rem;
-  height: 4.5rem;
-  animation: site-intro-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
-}
-
-.site-intro__ring,
-#ahi-boot-intro .ahi-boot-ring {
-  position: absolute;
-  inset: -6px;
-  border-radius: 1.15rem;
-  border: 1.5px solid color-mix(in oklab, var(--ahi-brand, #059669) 45%, transparent);
-  animation: site-intro-ring 1.8s cubic-bezier(0.22, 1, 0.36, 1) infinite;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.7rem;
+  animation: site-intro-mark 0.7s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .site-intro__icon,
 #ahi-boot-intro .ahi-boot-icon {
-  position: relative;
-  z-index: 1;
-  width: 3.5rem;
-  height: 3.5rem;
-  border-radius: 0.9rem;
+  width: 1.75rem;
+  height: 1.75rem;
+  border-radius: 0.4rem;
   object-fit: cover;
-  box-shadow: 0 8px 28px color-mix(in oklab, var(--ahi-brand, #059669) 18%, transparent);
 }
 
 .site-intro__brand,
 #ahi-boot-intro .ahi-boot-brand {
-  position: relative;
-  margin: 0.35rem 0 0;
-  font-size: clamp(1.65rem, 4vw, 2rem);
-  animation: site-intro-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.08s both;
-}
-
-.site-intro__status,
-#ahi-boot-intro .ahi-boot-status {
-  position: relative;
   margin: 0;
-  font-size: 0.8125rem;
-  font-weight: 500;
-  letter-spacing: 0.01em;
-  color: var(--ahi-text-3, #64748b);
-  animation: site-intro-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.14s both;
-}
-
-.site-intro__track,
-#ahi-boot-intro .ahi-boot-track {
-  position: relative;
-  margin-top: 0.85rem;
-  width: 7.5rem;
-  height: 2px;
-  overflow: hidden;
-  border-radius: 9999px;
-  background: color-mix(in oklab, var(--ahi-brand, #059669) 16%, transparent);
-  animation: site-intro-in 0.55s cubic-bezier(0.22, 1, 0.36, 1) 0.2s both;
-}
-
-.site-intro__bar,
-#ahi-boot-intro .ahi-boot-bar {
-  height: 100%;
-  width: 100%;
-  transform-origin: left center;
-  border-radius: inherit;
-  background: linear-gradient(
-    90deg,
-    var(--ahi-brand, #059669),
-    var(--ahi-brand-lift, #10b981)
-  );
-  animation: site-intro-bar 1.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+  font-size: clamp(1.35rem, 3.2vw, 1.6rem);
+  font-family: var(--font-bricolage), var(--font-manrope), ui-sans-serif, system-ui, sans-serif;
+  font-weight: 650;
+  letter-spacing: -0.028em;
+  line-height: 1;
+  color: var(--ahi-text, #0f172a);
 }
 
 @media (prefers-reduced-motion: reduce) {
   .site-intro__mark,
-  .site-intro__brand,
-  .site-intro__status,
-  .site-intro__track,
-  #ahi-boot-intro .ahi-boot-mark,
-  #ahi-boot-intro .ahi-boot-brand,
-  #ahi-boot-intro .ahi-boot-status,
-  #ahi-boot-intro .ahi-boot-track {
+  #ahi-boot-intro .ahi-boot-mark {
     animation: none;
     opacity: 1;
     transform: none;
-  }
-  .site-intro__ring,
-  #ahi-boot-intro .ahi-boot-ring {
-    animation: none;
-    opacity: 0;
-  }
-  .site-intro__bar,
-  #ahi-boot-intro .ahi-boot-bar {
-    animation: none;
-    transform: scaleX(1);
   }
   .site-intro,
   #ahi-boot-intro {
