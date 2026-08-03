@@ -87,7 +87,7 @@ export async function POST(
     const to = conversation.external_user_id.startsWith("+")
       ? conversation.external_user_id
       : `+${conversation.external_user_id}`;
-    const sendResult = await sendWhatsAppMessageDetailed({ to, text });
+    const sendResult = await sendWhatsAppMessageDetailed({ to, text, tenantId });
 
     if (!sendResult.ok) {
       await markOutboundFailed({

@@ -89,7 +89,8 @@ export async function POST(
         );
         const delivery = await sendCustomerNotification(
           apt.customer_phone,
-          reasonText ? `${body}${reasonText}` : body
+          reasonText ? `${body}${reasonText}` : body,
+          tenantId
         );
         return delivery.whatsapp || delivery.sms ? 1 : 0;
       })

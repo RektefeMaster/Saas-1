@@ -43,8 +43,12 @@ function buildReminderText(
   return /iptal/i.test(body) ? body : `${body} ${CANCEL_HINT}`;
 }
 
-async function sendReminder(to: string, text: string): Promise<boolean> {
-  const delivery = await sendCustomerNotification(to, text);
+async function sendReminder(
+  to: string,
+  text: string,
+  tenantId: string
+): Promise<boolean> {
+  const delivery = await sendCustomerNotification(to, text, tenantId);
   return delivery.whatsapp || delivery.sms;
 }
 
@@ -126,7 +130,7 @@ export async function GET(request: NextRequest) {
           timeStr,
           tenantName
         );
-        const ok = await sendReminder(apt.customer_phone, reminderText);
+        const ok = await sendReminder(apt.customer_phone, reminderText, apt.tenant_id);
         if (!ok) {
           await clearAppointmentExtraFlag(apt.id, extra, "reminder_2h_sent_at");
           return false;
@@ -161,7 +165,7 @@ export async function GET(request: NextRequest) {
 
     const { data: crmReminders } = await supabase
       .from("crm_reminders")
-      .select("id, customer_phone, title, note, channel")
+      .select("id, tenant_id, customer_phone, title, note, channel")
       .eq("status", "pending")
       .lte("remind_at", new Date().toISOString())
       .in("channel", ["whatsapp", "both"])
@@ -181,7 +185,11 @@ export async function GET(request: NextRequest) {
       if (claimErr || !claimed) continue;
 
       const text = `Hatırlatma: ${reminder.title}${reminder.note ? `\n${reminder.note}` : ""}`;
-      const delivery = await sendCustomerNotification(reminder.customer_phone, text);
+      const delivery = await sendCustomerNotification(
+        reminder.customer_phone,
+        text,
+        reminder.tenant_id
+      );
       if (!delivery.whatsapp && !delivery.sms) {
         await supabase
           .from("crm_reminders")

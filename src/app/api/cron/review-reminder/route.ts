@@ -206,12 +206,14 @@ export async function GET(request: NextRequest) {
           bodyText: listBody.slice(0, 1000),
           buttonLabel: "Puan ver",
           sections: REVIEW_LIST_SECTIONS,
+          tenantId: apt.tenant_id,
         });
         let ok = result.ok;
         if (!ok) {
           const fallback = await sendCustomerNotification(
             apt.customer_phone,
-            fallbackText
+            fallbackText,
+            apt.tenant_id
           );
           if (fallback.whatsapp || fallback.sms) ok = true;
         }

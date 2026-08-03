@@ -192,6 +192,7 @@ export async function processDueFollowUps(limit = 50): Promise<number> {
       const result = await sendWhatsAppTemplateMessageDetailed({
         to,
         templateName: job.template_name,
+        tenantId: job.tenant_id,
       });
       ok = result.ok;
     } else {
@@ -219,6 +220,7 @@ export async function processDueFollowUps(limit = 50): Promise<number> {
       const result = await sendWhatsAppMessageDetailed({
         to,
         text: "Merhaba, önceki görüşmemize devam etmek ister misiniz?",
+        tenantId: job.tenant_id,
       });
       ok = result.ok;
     }

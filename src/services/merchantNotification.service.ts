@@ -101,6 +101,9 @@ async function notifyTargets(
   const targets = excludeCustomerPhone(loaded.targets, customerPhone);
   await Promise.all(
     targets.map(async (target) => {
+      // İşletme sahibi/personel bildirimi: bilerek ortak numaradan. İşletmenin
+      // kendi numarası bağlıysa oradan göndermek, numaranın kendi kendine
+      // mesaj atması riskini doğurur. Bu bir platform bildirimidir.
       const delivery = await sendCustomerNotification(target.phone, text);
       if (!delivery.whatsapp && !delivery.sms) {
         console.warn("[merchant notify] delivery failed", {

@@ -2,11 +2,13 @@ import { processMessage } from "@/lib/bot-v1/conversation";
 import { supabase } from "@/lib/supabase";
 import {
   downloadWhatsAppMedia,
+  sendWhatsAppInteractiveList,
   sendWhatsAppMessage,
   sendWhatsAppMessageDetailed,
   sendWhatsAppTemplateMessageDetailed,
   type WhatsAppSendResult,
 } from "@/lib/whatsapp";
+import { resolveTenantByChannelAccount } from "@/services/tenantChannelAccount.service";
 import { isMetaSampleWhatsAppInbound } from "@/lib/bot-v1/meta-sample-webhook";
 import {
   acquireBotProcessingLock,
@@ -17,12 +19,20 @@ import {
   getTenantIdByPhone,
   markWebhookMessageProcessed,
   releaseBotProcessingLock,
+  setPendingIntent,
   setPhoneTenantMapping,
   setSession,
   storeTemporaryEncryptedMedia,
+  takePendingIntent,
 } from "@/lib/redis";
 import { enforceRateLimit } from "@/middleware/rateLimit.middleware";
-import { logTenantSwitch, resolveTenantRouting } from "@/lib/tenant-routing";
+import {
+  logTenantSwitch,
+  resolveTenantRouting,
+  type RoutingReason,
+  type TenantCandidate,
+} from "@/lib/tenant-routing";
+import { sanitizeIncomingCustomerMessage } from "@/lib/tenant-code";
 import { transcribeVoiceMessage } from "@/lib/stt";
 import { stripZeroWidthMarkers } from "@/lib/zero-width";
 import { isLiveHumanTakeoverReason } from "@/lib/human-takeover";
@@ -74,6 +84,23 @@ function digitsOnly(value: string | null | undefined): string {
 function normalizeIncomingText(raw: string): string {
   const cleaned = stripZeroWidthMarkers(raw || "").replace(/[\uFEFF]/g, "");
   return cleaned.replace(/\s+/g, " ").trim();
+}
+
+/**
+ * "Hangi işletme?" listesindeki satır kimliği. Müşteri listeden seçtiğinde
+ * mesaj metni işletme ADI olur — ki o zaten belirsizdir. Seçimin kendisi bu
+ * önekle satır kimliğinde taşınır.
+ */
+const TENANT_PICK_PREFIX = "tenant_pick:";
+
+function extractTenantPickCode(msg: IncomingMessage): string | null {
+  const id = (
+    msg.interactive?.list_reply?.id ||
+    msg.interactive?.button_reply?.id ||
+    ""
+  ).trim();
+  if (!id.startsWith(TENANT_PICK_PREFIX)) return null;
+  return id.slice(TENANT_PICK_PREFIX.length).trim() || null;
 }
 
 function extractMessageText(msg: IncomingMessage): string {
@@ -151,12 +178,75 @@ async function resolveDefaultTenant(): Promise<string | null> {
   return null;
 }
 
-async function sendWindowRecoveryTemplate(to: string): Promise<WhatsAppSendResult> {
+async function sendWindowRecoveryTemplate(
+  to: string,
+  tenantId: string | null
+): Promise<WhatsAppSendResult> {
   return sendWhatsAppTemplateMessageDetailed({
     to,
     templateName: WHATSAPP_RESUME_TEMPLATE_NAME,
     languageCode: "tr",
+    tenantId,
   });
+}
+
+/**
+ * İsim eşleşmesi birden fazla işletmeye yakın puan verdiğinde müşteriye sorar.
+ * Satır kimliği tenant kodunu taşır; böylece cevap tahmine değil seçime dayanır.
+ */
+async function askWhichTenant(input: {
+  customerPhone: string;
+  candidates: TenantCandidate[];
+  tenantId: string | null;
+}): Promise<string> {
+  const rows = input.candidates
+    .filter((c) => c.tenantCode)
+    .map((c) => ({
+      id: `${TENANT_PICK_PREFIX}${c.tenantCode}`,
+      title: c.name,
+      // Adlar birebir aynı olabilir ve WhatsApp başlığı 24 karaktere kırpar;
+      // işletmenin telefonu iki satırı ayırt edilebilir kılan tek bilgidir.
+      ...(c.contactPhone ? { description: c.contactPhone } : {}),
+    }));
+
+  const bodyText =
+    "Aynı isimde birden fazla işletme var. Hangisini kastettiğinizi seçer misiniz?";
+
+  // Tenant kodu olmayan kayıt seçilemez; listede en az iki seçenek şart.
+  if (rows.length < 2) {
+    const fallback =
+      "Birden fazla işletme eşleşti. İşletmenin tam adını yazar mısınız?";
+    await sendWhatsAppMessage({
+      to: input.customerPhone,
+      text: fallback,
+      tenantId: input.tenantId,
+    });
+    return fallback;
+  }
+
+  const result = await sendWhatsAppInteractiveList({
+    to: input.customerPhone,
+    bodyText,
+    buttonLabel: "İşletme seç",
+    sections: [{ rows }],
+    tenantId: input.tenantId,
+  });
+
+  if (!result.ok) {
+    // Etkileşimli liste gönderilemezse düz metne düş: müşteri cevapsız kalmasın.
+    const numbered = input.candidates
+      .map((c, i) => `${i + 1}. ${c.name}${c.contactPhone ? ` (${c.contactPhone})` : ""}`)
+      .join("\n");
+    const fallback = `${bodyText}\n${numbered}\n\nİşletmenin tam adını yazabilirsiniz.`;
+    await sendWhatsAppMessage({
+      to: input.customerPhone,
+      text: fallback,
+      tenantId: input.tenantId,
+    });
+    return fallback;
+  }
+
+  return bodyText;
 }
 
 function isPermanentWhatsAppSendFailure(result: WhatsAppSendResult | null): boolean {
@@ -384,11 +474,25 @@ async function processClaimedWhatsAppInboundEvent(
       return;
     }
 
+    // Mesajın ULAŞTIĞI numaradan tenant çözümü — tahmin değil, kesin bilgi.
+    // Ortak numarada kayıt yoktur (null döner) ve içerikten yönlendirmeye devam
+    // edilir. İşletme kendi numarasını bağladığında bu yol devreye girer ve
+    // isim/oturum tahminleri hiç çalışmaz.
+    const boundAccount = await resolveTenantByChannelAccount(
+      "whatsapp",
+      event.value?.metadata?.phone_number_id
+    ).catch(() => null);
+    const boundTenantId = boundAccount?.tenantId ?? null;
+    // Gönderim ve medya indirme bu kimlikle yapılır; yönlendirme sonrası
+    // çözülen tenant ile güncellenir.
+    let channelTenantId: string | null = boundTenantId;
+
     const killSwitch = await getGlobalKillSwitch();
     if (killSwitch.enabled) {
       await sendWhatsAppMessage({
         to: customerPhone,
         text: WHATSAPP_KILL_SWITCH_MESSAGE,
+        tenantId: channelTenantId,
       });
       await logOutbound({
         text: WHATSAPP_KILL_SWITCH_MESSAGE,
@@ -416,6 +520,7 @@ async function processClaimedWhatsAppInboundEvent(
       await sendWhatsAppMessage({
         to: customerPhone,
         text: rateLimitResult.message,
+        tenantId: channelTenantId,
       });
       // Rate limit artık medya işlemeden önce çalıştığı için mesaj metnini
       // henüz bilmiyoruz; yine de temasın kaydı düşsün (panelde boşluk olmasın).
@@ -446,6 +551,7 @@ async function processClaimedWhatsAppInboundEvent(
         await sendWhatsAppMessage({
           to: customerPhone,
           text: "Sesli mesajı çözemedim. Lütfen tekrar deneyin veya metin yazın.",
+          tenantId: channelTenantId,
         });
         await logInbound({ text: null, stage: "audio_missing_media_id", messageType: "audio" });
         await logOutbound({
@@ -454,11 +560,12 @@ async function processClaimedWhatsAppInboundEvent(
         });
         return;
       }
-      const media = await downloadWhatsAppMedia(mediaId);
+      const media = await downloadWhatsAppMedia(mediaId, channelTenantId);
       if (!media) {
         await sendWhatsAppMessage({
           to: customerPhone,
           text: "Ses dosyası alınamadı. Lütfen tekrar deneyin veya metin yazın.",
+          tenantId: channelTenantId,
         });
         await logInbound({ text: null, stage: "audio_media_download_failed", messageType: "audio" });
         await logOutbound({
@@ -481,6 +588,7 @@ async function processClaimedWhatsAppInboundEvent(
         await sendWhatsAppMessage({
           to: customerPhone,
           text: "Sesli mesajı anlayamadım. Kısa bir metinle yazabilir misiniz?",
+          tenantId: channelTenantId,
         });
         await logInbound({ text: null, stage: "audio_transcribe_failed", messageType: "audio" });
         await logOutbound({
@@ -494,7 +602,7 @@ async function processClaimedWhatsAppInboundEvent(
       const askForText = async (stage: string) => {
         const text =
           "Görseli şu an okuyamadım. Ne istediğini kısa bir metinle yazar mısın?";
-        await sendWhatsAppMessage({ to: customerPhone, text });
+        await sendWhatsAppMessage({ to: customerPhone, text, tenantId: channelTenantId });
         await logInbound({ text: null, stage, messageType: "image" });
         await logOutbound({ text, stage: `${stage}_reply` });
         void logBotMessageAudit({
@@ -518,7 +626,7 @@ async function processClaimedWhatsAppInboundEvent(
         await askForText("image_missing_media_id");
         return;
       }
-      const imageMedia = await downloadWhatsAppMedia(imageMediaId);
+      const imageMedia = await downloadWhatsAppMedia(imageMediaId, channelTenantId);
       if (!imageMedia) {
         await askForText("image_media_download_failed");
         return;
@@ -562,6 +670,7 @@ async function processClaimedWhatsAppInboundEvent(
         await sendWhatsAppMessage({
           to: customerPhone,
           text: "Şu an metin ve sesli mesajları destekliyorum. Lütfen metin veya sesli mesaj gönderin.",
+          tenantId: channelTenantId,
         });
         await logOutbound({
           text: "Şu an metin ve sesli mesajları destekliyorum. Lütfen metin veya sesli mesaj gönderin.",
@@ -591,24 +700,78 @@ async function processClaimedWhatsAppInboundEvent(
 
     const previousTenantId = await getTenantIdByPhone(customerPhone);
     let tenantId: string | null = null;
-    let routingReason: "marker" | "name" | "session" | "customer_history" | "nlp" | "default" | "none" =
-      "none";
+    let routingReason: RoutingReason = "none";
     let tenantCode: string | null = null;
     let intentDomain: "haircare" | "carcare" | null = null;
 
     const extractedEntities = extractSafeEntities(rawText);
     const maskedMessage = maskSensitivePII(rawText);
 
-    const routing = await resolveTenantRouting({
-      customerPhone,
-      rawMessage: maskedMessage,
-      previousTenantId,
-    });
-    tenantId = routing.tenantId;
-    routingReason = routing.reason;
-    tenantCode = routing.tenantCode;
-    intentDomain = routing.intentDomain;
-    const normalizedText = normalizeIncomingText(routing.normalizedMessage || maskedMessage);
+    let normalizedText: string;
+
+    if (boundTenantId) {
+      // İşletmenin kendi numarası: mesaj zaten doğru adrese geldi.
+      tenantId = boundTenantId;
+      routingReason = "channel_account";
+      // Yönlendirmeye gerek yok ama temizlik yine de şart: QR/link ile gelen
+      // "Kod: AHMET01" / "#AHMET01" işaretleri modele gitmemeli.
+      normalizedText = normalizeIncomingText(
+        sanitizeIncomingCustomerMessage(maskedMessage) || maskedMessage
+      );
+    } else {
+      const pickedTenantCode = extractTenantPickCode(event.message);
+      const routing = await resolveTenantRouting({
+        customerPhone,
+        rawMessage: maskedMessage,
+        previousTenantId,
+        tenantCodeHint: pickedTenantCode,
+      });
+      tenantId = routing.tenantId;
+      routingReason = routing.reason;
+      tenantCode = routing.tenantCode;
+      intentDomain = routing.intentDomain;
+      normalizedText = normalizeIncomingText(routing.normalizedMessage || maskedMessage);
+
+      // Müşteri listeden seçtiğinde WhatsApp bize yalnızca işletme adını
+      // gönderir. Asıl niyet ("yarın 3'e randevu") soru sorulurken saklanmıştı;
+      // geri yükle ki müşteri kendini tekrar etmek zorunda kalmasın.
+      if (pickedTenantCode && tenantId) {
+        const pending = await takePendingIntent(customerPhone).catch(() => null);
+        const restored = normalizeIncomingText(pending || "");
+        if (restored) normalizedText = restored;
+      }
+
+      // Benzer isimli birden fazla işletme eşleşti. Tahmin etmek, başka bir
+      // işletmenin müşteri konuşmasını sızdırma riski taşır — sor ve bekle.
+      if (routing.reason === "ambiguous" && routing.candidates?.length) {
+        // Seçim geldiğinde geri yüklenmek üzere asıl mesajı sakla.
+        await setPendingIntent(customerPhone, normalizedText).catch(() => undefined);
+        const askedText = await askWhichTenant({
+          customerPhone,
+          candidates: routing.candidates,
+          tenantId: channelTenantId,
+        });
+        await logOutbound({
+          tenantId: null,
+          text: askedText,
+          stage: "tenant_ambiguous_asked",
+          metadata: {
+            candidate_ids: routing.candidates.map((c) => c.id),
+            candidate_count: routing.candidates.length,
+          },
+        });
+        void logBotMessageAudit({
+          traceId,
+          tenantId: null,
+          customerPhone,
+          direction: "outbound",
+          stage: "tenant_ambiguous_asked",
+          policyReason: "ambiguous_name_match",
+          messageId,
+        }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
+        return;
+      }
+    }
 
     if (!tenantId) {
       const defaultTenantId = await resolveDefaultTenant();
@@ -623,6 +786,7 @@ async function processClaimedWhatsAppInboundEvent(
         to: customerPhone,
         text:
           "Mesajınızı aldım. Hangi işletme için randevu almak istediğinizi anlayamadım. Lütfen işletme adını yazın (örn: Kuaför Ahmet).",
+        tenantId: channelTenantId,
       });
       await logOutbound({
         tenantId: null,
@@ -640,6 +804,10 @@ async function processClaimedWhatsAppInboundEvent(
       }).catch((err) => console.error("[whatsapp-worker] audit log failed", err));
       return;
     }
+
+    // Tenant belli: bundan sonraki gönderimler işletmenin kendi numarası
+    // varsa oradan, yoksa ortak numaradan yapılır.
+    channelTenantId = tenantId;
 
     const hasTenantSwitched = Boolean(previousTenantId && previousTenantId !== tenantId);
     const isFirstTenantBinding = Boolean(!previousTenantId && tenantId);
@@ -851,7 +1019,11 @@ async function processClaimedWhatsAppInboundEvent(
       sessionForProcessing = updatedState;
     }
 
-    if ((hasTenantSwitched || isFirstTenantBinding) && routingReason !== "none") {
+    if (
+      (hasTenantSwitched || isFirstTenantBinding) &&
+      routingReason !== "none" &&
+      routingReason !== "ambiguous"
+    ) {
       await logTenantSwitch({
         customerPhone,
         previousTenantId,
@@ -867,6 +1039,7 @@ async function processClaimedWhatsAppInboundEvent(
       await sendWhatsAppMessage({
         to: customerPhone,
         text: "Mesajın boş görünüyor. Kısa bir metinle tekrar yazabilir misin?",
+        tenantId: channelTenantId,
       });
       await logOutbound({
         tenantId,
@@ -880,6 +1053,7 @@ async function processClaimedWhatsAppInboundEvent(
       await sendWhatsAppMessageDetailed({
         to: customerPhone,
         text: "Mesajını aldım, hemen kontrol ediyorum.",
+        tenantId: channelTenantId,
       });
       await logOutbound({
         text: "Mesajını aldım, hemen kontrol ediyorum.",
@@ -928,6 +1102,7 @@ async function processClaimedWhatsAppInboundEvent(
     sendResult = await sendWhatsAppMessageDetailed({
       to: customerPhone,
       text: safeReply,
+      tenantId: channelTenantId,
     });
     if (outboundQueued && conversation?.id) {
       try {
@@ -970,7 +1145,10 @@ async function processClaimedWhatsAppInboundEvent(
       const skipTemplate = isPermanentWhatsAppSendFailure(sendResult);
 
       if (closedWindow && !skipTemplate) {
-        const templateResult = await sendWindowRecoveryTemplate(customerPhone);
+        const templateResult = await sendWindowRecoveryTemplate(
+          customerPhone,
+          channelTenantId
+        );
         if (templateResult.ok) {
           sendStage = "template_recovery_sent";
         } else {

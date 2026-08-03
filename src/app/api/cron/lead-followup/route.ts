@@ -73,6 +73,7 @@ export async function GET(request: NextRequest) {
       const result = await sendWhatsAppMessageDetailed({
         to: candidate.customer_phone,
         text,
+        tenantId: tenant.id,
       });
       // 24 saatlik pencere kapalıysa serbest metin gitmez; sessizce geç.
       if (result.ok) {

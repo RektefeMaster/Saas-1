@@ -192,12 +192,17 @@ export async function POST(
                   templateName: CAMPAIGN_TEMPLATE,
                   languageCode: TEMPLATE_LANG,
                   bodyParams: [campaignText],
+                  tenantId,
                 });
                 return ok
                   ? ({ ok: true } as const)
                   : ({ ok: false, error: "Şablon mesajı gönderilemedi" } as const);
               }
-              const res = await sendWhatsAppMessageDetailed({ to, text: campaignText });
+              const res = await sendWhatsAppMessageDetailed({
+                to,
+                text: campaignText,
+                tenantId,
+              });
               return res.ok
                 ? ({ ok: true } as const)
                 : ({
@@ -205,7 +210,7 @@ export async function POST(
                     error: res.errorMessage || `HTTP ${res.status}`,
                   } as const);
             }
-            const delivery = await sendCustomerNotification(to, campaignText);
+            const delivery = await sendCustomerNotification(to, campaignText, tenantId);
             return delivery.whatsapp || delivery.sms
               ? ({ ok: true } as const)
               : ({ ok: false, error: "Bildirim gönderilemedi" } as const);

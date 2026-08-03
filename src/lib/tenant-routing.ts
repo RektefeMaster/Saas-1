@@ -12,6 +12,10 @@ export type RoutingReason =
   | "customer_history"
   | "nlp"
   | "default"
+  /** Mesajın ulaştığı kanal hesabından çözüldü — tahmin yok. */
+  | "channel_account"
+  /** Birden fazla benzer isimli işletme eşleşti; müşteriye soruldu. */
+  | "ambiguous"
   | "none";
 
 export type IntentDomain = "haircare" | "carcare";
@@ -32,6 +36,24 @@ interface RoutingInput {
   customerPhone: string;
   rawMessage: string;
   previousTenantId: string | null;
+  /**
+   * Müşteri "hangi işletme?" sorusuna listeden seçerek cevap verdiyse, seçilen
+   * işletmenin kodu. Mesaj metninden çıkarılamaz (metin işletme adıdır ve zaten
+   * belirsizdir), bu yüzden ayrı taşınır ve marker ile aynı önceliği alır.
+   */
+  tenantCodeHint?: string | null;
+}
+
+export interface TenantCandidate {
+  id: string;
+  name: string;
+  tenantCode: string | null;
+  /**
+   * İşletmenin kendi telefonu. Adlar birebir aynı olduğunda listede tek ayırt
+   * edici bilgi budur; WhatsApp satır başlığını 24 karaktere kırptığı için
+   * yalnızca isim göstermek iki satırı ayırt edilemez hale getirebilir.
+   */
+  contactPhone: string | null;
 }
 
 export interface RoutingDecision {
@@ -41,13 +63,19 @@ export interface RoutingDecision {
   normalizedMessage: string;
   intentDomain: IntentDomain | null;
   tenantCode: string | null;
+  /**
+   * reason === "ambiguous" olduğunda birbirine yakın puan alan işletmeler.
+   * Çağıran taraf tahmin etmek yerine müşteriye sormalıdır.
+   */
+  candidates?: TenantCandidate[];
 }
 
 export interface TenantSwitchLogInput {
   customerPhone: string;
   previousTenantId: string | null;
   nextTenantId: string;
-  switchReason: Exclude<RoutingReason, "none">;
+  // "ambiguous" hiç tenant seçmez, dolayısıyla bir geçiş de üretmez.
+  switchReason: Exclude<RoutingReason, "none" | "ambiguous">;
   intentDomain?: IntentDomain | null;
   tenantCode?: string | null;
   messagePreview?: string;
@@ -83,8 +111,23 @@ let switchLogSchemaAvailable: boolean | null = null;
 const TENANT_NAME_LIST_TTL_MS = 5 * 60 * 1000;
 let tenantNameListCache: {
   expiry: number;
-  rows: Array<{ id: string; name: string; status: string | null }>;
+  rows: Array<{
+    id: string;
+    name: string;
+    status: string | null;
+    tenantCode: string | null;
+    contactPhone: string | null;
+  }>;
 } | null = null;
+
+/**
+ * İsim eşleşmesinde ikinci adayın puanı birincinin bu oranına ulaşırsa karar
+ * "belirsiz" sayılır. Yanlış işletmeye yönlendirmek, bir soru sormaktan çok
+ * daha pahalıdır: başka bir işletmenin müşteri konuşması sızar.
+ */
+const AMBIGUITY_SCORE_RATIO = 0.9;
+/** Müşteriye sorarken gösterilecek en fazla aday sayısı. */
+const MAX_AMBIGUOUS_CANDIDATES = 5;
 
 const BOOKING_STOPWORDS = new Set([
   "randevu",
@@ -207,7 +250,13 @@ function looksLikeBusinessNameMention(message: string): boolean {
 }
 
 async function getCachedTenantNameRows(): Promise<
-  Array<{ id: string; name: string; status: string | null }>
+  Array<{
+    id: string;
+    name: string;
+    status: string | null;
+    tenantCode: string | null;
+    contactPhone: string | null;
+  }>
 > {
   if (tenantNameListCache && tenantNameListCache.expiry > Date.now()) {
     return tenantNameListCache.rows;
@@ -215,7 +264,7 @@ async function getCachedTenantNameRows(): Promise<
 
   const { data, error } = await supabase
     .from("tenants")
-    .select("id, name, status")
+    .select("id, name, status, tenant_code, contact_phone")
     .is("deleted_at", null)
     .limit(800);
 
@@ -223,11 +272,22 @@ async function getCachedTenantNameRows(): Promise<
     return tenantNameListCache?.rows || [];
   }
 
-  const rows = data.map((t) => ({
-    id: t.id,
-    name: t.name,
-    status: t.status ?? null,
-  }));
+  const rows = data.map((t) => {
+    const row = t as {
+      id: string;
+      name: string;
+      status?: string | null;
+      tenant_code?: string | null;
+      contact_phone?: string | null;
+    };
+    return {
+      id: row.id,
+      name: row.name,
+      status: row.status ?? null,
+      tenantCode: row.tenant_code ?? null,
+      contactPhone: row.contact_phone ?? null,
+    };
+  });
   tenantNameListCache = {
     rows,
     expiry: Date.now() + TENANT_NAME_LIST_TTL_MS,
@@ -235,33 +295,75 @@ async function getCachedTenantNameRows(): Promise<
   return rows;
 }
 
-async function getTenantSummaryByNameMention(message: string): Promise<TenantSummary | null> {
+type NameMatchResult =
+  | { kind: "none" }
+  | { kind: "match"; tenant: TenantSummary }
+  | { kind: "ambiguous"; candidates: TenantCandidate[] };
+
+/**
+ * Mesajda geçen işletme adını eşleştirir.
+ *
+ * Eskiden en yüksek puanlı aday sessizce seçiliyordu; puanlar birbirine yakın
+ * olduğunda (aynı/benzer isimli iki işletme) bu, konuşmanın yanlış işletmeye
+ * düşmesi demekti. Artık yakın puanlı adaylar "belirsiz" olarak döner ve karar
+ * müşteriye sorulur.
+ */
+async function matchTenantByNameMention(message: string): Promise<NameMatchResult> {
   const canonicalMessage = canonicalize(message);
-  if (!canonicalMessage || canonicalMessage.length < 3) return null;
-  if (!looksLikeBusinessNameMention(message)) return null;
+  if (!canonicalMessage || canonicalMessage.length < 3) return { kind: "none" };
+  if (!looksLikeBusinessNameMention(message)) return { kind: "none" };
 
   const data = await getCachedTenantNameRows();
-  if (data.length === 0) return null;
+  if (data.length === 0) return { kind: "none" };
 
-  let best: TenantSummary | null = null;
-  let bestScore = 0;
+  const scored: Array<{
+    id: string;
+    name: string;
+    status: string | null;
+    tenantCode: string | null;
+    contactPhone: string | null;
+    score: number;
+  }> = [];
 
   for (const tenant of data) {
     if (!isTenantRoutable(tenant.status)) continue;
     const score = scoreTenantNameMatch(message, tenant.name);
-    if (score > bestScore) {
-      bestScore = score;
-      best = { id: tenant.id, name: tenant.name, status: tenant.status };
-      continue;
-    }
-    if (score > 0 && score === bestScore && best) {
-      if (canonicalize(tenant.name).length > canonicalize(best.name).length) {
-        best = { id: tenant.id, name: tenant.name, status: tenant.status };
-      }
+    if (score >= 45) {
+      scored.push({ ...tenant, score });
     }
   }
 
-  return bestScore >= 45 ? best : null;
+  if (scored.length === 0) return { kind: "none" };
+
+  // Puan eşitliğinde daha uzun (daha spesifik) isim önce gelsin: eskiden de
+  // eşitlik böyle çözülüyordu, davranış korunur.
+  scored.sort(
+    (a, b) => b.score - a.score || canonicalize(b.name).length - canonicalize(a.name).length
+  );
+
+  const best = scored[0];
+  const rivals = scored.filter(
+    (t) => t.id !== best.id && t.score >= best.score * AMBIGUITY_SCORE_RATIO
+  );
+
+  if (rivals.length > 0) {
+    return {
+      kind: "ambiguous",
+      candidates: [best, ...rivals]
+        .slice(0, MAX_AMBIGUOUS_CANDIDATES)
+        .map((t) => ({
+          id: t.id,
+          name: t.name,
+          tenantCode: t.tenantCode,
+          contactPhone: t.contactPhone,
+        })),
+    };
+  }
+
+  return {
+    kind: "match",
+    tenant: { id: best.id, name: best.name, status: best.status },
+  };
 }
 
 function scoreDomain(text: string, domain: IntentDomain): number {
@@ -472,6 +574,23 @@ async function resolveStickyOrNlp(
 export async function resolveTenantRouting(input: RoutingInput): Promise<RoutingDecision> {
   const { customerPhone, rawMessage, previousTenantId } = input;
 
+  // Listeden seçim, mesaj içeriğinden çıkarılan her şeyi geçersiz kılar:
+  // müşteri hangi işletmeyi kastettiğini açıkça söylemiştir.
+  const hint = (input.tenantCodeHint || "").trim();
+  if (hint) {
+    const byHint = await getTenantSummaryByCode(hint);
+    if (byHint) {
+      return {
+        tenantId: byHint.id,
+        tenantName: byHint.name,
+        reason: "marker",
+        normalizedMessage: sanitizeIncomingCustomerMessage(rawMessage),
+        intentDomain: null,
+        tenantCode: hint.toUpperCase(),
+      };
+    }
+  }
+
   const tenantCode = parseTenantCodeFromMessage(rawMessage);
   const sanitizedMessage = sanitizeIncomingCustomerMessage(rawMessage, tenantCode);
   const rawVisibleMessage = rawMessage
@@ -509,15 +628,59 @@ export async function resolveTenantRouting(input: RoutingInput): Promise<Routing
   }
 
   if (mayMentionBusiness) {
-    const byName = await getTenantSummaryByNameMention(normalizedMessage);
-    if (byName) {
+    const byName = await matchTenantByNameMention(normalizedMessage);
+
+    if (byName.kind === "match") {
       return {
-        tenantId: byName.id,
-        tenantName: byName.name,
+        tenantId: byName.tenant.id,
+        tenantName: byName.tenant.name,
         reason: "name",
         normalizedMessage,
         intentDomain,
         tenantCode,
+      };
+    }
+
+    if (byName.kind === "ambiguous") {
+      // Adaylardan biri müşterinin hâlihazırda konuştuğu işletmeyse, soru
+      // sormaya gerek yok: benzer isimler arasında doğru olan odur.
+      const sticky = byName.candidates.find((c) => c.id === previousTenantId);
+      if (sticky) {
+        return {
+          tenantId: sticky.id,
+          tenantName: sticky.name,
+          reason: "session",
+          normalizedMessage,
+          intentDomain,
+          tenantCode,
+        };
+      }
+
+      // Redis eşlemesi düşmüş olabilir; randevu geçmişi de ayırt edicidir.
+      // Yalnızca TEK aday geçmişte varsa kullanılır — müşteri benzer isimli
+      // işletmelerin ikisinden de hizmet aldıysa bu bir tahmin olurdu.
+      const historyIds = await getRecentCustomerTenantIds(customerPhone, 12);
+      const inHistory = byName.candidates.filter((c) => historyIds.includes(c.id));
+      if (inHistory.length === 1) {
+        return {
+          tenantId: inHistory[0].id,
+          tenantName: inHistory[0].name,
+          reason: "customer_history",
+          normalizedMessage,
+          intentDomain,
+          tenantCode,
+        };
+      }
+      // Tahmin etme — sor. Yanlış eşleştirme başka bir işletmenin müşteri
+      // konuşmasını sızdırır; bir soru sormak kıyasla ucuzdur.
+      return {
+        tenantId: null,
+        tenantName: null,
+        reason: "ambiguous",
+        normalizedMessage,
+        intentDomain,
+        tenantCode,
+        candidates: byName.candidates,
       };
     }
   }

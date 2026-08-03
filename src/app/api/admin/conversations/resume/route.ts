@@ -119,6 +119,7 @@ export async function POST(request: NextRequest) {
     const sendResult = await sendWhatsAppMessageDetailed({
       to: phoneDigits,
       text: notifyText,
+      tenantId,
     });
     if (queued && sendResult.ok) {
       await markOutboundSent({

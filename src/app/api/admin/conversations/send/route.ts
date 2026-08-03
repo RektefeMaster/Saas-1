@@ -75,6 +75,7 @@ export async function POST(request: NextRequest) {
   const sendResult = await sendWhatsAppMessageDetailed({
     to: phoneDigits,
     text,
+    tenantId,
   });
 
   if (!sendResult.ok) {

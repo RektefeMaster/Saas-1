@@ -132,7 +132,7 @@ export async function cancelAppointment(params: CancelAppointmentParams): Promis
         { date: dateStr, time: timeStr, tenant_name: tenantName },
         fallback
       );
-      await sendCustomerNotification(apt.customer_phone, customerMessage);
+      await sendCustomerNotification(apt.customer_phone, customerMessage, tenantId);
     })().catch((e) =>
       console.error("[cancelAppointment] customer notify error:", e)
     );

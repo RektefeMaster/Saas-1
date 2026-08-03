@@ -1,5 +1,6 @@
 import { getRuntimeWhatsAppConfig } from "./redis";
 import { withRetry } from "./retry";
+import { getTenantChannelAccount } from "@/services/tenantChannelAccount.service";
 
 const WHATSAPP_API = "https://graph.facebook.com/v22.0";
 
@@ -21,25 +22,31 @@ function normalizePlainValue(value: string | undefined): string {
 }
 
 const CREDENTIALS_CACHE_TTL_MS = 45_000;
-let credentialsCache: {
-  expiry: number;
-  value: { phoneId: string; token: string; source: "runtime" | "env" };
-} | null = null;
 
-export async function resolveWhatsAppCredentials(): Promise<{
+export type WhatsAppCredentialSource = "runtime" | "env" | "tenant";
+
+export interface WhatsAppCredentials {
   phoneId: string;
   token: string;
-  source: "runtime" | "env";
-}> {
-  if (credentialsCache && credentialsCache.expiry > Date.now()) {
-    return credentialsCache.value;
-  }
+  source: WhatsAppCredentialSource;
+}
+
+/** Anahtar: tenant id, ortak numara için SHARED_CREDENTIALS_KEY. */
+const SHARED_CREDENTIALS_KEY = "__shared__";
+const credentialsCache = new Map<
+  string,
+  { expiry: number; value: WhatsAppCredentials }
+>();
+
+async function resolveSharedCredentials(): Promise<WhatsAppCredentials> {
+  const cached = credentialsCache.get(SHARED_CREDENTIALS_KEY);
+  if (cached && cached.expiry > Date.now()) return cached.value;
 
   const runtime = await getRuntimeWhatsAppConfig();
   const runtimePhone = normalizePlainValue(runtime?.phone_id);
   const runtimeToken = normalizeSecretValue(runtime?.token);
 
-  let value: { phoneId: string; token: string; source: "runtime" | "env" };
+  let value: WhatsAppCredentials;
   if (runtimePhone && runtimeToken) {
     value = { phoneId: runtimePhone, token: runtimeToken, source: "runtime" };
   } else {
@@ -48,13 +55,79 @@ export async function resolveWhatsAppCredentials(): Promise<{
     value = { phoneId: envPhone, token: envToken, source: "env" };
   }
 
-  credentialsCache = { value, expiry: Date.now() + CREDENTIALS_CACHE_TTL_MS };
+  credentialsCache.set(SHARED_CREDENTIALS_KEY, {
+    value,
+    expiry: Date.now() + CREDENTIALS_CACHE_TTL_MS,
+  });
   return value;
+}
+
+/**
+ * Gönderim için kullanılacak WhatsApp kimlik bilgileri.
+ *
+ * İşletmenin kendi numarası bağlıysa onunla, değilse ortak numarayla gönderilir.
+ * Bugün hiçbir işletmenin kendi kaydı yok; bu yol her zaman ortak numaraya
+ * düşer ve davranış değişmez. Kayıt eklendiği an gönderim otomatik olarak
+ * o numaraya geçer — çağıran tarafta değişiklik gerekmez.
+ */
+export async function resolveWhatsAppCredentials(
+  tenantId?: string | null
+): Promise<WhatsAppCredentials> {
+  if (!tenantId) return resolveSharedCredentials();
+
+  const cached = credentialsCache.get(tenantId);
+  if (cached && cached.expiry > Date.now()) return cached.value;
+
+  // Defter okunamazsa (tablo yok / geçici hata) ortak numara devreye girer:
+  // gönderimin sessizce durmasındansa bugünkü davranışı sürdürmek yeğdir.
+  const account = await getTenantChannelAccount(tenantId, "whatsapp").catch(
+    () => null
+  );
+  const tenantPhoneId = normalizePlainValue(account?.externalAccountId);
+  const tenantToken = normalizeSecretValue(account?.accessToken || undefined);
+  const usable = account?.status === "active" && Boolean(tenantPhoneId && tenantToken);
+
+  if (!usable) {
+    // Kayıt VAR ama kullanılamıyorsa bu bir arızadır: işletme kendi
+    // numarasını bağladığını sanırken mesajlar ortak numaradan gidiyor.
+    // Sessiz kalmamalı — token yenileme/koparma akışının yakalaması gereken yer.
+    if (account) {
+      console.warn(
+        "[whatsapp] tenant kanal hesabı kullanılamıyor, ortak numaraya düşülüyor",
+        {
+          tenantId,
+          status: account.status,
+          hasPhoneId: Boolean(tenantPhoneId),
+          hasToken: Boolean(tenantToken),
+        }
+      );
+    }
+    return resolveSharedCredentials();
+  }
+
+  const value: WhatsAppCredentials = {
+    phoneId: tenantPhoneId,
+    token: tenantToken,
+    source: "tenant",
+  };
+  credentialsCache.set(tenantId, {
+    value,
+    expiry: Date.now() + CREDENTIALS_CACHE_TTL_MS,
+  });
+  return value;
+}
+
+/** Kimlik bilgisi değiştiğinde önbelleği düşür (bağlama/koparma akışları). */
+export function invalidateWhatsAppCredentialsCache(tenantId?: string | null): void {
+  if (tenantId) credentialsCache.delete(tenantId);
+  else credentialsCache.clear();
 }
 
 export interface SendMessageParams {
   to: string;
   text: string;
+  /** İşletmenin kendi numarasından gönderim için. Boşsa ortak numara. */
+  tenantId?: string | null;
 }
 
 export interface WhatsAppSendResult {
@@ -66,7 +139,7 @@ export interface WhatsAppSendResult {
   blockedReason?: "test_number_allowed_list" | "outside_24h_window" | "token_expired";
   isTestNumber?: boolean;
   to?: string;
-  source?: "runtime" | "env";
+  source?: WhatsAppCredentialSource;
   /** Meta Graph API message id when send succeeds */
   messageId?: string;
 }
@@ -76,6 +149,8 @@ export interface SendTemplateMessageParams {
   templateName: string;
   languageCode?: string;
   bodyParams?: string[];
+  /** İşletmenin kendi numarasından gönderim için. Boşsa ortak numara. */
+  tenantId?: string | null;
 }
 
 export interface WhatsAppMediaPayload {
@@ -147,8 +222,10 @@ async function getWhatsAppPhoneProfile(
   return profile;
 }
 
-export async function getWhatsAppPhoneProfileSummary(): Promise<WhatsAppPhoneProfile | null> {
-  const { phoneId, token } = await resolveWhatsAppCredentials();
+export async function getWhatsAppPhoneProfileSummary(
+  tenantId?: string | null
+): Promise<WhatsAppPhoneProfile | null> {
+  const { phoneId, token } = await resolveWhatsAppCredentials(tenantId);
   if (!phoneId || !token) return null;
   return getWhatsAppPhoneProfile(phoneId, token);
 }
@@ -156,8 +233,9 @@ export async function getWhatsAppPhoneProfileSummary(): Promise<WhatsAppPhonePro
 export async function sendWhatsAppMessageDetailed({
   to,
   text,
+  tenantId,
 }: SendMessageParams): Promise<WhatsAppSendResult> {
-  const { phoneId, token, source } = await resolveWhatsAppCredentials();
+  const { phoneId, token, source } = await resolveWhatsAppCredentials(tenantId);
   const normalizedTo = to.replace(/\D/g, "");
   if (!phoneId || !token) {
     console.error("[whatsapp] credentials missing - phoneId:", !!phoneId, "token:", !!token);
@@ -272,8 +350,9 @@ export async function sendWhatsAppMessageDetailed({
 export async function sendWhatsAppMessage({
   to,
   text,
+  tenantId,
 }: SendMessageParams): Promise<boolean> {
-  const result = await sendWhatsAppMessageDetailed({ to, text });
+  const result = await sendWhatsAppMessageDetailed({ to, text, tenantId });
   return result.ok;
 }
 
@@ -293,6 +372,8 @@ export interface SendWhatsAppInteractiveListParams {
   bodyText: string;
   buttonLabel: string;
   sections: InteractiveListSection[];
+  /** İşletmenin kendi numarasından gönderim için. Boşsa ortak numara. */
+  tenantId?: string | null;
 }
 
 export async function sendWhatsAppInteractiveList({
@@ -300,8 +381,9 @@ export async function sendWhatsAppInteractiveList({
   bodyText,
   buttonLabel,
   sections,
+  tenantId,
 }: SendWhatsAppInteractiveListParams): Promise<WhatsAppSendResult> {
-  const { phoneId, token, source } = await resolveWhatsAppCredentials();
+  const { phoneId, token, source } = await resolveWhatsAppCredentials(tenantId);
   const normalizedTo = to.replace(/\D/g, "");
   if (!phoneId || !token) {
     console.error("[whatsapp] credentials missing - phoneId:", !!phoneId, "token:", !!token);
@@ -365,8 +447,9 @@ export async function sendWhatsAppTemplateMessageDetailed({
   templateName,
   languageCode = "tr",
   bodyParams = [],
+  tenantId,
 }: SendTemplateMessageParams): Promise<WhatsAppSendResult> {
-  const { phoneId, token, source } = await resolveWhatsAppCredentials();
+  const { phoneId, token, source } = await resolveWhatsAppCredentials(tenantId);
   const normalizedTo = to.replace(/\D/g, "");
   if (!phoneId || !token) {
     console.error(
@@ -463,8 +546,11 @@ export async function sendWhatsAppTemplateMessage(
   return result.ok;
 }
 
-async function getWhatsAppMediaUrl(mediaId: string): Promise<{ url: string; mimeType: string } | null> {
-  const { token } = await resolveWhatsAppCredentials();
+async function getWhatsAppMediaUrl(
+  mediaId: string,
+  tenantId?: string | null
+): Promise<{ url: string; mimeType: string } | null> {
+  const { token } = await resolveWhatsAppCredentials(tenantId);
   if (!token) return null;
   const url = `${WHATSAPP_API}/${mediaId}`;
   const res = await fetch(url, {
@@ -486,10 +572,13 @@ async function getWhatsAppMediaUrl(mediaId: string): Promise<{ url: string; mime
   return { url: json.url, mimeType: json.mime_type || "audio/ogg" };
 }
 
-export async function downloadWhatsAppMedia(mediaId: string): Promise<WhatsAppMediaPayload | null> {
-  const { token } = await resolveWhatsAppCredentials();
+export async function downloadWhatsAppMedia(
+  mediaId: string,
+  tenantId?: string | null
+): Promise<WhatsAppMediaPayload | null> {
+  const { token } = await resolveWhatsAppCredentials(tenantId);
   if (!token) return null;
-  const meta = await getWhatsAppMediaUrl(mediaId);
+  const meta = await getWhatsAppMediaUrl(mediaId, tenantId);
   if (!meta) return null;
 
   const res = await fetch(meta.url, {

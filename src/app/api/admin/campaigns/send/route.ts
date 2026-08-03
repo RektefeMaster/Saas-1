@@ -125,11 +125,16 @@ export async function POST(request: NextRequest) {
               templateName: CAMPAIGN_TEMPLATE,
               languageCode: TEMPLATE_LANG,
               bodyParams: [messageText],
+              tenantId,
             });
             if (ok) successCount++;
             else lastError = "Şablon mesajı gönderilemedi";
           } else {
-            const res = await sendWhatsAppMessageDetailed({ to, text: messageText });
+            const res = await sendWhatsAppMessageDetailed({
+              to,
+              text: messageText,
+              tenantId,
+            });
             if (res.ok) successCount++;
             else {
               lastError = res.errorMessage || `HTTP ${res.status}`;
@@ -137,7 +142,7 @@ export async function POST(request: NextRequest) {
             }
           }
         } else {
-          const res = await sendCustomerNotification(to, messageText);
+          const res = await sendCustomerNotification(to, messageText, tenantId);
           if (res.whatsapp || res.sms) successCount++;
           else {
             lastError = "Bildirim gönderilemedi";

@@ -83,6 +83,7 @@ async function withRedisTimeout<T>(operation: Promise<T>, label: string): Promis
 // Development fallback: Redis yoksa in-memory (server restart'ta silinir)
 const memoryStore = new Map<string, { value: ConversationState; expiry: number }>();
 const phoneTenantStore = new Map<string, { value: string; expiry: number }>();
+const pendingIntentStore = new Map<string, { value: string; expiry: number }>();
 let fallbackLogged = false;
 
 const SESSION_PREFIX = "ahi-ai:session:";
@@ -100,6 +101,9 @@ const GLOBAL_KILL_SWITCH_KEY = "ahi-ai:global:kill_switch";
 /** [YENİ] Tenant cache key prefix; TTL 300 saniye (5 dk). */
 const TENANT_CACHE_PREFIX = "ahi-ai:tenant:id:";
 const TENANT_CACHE_TTL_SECONDS = 300;
+/** "Hangi işletme?" sorulurken müşterinin asıl mesajı burada bekletilir. */
+const PENDING_INTENT_PREFIX = "ahi-ai:pending-intent:";
+const PENDING_INTENT_TTL_SECONDS = 15 * 60;
 const TTL_SECONDS = 60 * 60 * 24; // 24 saat
 const PHONE_TENANT_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 gün
 const RATE_LIMIT_TTL_SECONDS = 60; // 1 dakika
@@ -492,6 +496,61 @@ export async function setPhoneTenantMapping(
   }
 }
 
+
+/**
+ * "Hangi işletme için yazıyorsunuz?" sorulurken müşterinin asıl mesajını saklar.
+ *
+ * Soru sorulduğu turda tenant belli değildir, dolayısıyla oturum da yoktur.
+ * Müşteri listeden seçtiğinde WhatsApp bize yalnızca işletme adını gönderir;
+ * bu olmadan "yarın saat 3'e randevu" niyeti kaybolur ve müşteri kendini
+ * tekrar etmek zorunda kalır.
+ */
+export async function setPendingIntent(
+  customerPhone: string,
+  message: string
+): Promise<void> {
+  const digits = normalizePhoneDigits(customerPhone);
+  const text = (message || "").trim();
+  if (!digits || !text) return;
+  const key = PENDING_INTENT_PREFIX + digits;
+
+  if (redis) {
+    try {
+      await redis.set(key, text, { ex: PENDING_INTENT_TTL_SECONDS });
+    } catch (err) {
+      logRedisFallback("setPendingIntent", err);
+    }
+  }
+  pendingIntentStore.set(key, {
+    value: text,
+    expiry: Date.now() + PENDING_INTENT_TTL_SECONDS * 1000,
+  });
+}
+
+/** Bekleyen niyeti okur ve tüketir (tek kullanımlık). */
+export async function takePendingIntent(
+  customerPhone: string
+): Promise<string | null> {
+  const digits = normalizePhoneDigits(customerPhone);
+  if (!digits) return null;
+  const key = PENDING_INTENT_PREFIX + digits;
+
+  let value: string | null = null;
+  if (redis) {
+    try {
+      value = await redis.get<string>(key);
+      if (value) await redis.del(key);
+    } catch (err) {
+      logRedisFallback("takePendingIntent", err);
+    }
+  }
+  if (!value) {
+    const mem = pendingIntentStore.get(key);
+    if (mem && mem.expiry > Date.now()) value = mem.value;
+  }
+  pendingIntentStore.delete(key);
+  return value || null;
+}
 
 /**
  * [YENİ] Tenant cache — get. TTL 5 dk. Cache miss → null (DB'den çekilip setTenantCache ile yazılır).

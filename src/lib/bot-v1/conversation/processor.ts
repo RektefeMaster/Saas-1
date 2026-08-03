@@ -1036,6 +1036,9 @@ export async function processMessage(
     if (deterministicIntent?.type === "late") {
       const minutes = deterministicIntent.minutes;
       if (tenant.contact_phone) {
+        // İşletme sahibine bildirim: bilerek ortak numaradan (platform
+        // bildirimi). İşletmenin kendi numarasından gönderilse numara kendi
+        // kendine mesaj atmış olurdu.
         await sendWhatsAppMessage({
           to: tenant.contact_phone,
           text: `${customerPhone} müşterisi ${minutes} dakika gecikeceğini bildirdi.`,

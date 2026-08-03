@@ -166,6 +166,7 @@ export async function notifyWaitlist(
     const sent = await sendWhatsAppMessage({
       to: entry.customer_phone,
       text,
+      tenantId,
     });
     if (!sent) {
       await clearBookingSlotHold(tenantId, date, slot, hold.staff_id).catch(() => undefined);

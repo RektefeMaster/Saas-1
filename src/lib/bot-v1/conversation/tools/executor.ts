@@ -1212,6 +1212,9 @@ export async function executeToolCall(
       return { result: { ok: false, error: "İşletme iletişim numarası yok" } };
     }
     const lateMsg = `${customerPhone} müşteriniz ${minutes} dakika geç kalacağını bildirdi.${msg ? ` Mesaj: ${msg}` : ""}`;
+    // İşletme sahibine bildirim: bilerek ortak numaradan. İşletmenin kendi
+    // numarası bağlıysa buradan göndermek numaranın kendi kendine mesaj
+    // atması demek olurdu (Meta reddeder). Bu platform bildirimidir.
     await sendWhatsAppMessage({ to: tenant.contact_phone, text: lateMsg });
     await createOpsAlert({
       tenantId,

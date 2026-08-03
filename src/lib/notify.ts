@@ -11,11 +11,16 @@ export interface NotifyResult {
   sms: boolean;
 }
 
+/**
+ * @param tenantId İşletmenin kendi WhatsApp numarası varsa oradan gönderilir.
+ *   Boş bırakılırsa ortak numara kullanılır (bugünkü davranış).
+ */
 export async function sendCustomerNotification(
   to: string,
-  text: string
+  text: string,
+  tenantId?: string | null
 ): Promise<NotifyResult> {
-  const waOk = await sendWhatsAppMessage({ to, text });
+  const waOk = await sendWhatsAppMessage({ to, text, tenantId });
   if (!isInfoSmsEnabled()) {
     return { whatsapp: waOk, sms: false };
   }
