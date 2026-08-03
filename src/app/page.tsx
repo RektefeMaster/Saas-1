@@ -5,6 +5,7 @@ import type { ComponentType } from "react";
 import { useLocale } from "@/lib/locale-context";
 import { SiteShell, useSiteContact } from "@/components/site/SiteShell";
 import { SiteAtmosphere } from "@/components/site/SiteAtmosphere";
+import { SiteIntro } from "@/components/site/SiteIntro";
 import dynamic from "next/dynamic";
 
 const CounterRail = dynamic(
@@ -606,6 +607,7 @@ function HomeContent() {
 export default function Home() {
   return (
     <SiteShell solutionsHref="#ne-yapar">
+      <SiteIntro />
       <HomeContent />
     </SiteShell>
   );
